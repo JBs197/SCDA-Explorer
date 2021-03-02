@@ -44,7 +44,7 @@ private:
     Ui::MainWindow *ui;
     sqlite3* db;
     sqlite3_stmt* statement;
-    int location = 0;  // 0 = home, 1 = inn.
+    int location = 1;  // 0 = home, 1 = inn.
     int cores = 3;
     int bar_threads;
     int jobs_max;
@@ -84,8 +84,11 @@ private:
     void insert_damaged_row(vector<string>&, int, string, string&, int);
     static int sql_callback(void*, int, char**, char**);
     vector<vector<string>> step(sqlite3*&);
+    vector<string> step_1(sqlite3*&);
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
+    void display_catalogue(vector<int>&, string, string);
+    void output_tables();
 
 
     // TEMPLATES

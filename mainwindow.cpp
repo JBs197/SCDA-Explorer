@@ -98,7 +98,7 @@ void MainWindow::sqlerror(string func, sqlite3*& dbnoqt)
     SetFilePointer(hprinter, NULL, NULL, FILE_END);
     DWORD bytes;
     DWORD fsize = (DWORD)message.size();
-    if (WriteFile(hprinter, message.c_str(), fsize, &bytes, NULL))
+    if (!WriteFile(hprinter, message.c_str(), fsize, &bytes, NULL))
     {
         cout << "sqlerror WriteFile failure" << endl;
         system("pause");
@@ -203,7 +203,7 @@ void MainWindow::bind(string& stmt, vector<string>& param)
 void MainWindow::create_cata_index_table()
 {
     string stmt = "CREATE TABLE IF NOT EXISTS TCatalogueIndex (Year TEXT, ";
-    stmt += "Name TEXT, Description TEXT)";
+    stmt += "Name TEXT, Description TEXT);";
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare-create_cata_index_table", db); }
     step(db);
@@ -323,7 +323,7 @@ void MainWindow::update_cata_tree()
 
     // Populate the tree, mapping catalogue names as we go.
     stmt = "SELECT * FROM TCatalogueIndex;";
-    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare2-update_cata_tree", db); }
     vector<vector<string>> TCI = step(db);    
     for (int ii = 0; ii < TCI.size(); ii++)                          // For each catalogue in the database...
@@ -349,6 +349,34 @@ int MainWindow::sql_callback(void* NotUsed, int argc, char** argv, char** column
     }
     return 0;
 }
+void MainWindow::output_tables()
+{
+    // Use SQLite's internal listing.
+    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerror("prepare-output_tables", db); }
+    vector<vector<string>> results = step(db);
+    string temp = "Tables in Database (SQLite): \r\n";
+    OutputDebugStringA(temp.c_str());
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        temp = results[ii][0] + "\r\n";
+        OutputDebugStringA(temp.c_str());
+    }
+
+    // Use the catalogue index.
+    stmt = "SELECT * FROM TCatalogueIndex;";
+    error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerror("prepare-output_tables", db); }
+    results = step(db);
+    temp = "Tables in Database (TCatalogueIndex): \r\n";
+    OutputDebugStringA(temp.c_str());
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        temp = results[ii][0] + "\r\n";
+        OutputDebugStringA(temp.c_str());
+    }
+}
 
 // TASK FUNCTIONS, USED BY ONE OR MORE GUI BUTTONS:
 
@@ -360,39 +388,62 @@ vector<string> MainWindow::scan_incomplete_cata(string syear, string sname)
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare-scan_incomplete_cata", db); }
     vector<vector<string>> gid_haves = step(db);
-
-    // RESUME HERE. Just finished making extract_gids().
-
-    QVector<QString> gid_want_list = cata.get_gid_list();
-    QString gid;
-    QSqlQuery q(db);
-    bool fine = q.prepare(stmt);
-    if (!fine) { sqlerr("prepare-resume_incomplete_cata", q.lastError()); }
-    executor(q);
-    //if (!fine) { sqlerr("exec-resume_incomplete_cata", q.lastError()); }
-    while (q.next())
+    
+    // Subtract the CSVs in the database from the complete list.
+    string cata_path = sroots[location] + "\\" + syear + "\\" + sname;
+    vector<string> gid_list = extract_gids(cata_path);
+    string temp1, temp2;
+    for (int ii = gid_haves.size() - 1; ii >= 0; ii--)
     {
-        gid = q.value(0).toString();
-        gid_have_list.append(gid);
-    }
-    for (int ii = 0; ii < gid_have_list.size(); ii++)
-    {
-        gid = gid_have_list[ii];
-        for (int jj = 0; jj < gid_want_list.size(); jj++)
+        for (int jj = gid_list.size() - 1; jj >= 0; jj--)
         {
-            if (gid_want_list[jj] == gid)
+            if (gid_haves[ii][0] == gid_list[jj])
             {
-                gid_want_list.remove(jj, 1);
+                gid_list.erase(gid_list.begin() + jj);
                 break;
             }
         }
     }
-    cata.set_gid_want_list(gid_want_list);
-    logger("Catalogue " + cata.get_qname() + " was scanned for missing CSVs.");
+    log("Catalogue " + sname + " was scanned. " + to_string(gid_list.size()) + " CSVs were missing.");
+    return gid_list;
+}
+
+// Populate the information tabs for a selected catalogue. 
+void MainWindow::display_catalogue(vector<int>& comm, string syear, string tname)
+{
+    // Populate the 'Geographic Region' tab.
+    string stmt = "SELECT Geography FROM " + tname + ";";
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerror("prepare1-display_catalogue", db); }
+    vector<vector<string>> geography = step(db);
+    QStringList geo_list;
+    QString qtemp;
+    for (int ii = 0; ii < geography.size(); ii++)
+    {
+        qtemp = QString::fromStdString(geography[ii][0]);
+        geo_list.append(qtemp);
+    }
+    ui->GID_list->addItems(geo_list);
+
+    // Populate the 'Row Data' tab.
+    stmt = "SELECT * FROM " + tname + ";";
+    error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerror("prepare2-display_catalogue", db); }
+    vector<string> rows = step_1(db);
+    QStringList row_list;
+    for (int ii = 0; ii < rows.size(); ii++)
+    {
+        qtemp = QString::fromStdString(rows[ii]);
+        row_list.append(qtemp);
+    }
+    ui->Rows_list->addItems(row_list);
+    
+    // Report completion to the GUI thread.
+    comm[0] = -1;
 }
 
 // Execute a prepared statement, and return values if applicable.
-vector<vector<string>> MainWindow::step(sqlite3*& dbnoqt)
+vector<vector<string>> MainWindow::step(sqlite3*& db)
 {
     int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
     int error = sqlite3_step(statement);
@@ -430,7 +481,48 @@ vector<vector<string>> MainWindow::step(sqlite3*& dbnoqt)
     }
     if (error > 0 && error != 101)
     {
-        sqlerror("step: " + to_string(error), dbnoqt);
+        sqlerror("step: " + to_string(error), db);
+    }
+    return results;
+}
+vector<string> MainWindow::step_1(sqlite3*& db)
+{
+    // This function variant returns only the first row of the SELECT command.
+    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
+    int error = sqlite3_step(statement);
+    int ivalue;
+    double dvalue;
+    string svalue;
+    vector<string> results;
+
+    if (error == 100)
+    {
+        col_count = sqlite3_column_count(statement);
+        for (int ii = 0; ii < col_count; ii++)
+        {
+            type = sqlite3_column_type(statement, ii);
+            switch (type)
+            {
+            case 1:
+                ivalue = sqlite3_column_int(statement, ii);
+                results[ii] = to_string(ivalue);
+                break;
+            case 2:
+                dvalue = sqlite3_column_double(statement, ii);
+                results[ii] = to_string(dvalue);
+                break;
+            case 3:
+                size = sqlite3_column_bytes(statement, ii);
+                char* buffer = (char*)sqlite3_column_text(statement, ii);
+                svalue.assign(buffer, size);
+                results[ii] = svalue;
+                break;
+            }
+        }
+    }
+    if (error > 0 && error != 101)
+    {
+        sqlerror("step: " + to_string(error), db);
     }
     return results;
 }
@@ -456,7 +548,7 @@ void MainWindow::judicator(int& control, int& report, string syear, string sname
     // Insert this catalogue into the catalogue index.
     string stmt = "INSERT INTO TCatalogueIndex ( Year, Name, Description ) VALUES (?, ?, ?);";
     param[0] = syear;
-    param[1] = "[" + sname + "]";
+    param[1] = "" + sname;
     param[2].assign("Incomplete");
     bind(stmt, param);
     error = sqlite3_prepare_v2(dbjudi, stmt.c_str(), -1, &statejudi, NULL);
@@ -472,7 +564,7 @@ void MainWindow::judicator(int& control, int& report, string syear, string sname
     error = sqlite3_prepare_v2(dbjudi, stmt.c_str(), -1, &statejudi, NULL);
     if (error) { sqlerror("prepare2-judicator_noqt", dbjudi); }
     step(dbjudi);
-
+    output_tables();
     // Launch the worker threads, which will iterate through the CSVs.
     vector<std::thread> peons;
     vector<int> controls;
@@ -503,7 +595,7 @@ void MainWindow::judicator(int& control, int& report, string syear, string sname
     error = sqlite3_prepare_v2(dbjudi, stmt.c_str(), -1, &statejudi, NULL);
     if (error) { sqlerror("prepare3-judicator", dbjudi); }
     step(dbjudi);
-
+    output_tables();
     // Loop through the worker threads, inserting their statements into the database.
     int active_thread = 0;
     int inert_threads = 0;
@@ -810,7 +902,7 @@ void MainWindow::on_cB_drives_currentTextChanged(const QString &arg1)
 // For the given local drive, display (as a tree widget) the available catalogues, organized by year.
 void MainWindow::on_pB_scan_clicked()
 {
-    std::vector<std::vector<std::wstring>> wtree = get_subfolders2(wdrive);
+    std::vector<std::vector<std::wstring>> wtree = get_subfolders2(wroots[location]);
     QVector<QVector<QVector<QString>>> qtree;  // Form [year][catalogue][year, name]
     wstring wyear, wcata;
     QString qyear, qcata;
@@ -907,8 +999,7 @@ void MainWindow::on_pB_test_clicked()
         qname = catas_to_do[ii]->text(1);
         log(L"Begin insertion of catalogue " + qname.toStdWString());
         threads_working = 1;
-        std::thread judi(&MainWindow::judicator, this, std::ref(control), std::ref(report), qyear, qname);
-        //std::thread judi(&MainWindow::judicator_noqt, this, std::ref(control), std::ref(report), qyear, qname);
+        std::thread judi(&MainWindow::judicator, this, std::ref(control), std::ref(report), qyear.toStdString(), qname.toStdString());
         while (threads_working)
         {
             std::this_thread::sleep_for (std::chrono::milliseconds(50));
@@ -932,7 +1023,6 @@ void MainWindow::on_pB_benchmark_clicked()
     wdrive = L"F:";
     qdrive = "F:";
     //QString cata_path = "F:\\3067\\97-570-X1981005";
-    reset_db(db_path);
     QString qyear = "3067";
     QString qname = "97-570-X1981005";
 
@@ -941,7 +1031,7 @@ void MainWindow::on_pB_benchmark_clicked()
     int report = 0;
     int control = 0;  // 0 = Standard, 1 = Stop.
     threads_working = 1;
-    std::thread judi(&MainWindow::judicator, this, std::ref(control), std::ref(report), qyear, qname);
+    std::thread judi(&MainWindow::judicator, this, std::ref(control), std::ref(report), qyear.toStdString(), qname.toStdString());
     while (threads_working)
     {
         QCoreApplication::processEvents();
@@ -960,44 +1050,24 @@ void MainWindow::on_pB_benchmark_clicked()
 // Display the 'tabbed data' for the selected catalogue.
 void MainWindow::on_pB_viewdata_clicked()
 {
-    QSqlQuery q(db);
-    QStringList geo_list, row_list;
-    QString temp;
     QList<QTreeWidgetItem *> cata_to_do = ui->TW_cataindb->selectedItems();  // Only 1 catalogue can be selected.
     QString qyear = cata_to_do[0]->text(0);
     QString tname = cata_to_do[0]->text(1);
+    vector<int> comm = { 0, 0 };  // Form [control, report]
 
-    // Populate the 'Geographic Region' tab.
-    QString stmt = "SELECT Geography FROM " + tname;
-    bool fine = q.prepare(stmt);
-    //if (!fine) { sqlerr("prepare-on_pB_viewdata", q.lastError()); }
-    executor(q);
-    //if (!fine) { sqlerr("exec-on_pB_viewdata", q.lastError()); }
-    while (q.next())
+    std::thread dispcata(&MainWindow::display_catalogue, this, std::ref(comm), qyear.toStdString(), tname.toStdString());
+    while (comm[0] >= 0)
     {
-        temp = q.value(0).toString();
-        temp.chop(1);
-        temp.remove(0, 1);
-        geo_list.append(temp);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        QCoreApplication::processEvents();
+        jobs_done = comm[1];
+        update_bar();
+        if (remote_controller)
+        {
+            comm[0] = 1;
+        }
     }
-
-    // Populate the 'Row Data' tab.
-    q.clear();
-    stmt = "SELECT * FROM " + tname;
-    fine = q.prepare(stmt);
-    //if (!fine) { sqlerr("prepare2-on_pB_viewdata", q.lastError()); }
-    executor(q);
-    //if (!fine) { sqlerr("exec2-on_pB_viewdata", q.lastError()); }
-    QSqlRecord rec = q.record();
-    int columns = rec.count();
-    for (int ii = 0; ii < columns; ii++)
-    {
-        temp = rec.fieldName(ii);
-        row_list.append(temp);
-    }
-
-    ui->GID_list->addItems(geo_list);
-    ui->Rows_list->addItems(row_list);
+    dispcata.join();
 }
 
 // All threads inserting catalogues are told to stop after finishing their current CSV.

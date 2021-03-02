@@ -598,6 +598,3 @@ void CSV::insert_row_template(QString& work)
     work.append(" )");
 }
 
-template void delete_file<string>(string);
-template void delete_file<wstring>(wstring);
-
