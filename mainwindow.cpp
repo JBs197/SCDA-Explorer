@@ -58,7 +58,7 @@ void MainWindow::all_cata_db(QVector<QVector<QString>>& ntree, QMap<QString, int
     string stmt = "SELECT Year, Name FROM TCatalogueIndex;";
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare-all_cata_db", db); }
-    vector<vector<string>> results = step(db);    
+    vector<vector<string>> results = step(db, statement);    
     for (int ii = 0; ii < results.size(); ii++)
     {
         qyear = QString::fromStdString(results[ii][0]);
@@ -206,7 +206,7 @@ void MainWindow::create_cata_index_table()
     stmt += "Name TEXT, Description TEXT);";
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare-create_cata_index_table", db); }
-    step(db);
+    step(db, statement);
 }
 
 // For a prepared matrix of QString data, display it on the GUI as a 2D tree widget (year -> cata entry).
@@ -306,7 +306,7 @@ void MainWindow::update_cata_tree()
     string stmt = "SELECT DISTINCT Year FROM TCatalogueIndex;";
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare1-update_cata_tree", db); }
-    vector<vector<string>> dyear = step(db);  // Column vector containing a list of distinct years in the db.
+    vector<vector<string>> dyear = step(db, statement);  // Column vector containing a list of distinct years in the db.
 
     // Create the map connecting qyear to tree's first index.
     int tree_index, name_index, year_index, desc_index;
@@ -325,7 +325,7 @@ void MainWindow::update_cata_tree()
     stmt = "SELECT * FROM TCatalogueIndex;";
     error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare2-update_cata_tree", db); }
-    vector<vector<string>> TCI = step(db);    
+    vector<vector<string>> TCI = step(db, statement);    
     for (int ii = 0; ii < TCI.size(); ii++)                          // For each catalogue in the database...
     {
         qyear = QString::fromStdString(TCI[ii][0]);
@@ -355,7 +355,7 @@ void MainWindow::output_tables()
     string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare-output_tables", db); }
-    vector<vector<string>> results = step(db);
+    vector<vector<string>> results = step(db, statement);
     string temp = "Tables in Database (SQLite): \r\n";
     OutputDebugStringA(temp.c_str());
     for (int ii = 0; ii < results.size(); ii++)
@@ -368,8 +368,8 @@ void MainWindow::output_tables()
     stmt = "SELECT * FROM TCatalogueIndex;";
     error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare-output_tables", db); }
-    results = step(db);
-    temp = "Tables in Database (TCatalogueIndex): \r\n";
+    results = step(db, statement);
+    temp = "Tables in TCatalogueIndex: \r\n";
     OutputDebugStringA(temp.c_str());
     for (int ii = 0; ii < results.size(); ii++)
     {
@@ -377,6 +377,7 @@ void MainWindow::output_tables()
         OutputDebugStringA(temp.c_str());
     }
 }
+
 
 // TASK FUNCTIONS, USED BY ONE OR MORE GUI BUTTONS:
 
@@ -387,7 +388,7 @@ vector<string> MainWindow::scan_incomplete_cata(string syear, string sname)
     string stmt = "SELECT GID FROM [" + sname + "];";
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare-scan_incomplete_cata", db); }
-    vector<vector<string>> gid_haves = step(db);
+    vector<vector<string>> gid_haves = step(db, statement);
     
     // Subtract the CSVs in the database from the complete list.
     string cata_path = sroots[location] + "\\" + syear + "\\" + sname;
@@ -415,7 +416,7 @@ void MainWindow::display_catalogue(vector<int>& comm, string syear, string tname
     string stmt = "SELECT Geography FROM " + tname + ";";
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare1-display_catalogue", db); }
-    vector<vector<string>> geography = step(db);
+    vector<vector<string>> geography = step(db, statement);
     QStringList geo_list;
     QString qtemp;
     for (int ii = 0; ii < geography.size(); ii++)
@@ -429,7 +430,7 @@ void MainWindow::display_catalogue(vector<int>& comm, string syear, string tname
     stmt = "SELECT * FROM " + tname + ";";
     error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare2-display_catalogue", db); }
-    vector<string> rows = step_1(db);
+    vector<string> rows = step_1(db, statement);
     QStringList row_list;
     for (int ii = 0; ii < rows.size(); ii++)
     {
@@ -443,10 +444,10 @@ void MainWindow::display_catalogue(vector<int>& comm, string syear, string tname
 }
 
 // Execute a prepared statement, and return values if applicable.
-vector<vector<string>> MainWindow::step(sqlite3*& db)
+vector<vector<string>> MainWindow::step(sqlite3*& db, sqlite3_stmt* state)
 {
     int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
-    int error = sqlite3_step(statement);
+    int error = sqlite3_step(state);
     int ivalue;
     double dvalue;
     string svalue;
@@ -454,30 +455,30 @@ vector<vector<string>> MainWindow::step(sqlite3*& db)
 
     while (error == 100)
     {
-        col_count = sqlite3_column_count(statement);
+        col_count = sqlite3_column_count(state);
         results.push_back(vector<string>(col_count));
         for (int ii = 0; ii < col_count; ii++)
         {
-            type = sqlite3_column_type(statement, ii);
+            type = sqlite3_column_type(state, ii);
             switch (type)
             {
             case 1:
-                ivalue = sqlite3_column_int(statement, ii);
+                ivalue = sqlite3_column_int(state, ii);
                 results[results.size() - 1][ii] = to_string(ivalue);
                 break;
             case 2:
-                dvalue = sqlite3_column_double(statement, ii);
+                dvalue = sqlite3_column_double(state, ii);
                 results[results.size() - 1][ii] = to_string(dvalue);
                 break;
             case 3:
-                size = sqlite3_column_bytes(statement, ii);
-                char* buffer = (char*)sqlite3_column_text(statement, ii);
+                size = sqlite3_column_bytes(state, ii);
+                char* buffer = (char*)sqlite3_column_text(state, ii);
                 svalue.assign(buffer, size);
                 results[results.size() - 1][ii] = svalue;
                 break;
             }
         }
-        error = sqlite3_step(statement);
+        error = sqlite3_step(state);
     }
     if (error > 0 && error != 101)
     {
@@ -485,11 +486,11 @@ vector<vector<string>> MainWindow::step(sqlite3*& db)
     }
     return results;
 }
-vector<string> MainWindow::step_1(sqlite3*& db)
+vector<string> MainWindow::step_1(sqlite3*& db, sqlite3_stmt* state)
 {
     // This function variant returns only the first row of the SELECT command.
     int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
-    int error = sqlite3_step(statement);
+    int error = sqlite3_step(state);
     int ivalue;
     double dvalue;
     string svalue;
@@ -497,23 +498,23 @@ vector<string> MainWindow::step_1(sqlite3*& db)
 
     if (error == 100)
     {
-        col_count = sqlite3_column_count(statement);
+        col_count = sqlite3_column_count(state);
         for (int ii = 0; ii < col_count; ii++)
         {
-            type = sqlite3_column_type(statement, ii);
+            type = sqlite3_column_type(state, ii);
             switch (type)
             {
             case 1:
-                ivalue = sqlite3_column_int(statement, ii);
+                ivalue = sqlite3_column_int(state, ii);
                 results[ii] = to_string(ivalue);
                 break;
             case 2:
-                dvalue = sqlite3_column_double(statement, ii);
+                dvalue = sqlite3_column_double(state, ii);
                 results[ii] = to_string(dvalue);
                 break;
             case 3:
-                size = sqlite3_column_bytes(statement, ii);
-                char* buffer = (char*)sqlite3_column_text(statement, ii);
+                size = sqlite3_column_bytes(state, ii);
+                char* buffer = (char*)sqlite3_column_text(state, ii);
                 svalue.assign(buffer, size);
                 results[ii] = svalue;
                 break;
@@ -528,7 +529,7 @@ vector<string> MainWindow::step_1(sqlite3*& db)
 }
 
 // Functions related to the insertion of data into the database.
-void MainWindow::judicator(int& control, int& report, string syear, string sname)
+void MainWindow::judicator(sqlite3*& db, int& control, int& report, string syear, string sname)
 {
     string temp = sroots[location] + "\\" + syear + "\\" + sname;
     wstring cata_wpath = utf8to16(temp);
@@ -540,31 +541,31 @@ void MainWindow::judicator(int& control, int& report, string syear, string sname
     vector<string> param(3);
 
     // Establish the thread's connection to the database.
-    sqlite3* dbjudi;
-    int error = sqlite3_open_v2(db_path.c_str(), &dbjudi, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
-    if (error) { sqlerror("open-judicator", dbjudi); }
+    //sqlite3* dbjudi;
+    //int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
+    //if (error) { sqlerror("open-judicator", db); }
     sqlite3_stmt* statejudi;
 
     // Insert this catalogue into the catalogue index.
     string stmt = "INSERT INTO TCatalogueIndex ( Year, Name, Description ) VALUES (?, ?, ?);";
     param[0] = syear;
-    param[1] = "" + sname;
+    param[1] = sname;
     param[2].assign("Incomplete");
     bind(stmt, param);
-    error = sqlite3_prepare_v2(dbjudi, stmt.c_str(), -1, &statejudi, NULL);
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statejudi, NULL);
     if (error)
     {
-        sqlerror("prepare1-judicator", dbjudi);
+        sqlerror("prepare1-judicator", db);
     }
-    step(dbjudi);
+    step(db, statejudi);
 
     // Create a table for this catalogue's damaged CSVs.
     temp = "[" + sname + "$Damaged]";
     stmt = "CREATE TABLE IF NOT EXISTS " + temp + " (GID NUMERIC, [Number of Missing Data Entries] NUMERIC);";
-    error = sqlite3_prepare_v2(dbjudi, stmt.c_str(), -1, &statejudi, NULL);
-    if (error) { sqlerror("prepare2-judicator_noqt", dbjudi); }
-    step(dbjudi);
-    output_tables();
+    error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statejudi, NULL);
+    if (error) { sqlerror("prepare2-judicator_noqt", db); }
+    step(db, statejudi);
+
     // Launch the worker threads, which will iterate through the CSVs.
     vector<std::thread> peons;
     vector<int> controls;
@@ -592,10 +593,10 @@ void MainWindow::judicator(int& control, int& report, string syear, string sname
     stmt = all_queue[0][0];
     all_queue[0].erase(all_queue[0].begin(), all_queue[0].begin() + 2);
     m_jobs[0].unlock();
-    error = sqlite3_prepare_v2(dbjudi, stmt.c_str(), -1, &statejudi, NULL);
-    if (error) { sqlerror("prepare3-judicator", dbjudi); }
-    step(dbjudi);
-    output_tables();
+    error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statejudi, NULL);
+    if (error) { sqlerror("prepare3-judicator", db); }
+    step(db, statejudi);
+
     // Loop through the worker threads, inserting their statements into the database.
     int active_thread = 0;
     int inert_threads = 0;
@@ -616,19 +617,19 @@ void MainWindow::judicator(int& control, int& report, string syear, string sname
             desk = all_queue[active_thread];
             all_queue[active_thread].clear();
             m_jobs[active_thread].unlock();
-            error = sqlite3_exec(dbjudi, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-            if (error) { sqlerror("begin transaction1-judicator", dbjudi); }
+            error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+            if (error) { sqlerror("begin transaction1-judicator", db); }
             for (int ii = 0; ii < desk.size(); ii++)
             {
-                error = sqlite3_prepare_v2(dbjudi, desk[ii].c_str(), -1, &statejudi, NULL);
+                error = sqlite3_prepare_v2(db, desk[ii].c_str(), -1, &statejudi, NULL);
                 if (error)
                 {
-                    sqlerror("prepare4-judicator", dbjudi);
+                    sqlerror("prepare4-judicator", db);
                 }
-                step(dbjudi);
+                step(db, statejudi);
             }
-            error = sqlite3_exec(dbjudi, "COMMIT TRANSACTION", NULL, NULL, NULL);
-            if (error) { sqlerror("commit transaction1-judicator", dbjudi); }
+            error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+            if (error) { sqlerror("commit transaction1-judicator", db); }
         }
         active_thread++;
         if (active_thread >= cores) { active_thread = 0; }
@@ -657,16 +658,16 @@ void MainWindow::judicator(int& control, int& report, string syear, string sname
                 desk = all_queue[active_thread];
                 all_queue[active_thread].clear();
                 m_jobs[active_thread].unlock();
-                error = sqlite3_exec(dbjudi, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-                if (error) { sqlerror("begin transaction2-judicator", dbjudi); }
+                error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+                if (error) { sqlerror("begin transaction2-judicator", db); }
                 for (int ii = 0; ii < desk.size(); ii++)
                 {
-                    error = sqlite3_prepare_v2(dbjudi, desk[ii].c_str(), -1, &statejudi, NULL);
-                    if (error) { sqlerror("prepare5-judicator", dbjudi); }
-                    step(dbjudi);
+                    error = sqlite3_prepare_v2(db, desk[ii].c_str(), -1, &statejudi, NULL);
+                    if (error) { sqlerror("prepare5-judicator", db); }
+                    step(db, statejudi);
                 }
-                error = sqlite3_exec(dbjudi, "COMMIT TRANSACTION", NULL, NULL, NULL);
-                if (error) { sqlerror("commit transaction2-judicator", dbjudi); }
+                error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+                if (error) { sqlerror("commit transaction2-judicator", db); }
             }
             active_thread++;
             if (active_thread >= cores) { active_thread = 0; }
@@ -680,17 +681,17 @@ void MainWindow::judicator(int& control, int& report, string syear, string sname
                 desk = all_queue[ii];
                 all_queue[ii].clear();
                 m_jobs[ii].unlock();
-                error = sqlite3_exec(dbjudi, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-                if (error) { sqlerror("begin transaction3-judicator", dbjudi); }
+                error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+                if (error) { sqlerror("begin transaction3-judicator", db); }
                 for (int jj = 0; jj < desk.size(); jj++)
                 {
                     stmt = desk[jj];
-                    error = sqlite3_prepare_v2(dbjudi, stmt.c_str(), -1, &statejudi, NULL);
+                    error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statejudi, NULL);
                     if (error) { err(L"prepare7-judicator_noqt"); }
-                    step(dbjudi);
+                    step(db, statejudi);
                 }
-                error = sqlite3_exec(dbjudi, "COMMIT TRANSACTION", NULL, NULL, NULL);
-                if (error) { sqlerror("commit transaction3-judicator", dbjudi); }
+                error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+                if (error) { sqlerror("commit transaction3-judicator", db); }
             }
         }
         progress = 0;
@@ -715,9 +716,9 @@ void MainWindow::judicator(int& control, int& report, string syear, string sname
         param[0] = cata_desc;
         param[1] = temp;
         bind(stmt, param);
-        error = sqlite3_prepare_v2(dbjudi, stmt.c_str(), -1, &statejudi, NULL);
-        if (error) { sqlerror("prepare7-judicator", dbjudi); }
-        step(dbjudi);
+        error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statejudi, NULL);
+        if (error) { sqlerror("prepare7-judicator", db); }
+        step(db, statejudi);
         log("Catalogue " + sname + " completed its CSV insertion.");
     }
     else
@@ -952,7 +953,7 @@ void MainWindow::on_pB_insert_clicked()
         sname = qname.toStdString();
         log(L"Begin insertion of catalogue " + qname.toStdWString());
         threads_working = 1;
-        std::thread judi(&MainWindow::judicator, this, std::ref(control), std::ref(report), syear, sname);
+        std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(control), std::ref(report), syear, sname);
         while (threads_working)
         {
             std::this_thread::sleep_for (std::chrono::milliseconds(50));
@@ -999,7 +1000,7 @@ void MainWindow::on_pB_test_clicked()
         qname = catas_to_do[ii]->text(1);
         log(L"Begin insertion of catalogue " + qname.toStdWString());
         threads_working = 1;
-        std::thread judi(&MainWindow::judicator, this, std::ref(control), std::ref(report), qyear.toStdString(), qname.toStdString());
+        std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(control), std::ref(report), qyear.toStdString(), qname.toStdString());
         while (threads_working)
         {
             std::this_thread::sleep_for (std::chrono::milliseconds(50));
@@ -1031,7 +1032,7 @@ void MainWindow::on_pB_benchmark_clicked()
     int report = 0;
     int control = 0;  // 0 = Standard, 1 = Stop.
     threads_working = 1;
-    std::thread judi(&MainWindow::judicator, this, std::ref(control), std::ref(report), qyear.toStdString(), qname.toStdString());
+    std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(control), std::ref(report), qyear.toStdString(), qname.toStdString());
     while (threads_working)
     {
         QCoreApplication::processEvents();
