@@ -76,18 +76,18 @@ private:
     void create_cata_index_table();
     void all_cata_db(QVector<QVector<QString>>&, QMap<QString, int>&);
     vector<string> scan_incomplete_cata(string, string);
-    void judicator(sqlite3*&, int&, int&, string, string);
-    void insert_csvs(vector<string>&, int&, int&, wstring, vector<int>);
-    void insert_primary_row(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&, vector<vector<string>>&);
-    void create_insert_csv_table(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&);
-    void create_insert_csv_subtables(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&);
+    void judicator(sqlite3*&, vector<int>&, string, string);
+    void insert_csvs(vector<string>&, vector<int>&, wstring, vector<int>);
+    int insert_primary_row(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&, vector<vector<string>>&);
+    int create_insert_csv_table(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&);
+    int create_insert_csv_subtables(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&);
     void insert_damaged_row(vector<string>&, int, string, string&, int);
     static int sql_callback(void*, int, char**, char**);
     vector<vector<string>> step(sqlite3*&, sqlite3_stmt*);
     vector<string> step_1(sqlite3*&, sqlite3_stmt*);
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
-    void display_catalogue(vector<int>&, string, string);
+    void display_catalogue(sqlite3*&, vector<int>&, string, string);
     void output_tables();
 
 

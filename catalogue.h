@@ -52,6 +52,7 @@ public:
     string get_gid(int);
     int get_gid_size();
     string create_primary_table();
+    string create_column_table();
     string get_create_sub_template();
     string get_insert_csv_row_template();
     QVector<QVector<QVector<int>>> get_tree();

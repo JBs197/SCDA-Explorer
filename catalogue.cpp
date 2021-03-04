@@ -367,7 +367,7 @@ void CATALOGUE::insert_csv_row_template()
     ins_csv_row_template = sql;
 }
 
-// Return a complete (non-template) SQL statement to create this catalogue's primary table.
+// Return a complete (non-template) SQL statement to create this catalogue's primary/column table.
 string CATALOGUE::create_primary_table()
 {
     QVector<QString> linearized_titles;
@@ -475,6 +475,37 @@ string CATALOGUE::create_primary_table()
     }
     stmt.erase(stmt.size() - 2, 2);
     stmt.append(");");
+    return stmt;
+}
+string CATALOGUE::create_column_table()
+{
+    vector<string> column_titles;
+    QString qtemp;
+
+    // First, get the text variable titles.
+    for (int ii = 0; ii < model_text_variables.size(); ii++)
+    {
+        qtemp = model_text_variables[ii][0];
+        column_titles.push_back(qtemp.toStdString());
+    }
+
+    // Second, add the row titles.
+    for (int ii = 0; ii < row_titles.size(); ii++)
+    {
+        qtemp = row_titles[ii];
+        column_titles.push_back(qtemp.toStdString());
+    }
+
+    // Third, make the statement.
+    string tname = "[" + sname + "$Columns]";
+    string stmt = "CREATE TABLE IF NOT EXISTS " + tname + " (Column, TEXT);";
+    for (int ii = 0; ii < column_titles.size(); ii++)
+    {
+        sclean(column_titles[ii], 1);
+        stmt += "!!!INSERT INTO " + tname + " (Column) VALUES ('";
+        stmt += column_titles[ii];
+        stmt += "');";
+    }
     return stmt;
 }
 
