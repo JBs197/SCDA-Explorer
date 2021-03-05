@@ -74,9 +74,9 @@ private:
     void update_text_vars(QVector<QVector<QString>>&, QString&);
     void update_cata_tree();
     void create_cata_index_table();
-    void all_cata_db(QVector<QVector<QString>>&, QMap<QString, int>&);
+    void all_cata_db(QVector<QVector<QVector<QString>>>&, QMap<QString, int>&);
     vector<string> scan_incomplete_cata(string, string);
-    void judicator(sqlite3*&, vector<int>&, string, string);
+    void judicator(sqlite3*&, vector<int>&, vector<string>);
     void insert_csvs(vector<string>&, vector<int>&, wstring, vector<int>);
     int insert_primary_row(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&, vector<vector<string>>&);
     int create_insert_csv_table(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&);
@@ -87,6 +87,7 @@ private:
     vector<string> step_1(sqlite3*&, sqlite3_stmt*);
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
+    vector<string> missing_gids(sqlite3*&, int, string, string);
     void display_catalogue(sqlite3*&, vector<int>&, string, string);
     void output_tables();
 

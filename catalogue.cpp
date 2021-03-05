@@ -498,7 +498,7 @@ string CATALOGUE::create_column_table()
 
     // Third, make the statement.
     string tname = "[" + sname + "$Columns]";
-    string stmt = "CREATE TABLE IF NOT EXISTS " + tname + " (Column, TEXT);";
+    string stmt = "!!!CREATE TABLE IF NOT EXISTS " + tname + " (Column, TEXT);";
     for (int ii = 0; ii < column_titles.size(); ii++)
     {
         sclean(column_titles[ii], 1);

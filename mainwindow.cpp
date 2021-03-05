@@ -23,6 +23,11 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+// CONTROL INTEGER REFERENCE LIST:
+// 0 = Normal
+// 1 = Finished
+// 2 = Cancelled
+// 3 = Partial
 
 // MULTI-PURPOSE FUNCTIONS:
 
@@ -49,13 +54,13 @@ void MainWindow::initialize()
     log("MainWindow initialized.");
 }
 
-// Populate a 2D tree containing the names of all catalogues in the database. Form [year][year, catalogues...].
+// Populate a 3D tree containing the names of all catalogues in the database. Form [year][name][year, name, description].
 // Also, populate a map connecting qyear->year_index  and  qname->cata_index.
-void MainWindow::all_cata_db(QVector<QVector<QString>>& ntree, QMap<QString, int>& map_tree)
+void MainWindow::all_cata_db(QVector<QVector<QVector<QString>>>& ntree, QMap<QString, int>& map_tree)
 {
-    QString qyear, qname, temp;
+    QString qyear, qname, qdesc, temp;
     int year_index, cata_index;
-    string stmt = "SELECT Year, Name FROM TCatalogueIndex;";
+    string stmt = "SELECT Year, Name, Description FROM TCatalogueIndex;";
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare-all_cata_db", db); }
     vector<vector<string>> results = step(db, statement);    
@@ -63,6 +68,7 @@ void MainWindow::all_cata_db(QVector<QVector<QString>>& ntree, QMap<QString, int
     {
         qyear = QString::fromStdString(results[ii][0]);
         qname = QString::fromStdString(results[ii][1]);
+        qdesc = QString::fromStdString(results[ii][2]);
         qname.chop(1);
         qname.remove(0, 1);
         year_index = map_tree.value(qyear, -1);
@@ -70,12 +76,14 @@ void MainWindow::all_cata_db(QVector<QVector<QString>>& ntree, QMap<QString, int
         {
             year_index = ntree.size();
             map_tree.insert(qyear, year_index);
-            ntree.append(QVector<QString>());
-            ntree[year_index].append(qyear);
+            ntree.append(QVector<QVector<QString>>());
         }
         cata_index = ntree[year_index].size();
         map_tree.insert(qname, cata_index);
-        ntree[year_index].append(qname);
+        ntree[year_index].append(QVector<QString>());
+        ntree[year_index][cata_index].append(qyear);
+        ntree[year_index][cata_index].append(qname);
+        ntree[year_index][cata_index].append(qdesc);
     }
 }
 
@@ -169,6 +177,94 @@ vector<string> MainWindow::extract_gids(string cata_path)
 
     FindClose(hfile);
     return gids;
+}
+
+// Given a catalogue year and name, return a list of GIDs not already present in the database.
+// Mode 0 = return gid list | 1 = return syear, sname, gid list. 
+// Mode 2 = return gid index | 3 = return syear, sname, gid index.
+vector<string> MainWindow::missing_gids(sqlite3*& db_gui, int mode, string syear, string sname)
+{
+    string cata_path = sroots[location] + "\\" + syear + "\\" + sname;
+    vector<string> gid_list = extract_gids(cata_path);
+    sqlite3_stmt* state;
+    string stmt = "SELECT GID FROM [" + sname + "];";
+    int error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
+    if (error) { sqlerror("prepare1-missing_gids", db_gui); }
+    vector<vector<string>> db_gids = step(db_gui, state);
+    vector<string> input(2);
+    vector<string> gid_indices;
+
+    switch (mode)
+    {
+    case 0:
+        for (int ii = 0; ii < db_gids.size(); ii++)
+        {
+            for (int jj = 0; jj < gid_list.size(); jj++)
+            {
+                if (db_gids[ii][0] == gid_list[jj])
+                {
+                    gid_list.erase(gid_list.begin() + jj);
+                    break;
+                }
+            }
+        }
+        break;
+
+    case 1:
+        for (int ii = 0; ii < db_gids.size(); ii++)
+        {
+            for (int jj = 0; jj < gid_list.size(); jj++)
+            {
+                if (db_gids[ii][0] == gid_list[jj])
+                {
+                    gid_list.erase(gid_list.begin() + jj);
+                    break;
+                }
+            }
+        }
+        input[0] = syear;
+        input[1] = sname;
+        gid_list.insert(gid_list.begin(), input.begin(), input.begin() + 1);
+        break;
+
+    case 2:
+        for (int ii = 0; ii < gid_list.size(); ii++)
+        {
+            for (int jj = 0; jj < db_gids.size(); jj++)
+            {
+                if (gid_list[ii] == db_gids[jj][0])
+                {
+                    break;
+                }
+                else if (jj == db_gids.size() - 1)
+                {
+                    gid_indices.push_back(to_string(ii));
+                }
+            }
+        }
+        return gid_indices;
+
+    case 3:
+        for (int ii = 0; ii < gid_list.size(); ii++)
+        {
+            for (int jj = 0; jj < db_gids.size(); jj++)
+            {
+                if (gid_list[ii] == db_gids[jj][0])
+                {
+                    break;
+                }
+                else if (jj == db_gids.size() - 1)
+                {
+                    gid_indices.push_back(to_string(ii));
+                }
+            }
+        }
+        input[0] = syear;
+        input[1] = sname;
+        gid_indices.insert(gid_indices.begin(), input.begin(), input.begin() + 1);
+        return gid_indices;
+    }
+    return gid_list;
 }
 
 // Replace '?' placeholders in a template statement with given parameter strings.
@@ -516,14 +612,14 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<int>& comm_cata, str
     ui->GID_list->addItems(geo_list);
 
     // Populate the 'Row Data' tab.
-    stmt = "SELECT Column FROM [" + tname + "];";
+    stmt = "SELECT Column FROM [" + tname + "$Columns];";
     error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
     if (error) { sqlerror("prepare2-display_catalogue", db_gui); }
-    vector<string> rows = step_1(db_gui, state);
+    vector<vector<string>> rows = step(db_gui, state);
     QStringList row_list;
     for (int ii = 0; ii < rows.size(); ii++)
     {
-        qtemp = QString::fromStdString(rows[ii]);
+        qtemp = QString::fromStdString(rows[ii][0]);
         row_list.append(qtemp);
     }
     ui->Rows_list->addItems(row_list);
@@ -533,32 +629,42 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<int>& comm_cata, str
 }
 
 // Functions related to the insertion of data into the database.
-void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, string syear, string sname)
+void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<string> prompt)
 {
-    string temp = sroots[location] + "\\" + syear + "\\" + sname;
+    // prompt has form [syear, sname, gid1, gid2, ...], gid list is only included for partial catalogue insertions.
+    string temp = sroots[location] + "\\" + prompt[0] + "\\" + prompt[1];
     wstring cata_wpath = utf8to16(temp);
     int num_gid = get_file_path_number(cata_wpath, L".csv");
     int workload = num_gid / cores;
     int bot = 0;
     int top = workload - 1;
+    bool partial_entry;
     vector<string> param(3);
     sqlite3_stmt* statejudi;
+    string stmt;
+    int error;
+
+    if (prompt.size() == 2) { partial_entry = 0; }
+    else if (prompt.size() > 2) { partial_entry = 1; }
 
     // Insert this catalogue into the catalogue index.
-    string stmt = "INSERT INTO TCatalogueIndex ( Year, Name, Description ) VALUES (?, ?, ?);";
-    param[0] = syear;
-    param[1] = sname;
-    param[2].assign("Incomplete");
-    bind(stmt, param);
-    int error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
-    if (error)
+    if (!partial_entry)
     {
-        sqlerror("prepare1-judicator", db_gui);
+        stmt = "INSERT INTO TCatalogueIndex ( Year, Name, Description ) VALUES (?, ?, ?);";
+        param[0] = prompt[0];
+        param[1] = prompt[1];
+        param[2].assign("Incomplete");
+        bind(stmt, param);
+        error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
+        if (error)
+        {
+            sqlerror("prepare1-judicator", db_gui);
+        }
+        step(db_gui, statejudi);
     }
-    step(db_gui, statejudi);
 
     // Create a table for this catalogue's damaged CSVs.
-    temp = "[" + sname + "$Damaged]";
+    temp = "[" + prompt[1] + "$Damaged]";
     stmt = "CREATE TABLE IF NOT EXISTS " + temp + " (GID NUMERIC, [Number of Missing Data Entries] NUMERIC);";
     error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
     if (error) { sqlerror("prepare2-judicator_noqt", db_gui); }
@@ -571,18 +677,70 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, string syea
     {
         comm_csv[ii].assign(3, 0);
     }
-    vector<int> prompt(3);  // Form [id, bot, top]
-    vector<vector<string>> all_queue(cores, vector<string>());  // Form [thread][statements]
+    vector<int> prompt_csv(3);  // Form [id, bot, top]
+    vector<vector<int>> prompt_csv_partial;  // Form [thread][id, gid1, gid2, ...]
+    vector<vector<string>> all_queue(cores, vector<string>());  // Form [thread][statements]   
+    if (partial_entry)  // If this catalogue insertion is partial, specify individual GIDs tasked to each thread.
+    {
+        int itemp;
+        bot = 2;  // Passing over syear, sname...
+        workload = (prompt.size() - 2) / cores;
+        prompt_csv_partial.resize(cores);
+        for (int ii = 0; ii < cores; ii++)
+        {
+            prompt_csv_partial[ii].resize(workload + 1);
+            prompt_csv_partial[ii][0] = ii;
+            for (int jj = 1; jj <= workload; jj++)
+            {
+                try 
+                {
+                    itemp = stoi(prompt[bot + jj - 1]);
+                }
+                catch (invalid_argument& ia)
+                {
+                    err("Failed to extract integer from partial insertion prompt: " + prompt[bot + jj - 1]);
+                }
+                prompt_csv_partial[ii][jj] = itemp;
+            }
+            bot += workload;
+
+            if (ii == cores - 1)
+            {
+                top = (prompt.size() - 2) % cores;
+                for (int jj = 0; jj < top; jj++)
+                {
+                    try
+                    {
+                        itemp = stoi(prompt[bot + jj - 1]);
+                    }
+                    catch (invalid_argument& ia)
+                    {
+                        err("Failed to extract integer from partial insertion prompt: " + prompt[bot + jj - 1]);
+                    }
+                    prompt_csv_partial[ii].push_back(itemp);
+                }
+            }
+        }
+    }
     for (int ii = 0; ii < cores; ii++)
     {
-        prompt[0] = ii;
-        prompt[1] = bot;
-        prompt[2] = top;
-        std::thread thr(&MainWindow::insert_csvs, this, std::ref(all_queue[ii]), std::ref(comm_csv[ii]), cata_wpath, prompt);
-        peons.push_back(std::move(thr));
-        bot += workload;
-        if (ii < cores - 1) { top += workload; }
-        else { top = num_gid - 1; }
+        if (!partial_entry)
+        {
+            prompt_csv[0] = ii;
+            prompt_csv[1] = bot;
+            prompt_csv[2] = top;
+            std::thread thr(&MainWindow::insert_csvs, this, std::ref(all_queue[ii]), std::ref(comm_csv[ii]), cata_wpath, prompt_csv);
+            peons.push_back(std::move(thr));
+            bot += workload;
+            if (ii < cores - 1) { top += workload; }
+            else { top = num_gid - 1; }
+        }
+        else
+        {
+            comm_csv[ii][0] = 3;
+            std::thread thr(&MainWindow::insert_csvs, this, std::ref(all_queue[ii]), std::ref(comm_csv[ii]), cata_wpath, prompt_csv_partial[ii]);
+            peons.push_back(std::move(thr));
+        }
     }
 
     // Create the catalogue's primary table.
@@ -591,16 +749,34 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, string syea
     string stmt_primary = all_queue[0][0];
     string cata_desc = all_queue[0][1];  // Used later.
     string stmt_column = all_queue[0][2];
-    all_queue[0].erase(all_queue[0].begin(), all_queue[0].begin() + 2);
+    all_queue[0].erase(all_queue[0].begin(), all_queue[0].begin() + 3);
     m_jobs[0].unlock();
     error = sqlite3_prepare_v2(db_gui, stmt_primary.c_str(), -1, &statejudi, NULL);
     if (error) { sqlerror("prepare3-judicator", db_gui); }
     step(db_gui, statejudi);
 
-    // Create and populate the catalogue's column table.  RESUME HERE. Split the string by !!!
-    error = sqlite3_prepare_v2(db_gui, stmt_column.c_str(), -1, &statejudi, NULL);
-    if (error) { sqlerror("prepare3.1-judicator", db_gui); }
-    step(db_gui, statejudi);
+    // Create and populate the catalogue's column table.  
+    vector<string> col_titles;
+    size_t pos1, pos2;
+    pos1 = 0;
+    pos2 = stmt_column.find("!!!", pos1 + 3);
+    while (pos2 < stmt_column.size())
+    {
+        temp = stmt_column.substr(pos1 + 3, pos2 - pos1 - 3);
+        col_titles.push_back(temp);
+        pos1 = pos2;
+        pos2 = stmt_column.find("!!!", pos1 + 3);
+    }
+    error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+    if (error) { sqlerror("begin transaction0.1-judicator", db_gui); }
+    for (int ii = 0; ii < col_titles.size(); ii++)
+    {
+        error = sqlite3_prepare_v2(db_gui, col_titles[ii].c_str(), -1, &statejudi, NULL);
+        if (error) { sqlerror("prepare3.1-judicator", db_gui); }
+        step(db_gui, statejudi);
+    }
+    error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
+    if (error) { sqlerror("commit transaction1.1-judicator", db_gui); }
 
     // Report the total task size to the GUI thread.
     bool size_reported = 0;
@@ -663,7 +839,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, string syea
     int no_work = 0;
     while (comm_cata[0] == 0)  
     {
-        progress = 0;
+        progress = 0;  // RESUME HERE. Progress bar should be linked to judicator, not workers. 
         for (int ii = 0; ii < cores; ii++)
         {
             progress += comm_csv[ii][1];
@@ -801,16 +977,16 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, string syea
         stmt = "UPDATE TCatalogueIndex SET Description = ? WHERE Name = ?;";
         param.resize(2);
         param[0] = cata_desc;
-        param[1] = sname;
+        param[1] = prompt[1];
         bind(stmt, param);
         error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
         if (error) { sqlerror("prepare7-judicator", db_gui); }
         step(db_gui, statejudi);
-        log("Catalogue " + sname + " completed its CSV insertion.");
+        log("Catalogue " + prompt[1] + " completed its CSV insertion.");
     }
     else
     {
-        log("Catalogue " + sname + " had its CSV insertion cancelled.");
+        log("Catalogue " + prompt[1] + " had its CSV insertion cancelled.");
     }
     threads_working = 0;
 }
@@ -845,11 +1021,17 @@ void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstrin
     }
 
     // Iterate through the assigned CSVs...
-    for (int ii = prompt[1]; ii <= prompt[2]; ii++)
+    switch (comm[0])
     {
-        switch (comm[0])
+    case 0:  // Standard work.
+        for (int ii = prompt[1]; ii <= prompt[2]; ii++)
         {
-        case 0:  // Standard work.
+            if (comm[0] == 2)  // If a new 'cancel' signal has been received...
+            {
+                comm[0] = -2;  // Reporting that thread work has ended.
+                return;
+            }
+
             stmt_count = 0;
             damaged_csv = 0;
             gid = cata.get_gid(ii);
@@ -860,7 +1042,7 @@ void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstrin
 
             if (damaged_csv == 0)  // Undamaged CSV - to be inserted.
             {
-                stmt_count += insert_primary_row(my_queue, my_id, cata, gid, text_vars, data_rows); 
+                stmt_count += insert_primary_row(my_queue, my_id, cata, gid, text_vars, data_rows);
                 stmt_count += create_insert_csv_table(my_queue, my_id, cata, gid, data_rows);
                 stmt_count += create_insert_csv_subtables(my_queue, my_id, cata, gid, data_rows);
             }
@@ -872,21 +1054,62 @@ void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstrin
             }
 
             comm[1] += stmt_count;  // Add this loop's work to the progress report.
-            
+
             // If we have yet to do so, report the number of insertions needed for one CSV.
             if (!reported_size)
             {
                 comm[2] = stmt_count;
                 reported_size = 1;
             }
-            break;
-
-        case 2:  // Cancel.
-            comm[0] = -2;  // Reporting that thread work has ended.
-            return;
         }
-    }
+        break;
 
+    case 2:   // Cancel.
+        comm[0] = -2;  // Reporting that thread work has ended.
+        return;
+
+    case 3:
+        for (int ii = 1; ii < prompt.size(); ii++)
+        {
+            if (comm[0] == 2)  // If a new 'cancel' signal has been received...
+            {
+                comm[0] = -2;  // Reporting that thread work has ended.
+                return;
+            }
+
+            stmt_count = 0;
+            damaged_csv = 0;
+            gid = cata.get_gid(prompt[ii]);
+            csv_path = cata.get_csv_path(prompt[ii]);
+            sfile = s_memory(csv_path);
+            text_vars = cata.extract_text_vars8(sfile);
+            data_rows = cata.extract_data_rows8(sfile, damaged_csv);
+
+            if (damaged_csv == 0)  // Undamaged CSV - to be inserted.
+            {
+                stmt_count += insert_primary_row(my_queue, my_id, cata, gid, text_vars, data_rows);
+                stmt_count += create_insert_csv_table(my_queue, my_id, cata, gid, data_rows);
+                stmt_count += create_insert_csv_subtables(my_queue, my_id, cata, gid, data_rows);
+            }
+            else  // Damaged CSV - will not be inserted, but will be added to the catalogue's list of damaged CSVs.
+            {     // This is a temporary measure - it would be better to incorporate these CSVs however possible.
+                insert_damaged_row(my_queue, my_id, cata.get_sname(), gid, damaged_csv);
+                log("GID " + gid + " not inserted: damaged.");
+                stmt_count += comm[2];
+            }
+
+            comm[1] += stmt_count;  // Add this loop's work to the progress report.
+
+            // If we have yet to do so, report the number of insertions needed for one CSV.
+            if (!reported_size)
+            {
+                comm[2] = stmt_count;
+                reported_size = 1;
+            }
+        }
+        break;
+    }
+    
     // Reporting 'jobs done'.
     comm[0] = -1;
 }
@@ -1049,50 +1272,101 @@ void MainWindow::on_pB_scan_clicked()
 void MainWindow::on_pB_insert_clicked()
 {
     QList<QTreeWidgetItem *> catas_to_do = ui->TW_cataondrive->selectedItems();
-    QVector<QVector<QString>> catas_in_db;  // Form [year][year, catalogues...]
-    QMap<QString, int> map_cata;
-    QString qyear, qname, qdesc, stmt;
+    QVector<QVector<QVector<QString>>> catas_in_db;  // Form [year][name][year, name, description]
+    QMap<QString, int> map_cata;  // qyear -> year_index, qname -> cata_index
+    QString qyear, qname, qdesc, stmt, qtemp;
     string syear, sname;
+    vector<string> prompt(2);
     vector<int> comm_cata = { 0, 0, 0 };  // Form [control, progress report, size report].
     int year_index, cata_index;
     bool size_received = 0;
     bool fine;
 
     ui->pB_cancel->setEnabled(1);
-    all_cata_db(catas_in_db, map_cata);  // Populate the tree and map. NOTE: THIS NEEDS WORK (partial catas).
+    all_cata_db(catas_in_db, map_cata);  // Populate the tree and map. 
     for (int ii = 0; ii < catas_to_do.size(); ii++)  // For each catalogue selected...
     {
         qyear = catas_to_do[ii]->text(0);
         syear = qyear.toStdString();
+        prompt[0] = syear;
         qname = catas_to_do[ii]->text(1);
         sname = qname.toStdString();
-        log(L"Begin insertion of catalogue " + qname.toStdWString());
-        threads_working = 1;
-        std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(comm_cata), syear, sname);
-        while (!size_received)  // Start the progress bar when the judicator has reported on the total number of
-        {                       // insertions to be made.
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            QCoreApplication::processEvents();
-            if (comm_cata[2] > 0)
-            {
-                reset_bar(comm_cata[2], "Inserting spreadsheets into  " + sname);
-                size_received = 1;
-            }
-        }
-        while (threads_working)
-        {
-            std::this_thread::sleep_for (std::chrono::milliseconds(50));
-            QCoreApplication::processEvents();
-            jobs_done = comm_cata[1];
-            update_bar();
+        prompt[1] = sname;
 
-            if (remote_controller == 2)
+        // Check if the catalogue is already in the database.
+        cata_index = map_cata.value(qname, -1);
+        if (cata_index < 0)  // Catalogue is not in the database. Remedy that.
+        {
+            log("Begin insertion of catalogue " + sname);
+            threads_working = 1;
+            std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(comm_cata), prompt);
+            while (!size_received)  // Start the progress bar when the judicator has reported on the total number of
+            {                       // insertions to be made.
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                QCoreApplication::processEvents();
+                if (comm_cata[2] > 0)
+                {
+                    reset_bar(comm_cata[2], "Inserting spreadsheets into  " + sname);
+                    size_received = 1;
+                }
+            }
+            while (threads_working)
             {
-                comm_cata[0] = 2;
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                QCoreApplication::processEvents();
+                jobs_done = comm_cata[1];
+                update_bar();
+
+                if (remote_controller == 2)
+                {
+                    comm_cata[0] = 2;
+                }
+            }
+            judi.join();
+        }
+        else
+        {
+            year_index = map_cata.value(qyear);
+            qdesc = catas_in_db[year_index][cata_index][2];
+            if (qdesc == "Incomplete")  // Catalogue is partially present within the database. Finish that.
+            {
+                prompt = missing_gids(db, 3, syear, sname);
+                log("Resume insertion of partial catalogue " + sname);
+                threads_working = 1;
+                std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(comm_cata), prompt);
+                while (!size_received)  // Start the progress bar when the judicator has reported on the total number of
+                {                       // insertions to be made.
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    QCoreApplication::processEvents();
+                    if (comm_cata[2] > 0)
+                    {
+                        reset_bar(comm_cata[2], "Inserting spreadsheets into  " + sname);
+                        size_received = 1;
+                    }
+                }
+                while (threads_working)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    QCoreApplication::processEvents();
+                    jobs_done = comm_cata[1];
+                    update_bar();
+
+                    if (remote_controller == 2)
+                    {
+                        comm_cata[0] = 2;
+                    }
+                }
+                judi.join();
+            }
+            else  // Catalogue is already present within the database. Inform the user. 
+            {
+                qtemp = "Catalogue " + qname + " is already present within the database.";
+                ui->progressBar->setValue(100);
+                ui->QL_bar->setText(qtemp);
             }
         }
-        judi.join();
-    }    
+    }
+    ui->pB_cancel->setEnabled(0);
     update_cata_tree();
     build_ui_tree(cata_tree, 2);
 }
