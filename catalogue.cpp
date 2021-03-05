@@ -506,6 +506,7 @@ string CATALOGUE::create_column_table()
         stmt += column_titles[ii];
         stmt += "');";
     }
+    stmt += "!!!";
     return stmt;
 }
 
