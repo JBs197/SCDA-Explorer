@@ -44,7 +44,7 @@ private:
     Ui::MainWindow *ui;
     sqlite3* db;
     sqlite3_stmt* statement;
-    int location = 0;  // 0 = home, 1 = inn.
+    int location = 1;  // 0 = home, 1 = inn.
     int cores = 3;
     int bar_threads;
     int jobs_max;
