@@ -8,10 +8,6 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    ui->cB_drives->addItem("D:");
-    ui->cB_drives->addItem("E:");
-    ui->cB_drives->addItem("F:");
-    ui->cB_drives->addItem("G:");
     ui->progressBar->setValue(0);
     ui->QL_bar->setText("");
 
@@ -37,19 +33,47 @@ MainWindow::~MainWindow()
 // 3. Begin a new process log for this runtime session.
 void MainWindow::initialize()
 {
+    // Scan the local machine for drive letters, then populate the 'drives' drop-down menu.
+    LPWSTR bufferW = new WCHAR[500];
+    DWORD dsize = GetLogicalDriveStringsW(500, bufferW);
+    wstring wdrives(bufferW, dsize);
+    delete[] bufferW;
+    wstring wtemp;
+    QList<QString> qdrives;
+    QString qtemp;
+    size_t pos1 = wdrives.find(L"\\");
+    if (pos1 >= wdrives.size()) { err(L"wdrives-initialize: " + wdrives); }
+    do
+    {
+        wtemp = wdrives.substr(pos1 - 2, 2);
+        qtemp = QString::fromStdWString(wtemp);
+        qdrives.append(qtemp);
+        pos1 = wdrives.find(L"\\", pos1 + 1);
+    } while (pos1 < wdrives.size());
+    for (int ii = 0; ii < qdrives.size(); ii++)
+    {
+        ui->cB_drives->addItem(qdrives[ii]);
+    }
+
+    // Open the database from an existing local db file, or (failing that) make a new one.
     db_path = sroots[location] + "\\SCDA.db";
     int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
-    if (error) { sqlerror("open-initialize", db); }
-    
+    if (error) { sqlerror("open-initialize", db); }   
     //q.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
 
-    create_cata_index_table();  // Even if starting a new database, this meta-table will always exist.
+    // Create (if necessary) these system-wide tables. 
+    create_cata_index_table();  
+    create_prov_index_table();
+    
     update_cata_tree();  // The cata_tree matrix is kept in QString form, given its proximity to the GUI.
     build_ui_tree(cata_tree, 2);
     vector<mutex> dummy(cores);
     m_jobs.swap(dummy);
 
+    // Initialize the progress bar with blanks.
     reset_bar(100, " ");
+
+    // Reset the runtime log file.
     clear_log();
     log("MainWindow initialized.");
 }
@@ -69,8 +93,6 @@ void MainWindow::all_cata_db(QVector<QVector<QVector<QString>>>& ntree, QMap<QSt
         qyear = QString::fromStdString(results[ii][0]);
         qname = QString::fromStdString(results[ii][1]);
         qdesc = QString::fromStdString(results[ii][2]);
-        qname.chop(1);
-        qname.remove(0, 1);
         year_index = map_tree.value(qyear, -1);
         if (year_index < 0)
         {
@@ -177,6 +199,34 @@ vector<string> MainWindow::extract_gids(string cata_path)
 
     FindClose(hfile);
     return gids;
+}
+
+// For a given incomplete catalogue, determine its existing CSV entries and return a list of missing GIDs.
+vector<string> MainWindow::scan_incomplete_cata(string syear, string sname)
+{
+    // Determine which CSVs are already present within the database.
+    string stmt = "SELECT GID FROM [" + sname + "];";
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerror("prepare-scan_incomplete_cata", db); }
+    vector<vector<string>> gid_haves = step(db, statement);
+
+    // Subtract the CSVs in the database from the complete list.
+    string cata_path = sroots[location] + "\\" + syear + "\\" + sname;
+    vector<string> gid_list = extract_gids(cata_path);
+    string temp1, temp2;
+    for (int ii = gid_haves.size() - 1; ii >= 0; ii--)
+    {
+        for (int jj = gid_list.size() - 1; jj >= 0; jj--)
+        {
+            if (gid_haves[ii][0] == gid_list[jj])
+            {
+                gid_list.erase(gid_list.begin() + jj);
+                break;
+            }
+        }
+    }
+    log("Catalogue " + sname + " was scanned. " + to_string(gid_list.size()) + " CSVs were missing.");
+    return gid_list;
 }
 
 // Given a catalogue year and name, return a list of GIDs not already present in the database.
@@ -295,13 +345,114 @@ void MainWindow::bind(string& stmt, vector<string>& param)
     }
 }
 
-// Functions for the meta-table 'TCatalogueIndex'.
+// Execute a prepared statement, and return values if applicable.
+vector<vector<string>> MainWindow::step(sqlite3*& db, sqlite3_stmt* state)
+{
+    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
+    int error = sqlite3_step(state);
+    int ivalue;
+    double dvalue;
+    string svalue;
+    vector<vector<string>> results;
+
+    while (error == 100)
+    {
+        col_count = sqlite3_column_count(state);
+        results.push_back(vector<string>(col_count));
+        for (int ii = 0; ii < col_count; ii++)
+        {
+            type = sqlite3_column_type(state, ii);
+            switch (type)
+            {
+            case 1:
+                ivalue = sqlite3_column_int(state, ii);
+                results[results.size() - 1][ii] = to_string(ivalue);
+                break;
+            case 2:
+                dvalue = sqlite3_column_double(state, ii);
+                results[results.size() - 1][ii] = to_string(dvalue);
+                break;
+            case 3:
+                size = sqlite3_column_bytes(state, ii);
+                char* buffer = (char*)sqlite3_column_text(state, ii);
+                svalue.assign(buffer, size);
+                results[results.size() - 1][ii] = svalue;
+                break;
+            }
+        }
+        error = sqlite3_step(state);
+    }
+    if (error > 0 && error != 101)
+    {
+        sqlerror("step: " + to_string(error), db);
+    }
+    return results;
+}
+vector<string> MainWindow::step_1(sqlite3*& db, sqlite3_stmt* state)
+{
+    // This function variant returns only the first row of the SELECT command.
+    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
+    int error = sqlite3_step(state);
+    int ivalue;
+    double dvalue;
+    string svalue;
+    vector<string> results;
+
+    if (error == 100)
+    {
+        col_count = sqlite3_column_count(state);
+        results.resize(col_count);
+        for (int ii = 0; ii < col_count; ii++)
+        {
+            type = sqlite3_column_type(state, ii);
+            switch (type)
+            {
+            case 1:
+                ivalue = sqlite3_column_int(state, ii);
+                results[ii] = to_string(ivalue);
+                break;
+            case 2:
+                dvalue = sqlite3_column_double(state, ii);
+                results[ii] = to_string(dvalue);
+                break;
+            case 3:
+                size = sqlite3_column_bytes(state, ii);
+                char* buffer = (char*)sqlite3_column_text(state, ii);
+                svalue.assign(buffer, size);
+                results[ii] = svalue;
+                break;
+            }
+        }
+        return results;
+    }
+    else if (error > 0 && error != 101)
+    {
+        sqlerror("step: " + to_string(error), db);
+    }
+    return results;
+}
+
+// Functions for the meta-tables.
 void MainWindow::create_cata_index_table()
 {
     string stmt = "CREATE TABLE IF NOT EXISTS TCatalogueIndex (Year TEXT, ";
     stmt += "Name TEXT, Description TEXT);";
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare-create_cata_index_table", db); }
+    step(db, statement);
+}
+void MainWindow::create_prov_index_table()
+{
+    string stmt = "CREATE TABLE IF NOT EXISTS TProvinceIndex (";
+    for (int ii = 0; ii < provinces.size(); ii++)
+    {
+        stmt += provinces[ii] + " INT, ";
+    }
+    stmt.pop_back();
+    stmt.pop_back();
+    stmt += ");";
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerror("prepare-create_prov_index_table", db); }
     step(db, statement);
 }
 
@@ -477,119 +628,66 @@ void MainWindow::output_tables()
 
 // TASK FUNCTIONS, USED BY ONE OR MORE GUI BUTTONS:
 
-// Execute a prepared statement, and return values if applicable.
-vector<vector<string>> MainWindow::step(sqlite3*& db, sqlite3_stmt* state)
+// Populate the 'Catalogues on Drive' tab with a tree-list of catalogues present on the selected local drive.
+void MainWindow::scan_drive(vector<int>& comm)
 {
-    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
-    int error = sqlite3_step(state);
-    int ivalue;
-    double dvalue;
-    string svalue;
-    vector<vector<string>> results;
+    std::vector<std::vector<std::wstring>> wtree = get_subfolders2(wdrive);
+    QVector<QVector<QVector<QString>>> qtree;  // Form [year][catalogue][year, name]
+    wstring wyear, wcata;
+    QString qyear, qcata;
+    size_t pos1, pos2;
+    int iyear;
 
-    while (error == 100)
+    // Filter out root folders that are not years.
+    for (int ii = 0; ii < wtree.size(); ii++)
     {
-        col_count = sqlite3_column_count(state);
-        results.push_back(vector<string>(col_count));
-        for (int ii = 0; ii < col_count; ii++)
+        pos1 = wtree[ii][0].find(L"\\");
+        pos2 = wtree[ii][0].find(L"\\", pos1 + 1);
+        if (pos2 > wtree[ii][0].size())
         {
-            type = sqlite3_column_type(state, ii);
-            switch (type)
+            pos2 = wtree[ii][0].size();
+        }
+        wyear = wtree[ii][0].substr(pos1 + 1, pos2 - pos1 - 1);
+        if (wyear.size() == 4)
+        {
+            try
             {
-            case 1:
-                ivalue = sqlite3_column_int(state, ii);
-                results[results.size() - 1][ii] = to_string(ivalue);
-                break;
-            case 2:
-                dvalue = sqlite3_column_double(state, ii);
-                results[results.size() - 1][ii] = to_string(dvalue);
-                break;
-            case 3:
-                size = sqlite3_column_bytes(state, ii);
-                char* buffer = (char*)sqlite3_column_text(state, ii);
-                svalue.assign(buffer, size);
-                results[results.size() - 1][ii] = svalue;
-                break;
+                iyear = stoi(wyear);  // Only folders named as 4-digit numbers are kept.
+                continue;
+            }
+            catch (invalid_argument& ia)
+            {
+                warn(L"stoi-scan_drive");
             }
         }
-        error = sqlite3_step(state);
+        wtree.erase(wtree.begin() + ii);
+        ii--;
     }
-    if (error > 0 && error != 101)
-    {
-        sqlerror("step: " + to_string(error), db);
-    }
-    return results;
-}
-vector<string> MainWindow::step_1(sqlite3*& db, sqlite3_stmt* state)
-{
-    // This function variant returns only the first row of the SELECT command.
-    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
-    int error = sqlite3_step(state);
-    int ivalue;
-    double dvalue;
-    string svalue;
-    vector<string> results;
 
-    if (error == 100)
+    // Convert the folder/file paths into a GUI-friendly tree. 
+    for (size_t ii = 0; ii < wtree.size(); ii++)  // For every year...
     {
-        col_count = sqlite3_column_count(state);
-        results.resize(col_count);
-        for (int ii = 0; ii < col_count; ii++)
+        qtree.append(QVector<QVector<QString>>());
+        pos1 = wtree[ii][0].find(L"\\");
+        pos1++;
+        pos2 = wtree[ii][0].find(L"\\", pos1);
+        wyear = wtree[ii][0].substr(pos1, pos2 - pos1);
+        qyear = QString::fromStdWString(wyear);
+        for (size_t jj = 0; jj < wtree[ii].size(); jj++)  // For every catalogue in that year...
         {
-            type = sqlite3_column_type(state, ii);
-            switch (type)
-            {
-            case 1:
-                ivalue = sqlite3_column_int(state, ii);
-                results[ii] = to_string(ivalue);
-                break;
-            case 2:
-                dvalue = sqlite3_column_double(state, ii);
-                results[ii] = to_string(dvalue);
-                break;
-            case 3:
-                size = sqlite3_column_bytes(state, ii);
-                char* buffer = (char*)sqlite3_column_text(state, ii);
-                svalue.assign(buffer, size);
-                results[ii] = svalue;
-                break;
-            }
+            pos1 = wtree[ii][jj].find('.');
+            if (pos1 < wtree[ii][jj].size()) { continue; }
+            qtree[ii].append(QVector<QString>());
+            pos1 = wtree[ii][jj].rfind(L"\\");
+            wcata = wtree[ii][jj].substr(pos1 + 1);
+            qcata = QString::fromStdWString(wcata);
+            qtree[ii][qtree[ii].size() - 1].append(qyear);
+            qtree[ii][qtree[ii].size() - 1].append(qcata);
         }
-        return results;
     }
-    else if (error > 0 && error != 101)
-    {
-        sqlerror("step: " + to_string(error), db);
-    }
-    return results;
-}
-
-// For a given incomplete catalogue, determine its existing CSV entries and return a list of missing GIDs.
-vector<string> MainWindow::scan_incomplete_cata(string syear, string sname)
-{
-    // Determine which CSVs are already present within the database.
-    string stmt = "SELECT GID FROM [" + sname + "];";
-    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
-    if (error) { sqlerror("prepare-scan_incomplete_cata", db); }
-    vector<vector<string>> gid_haves = step(db, statement);
     
-    // Subtract the CSVs in the database from the complete list.
-    string cata_path = sroots[location] + "\\" + syear + "\\" + sname;
-    vector<string> gid_list = extract_gids(cata_path);
-    string temp1, temp2;
-    for (int ii = gid_haves.size() - 1; ii >= 0; ii--)
-    {
-        for (int jj = gid_list.size() - 1; jj >= 0; jj--)
-        {
-            if (gid_haves[ii][0] == gid_list[jj])
-            {
-                gid_list.erase(gid_list.begin() + jj);
-                break;
-            }
-        }
-    }
-    log("Catalogue " + sname + " was scanned. " + to_string(gid_list.size()) + " CSVs were missing.");
-    return gid_list;
+    build_ui_tree(qtree, 1);  // Window code 1 will populate the 'Catalogues on Drive' section.
+    comm[0] = -1;
 }
 
 // Populate the information tabs for a selected catalogue. 
@@ -609,6 +707,7 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<int>& comm_cata, str
         qtemp = QString::fromStdString(geography[ii][0]);
         geo_list.append(qtemp);
     }
+    ui->GID_list->clear();
     ui->GID_list->addItems(geo_list);
 
     // Populate the 'Row Data' tab.
@@ -622,13 +721,14 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<int>& comm_cata, str
         qtemp = QString::fromStdString(rows[ii][0]);
         row_list.append(qtemp);
     }
+    ui->Rows_list->clear();
     ui->Rows_list->addItems(row_list);
     
     // Report completion to the GUI thread.
     comm_cata[0] = -1;
 }
 
-// Functions related to the insertion of data into the database.
+// Insert catalogue(s) from local storage into the database.
 void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<string> prompt)
 {
     // prompt has form [syear, sname, gid1, gid2, ...], gid list is only included for partial catalogue insertions.
@@ -638,7 +738,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     int workload = num_gid / cores;
     int bot = 0;
     int top = workload - 1;
-    bool partial_entry;
+    bool partial_entry = 0;
     vector<string> param(3);
     sqlite3_stmt* statejudi;
     string stmt;
@@ -662,6 +762,39 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
         }
         step(db_gui, statejudi);
     }
+
+    // Insert this catalogue into the province index (with dummy values).
+    stmt = "INSERT INTO TProvinceIndex (";
+    for (int ii = 0; ii < provinces.size(); ii++)
+    {
+        stmt += provinces[ii];
+        if (ii < provinces.size() - 1)
+        {
+            stmt += ", ";
+        }
+        else
+        {
+            stmt += ") VALUES (";
+        }
+    }
+    for (int ii = 0; ii < provinces.size(); ii++)
+    {
+        stmt += "0";
+        if (ii < provinces.size() - 1)
+        {
+            stmt += ", ";
+        }
+        else
+        {
+            stmt += ");";
+        }
+    }
+    error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
+    if (error)
+    {
+        sqlerror("prepare1.1-judicator", db_gui);
+    }
+    step(db_gui, statejudi);
 
     // Create a table for this catalogue's damaged CSVs.
     temp = "[" + prompt[1] + "$Damaged]";
@@ -1010,6 +1143,7 @@ void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstrin
     cata.insert_primary_columns_template();
     cata.create_csv_tables_template();
     cata.insert_csv_row_template();
+    string syear = cata.get_syear();
 
     // Needed for catalogue-wide preliminary work, and best done by a thread containing a catalogue object.
     if (my_id == 0)
@@ -1043,6 +1177,7 @@ void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstrin
             if (damaged_csv == 0)  // Undamaged CSV - to be inserted.
             {
                 stmt_count += insert_primary_row(my_queue, my_id, cata, gid, text_vars, data_rows);
+                stmt_count += insert_
                 stmt_count += create_insert_csv_table(my_queue, my_id, cata, gid, data_rows);
                 stmt_count += create_insert_csv_subtables(my_queue, my_id, cata, gid, data_rows);
             }
@@ -1133,6 +1268,44 @@ int MainWindow::insert_primary_row(vector<string>& my_queue, int my_id, CATALOGU
     my_queue.push_back(stmt);
     m_jobs[my_id].unlock();
     return 1;
+}
+int MainWindow::update_prov_index(vector<string>& my_queue, int my_id, string& syear, string& gid, vector<vector<string>>& text_vars)
+{
+    // Determine the region name and the catalogue year.
+    string region_name, temp;
+    int iyear;
+    for (int ii = 0; ii < text_vars.size(); ii++)
+    {
+        if (text_vars[ii][0] == "Geography")
+        {
+            region_name = text_vars[ii][1];
+            break;
+        }
+        else if (ii == text_vars.size() - 1)
+        {
+            for (int jj = 0; jj < text_vars.size(); jj++)
+            {
+                qDebug() << QString::fromStdString(text_vars[jj][0]) << " = " << QString::fromStdString(text_vars[jj][1]);
+            }
+            err("find geography-update_prov_index");
+        }
+    }
+    try
+    {
+        iyear = stoi(syear);
+    }
+    catch (invalid_argument& ia)
+    {
+        err("stoi-update_prov_index");
+    }
+
+    // Pidgeonhole the region name by year, due to Stats Canada's shifting writing style.
+    switch (iyear)
+    {
+    case 1981:
+
+    }
+
 }
 int MainWindow::create_insert_csv_table(vector<string>& my_queue, int my_id, CATALOGUE& cata, string& gid, vector<vector<string>>& data_rows)
 {
@@ -1235,37 +1408,27 @@ void MainWindow::insert_damaged_row(vector<string>& my_queue, int my_id, string 
 // Choose a local drive to examine for spreadsheets.
 void MainWindow::on_cB_drives_currentTextChanged(const QString &arg1)
 {
-    wdrive = arg1.toStdWString();
     qdrive = arg1;
+    wdrive = arg1.toStdWString();
+    sdrive = arg1.toStdString();
 }
 
 // For the given local drive, display (as a tree widget) the available catalogues, organized by year.
 void MainWindow::on_pB_scan_clicked()
 {
-    std::vector<std::vector<std::wstring>> wtree = get_subfolders2(wroots[location]);
-    QVector<QVector<QVector<QString>>> qtree;  // Form [year][catalogue][year, name]
-    wstring wyear, wcata;
-    QString qyear, qcata;
-    size_t pos1, pos2;
-    for (size_t ii = 0; ii < wtree.size(); ii++)  // For every year...
+    vector<int> comm = { 0, 0, 0 };  // Form [control, progress, task size].
+    std::thread scan(&MainWindow::scan_drive, this, std::ref(comm));
+    while (comm[0] >= 0)
     {
-        qtree.append(QVector<QVector<QString>>());
-        pos1 = wtree[ii][0].find(L"\\");
-        pos1++;
-        pos2 = wtree[ii][0].find(L"\\", pos1);
-        wyear = wtree[ii][0].substr(pos1, pos2 - pos1);
-        qyear = QString::fromStdWString(wyear);
-        for (size_t jj = 0; jj < wtree[ii].size(); jj++)  // For every catalogue in that year...
+        Sleep(50);
+        QCoreApplication::processEvents();
+        if (comm[2] > 0)
         {
-            qtree[ii].append(QVector<QString>());
-            pos1 = wtree[ii][jj].rfind(L"\\");
-            wcata = wtree[ii][jj].substr(pos1 + 1);
-            qcata = QString::fromStdWString(wcata);
-            qtree[ii][jj].append(qyear);
-            qtree[ii][jj].append(qcata);
+            reset_bar(comm[2], "Scanning drive  " + sdrive);
         }
     }
-    build_ui_tree(qtree, 1);  // Window code 1 will populate the 'Catalogues on Drive' section.
+    scan.join();
+    ui->tabW_catalogues->setCurrentIndex(1);
 }
 
 // Insert the selected catalogues into the database.
@@ -1282,6 +1445,7 @@ void MainWindow::on_pB_insert_clicked()
     bool size_received = 0;
     bool fine;
 
+    ui->tabW_catalogues->setCurrentIndex(0);
     ui->pB_cancel->setEnabled(1);
     all_cata_db(catas_in_db, map_cata);  // Populate the tree and map. 
     for (int ii = 0; ii < catas_to_do.size(); ii++)  // For each catalogue selected...
@@ -1394,7 +1558,7 @@ void MainWindow::on_pB_viewdata_clicked()
     std::thread dispcata(&MainWindow::display_catalogue, this, std::ref(db), std::ref(comm_cata), qyear.toStdString(), tname.toStdString());
     while (comm_cata[0] >= 0)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        Sleep(50);
         QCoreApplication::processEvents();
         jobs_done = comm_cata[1];
         update_bar();
@@ -1411,3 +1575,78 @@ void MainWindow::on_pB_cancel_clicked()
 {
     remote_controller = 2;
 }
+
+// Display the raw table data for the selected region.
+void MainWindow::on_pB_region_clicked()
+{
+
+}
+
+// Update button status (enabled/disabled).
+void MainWindow::on_TW_cataindb_itemSelectionChanged()
+{
+    QList<QTreeWidgetItem*> db_selected = ui->TW_cataindb->selectedItems();
+    if (db_selected.size() > 0)
+    {
+        QString qname = db_selected[0]->text(1);
+        if (qname == " ")
+        {
+            ui->pB_viewdata->setEnabled(0);
+        }
+        else
+        {
+            ui->pB_viewdata->setEnabled(1);
+        }
+    }
+    else
+    {
+        ui->pB_viewdata->setEnabled(0);
+    }
+
+}
+void MainWindow::on_TW_cataondrive_itemSelectionChanged()
+{
+    QList<QTreeWidgetItem*> local_selected = ui->TW_cataondrive->selectedItems();
+    if (local_selected.size() > 0)
+    {
+        ui->pB_insert->setEnabled(1);
+    }
+    else
+    {
+        ui->pB_insert->setEnabled(0);
+    }
+}
+void MainWindow::on_GID_list_itemSelectionChanged()
+{
+    QList<QListWidgetItem*> region_selected = ui->GID_list->selectedItems();
+    if (region_selected.size() > 0)
+    {
+        ui->pB_region->setEnabled(1);
+    }
+    else
+    {
+        ui->pB_region->setEnabled(0);
+    }
+}
+
+
+/*
+    vector<int> comm = { 0, 0, 0 };  // Form [control, progress, task size].
+    std::thread func(&MainWindow::function, this, std::ref(db), std::ref(comm));
+    while (comm[0] >= 0)
+    {
+        Sleep(50);
+        QCoreApplication::processEvents();
+        if (comm[2] > 0)
+        {
+            reset_bar(comm[2], "I am doing...  " + stuff);
+        }
+    }
+    func.join();
+*/
+
+/*
+    int error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
+    if (error) { sqlerror("The error message.", db_gui); }
+    step(db_gui, state);
+*/

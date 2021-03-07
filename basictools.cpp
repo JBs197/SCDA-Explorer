@@ -473,6 +473,7 @@ vector<wstring> get_subfolders(wstring root_folder)
 {
     vector<wstring> subfolders;
     wstring folder_name;
+    DWORD attributes;
     wstring folder_search = root_folder + L"\\*";
     size_t pos1;
     WIN32_FIND_DATAW info;
@@ -481,9 +482,8 @@ vector<wstring> get_subfolders(wstring root_folder)
     do
     {
         folder_name = root_folder + L"\\" + info.cFileName;
-        pos1 = folder_name.find(L'.', 0);
-        if (pos1 < folder_name.size()) { continue; }
-        else
+        attributes = GetFileAttributesW(folder_name.c_str());
+        if (attributes == 16)
         {
             subfolders.push_back(folder_name);
         }

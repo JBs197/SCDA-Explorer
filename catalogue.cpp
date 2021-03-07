@@ -63,6 +63,7 @@ void CATALOGUE::initialize_table()
     wpos2 = csv_trunk.find(L'\\', wpos1 + 1);
     wtemp = csv_trunk.substr(wpos1 + 1, wpos2 - wpos1 - 1);
     qyear = QString::fromStdWString(wtemp);
+    syear = utf16to8(wtemp);
 
     pos1 = qfile.indexOf("\""); pos1++;
     pos2 = qfile.indexOf("\"", pos1);
@@ -196,9 +197,13 @@ wstring CATALOGUE::get_csv_trunk()
 {
     return csv_trunk;
 }
-QString CATALOGUE::get_year()
+QString CATALOGUE::get_qyear()
 {
     return qyear;
+}
+string CATALOGUE::get_syear()
+{
+    return syear;
 }
 vector<wstring> CATALOGUE::get_csv_branches()
 {

@@ -15,6 +15,7 @@ class CATALOGUE
     string sname;
     wstring wname;
     QString qyear;
+    string syear;
     bool multi_column;
     QString qdescription;
     wstring wfile;
@@ -76,7 +77,8 @@ public:
     QVector<QString> get_row_titles();
     void set_row_titles(QVector<QString>);
     QVector<QVector<QString>> get_model_text_variables();
-    QString get_year();
+    QString get_qyear();
+    string get_syear();
     void set_description(QString);
     QString get_description();
     void basic_input(QVector<QString>);
