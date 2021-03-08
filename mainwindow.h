@@ -46,7 +46,7 @@ private:
     Ui::MainWindow *ui;
     sqlite3* db;
     sqlite3_stmt* statement;
-    int location = 0;  // 0 = home, 1 = inn.
+    int location = 1;  // 0 = home, 1 = inn.
     int cores = 3;
     double pb_update = 1.0;  // Number of seconds between progress bar updates.
     int handful = 100;  // Number of CSVs to insert between progress bar updates.
@@ -61,7 +61,7 @@ private:
     string sdrive;
     vector<mutex> m_jobs;
     QString qdrive;
-    mutex m_err, m_io, m_bar, m_geo;
+    mutex m_err, m_io, m_bar, m_geo, m_job;
     vector<string> sroots = { "F:", "D:" };
     vector<wstring> wroots = { L"F:", L"D:" }; //  NOTE: REMOVE HARDCODING LATER.
     QVector<QString> qroots = { "F:", "D:" };
@@ -106,7 +106,7 @@ private:
     void scan_drive(vector<int>&);
     bool table_exist(string&);
     int load_geo(vector<vector<string>>&, string&, string&);
-    void delete_cata(vector<int>&, vector<vector<string>>);
+    void delete_cata(sqlite3*&, vector<int>&, vector<vector<string>>);
 
 
     // TEMPLATES

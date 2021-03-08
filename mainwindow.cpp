@@ -465,8 +465,56 @@ vector<string> MainWindow::all_tables()
 }
 
 // Delete all tables and subtables related to the given catalogue.
-void MainWindow::delete_cata(vector<int>& comm, vector<vector<string>> death_row)
+void MainWindow::delete_cata(sqlite3*& db_gui, vector<int>& comm, vector<vector<string>> death_row)
 {
+    sqlite3_stmt* state;
+    vector<string> table_list = all_tables();
+    vector<int> marked;
+    size_t pos1;
+    string stmt;
+    int error;
+    
+    // Determine which tables contain the catalogue(s) to be deleted.
+    for (int ii = 0; ii < death_row.size(); ii++)
+    {
+        for (int jj = 0; jj < table_list.size(); jj++)
+        {
+            pos1 = table_list[jj].find(death_row[ii][1]);
+            if (pos1 < table_list[jj].size())
+            {
+                marked.push_back(jj);
+            }
+        }
+    }
+
+    // Firstly, delete each catalogue's row in the index table.
+    for (int ii = 0; ii < death_row.size(); ii++)
+    {
+        stmt = "DELETE FROM TCatalogueIndex WHERE Name = " + death_row[ii][1] + " ;";
+        error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
+        if (error) { sqlerror("prepare1-delete_cata", db_gui); }
+        step(db_gui, state);
+    }
+
+    // Then, delete each marked table.
+    string stmt0 = "DELETE FROM !!! ;";
+    error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+    if (error) { sqlerror("begin transaction1-delete_cata", db_gui); }
+    for (int ii = 0; ii < marked.size(); ii++)
+    {
+        stmt = stmt0;
+        pos1 = stmt.find("!!!");
+        stmt.replace(pos1, 3, table_list[marked[ii]]);
+        error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
+        if (error) { sqlerror("prepare2-delete_cata", db_gui); }
+        step(db_gui, state);
+    }
+    error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
+    if (error) { sqlerror("commit transaction1-delete_cata", db_gui); }
+
+    m_job.lock();
+    comm[0] = -1;
+    m_job.unlock();
 
 }
 
@@ -1790,6 +1838,7 @@ void MainWindow::on_pB_test_clicked()
     QList<QTreeWidgetItem*> catas_to_do = ui->TW_cataondrive->selectedItems();
     QString qyear, qname;
     string syear, sname;
+    int stop = 0;
     vector<vector<string>> death_row;  // Form [catalogue][syear, sname].
     for (int ii = 0; ii < catas_to_do.size(); ii++)
     {
@@ -1801,8 +1850,26 @@ void MainWindow::on_pB_test_clicked()
         sname = qname.toStdString();
         death_row[death_row.size() - 1][1] = sname;
     }
-    vector<int> comm = { 0 };
-    std::thread thr(&MainWindow::delete_catalogue, this, ref(comm), //RESUME HERE DELETE STUFF
+    vector<int> comm = { 0 , 0 , 0 };
+    std::thread thr(&MainWindow::delete_cata, this, ref(db), ref(comm), death_row);
+    while (!stop)
+    {
+        Sleep(50);
+        QCoreApplication::processEvents();
+        jobs_done = comm[1];
+        update_bar();
+        if (remote_controller)
+        {
+            m_job.lock();
+            comm[0] = 1;
+            m_job.unlock();
+        }
+        m_job.lock();
+        stop = -1 * comm[0];
+        m_job.unlock();
+        
+    }
+    thr.join();
 
 }
 
