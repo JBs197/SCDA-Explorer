@@ -63,7 +63,6 @@ void MainWindow::initialize()
 
     // Create (if necessary) these system-wide tables. 
     create_cata_index_table();  
-    create_prov_index_table();
     
     update_cata_tree();  // The cata_tree matrix is kept in QString form, given its proximity to the GUI.
     build_ui_tree(cata_tree, 2);
@@ -199,6 +198,23 @@ vector<string> MainWindow::extract_gids(string cata_path)
 
     FindClose(hfile);
     return gids;
+}
+
+// Returns TRUE or FALSE as to the existance of a given table within the database.
+bool MainWindow::table_exist(string& tname)
+{
+    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerror("prepare-table_exist", db); }
+    vector<vector<string>> results = step(db, statement);
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        if (tname == results[ii][0])
+        {
+            return 1;
+        }
+    }
+    return 0;
 }
 
 // For a given incomplete catalogue, determine its existing CSV entries and return a list of missing GIDs.
@@ -691,27 +707,28 @@ void MainWindow::scan_drive(vector<int>& comm)
 }
 
 // Populate the information tabs for a selected catalogue. 
-void MainWindow::display_catalogue(sqlite3*& db_gui, vector<int>& comm_cata, string syear, string tname)
+void MainWindow::display_catalogue(sqlite3*& db_gui, vector<string>& gid_list, vector<int>& comm_cata, string syear, string sname)
 {
     sqlite3_stmt* state;
 
     // Populate the 'Geographic Region' tab.
-    string stmt = "SELECT Geography FROM [" + tname + "];";
+    string stmt = "SELECT GID, Geography FROM [" + sname + "];";
     int error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
     if (error) { sqlerror("prepare1-display_catalogue", db_gui); }
-    vector<vector<string>> geography = step(db_gui, state);
+    vector<vector<string>> results = step(db_gui, state);
     QStringList geo_list;
     QString qtemp;
-    for (int ii = 0; ii < geography.size(); ii++)
+    for (int ii = 0; ii < results.size(); ii++)
     {
-        qtemp = QString::fromStdString(geography[ii][0]);
+        gid_list.push_back(results[ii][0]);
+        qtemp = QString::fromStdString(results[ii][1]);
         geo_list.append(qtemp);
     }
     ui->GID_list->clear();
     ui->GID_list->addItems(geo_list);
 
     // Populate the 'Row Data' tab.
-    stmt = "SELECT Column FROM [" + tname + "$Columns];";
+    stmt = "SELECT Column FROM [" + sname + "$Columns];";
     error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
     if (error) { sqlerror("prepare2-display_catalogue", db_gui); }
     vector<vector<string>> rows = step(db_gui, state);
@@ -728,6 +745,66 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<int>& comm_cata, str
     comm_cata[0] = -1;
 }
 
+// Populate the table widget for a selected spreadsheet.
+void MainWindow::display_region(sqlite3*& db_gui, vector<int>& comm, string rname, int row)
+{
+    sqlite3_stmt* state;
+    QString qtemp;
+    int title_size, line_breaks, pos1;
+    string gid = viewcata_gid_list[row];
+    string tname = "[" + viewcata_data[1] + "$" + gid + "]";
+    string stmt = "SELECT * FROM " + tname + ";";
+    int error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
+    if (error) { sqlerror("prepare1-display_region", db_gui); }
+    vector<vector<string>> results = step(db_gui, state);
+    
+    ui->table_results->setSortingEnabled(0);
+    ui->table_results->setRowCount(results.size());
+    ui->table_results->setColumnCount(results[0].size() - 1);
+    QStringList col_titles, row_titles;
+    col_titles << "Value";
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        qtemp = QString::fromStdString(results[ii][0]);
+        title_size = qtemp.size();
+        if (title_size > 20)
+        {
+            line_breaks = title_size / 20;
+            for (int jj = 0; jj < line_breaks; jj++)
+            {
+                pos1 = qtemp.lastIndexOf(' ', jj * 20);
+                qtemp.insert(pos1, " \n");
+            }
+        }
+        row_titles << qtemp;
+    }
+
+    ui->table_results->setHorizontalHeaderLabels(col_titles);
+    //ui->table_results->setVerticalHeaderLabels(row_titles);
+    QTableWidgetItem *test = new QTableWidgetItem;
+    test->setText("hungryyy");   // RESUME HERE. GET THE HEADERS WORKING!!!
+    ui->table_results->setVerticalHeaderItem(0, test);
+
+    QTableWidgetItem *cell;
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        //qtemp = QString::fromStdString(results[ii][0]);
+        //row_titles.append(qtemp);
+        //QTableWidgetItem* cell = new QTableWidgetItem;
+        //cell->setData(0, qtemp);
+        //ui->table_results->setVerticalHeaderItem(ii, cell);
+        for (int jj = 1; jj < results[ii].size(); jj++)
+        {
+            qtemp = QString::fromStdString(results[ii][jj]);
+            cell = new QTableWidgetItem;
+            cell->setText(qtemp);
+            ui->table_results->setItem(ii, jj - 1, cell);
+        }
+    }
+
+    comm[0] = -1;
+}
+
 // Insert catalogue(s) from local storage into the database.
 void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<string> prompt)
 {
@@ -740,19 +817,21 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     int top = workload - 1;
     bool partial_entry = 0;
     vector<string> param(3);
+    vector<string> geo_queue;
+    vector<int> geo_comm = { 0 };
     sqlite3_stmt* statejudi;
-    string stmt;
+    string stmt, stmt0;
     int error;
 
-    if (prompt.size() == 2) { partial_entry = 0; }
-    else if (prompt.size() > 2) { partial_entry = 1; }
+    bool need_geo = !table_exist(param[1]);
+    if (prompt.size() > 2) { partial_entry = 1; }
 
     // Insert this catalogue into the catalogue index.
     if (!partial_entry)
     {
         stmt = "INSERT INTO TCatalogueIndex ( Year, Name, Description ) VALUES (?, ?, ?);";
-        param[0] = prompt[0];
-        param[1] = prompt[1];
+        param[0] = prompt[0];  // year
+        param[1] = prompt[1];  // name
         param[2].assign("Incomplete");
         bind(stmt, param);
         error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
@@ -763,38 +842,13 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
         step(db_gui, statejudi);
     }
 
-    // Insert this catalogue into the province index (with dummy values).
-    stmt = "INSERT INTO TProvinceIndex (";
-    for (int ii = 0; ii < provinces.size(); ii++)
+    // Perform region indexing for this catalogue, if necessary.
+    if (need_geo)
     {
-        stmt += provinces[ii];
-        if (ii < provinces.size() - 1)
-        {
-            stmt += ", ";
-        }
-        else
-        {
-            stmt += ") VALUES (";
-        }
+        log("Begin region indexing for catalogue " + prompt[1]);
+        std::thread geo(&MainWindow::create_insert_region_tables, this, ref(geo_queue), ref(geo_comm), prompt);
+        geo.detach();
     }
-    for (int ii = 0; ii < provinces.size(); ii++)
-    {
-        stmt += "0";
-        if (ii < provinces.size() - 1)
-        {
-            stmt += ", ";
-        }
-        else
-        {
-            stmt += ");";
-        }
-    }
-    error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
-    if (error)
-    {
-        sqlerror("prepare1.1-judicator", db_gui);
-    }
-    step(db_gui, statejudi);
 
     // Create a table for this catalogue's damaged CSVs.
     temp = "[" + prompt[1] + "$Damaged]";
@@ -877,7 +931,27 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     }
 
     // Create the catalogue's primary table.
-    while (all_queue[0].size() < 3) { Sleep(50); }  // Wait for the first worker thread to finish its unique task.
+    while (all_queue[0].size() < 3) 
+    { 
+        if (geo_comm[0] == -1)
+        {
+            error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+            if (error) { sqlerror("begin transaction1.3-judicator", db_gui); }
+            for (int ii = 0; ii < geo_queue.size(); ii++)
+            {
+                error = sqlite3_prepare_v2(db_gui, geo_queue[ii].c_str(), -1, &statejudi, NULL);
+                if (error) { sqlerror("prepare3.3-judicator", db_gui); }
+                step(db_gui, statejudi);
+            }
+            error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
+            if (error) { sqlerror("commit transaction1.3-judicator", db_gui); }
+            geo_comm[0] = 1;
+        }
+        else
+        {
+            Sleep(20); // Wait for the first worker thread to finish its unique task.
+        }
+    }  
     m_jobs[0].lock();
     string stmt_primary = all_queue[0][0];
     string cata_desc = all_queue[0][1];  // Used later.
@@ -901,15 +975,15 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
         pos2 = stmt_column.find("!!!", pos1 + 3);
     }
     error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-    if (error) { sqlerror("begin transaction0.1-judicator", db_gui); }
+    if (error) { sqlerror("begin transaction1.5-judicator", db_gui); }
     for (int ii = 0; ii < col_titles.size(); ii++)
     {
         error = sqlite3_prepare_v2(db_gui, col_titles[ii].c_str(), -1, &statejudi, NULL);
-        if (error) { sqlerror("prepare3.1-judicator", db_gui); }
+        if (error) { sqlerror("prepare3.5-judicator", db_gui); }
         step(db_gui, statejudi);
     }
     error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
-    if (error) { sqlerror("commit transaction1.1-judicator", db_gui); }
+    if (error) { sqlerror("commit transaction1.5-judicator", db_gui); }
 
     // Report the total task size to the GUI thread.
     bool size_reported = 0;
@@ -918,6 +992,20 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     vector<vector<int>> reports;
     while (!size_reported)  // Until we have initialized the progress bar... 
     {
+        if (geo_comm[0] == -1)
+        {
+            error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+            if (error) { sqlerror("begin transaction1.3-judicator", db_gui); }
+            for (int ii = 0; ii < geo_queue.size(); ii++)
+            {
+                error = sqlite3_prepare_v2(db_gui, geo_queue[ii].c_str(), -1, &statejudi, NULL);
+                if (error) { sqlerror("prepare3.3-judicator", db_gui); }
+                step(db_gui, statejudi);
+            }
+            error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
+            if (error) { sqlerror("commit transaction1.3-judicator", db_gui); }
+            geo_comm[0] = 1;
+        }  
         for (int ii = 0; ii < cores; ii++)  // Look at all worker thread reports...
         {
             if (comm_csv[ii][2] == 0)  // If the thread has not yet reported on its task size...
@@ -967,9 +1055,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     int inert_threads = 0;
     int pile, progress, num3;
     vector<string> desk;
-
-    // Stop working if a 'jobs done' or 'cancel' signal is sent.
-    int no_work = 0;
+    int no_work = 0;      // Stop working if a 'jobs done' or 'cancel' signal is sent.
     while (comm_cata[0] == 0)  
     {
         progress = 0;  // RESUME HERE. Progress bar should be linked to judicator, not workers. 
@@ -981,6 +1067,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
         pile = all_queue[active_thread].size();
         if (pile > 0)
         {
+            qDebug() << "Pile size: " << pile;
             no_work = 0;
             m_jobs[active_thread].lock();
             desk = all_queue[active_thread];
@@ -1024,7 +1111,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
         active_thread++;
         if (active_thread >= cores) { active_thread = 0; }
     }
-    
+
     // If task is cancelled, finish inserting the CSVs that were in queue.
     if (comm_cata[0] == 2)  
     {
@@ -1104,6 +1191,29 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
         }
     }
 
+    // If the geo thread had not yet finished, wait for it now.
+    while (geo_comm[0] < 1)
+    {
+        if (geo_comm[0] == -1)
+        {
+            error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+            if (error) { sqlerror("begin transaction1.3-judicator", db_gui); }
+            for (int ii = 0; ii < geo_queue.size(); ii++)
+            {
+                error = sqlite3_prepare_v2(db_gui, geo_queue[ii].c_str(), -1, &statejudi, NULL);
+                if (error) { sqlerror("prepare3.3-judicator", db_gui); }
+                step(db_gui, statejudi);
+            }
+            error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
+            if (error) { sqlerror("commit transaction1.3-judicator", db_gui); }
+            geo_comm[0] = 1;
+        }
+        else
+        {
+            Sleep(50);
+        }
+    }
+
     // If we are done without being cancelled, we can mark the catalogue as 'complete'.
     if (comm_cata[0] < 2)  
     {
@@ -1177,7 +1287,7 @@ void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstrin
             if (damaged_csv == 0)  // Undamaged CSV - to be inserted.
             {
                 stmt_count += insert_primary_row(my_queue, my_id, cata, gid, text_vars, data_rows);
-                stmt_count += insert_
+                //stmt_count += insert_
                 stmt_count += create_insert_csv_table(my_queue, my_id, cata, gid, data_rows);
                 stmt_count += create_insert_csv_subtables(my_queue, my_id, cata, gid, data_rows);
             }
@@ -1268,44 +1378,6 @@ int MainWindow::insert_primary_row(vector<string>& my_queue, int my_id, CATALOGU
     my_queue.push_back(stmt);
     m_jobs[my_id].unlock();
     return 1;
-}
-int MainWindow::update_prov_index(vector<string>& my_queue, int my_id, string& syear, string& gid, vector<vector<string>>& text_vars)
-{
-    // Determine the region name and the catalogue year.
-    string region_name, temp;
-    int iyear;
-    for (int ii = 0; ii < text_vars.size(); ii++)
-    {
-        if (text_vars[ii][0] == "Geography")
-        {
-            region_name = text_vars[ii][1];
-            break;
-        }
-        else if (ii == text_vars.size() - 1)
-        {
-            for (int jj = 0; jj < text_vars.size(); jj++)
-            {
-                qDebug() << QString::fromStdString(text_vars[jj][0]) << " = " << QString::fromStdString(text_vars[jj][1]);
-            }
-            err("find geography-update_prov_index");
-        }
-    }
-    try
-    {
-        iyear = stoi(syear);
-    }
-    catch (invalid_argument& ia)
-    {
-        err("stoi-update_prov_index");
-    }
-
-    // Pidgeonhole the region name by year, due to Stats Canada's shifting writing style.
-    switch (iyear)
-    {
-    case 1981:
-
-    }
-
 }
 int MainWindow::create_insert_csv_table(vector<string>& my_queue, int my_id, CATALOGUE& cata, string& gid, vector<vector<string>>& data_rows)
 {
@@ -1400,6 +1472,133 @@ void MainWindow::insert_damaged_row(vector<string>& my_queue, int my_id, string 
     m_jobs[my_id].lock();
     my_queue.push_back(stmt);
     m_jobs[my_id].unlock();
+}
+void MainWindow::create_insert_region_tables(vector<string>& my_queue, vector<int>& comm, vector<string> prompt)
+{
+    // Create the region index table.
+    string stmt = "CREATE TABLE IF NOT EXISTS [" + prompt[1] + "$RegionIndex] ";
+    stmt += "(GID INTEGER PRIMARY KEY, [Region Name] TEXT);";
+    my_queue.push_back(stmt);
+
+    // Populate the region index table.
+    vector<vector<string>> geo_values;
+    int geosize = load_geo(geo_values, prompt[0], prompt[1]);  // NOTE: region names have been cleaned already.
+    string stmt0 = "INSERT INTO [" + prompt[1] + "$RegionIndex] (GID, [Region Name]) VALUES (?, ?);";
+    for (int ii = 0; ii < geosize; ii++)
+    {
+        stmt = stmt0;
+        bind(stmt, geo_values[ii]);
+        my_queue.push_back(stmt);
+    }
+
+    // Create the subtable tree and namelist (matching first indices).
+    vector<vector<vector<int>>> geo_tree;
+    vector<string> slist(geosize);
+    for (int ii = 0; ii < geosize; ii++)
+    {
+        slist[ii] = geo_values[ii][1];
+    }
+    geo_tree = tree_maker(slist, "+");  // Throughout this program, '+' is used to mark indentation.
+    vector<string> tnames;
+    string tname;
+    int cheddar, ancestry, itemp;
+    for (int ii = 0; ii < geo_tree.size(); ii++)
+    {
+        cheddar = 2;
+        ancestry = geo_tree[ii][0].size();
+        tname = "[" + prompt[1] + "$Region";
+        for (int jj = 0; jj < ancestry; jj++)
+        {
+            for (int kk = 0; kk < cheddar; kk++)
+            {
+                tname += "$";
+            }
+            cheddar++;
+            itemp = geo_tree[ii][0][jj];
+            tname += slist[itemp];
+        }
+        tname += "]";
+        tnames.push_back(tname);
+    }
+
+    // Create the subtables.
+    for (int ii = 0; ii < tnames.size(); ii++)
+    {
+        stmt = "CREATE TABLE IF NOT EXISTS " + tnames[ii] + "(GID INTEGER PRIMARY KEY, [Region Name] TEXT);";
+        my_queue.push_back(stmt);
+    }
+
+    // Populate the subtables.
+    int num_rows, row_index;
+    for (int ii = 0; ii < tnames.size(); ii++)  // For every subtable...
+    {
+        stmt0 = "INSERT INTO " + tnames[ii] + " (GID, [Region Name]) VALUES (?, ?);";
+        num_rows = geo_tree[ii][1].size() + 1;  // Top row is the parent, subsequent rows are direct children.
+        for (int jj = 0; jj < num_rows; jj++)  // For every row in this subtable...
+        {
+            stmt = stmt0;
+            if (jj == 0)
+            {
+                row_index = geo_tree[ii][0][geo_tree[ii][0].size() - 1];
+            }
+            else
+            {
+                row_index = geo_tree[ii][1][jj - 1];
+            }
+            bind(stmt, geo_values[row_index]);
+            my_queue.push_back(stmt);
+        }
+    }
+
+    // Signal the judicator that the work is done. 
+    comm[0] = -1;
+}
+int MainWindow::load_geo(vector<vector<string>>& geo_values, string& syear, string& sname)
+{
+    string geo_list_path = sroots[location] + "\\" + syear + "\\" + sname + "\\" + sname + " geo list.bin";
+    wstring wtemp = utf8to16(geo_list_path);
+    string geo_list = s_memory(wtemp);
+    size_t pos1, pos2;
+    string temp, region;
+    int region_index, indent;
+    pos1 = 0;
+    pos2 = geo_list.find('$');
+    do
+    {
+        region_index = geo_values.size();
+        geo_values.push_back(vector<string>(2));  // geo_values has form [region_index][gid, region name].
+        temp = geo_list.substr(pos1, pos2 - pos1);
+        geo_values[region_index][0] = temp;
+
+        pos2 = geo_list.find('\r', pos2);
+        pos1 = geo_list.rfind('$', pos2);
+        temp = geo_list.substr(pos1 + 1, pos2 - pos1 - 1);
+        try
+        {
+            indent = stoi(temp);
+        }
+        catch (invalid_argument& ia)
+        {
+            err("stoi-load_geo");
+        }
+        region.clear();
+        for (int ii = 0; ii < indent; ii++)
+        {
+            region += '+';
+        }
+
+        pos2 = geo_list.rfind('$', pos1 - 1);
+        temp = geo_list.substr(pos2 + 1, pos1 - pos2 - 1);
+        region += temp;
+        sclean(region, 1);
+        geo_values[region_index][1] = region;
+
+        pos2 = geo_list.find('\n', pos1);
+        pos1 = pos2 + 1;
+        pos2 = geo_list.find('$', pos1);
+    } while (pos2 < geo_list.size());
+    int count = (int)geo_values.size();
+    return count;
 }
 
 
@@ -1538,7 +1737,7 @@ void MainWindow::on_pB_insert_clicked()
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
-
+    int bbq = 1;
 }
 
 // (Debug function) Perform a series of actions to test new functions.
@@ -1552,10 +1751,16 @@ void MainWindow::on_pB_viewdata_clicked()
 {
     QList<QTreeWidgetItem *> cata_to_do = ui->TW_cataindb->selectedItems();  // Only 1 catalogue can be selected.
     QString qyear = cata_to_do[0]->text(0);
-    QString tname = cata_to_do[0]->text(1);
+    string syear = qyear.toStdString();
+    QString qname = cata_to_do[0]->text(1);
+    string sname = qname.toStdString();
+    vector<string> gid_list;
     vector<int> comm_cata = { 0, 0, 0 };  // Form [control, progress report, size report]
+    viewcata_data.resize(2);
+    viewcata_data[0] = syear;
+    viewcata_data[1] = sname;
 
-    std::thread dispcata(&MainWindow::display_catalogue, this, std::ref(db), std::ref(comm_cata), qyear.toStdString(), tname.toStdString());
+    std::thread dispcata(&MainWindow::display_catalogue, this, ref(db), ref(gid_list), ref(comm_cata), syear, sname);
     while (comm_cata[0] >= 0)
     {
         Sleep(50);
@@ -1567,6 +1772,7 @@ void MainWindow::on_pB_viewdata_clicked()
             comm_cata[0] = 1;
         }
     }
+    viewcata_gid_list = gid_list;
     dispcata.join();
 }
 
@@ -1579,7 +1785,21 @@ void MainWindow::on_pB_cancel_clicked()
 // Display the raw table data for the selected region.
 void MainWindow::on_pB_region_clicked()
 {
+    QList<QListWidgetItem*> region_selected = ui->GID_list->selectedItems();
+    int row = ui->GID_list->currentRow();
+    QString qname = region_selected[0]->text();
+    string rname = qname.toStdString();
+    vector<int> comm = { 0, 0, 0 };
 
+    std::thread dispcata(&MainWindow::display_region, this, ref(db), ref(comm), rname, row);
+    while (comm[0] == 0)
+    {
+        Sleep(50);
+        QCoreApplication::processEvents();
+        jobs_done = comm[1];
+        update_bar();
+    }
+    dispcata.join();
 }
 
 // Update button status (enabled/disabled).

@@ -7,6 +7,7 @@
 #include <winuser.h>
 #include <thread>
 #include <locale>
+#include <codecvt>
 #include <QtSql>
 
 #pragma comment(lib, "wininet.lib")
@@ -23,6 +24,8 @@ typedef struct {
 // Text encoder conversion functions.
 string utf16to8(wstring);
 wstring utf8to16(string);
+wstring utf8toUtf16(const string&);
+string utf16toUtf8(const wstring&);
 
 // Return a timestamp from the system clock.
 string timestamperA();
@@ -69,5 +72,10 @@ int index_card(vector<int>&, int);
 // Returns a CSV's data rows.
 QVector<QVector<QString>> extract_csv_data_rows(QString&, QVector<QString>, bool);
 
+// For a given ordered and prefixed list of strings, return its tree structure. Ints are the row indices of strings.
+// Tree form [possibility index][indices of ancestors, indices of children][indices]. 
+// Prefix is the char/string used to show indentation/hierarchy at the beginning of every string.
+vector<vector<vector<int>>> tree_maker(vector<string>&, string);
+int is_parent(vector<vector<vector<int>>>&, vector<vector<vector<int>>>&, vector<int>, int, int);
 
 #endif

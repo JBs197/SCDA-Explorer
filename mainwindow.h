@@ -57,7 +57,7 @@ private:
     string sdrive;
     vector<mutex> m_jobs;
     QString qdrive;
-    mutex m_err, m_io, m_bar;
+    mutex m_err, m_io, m_bar, m_geo;
     vector<string> sroots = { "F:", "D:" };
     vector<wstring> wroots = { L"F:", L"D:" }; //  NOTE: REMOVE HARDCODING LATER.
     QVector<QString> qroots = { "F:", "D:" };
@@ -67,6 +67,8 @@ private:
     QVector<QVector<QVector<QString>>> cata_tree;  // Form [year][catalogue][qyear, qname, qdescription].
     QMap<QString, int> map_tree_year;  // For a given qyear, return that cata_tree index.
     QMap<QString, int> map_tree_cata;  // For a given qname, return that cata_tree index.
+    vector<string> viewcata_data;  // Hold essential information for the catalogue being viewed. Form [syear, sname].
+    vector<string> viewcata_gid_list;
     void build_ui_tree(QVector<QVector<QVector<QString>>>&, int);
     void add_children(QTreeWidgetItem*, QVector<QVector<QString>>&);
     void clear_log();
@@ -83,19 +85,22 @@ private:
     void judicator(sqlite3*&, vector<int>&, vector<string>);
     void insert_csvs(vector<string>&, vector<int>&, wstring, vector<int>);
     int insert_primary_row(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&, vector<vector<string>>&);
-    int update_prov_index(vector<string>&, int, string&, string&, vector<vector<string>>&);
     int create_insert_csv_table(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&);
     int create_insert_csv_subtables(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&);
     void insert_damaged_row(vector<string>&, int, string, string&, int);
+    void create_insert_region_tables(vector<string>&, vector<int>&, vector<string>);
     static int sql_callback(void*, int, char**, char**);
     vector<vector<string>> step(sqlite3*&, sqlite3_stmt*);
     vector<string> step_1(sqlite3*&, sqlite3_stmt*);
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
     vector<string> missing_gids(sqlite3*&, int, string, string);
-    void display_catalogue(sqlite3*&, vector<int>&, string, string);
+    void display_catalogue(sqlite3*&, vector<string>&, vector<int>&, string, string);
+    void display_region(sqlite3*&, vector<int>&, string, int);
     void output_tables();
     void scan_drive(vector<int>&);
+    bool table_exist(string&);
+    int load_geo(vector<vector<string>>&, string&, string&);
 
 
     // TEMPLATES
