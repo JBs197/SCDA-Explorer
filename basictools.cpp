@@ -72,6 +72,28 @@ void winerr_bt(string func)
     exit(EXIT_FAILURE);
 }
 
+// Flips the bool to true after a given number of seconds.
+void kitchen_timer(bool& light, double sec)
+{
+
+    auto ticktick = [=] (bool& light) 
+    {
+        time_t timer1, timer2;
+        double stopwatch;
+        time(&timer1);
+        do
+        {
+            Sleep(50);
+            time(&timer2);
+            stopwatch = difftime(timer1, timer2);
+        } while (stopwatch < sec);
+        light = 1;
+    }
+
+    std::thread thr(ticktick, ref(light));
+    thr.detach();
+}
+
 // Remove problematic chars from a string.
 int qclean(QString& bbq, int mode)
 {
