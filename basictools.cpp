@@ -76,7 +76,7 @@ void winerr_bt(string func)
 void kitchen_timer(bool& light, double sec)
 {
 
-    auto ticktick = [=] (bool& light) 
+    auto ticktick = [=](bool& light)
     {
         time_t timer1, timer2;
         double stopwatch;
@@ -88,7 +88,7 @@ void kitchen_timer(bool& light, double sec)
             stopwatch = difftime(timer1, timer2);
         } while (stopwatch < sec);
         light = 1;
-    }
+    };
 
     std::thread thr(ticktick, ref(light));
     thr.detach();

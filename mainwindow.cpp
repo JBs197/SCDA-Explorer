@@ -443,9 +443,31 @@ vector<string> MainWindow::step_1(sqlite3*& db, sqlite3_stmt* state)
     }
     else if (error > 0 && error != 101)
     {
-        sqlerror("step: " + to_string(error), db);
+        sqlerror("step1: " + to_string(error), db);
     }
     return results;
+}
+
+// Return a list of all tables in the database.
+vector<string> MainWindow::all_tables()
+{
+    // Use SQLite's internal listing.
+    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerror("prepare-output_tables", db); }
+    vector<vector<string>> results = step(db, statement);
+    vector<string> output(results.size());
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        output[ii] = results[ii][0];
+    }
+    return output;
+}
+
+// Delete all tables and subtables related to the given catalogue.
+void MainWindow::delete_cata(vector<int>& comm, vector<vector<string>> death_row)
+{
+
 }
 
 // Functions for the meta-tables.
@@ -612,34 +634,7 @@ int MainWindow::sql_callback(void* NotUsed, int argc, char** argv, char** column
     }
     return 0;
 }
-void MainWindow::output_tables()
-{
-    // Use SQLite's internal listing.
-    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
-    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
-    if (error) { sqlerror("prepare-output_tables", db); }
-    vector<vector<string>> results = step(db, statement);
-    string temp = "Tables in Database (SQLite): \r\n";
-    OutputDebugStringA(temp.c_str());
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        temp = results[ii][0] + "\r\n";
-        OutputDebugStringA(temp.c_str());
-    }
 
-    // Use the catalogue index.
-    stmt = "SELECT * FROM TCatalogueIndex;";
-    error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
-    if (error) { sqlerror("prepare-output_tables", db); }
-    results = step(db, statement);
-    temp = "Tables in TCatalogueIndex: \r\n";
-    OutputDebugStringA(temp.c_str());
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        temp = results[ii][0] + "\r\n";
-        OutputDebugStringA(temp.c_str());
-    }
-}
 
 
 // TASK FUNCTIONS, USED BY ONE OR MORE GUI BUTTONS:
@@ -748,6 +743,7 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<string>& gid_list, v
 // Populate the table widget for a selected spreadsheet.
 void MainWindow::display_region(sqlite3*& db_gui, vector<int>& comm, string rname, int row)
 {
+    /*
     sqlite3_stmt* state;
     QString qtemp;
     int title_size, line_breaks, pos1;
@@ -758,11 +754,12 @@ void MainWindow::display_region(sqlite3*& db_gui, vector<int>& comm, string rnam
     if (error) { sqlerror("prepare1-display_region", db_gui); }
     vector<vector<string>> results = step(db_gui, state);
     
-    ui->table_results->setSortingEnabled(0);
-    ui->table_results->setRowCount(results.size());
-    ui->table_results->setColumnCount(results[0].size() - 1);
-    QStringList col_titles, row_titles;
+    ui->tV_results->setSortingEnabled(0);
+    ui->tV_results->setRowCount(results.size());
+    ui->tV_results->setColumnCount(results[0].size() - 1);
+    QStringList col_titles;
     col_titles << "Value";
+
     for (int ii = 0; ii < results.size(); ii++)
     {
         qtemp = QString::fromStdString(results[ii][0]);
@@ -779,20 +776,14 @@ void MainWindow::display_region(sqlite3*& db_gui, vector<int>& comm, string rnam
         row_titles << qtemp;
     }
 
-    ui->table_results->setHorizontalHeaderLabels(col_titles);
-    //ui->table_results->setVerticalHeaderLabels(row_titles);
-    QTableWidgetItem *test = new QTableWidgetItem;
-    test->setText("hungryyy");   // RESUME HERE. GET THE HEADERS WORKING!!!
-    ui->table_results->setVerticalHeaderItem(0, test);
 
+    
+
+    ui->table_results->setHorizontalHeaderLabels(col_titles);
     QTableWidgetItem *cell;
     for (int ii = 0; ii < results.size(); ii++)
     {
-        //qtemp = QString::fromStdString(results[ii][0]);
-        //row_titles.append(qtemp);
-        //QTableWidgetItem* cell = new QTableWidgetItem;
-        //cell->setData(0, qtemp);
-        //ui->table_results->setVerticalHeaderItem(ii, cell);
+        qtemp = QString::fromStdString(results[ii][0]);
         for (int jj = 1; jj < results[ii].size(); jj++)
         {
             qtemp = QString::fromStdString(results[ii][jj]);
@@ -803,6 +794,41 @@ void MainWindow::display_region(sqlite3*& db_gui, vector<int>& comm, string rnam
     }
 
     comm[0] = -1;
+
+    */
+}
+void MainWindow::view_region(sqlite3*& db_gui, vector<int>& comm, int row)
+{
+    sqlite3_stmt* state;
+    QString qtemp;
+    int row_count, col_count;
+    string gid = viewcata_gid_list[row];
+    string tname = "[" + viewcata_data[1] + "$" + gid + "]";
+    string stmt = "SELECT * FROM " + tname + ";";
+    int error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
+    if (error) { sqlerror("prepare1-display_region", db_gui); }
+    vector<vector<string>> results = step(db_gui, state);
+    row_count = results.size();
+    col_count = results[0].size() - 1;
+
+    QStandardItemModel model(row_count, col_count);
+    model.setHeaderData(0, Qt::Horizontal, "Value");
+    for (int ii = 0; ii < row_count; ii++)
+    {
+        qtemp = QString::fromStdString(results[ii][0]);
+        model.setHeaderData(ii, Qt::Vertical, qtemp);
+        for (int jj = 1; jj < col_count; jj++)
+        {
+            qtemp = QString::fromStdString(results[ii][jj]);
+            model.setData(model.index(ii, jj - 1), qtemp);
+        }
+    }
+    ui->tV_results->setModel(&model);
+
+    //ui->tV_results->horizontalHeader()->
+    m_bar.lock();
+    comm[0] = -1;
+    m_bar.unlock();
 }
 
 // Insert catalogue(s) from local storage into the database.
@@ -812,6 +838,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     string temp = sroots[location] + "\\" + prompt[0] + "\\" + prompt[1];
     wstring cata_wpath = utf8to16(temp);
     int num_gid = get_file_path_number(cata_wpath, L".csv");
+    comm_cata[2] = num_gid;
     int workload = num_gid / cores;
     int bot = 0;
     int top = workload - 1;
@@ -866,7 +893,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     }
     vector<int> prompt_csv(3);  // Form [id, bot, top]
     vector<vector<int>> prompt_csv_partial;  // Form [thread][id, gid1, gid2, ...]
-    vector<vector<string>> all_queue(cores, vector<string>());  // Form [thread][statements]   
+    vector<vector<vector<string>>> all_queue(cores, vector<vector<string>>());  // Form [thread][CSV][statements].   
     if (partial_entry)  // If this catalogue insertion is partial, specify individual GIDs tasked to each thread.
     {
         int itemp;
@@ -953,9 +980,9 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
         }
     }  
     m_jobs[0].lock();
-    string stmt_primary = all_queue[0][0];
-    string cata_desc = all_queue[0][1];  // Used later.
-    string stmt_column = all_queue[0][2];
+    string stmt_primary = all_queue[0][0][0];
+    string cata_desc = all_queue[0][0][1];  // Used later.
+    string stmt_column = all_queue[0][0][2];
     all_queue[0].erase(all_queue[0].begin(), all_queue[0].begin() + 3);
     m_jobs[0].unlock();
     error = sqlite3_prepare_v2(db_gui, stmt_primary.c_str(), -1, &statejudi, NULL);
@@ -985,6 +1012,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
     if (error) { sqlerror("commit transaction1.5-judicator", db_gui); }
 
+    /*
     // Report the total task size to the GUI thread.
     bool size_reported = 0;
     int num1, num2;
@@ -1049,43 +1077,69 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
         }
     }
     comm_cata[2] = num2 * num_gid;
+    */
 
     // Loop through the worker threads, inserting their statements into the database.
+    //vector<int> batch_record;  // List of millisec/CSV recorded.
     int active_thread = 0;
     int inert_threads = 0;
-    int pile, progress, num3;
-    vector<string> desk;
+    int csv_pile, progress, num3, dayswork, batch_time, batch_average;
+    vector<vector<string>> desk;  // Form [CSV][statements]
     int no_work = 0;      // Stop working if a 'jobs done' or 'cancel' signal is sent.
+    QElapsedTimer batch_timer;
+    batch_timer.start();
     while (comm_cata[0] == 0)  
     {
+        /*
         progress = 0;  // RESUME HERE. Progress bar should be linked to judicator, not workers. 
         for (int ii = 0; ii < cores; ii++)
         {
             progress += comm_csv[ii][1];
         }
         comm_cata[1] = progress;  // Report work progress to GUI thread. 
-        pile = all_queue[active_thread].size();
-        if (pile > 0)
+        */
+
+        csv_pile = all_queue[active_thread].size();
+        if (csv_pile > 0)
         {
-            qDebug() << "Pile size: " << pile;
+            qDebug() << "csv_pile size: " << csv_pile;
             no_work = 0;
             m_jobs[active_thread].lock();
             desk = all_queue[active_thread];
             all_queue[active_thread].clear();
             m_jobs[active_thread].unlock();
-            error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-            if (error) { sqlerror("begin transaction1-judicator", db_gui); }
-            for (int ii = 0; ii < desk.size(); ii++)
+            dayswork = min(handful, desk.size());
+            bot = 0;
+            top = dayswork;
+            do
             {
-                error = sqlite3_prepare_v2(db_gui, desk[ii].c_str(), -1, &statejudi, NULL);
-                if (error)
+                batch_timer.restart();
+                error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+                if (error) { sqlerror("begin transaction1-judicator", db_gui); }
+                for (int ii = bot; ii < top; ii++)   // For a specified number of CSVs in a batch...
                 {
-                    sqlerror("prepare4-judicator", db_gui);
+                    for (int jj = 0; jj < desk[ii].size(); jj++)  // For all statements in this CSV...
+                    {
+                        error = sqlite3_prepare_v2(db_gui, desk[ii][jj].c_str(), -1, &statejudi, NULL);
+                        if (error)
+                        {
+                            sqlerror("prepare4-judicator", db_gui);
+                        }
+                        step(db_gui, statejudi);
+                    }
                 }
-                step(db_gui, statejudi);
-            }
-            error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
-            if (error) { sqlerror("commit transaction1-judicator", db_gui); }
+                error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
+                if (error) { sqlerror("commit transaction1-judicator", db_gui); }
+                batch_time = (int)batch_timer.restart();
+                batch_average = batch_time / dayswork;
+                qDebug() << batch_average << " msec/CSV";
+                comm_cata[1] += dayswork;
+                bot = top;
+                dayswork = min(handful, desk.size() - bot);
+                top += dayswork;
+
+            } while (dayswork > 0);
+
         }
         else
         {
@@ -1113,6 +1167,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     }
 
     // If task is cancelled, finish inserting the CSVs that were in queue.
+    /*
     if (comm_cata[0] == 2)  
     {
         for (int ii = 0; ii < cores; ii++)  // Alert the worker threads to stop.
@@ -1122,8 +1177,8 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
         active_thread = 0;
         while (inert_threads < cores)  // Keep working while the threads finish their final tasks.
         {
-            pile = all_queue[active_thread].size();
-            if (pile > 0)
+            csv_pile = all_queue[active_thread].size();
+            if (csv_pile > 0)
             {
                 m_jobs[active_thread].lock();
                 desk = all_queue[active_thread];
@@ -1181,6 +1236,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
         }
         comm_cata[1] = progress;
     } 
+    */
 
     // Tie up loose threads. 
     for (auto& th : peons)
@@ -1233,10 +1289,11 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     }
     threads_working = 0;
 }
-void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstring cata_wpath, vector<int> prompt)
+void MainWindow::insert_csvs(vector<vector<string>>& my_queue, vector<int>& comm, wstring cata_wpath, vector<int> prompt)
 {
     int my_id = prompt[0];
     vector<vector<string>> text_vars, data_rows;
+    vector<string> paperwork;
     string gid, sfile, stmt, temp;
     wstring csv_path;
     QString qtemp;
@@ -1258,10 +1315,11 @@ void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstrin
     // Needed for catalogue-wide preliminary work, and best done by a thread containing a catalogue object.
     if (my_id == 0)
     {
+        my_queue.push_back(vector<string>());
         qtemp = cata.get_description();
-        my_queue.push_back(primary_stmt);
-        my_queue.push_back(qtemp.toStdString());
-        my_queue.push_back(column_stmt);
+        my_queue[0].push_back(primary_stmt);
+        my_queue[0].push_back(qtemp.toStdString());
+        my_queue[0].push_back(column_stmt);
     }
 
     // Iterate through the assigned CSVs...
@@ -1284,21 +1342,24 @@ void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstrin
             text_vars = cata.extract_text_vars8(sfile);
             data_rows = cata.extract_data_rows8(sfile, damaged_csv);
 
+            paperwork.clear();
             if (damaged_csv == 0)  // Undamaged CSV - to be inserted.
             {
-                stmt_count += insert_primary_row(my_queue, my_id, cata, gid, text_vars, data_rows);
-                //stmt_count += insert_
-                stmt_count += create_insert_csv_table(my_queue, my_id, cata, gid, data_rows);
-                stmt_count += create_insert_csv_subtables(my_queue, my_id, cata, gid, data_rows);
+                insert_primary_row(paperwork, cata, gid, text_vars, data_rows);
+                create_insert_csv_table(paperwork, cata, gid, data_rows);
+                create_insert_csv_subtables(paperwork, cata, gid, data_rows);
             }
             else  // Damaged CSV - will not be inserted, but will be added to the catalogue's list of damaged CSVs.
             {     // This is a temporary measure - it would be better to incorporate these CSVs however possible.
-                insert_damaged_row(my_queue, my_id, cata.get_sname(), gid, damaged_csv);
+                insert_damaged_row(paperwork, cata.get_sname(), gid, damaged_csv);
                 log("GID " + gid + " not inserted: damaged.");
-                stmt_count += comm[2];
+                comm[2];
             }
+            m_jobs[my_id].lock();
+            my_queue.push_back(paperwork);
+            m_jobs[my_id].unlock();
 
-            comm[1] += stmt_count;  // Add this loop's work to the progress report.
+            comm[1]++;
 
             // If we have yet to do so, report the number of insertions needed for one CSV.
             if (!reported_size)
@@ -1312,7 +1373,7 @@ void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstrin
     case 2:   // Cancel.
         comm[0] = -2;  // Reporting that thread work has ended.
         return;
-
+    /*
     case 3:
         for (int ii = 1; ii < prompt.size(); ii++)
         {
@@ -1353,12 +1414,13 @@ void MainWindow::insert_csvs(vector<string>& my_queue, vector<int>& comm, wstrin
             }
         }
         break;
+        */
     }
     
     // Reporting 'jobs done'.
     comm[0] = -1;
 }
-int MainWindow::insert_primary_row(vector<string>& my_queue, int my_id, CATALOGUE& cata, string& gid, vector<vector<string>>& text_vars, vector<vector<string>>& data_rows)
+int MainWindow::insert_primary_row(vector<string>& paperwork, CATALOGUE& cata, string& gid, vector<vector<string>>& text_vars, vector<vector<string>>& data_rows)
 {
     string stmt = cata.get_primary_template();
     vector<string> param = { gid };
@@ -1374,12 +1436,10 @@ int MainWindow::insert_primary_row(vector<string>& my_queue, int my_id, CATALOGU
         }
     }
     bind(stmt, param);
-    m_jobs[my_id].lock();
-    my_queue.push_back(stmt);
-    m_jobs[my_id].unlock();
+    paperwork.push_back(stmt);
     return 1;
 }
-int MainWindow::create_insert_csv_table(vector<string>& my_queue, int my_id, CATALOGUE& cata, string& gid, vector<vector<string>>& data_rows)
+int MainWindow::create_insert_csv_table(vector<string>& paperwork, CATALOGUE& cata, string& gid, vector<vector<string>>& data_rows)
 {
     int count = 0;
 
@@ -1389,9 +1449,7 @@ int MainWindow::create_insert_csv_table(vector<string>& my_queue, int my_id, CAT
     size_t pos1 = stmt.find("!!!");
     string tname = "[" + sname + "$" + gid + "]";
     stmt.replace(pos1, 3, tname);
-    m_jobs[my_id].lock();
-    my_queue.push_back(stmt);
-    m_jobs[my_id].unlock();
+    paperwork.push_back(stmt);
     count++;
 
     // Append the full table's data rows, one by one, starting from the template each time.
@@ -1403,15 +1461,12 @@ int MainWindow::create_insert_csv_table(vector<string>& my_queue, int my_id, CAT
         stmt = stmt0;
         sclean(data_rows[ii][0], 1);
         bind(stmt, data_rows[ii]);
-        m_jobs[my_id].lock();
-        my_queue.push_back(stmt);
-        m_jobs[my_id].unlock();
+        paperwork.push_back(stmt);
         count++;
     }
-
     return count;
 }
-int MainWindow::create_insert_csv_subtables(vector<string>& my_queue, int my_id, CATALOGUE& cata, string& gid, vector<vector<string>>& data_rows)
+int MainWindow::create_insert_csv_subtables(vector<string>& paperwork, CATALOGUE& cata, string& gid, vector<vector<string>>& data_rows)
 {
     int count = 0;
     string sname = cata.get_sname();
@@ -1432,9 +1487,7 @@ int MainWindow::create_insert_csv_subtables(vector<string>& my_queue, int my_id,
         stmt = create_subtable_template;
         pos1 = stmt.find("!!!");
         stmt.replace(pos1, 3, tname);
-        m_jobs[my_id].lock();
-        my_queue.push_back(stmt);
-        m_jobs[my_id].unlock();
+        paperwork.push_back(stmt);
         count++;
 
         // Insert the subtable's rows.
@@ -1454,31 +1507,27 @@ int MainWindow::create_insert_csv_subtables(vector<string>& my_queue, int my_id,
             }
             sclean(data_rows[row_index][0], 1);
             bind(stmt, data_rows[row_index]);
-            m_jobs[my_id].lock();
-            my_queue.push_back(stmt);
-            m_jobs[my_id].unlock();
+            paperwork.push_back(stmt);
             count++;
         }
     }
 
     return count;
 }
-void MainWindow::insert_damaged_row(vector<string>& my_queue, int my_id, string sname, string& gid, int damaged_csv)
+void MainWindow::insert_damaged_row(vector<string>& paperwork, string sname, string& gid, int damaged_csv)
 {
     string temp = "[" + sname + "$Damaged]";
     string stmt = "INSERT INTO " + temp + " (GID, [Number of Missing Data Entries]) VALUES (?, ?);";
     vector<string> param = { gid, to_string(damaged_csv) };
     bind(stmt, param);
-    m_jobs[my_id].lock();
-    my_queue.push_back(stmt);
-    m_jobs[my_id].unlock();
+    paperwork.push_back(stmt);
 }
-void MainWindow::create_insert_region_tables(vector<string>& my_queue, vector<int>& comm, vector<string> prompt)
+void MainWindow::create_insert_region_tables(vector<string>& paperwork, vector<int>& comm, vector<string> prompt)
 {
     // Create the region index table.
     string stmt = "CREATE TABLE IF NOT EXISTS [" + prompt[1] + "$RegionIndex] ";
     stmt += "(GID INTEGER PRIMARY KEY, [Region Name] TEXT);";
-    my_queue.push_back(stmt);
+    paperwork.push_back(stmt);
 
     // Populate the region index table.
     vector<vector<string>> geo_values;
@@ -1488,7 +1537,7 @@ void MainWindow::create_insert_region_tables(vector<string>& my_queue, vector<in
     {
         stmt = stmt0;
         bind(stmt, geo_values[ii]);
-        my_queue.push_back(stmt);
+        paperwork.push_back(stmt);
     }
 
     // Create the subtable tree and namelist (matching first indices).
@@ -1525,7 +1574,7 @@ void MainWindow::create_insert_region_tables(vector<string>& my_queue, vector<in
     for (int ii = 0; ii < tnames.size(); ii++)
     {
         stmt = "CREATE TABLE IF NOT EXISTS " + tnames[ii] + "(GID INTEGER PRIMARY KEY, [Region Name] TEXT);";
-        my_queue.push_back(stmt);
+        paperwork.push_back(stmt);
     }
 
     // Populate the subtables.
@@ -1546,7 +1595,7 @@ void MainWindow::create_insert_region_tables(vector<string>& my_queue, vector<in
                 row_index = geo_tree[ii][1][jj - 1];
             }
             bind(stmt, geo_values[row_index]);
-            my_queue.push_back(stmt);
+            paperwork.push_back(stmt);
         }
     }
 
@@ -1737,13 +1786,30 @@ void MainWindow::on_pB_insert_clicked()
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
-    int bbq = 1;
+    // Remove catalogue from database. 
+    QList<QTreeWidgetItem*> catas_to_do = ui->TW_cataondrive->selectedItems();
+    QString qyear, qname;
+    string syear, sname;
+    vector<vector<string>> death_row;  // Form [catalogue][syear, sname].
+    for (int ii = 0; ii < catas_to_do.size(); ii++)
+    {
+        death_row.push_back(vector<string>(2));
+        qyear = catas_to_do[ii]->text(0);
+        syear = qyear.toStdString();
+        death_row[death_row.size() - 1][0] = syear;
+        qname = catas_to_do[ii]->text(1);
+        sname = qname.toStdString();
+        death_row[death_row.size() - 1][1] = sname;
+    }
+    vector<int> comm = { 0 };
+    std::thread thr(&MainWindow::delete_catalogue, this, ref(comm), //RESUME HERE DELETE STUFF
+
 }
 
 // (Debug function) Perform a series of actions to test new functions.
 void MainWindow::on_pB_benchmark_clicked()
 {
-
+    
 }
 
 // Display the 'tabbed data' for the selected catalogue.
@@ -1787,19 +1853,47 @@ void MainWindow::on_pB_region_clicked()
 {
     QList<QListWidgetItem*> region_selected = ui->GID_list->selectedItems();
     int row = ui->GID_list->currentRow();
-    QString qname = region_selected[0]->text();
-    string rname = qname.toStdString();
-    vector<int> comm = { 0, 0, 0 };
+    sqlite3_stmt* state;
+    QString qtemp;
+    int row_count, col_count, title_size, line_breaks, pos1;
+    string gid = viewcata_gid_list[row];
+    string tname = "[" + viewcata_data[1] + "$" + gid + "]";
+    string stmt = "SELECT * FROM " + tname + ";";
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &state, NULL);
+    if (error) { sqlerror("prepare1-display_region", db); }
+    vector<vector<string>> results = step(db, state);
+    row_count = results.size();
+    col_count = results[0].size() - 1;
 
-    std::thread dispcata(&MainWindow::display_region, this, ref(db), ref(comm), rname, row);
-    while (comm[0] == 0)
+    QStandardItem* cell;
+    QStandardItemModel* model = new QStandardItemModel;
+    model->setRowCount(row_count);
+    model->setColumnCount(col_count);
+    model->setHeaderData(0, Qt::Horizontal, "Value");
+    for (int ii = 0; ii < row_count; ii++)
     {
-        Sleep(50);
-        QCoreApplication::processEvents();
-        jobs_done = comm[1];
-        update_bar();
+        qtemp = QString::fromStdString(results[ii][0]);
+        title_size = qtemp.size();
+        if (title_size > 20)
+        {
+            line_breaks = title_size / 20;
+            for (int jj = 0; jj < line_breaks; jj++)
+            {
+                pos1 = qtemp.lastIndexOf(' ', jj * 20);
+                qtemp.insert(pos1, " \n");
+            }
+        }
+        model->setHeaderData(ii, Qt::Vertical, qtemp);
+        for (int jj = 0; jj < col_count; jj++)
+        {
+            qtemp = QString::fromStdString(results[ii][jj + 1]);
+            cell = new QStandardItem;
+            cell->setText(qtemp);
+            model->setItem(ii, jj, cell);
+        }
     }
-    dispcata.join();
+    ui->tV_results->setModel(model);
+    ui->tV_results->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 }
 
 // Update button status (enabled/disabled).

@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 #include <QTreeWidgetItem>
+#include <QStandardItemModel>
+#include <QTableView>
 #include <QtSql>
 #include <sqlite3.h>
 #include <iostream>
@@ -46,6 +48,8 @@ private:
     sqlite3_stmt* statement;
     int location = 0;  // 0 = home, 1 = inn.
     int cores = 3;
+    double pb_update = 1.0;  // Number of seconds between progress bar updates.
+    int handful = 100;  // Number of CSVs to insert between progress bar updates.
     int bar_threads;
     int jobs_max;
     int jobs_done;
@@ -83,11 +87,11 @@ private:
     void all_cata_db(QVector<QVector<QVector<QString>>>&, QMap<QString, int>&);
     vector<string> scan_incomplete_cata(string, string);
     void judicator(sqlite3*&, vector<int>&, vector<string>);
-    void insert_csvs(vector<string>&, vector<int>&, wstring, vector<int>);
-    int insert_primary_row(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&, vector<vector<string>>&);
-    int create_insert_csv_table(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&);
-    int create_insert_csv_subtables(vector<string>&, int, CATALOGUE&, string&, vector<vector<string>>&);
-    void insert_damaged_row(vector<string>&, int, string, string&, int);
+    void insert_csvs(vector<vector<string>>&, vector<int>&, wstring, vector<int>);
+    int insert_primary_row(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&, vector<vector<string>>&);
+    int create_insert_csv_table(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
+    int create_insert_csv_subtables(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
+    void insert_damaged_row(vector<string>&, string, string&, int);
     void create_insert_region_tables(vector<string>&, vector<int>&, vector<string>);
     static int sql_callback(void*, int, char**, char**);
     vector<vector<string>> step(sqlite3*&, sqlite3_stmt*);
@@ -97,10 +101,12 @@ private:
     vector<string> missing_gids(sqlite3*&, int, string, string);
     void display_catalogue(sqlite3*&, vector<string>&, vector<int>&, string, string);
     void display_region(sqlite3*&, vector<int>&, string, int);
-    void output_tables();
+    void view_region(sqlite3*&, vector<int>&, int);
+    vector<string> all_tables();
     void scan_drive(vector<int>&);
     bool table_exist(string&);
     int load_geo(vector<vector<string>>&, string&, string&);
+    void delete_cata(vector<int>&, vector<vector<string>>);
 
 
     // TEMPLATES
