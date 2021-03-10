@@ -230,7 +230,6 @@ string s_memory(wstring& full_path)
     return sfile;
 }
 
-
 // Contains pre-programmed responses to certain automated events during server-client communications.
 void CALLBACK call(HINTERNET hint, DWORD_PTR dw_context, DWORD dwInternetStatus, LPVOID status_info, DWORD status_info_length)
 {

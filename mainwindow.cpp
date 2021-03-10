@@ -58,7 +58,12 @@ void MainWindow::initialize()
     // Open the database from an existing local db file, or (failing that) make a new one.
     db_path = sroots[location] + "\\SCDA.db";
     int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
-    if (error) { sqlerror("open-initialize", db); }   
+    if (error) { sqlerror("open-initialize", db); }  
+    string stmt = "PRAGMA secure_delete;";
+    error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerror("prepare1-initialize", db); }
+    error = sqlite3_exec(db, "PRAGMA secure_delete", NULL, NULL, NULL);
+    if (error) { sqlerror("exec1-initialize", db); }
     //q.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
 
     // Create (if necessary) these system-wide tables. 
@@ -327,7 +332,7 @@ vector<string> MainWindow::missing_gids(sqlite3*& db_gui, int mode, string syear
         }
         input[0] = syear;
         input[1] = sname;
-        gid_indices.insert(gid_indices.begin(), input.begin(), input.begin() + 1);
+        gid_indices.insert(gid_indices.begin(), input.begin(), input.begin() + 2);
         return gid_indices;
     }
     return gid_list;
@@ -465,7 +470,7 @@ vector<string> MainWindow::all_tables()
 }
 
 // Delete all tables and subtables related to the given catalogue.
-void MainWindow::delete_cata(sqlite3*& db_gui, vector<int>& comm, vector<vector<string>> death_row)
+void MainWindow::delete_cata(sqlite3*& db_gui, vector<int>& comm, string sname)
 {
     sqlite3_stmt* state;
     vector<string> table_list = all_tables();
@@ -475,29 +480,23 @@ void MainWindow::delete_cata(sqlite3*& db_gui, vector<int>& comm, vector<vector<
     int error;
     
     // Determine which tables contain the catalogue(s) to be deleted.
-    for (int ii = 0; ii < death_row.size(); ii++)
+    for (int jj = 0; jj < table_list.size(); jj++)
     {
-        for (int jj = 0; jj < table_list.size(); jj++)
+        pos1 = table_list[jj].find(sname);
+        if (pos1 < table_list[jj].size())
         {
-            pos1 = table_list[jj].find(death_row[ii][1]);
-            if (pos1 < table_list[jj].size())
-            {
-                marked.push_back(jj);
-            }
+            marked.push_back(jj);
         }
     }
 
     // Firstly, delete each catalogue's row in the index table.
-    for (int ii = 0; ii < death_row.size(); ii++)
-    {
-        stmt = "DELETE FROM TCatalogueIndex WHERE Name = " + death_row[ii][1] + " ;";
-        error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
-        if (error) { sqlerror("prepare1-delete_cata", db_gui); }
-        step(db_gui, state);
-    }
+    stmt = "DELETE FROM TCatalogueIndex WHERE Name = '" + sname + "' ;";
+    error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
+    if (error) { sqlerror("prepare1-delete_cata", db_gui); }
+    step(db_gui, state);
 
     // Then, delete each marked table.
-    string stmt0 = "DELETE FROM !!! ;";
+    string stmt0 = "DELETE FROM [!!!] ;";
     error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
     if (error) { sqlerror("begin transaction1-delete_cata", db_gui); }
     for (int ii = 0; ii < marked.size(); ii++)
@@ -542,60 +541,21 @@ void MainWindow::create_prov_index_table()
     step(db, statement);
 }
 
-// For a prepared matrix of QString data, display it on the GUI as a 2D tree widget (year -> cata entry).
-void MainWindow::build_ui_tree(QVector<QVector<QVector<QString>>>& qtree, int window)
+
+
+// If the tree widget has 'max' or fewer elements, then expand those elements in the GUI.
+void MainWindow::auto_expand(QTreeWidget*& qtree, int max)
 {
-    QTreeWidgetItem *item;
-    QVector<QTreeWidgetItem*> qroots;
-    switch (window)  // Window:  1 = Catalogues on Drive, 2 = Catalogues in Database
+    int count = qtree->topLevelItemCount();
+    QTreeWidgetItem* qitem;
+    if (count <= max)
     {
-    case 1:
-        ui->TW_cataondrive->clear();
-        for (int ii = 0; ii < qtree.size(); ii++)
+        for (int ii = 0; ii < count; ii++)
         {
-            item = new QTreeWidgetItem(ui->TW_cataondrive);  // For every year, make a root pointer.
-            item->setText(0, qtree[ii][0][0]);
-            item->setText(1, " ");
-            auto item_flags = item->flags();
-            item_flags.setFlag(Qt::ItemIsSelectable, false);
-            item->setFlags(item_flags);
-            qroots.append(item);
-            add_children(item, qtree[ii]);
+            qitem = qtree->topLevelItem(ii);
+            qtree->expandItem(qitem);
         }
-        ui->TW_cataondrive->addTopLevelItems(qroots);
-        break;
-    case 2:
-        ui->TW_cataindb->clear();
-        for (int ii = 0; ii < qtree.size(); ii++)
-        {
-            item = new QTreeWidgetItem(ui->TW_cataindb);  // For every year, make a root pointer.
-            item->setText(0, qtree[ii][0][0]);
-            item->setText(1, " ");
-            item->setText(2, " ");
-            auto item_flags = item->flags();
-            item_flags.setFlag(Qt::ItemIsSelectable, false);
-            item->setFlags(item_flags);
-            qroots.append(item);
-            add_children(item, qtree[ii]);
-        }
-        ui->TW_cataindb->addTopLevelItems(qroots);
-        break;
     }
-}
-void MainWindow::add_children(QTreeWidgetItem* parent, QVector<QVector<QString>>& cata_list)
-{
-    QList<QTreeWidgetItem*> branch;
-    QTreeWidgetItem *item;
-    for (int ii = 0; ii < cata_list.size(); ii++)  // For every catalogue in the list...
-    {
-        item = new QTreeWidgetItem();
-        for (int jj = 0; jj < cata_list[ii].size(); jj++)  // For every column we want to display...
-        {
-            item->setText(jj, cata_list[ii][jj]);
-        }
-        branch.append(item);
-    }
-    parent->addChildren(branch);
 }
 
 // For a given CSV qfile, extract the Stats Canada 'text variables'.
@@ -672,6 +632,7 @@ void MainWindow::update_cata_tree()
     log("Updated the cata_tree");
 }
 
+
 // DEBUG FUNCTIONS:
 int MainWindow::sql_callback(void* NotUsed, int argc, char** argv, char** column_name)
 {
@@ -682,7 +643,6 @@ int MainWindow::sql_callback(void* NotUsed, int argc, char** argv, char** column
     }
     return 0;
 }
-
 
 
 // TASK FUNCTIONS, USED BY ONE OR MORE GUI BUTTONS:
@@ -696,6 +656,7 @@ void MainWindow::scan_drive(vector<int>& comm)
     QString qyear, qcata;
     size_t pos1, pos2;
     int iyear;
+    int cata_count = 0;
 
     // Filter out root folders that are not years.
     for (int ii = 0; ii < wtree.size(); ii++)
@@ -732,6 +693,7 @@ void MainWindow::scan_drive(vector<int>& comm)
         pos2 = wtree[ii][0].find(L"\\", pos1);
         wyear = wtree[ii][0].substr(pos1, pos2 - pos1);
         qyear = QString::fromStdWString(wyear);
+        cata_count++;  // One space for a year.
         for (size_t jj = 0; jj < wtree[ii].size(); jj++)  // For every catalogue in that year...
         {
             pos1 = wtree[ii][jj].find('.');
@@ -742,11 +704,15 @@ void MainWindow::scan_drive(vector<int>& comm)
             qcata = QString::fromStdWString(wcata);
             qtree[ii][qtree[ii].size() - 1].append(qyear);
             qtree[ii][qtree[ii].size() - 1].append(qcata);
+            cata_count++;
         }
     }
-    
+   
     build_ui_tree(qtree, 1);  // Window code 1 will populate the 'Catalogues on Drive' section.
+
+    m_bar.lock();
     comm[0] = -1;
+    m_bar.unlock();
 }
 
 // Populate the information tabs for a selected catalogue. 
@@ -784,6 +750,17 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<string>& gid_list, v
     ui->Rows_list->clear();
     ui->Rows_list->addItems(row_list);
     
+    // Populate the 'Tables' tab.
+    vector<string> table_list = all_tables();
+    QStringList qtable_list;
+    for (int ii = 0; ii < table_list.size(); ii++)
+    {
+        qtemp = QString::fromStdString(table_list[ii]);
+        qtable_list.append(qtemp);
+    }
+    ui->Tables_list->clear();
+    ui->Tables_list->addItems(qtable_list);
+
     // Report completion to the GUI thread.
     comm_cata[0] = -1;
 }
@@ -1205,6 +1182,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
             {
                 if (no_work >= 3 * cores)  // ... and if we have made 3 empty sweeps for work...
                 {
+                    comm_cata[1] = comm_cata[2];
                     comm_cata[0] = 1;  // ... stop looking for work.
                 }
             }
@@ -1724,6 +1702,7 @@ void MainWindow::on_pB_scan_clicked()
         }
     }
     scan.join();
+    auto_expand(ui->TW_cataondrive, 20);
     ui->tabW_catalogues->setCurrentIndex(1);
 }
 
@@ -1782,6 +1761,8 @@ void MainWindow::on_pB_insert_clicked()
                     comm_cata[0] = 2;
                 }
             }
+            jobs_done = comm_cata[1];
+            update_bar();
             judi.join();
         }
         else
@@ -1829,6 +1810,7 @@ void MainWindow::on_pB_insert_clicked()
     ui->pB_cancel->setEnabled(0);
     update_cata_tree();
     build_ui_tree(cata_tree, 2);
+    auto_expand(ui->TW_cataindb, 20);
 }
 
 // (Debug function) Display some information.
@@ -1851,7 +1833,7 @@ void MainWindow::on_pB_test_clicked()
         death_row[death_row.size() - 1][1] = sname;
     }
     vector<int> comm = { 0 , 0 , 0 };
-    std::thread thr(&MainWindow::delete_cata, this, ref(db), ref(comm), death_row);
+    std::thread thr(&MainWindow::delete_cata, this, ref(db), ref(comm), sname);
     while (!stop)
     {
         Sleep(50);
@@ -1907,6 +1889,29 @@ void MainWindow::on_pB_viewdata_clicked()
     }
     viewcata_gid_list = gid_list;
     dispcata.join();
+}
+
+// Remove the selected catalogue from the database.
+void MainWindow::on_pB_removecata_clicked()
+{
+    QList<QTreeWidgetItem*> cata_to_do = ui->TW_cataindb->selectedItems();  // Only 1 catalogue can be selected.
+    QString qname = cata_to_do[0]->text(1);
+    string sname = qname.toStdString();
+    vector<int> comm_cata = { 0, 0, 0 };  // Form [control, progress report, size report]
+
+    std::thread remcata(&MainWindow::delete_cata, this, ref(db), ref(comm_cata), sname);
+    while (comm_cata[0] >= 0)
+    {
+        Sleep(50);
+        QCoreApplication::processEvents();
+        jobs_done = comm_cata[1];
+        update_bar();
+        if (remote_controller)
+        {
+            comm_cata[0] = 1;
+        }
+    }
+    remcata.join();
 }
 
 // All threads inserting catalogues are told to stop after finishing their current CSV.
@@ -1973,15 +1978,18 @@ void MainWindow::on_TW_cataindb_itemSelectionChanged()
         if (qname == " ")
         {
             ui->pB_viewdata->setEnabled(0);
+            ui->pB_removecata->setEnabled(0);
         }
         else
         {
             ui->pB_viewdata->setEnabled(1);
+            ui->pB_removecata->setEnabled(1);
         }
     }
     else
     {
         ui->pB_viewdata->setEnabled(0);
+        ui->pB_removecata->setEnabled(0);
     }
 
 }

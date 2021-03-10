@@ -58,9 +58,9 @@
    <widget class="QPushButton" name="pB_test">
     <property name="geometry">
      <rect>
-      <x>480</x>
+      <x>630</x>
       <y>530</y>
-      <width>71</width>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -79,19 +79,6 @@
     </property>
     <property name="value">
      <number>24</number>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pB_benchmark">
-    <property name="geometry">
-     <rect>
-      <x>570</x>
-      <y>530</y>
-      <width>81</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Benchmark</string>
     </property>
    </widget>
    <widget class="QLabel" name="QL_bar">
@@ -120,7 +107,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="GID">
      <attribute name="title">
@@ -139,9 +126,24 @@
     </widget>
     <widget class="QWidget" name="Rows">
      <attribute name="title">
-      <string>Row Data Available</string>
+      <string>Row Data</string>
      </attribute>
      <widget class="QListWidget" name="Rows_list">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>431</width>
+        <height>451</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="Tables">
+     <attribute name="title">
+      <string>Tables</string>
+     </attribute>
+     <widget class="QListWidget" name="Tables_list">
       <property name="geometry">
        <rect>
         <x>0</x>
@@ -285,7 +287,7 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>670</x>
+      <x>720</x>
       <y>530</y>
       <width>81</width>
       <height>41</height>
@@ -306,6 +308,36 @@
      </rect>
     </property>
    </widget>
+   <widget class="QPushButton" name="pB_removecata">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
+    <property name="geometry">
+     <rect>
+      <x>480</x>
+      <y>530</y>
+      <width>81</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Remove 
+ Catalogue</string>
+    </property>
+   </widget>
+   <zorder>cB_drives</zorder>
+   <zorder>pB_scan</zorder>
+   <zorder>pB_insert</zorder>
+   <zorder>pB_test</zorder>
+   <zorder>progressBar</zorder>
+   <zorder>QL_bar</zorder>
+   <zorder>pB_viewdata</zorder>
+   <zorder>pB_cancel</zorder>
+   <zorder>tabW_catalogues</zorder>
+   <zorder>pB_region</zorder>
+   <zorder>tV_results</zorder>
+   <zorder>tabW_results</zorder>
+   <zorder>pB_removecata</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
