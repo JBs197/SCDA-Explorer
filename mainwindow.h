@@ -47,7 +47,7 @@ private:
     Ui::MainWindow *ui;
     sqlite3* db;
     sqlite3_stmt* statement;
-    int location = 1;  // 0 = home, 1 = inn.
+    int location = 0;  // 0 = home, 1 = inn.
     int cores = 3;
     int handful = 100;  // Number of CSVs to insert between progress bar updates.
     int jobs_max;
@@ -61,7 +61,8 @@ private:
     QString qdrive;
     string db_path;
     vector<mutex> m_jobs;
-    mutex m_err, m_io, m_bar, m_geo, m_job;
+    QMutex m_job;
+    mutex m_err, m_io, m_bar, m_geo;
     vector<string> sroots = { "F:", "D:" };
     vector<wstring> wroots = { L"F:", L"D:" }; //  NOTE: REMOVE HARDCODING LATER.
     QVector<QString> qroots = { "F:", "D:" };
@@ -70,7 +71,8 @@ private:
     QMap<QString, int> map_tree_cata;  // For a given qname, return that cata_tree index.
     vector<string> viewcata_data;  // Hold essential information for the catalogue being viewed. Form [syear, sname].
     vector<string> viewcata_gid_list;
-
+    void build_ui_tree(QVector<QVector<QVector<QString>>>&, int);
+    void add_children(QTreeWidgetItem*, QVector<QVector<QString>>&);
     void clear_log();
     void update_bar();
     void reset_bar(int, string);
@@ -79,7 +81,7 @@ private:
     void update_text_vars(QVector<QVector<QString>>&, QString&);
     void update_cata_tree();
     void create_cata_index_table();
-    void create_prov_index_table();
+    //void create_prov_index_table();
     void all_cata_db(QVector<QVector<QVector<QString>>>&, QMap<QString, int>&);
     vector<string> scan_incomplete_cata(string, string);
     void judicator(sqlite3*&, vector<int>&, vector<string>);
@@ -104,6 +106,7 @@ private:
     int load_geo(vector<vector<string>>&, string&, string&);
     void delete_cata(sqlite3*&, vector<int>&, string);
     void auto_expand(QTreeWidget*&, int);
+    vector<int> get_indent_list(vector<string>&, char);
 
 
     // TEMPLATES

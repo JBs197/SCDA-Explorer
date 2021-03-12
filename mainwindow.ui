@@ -107,7 +107,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>3</number>
     </property>
     <widget class="QWidget" name="GID">
      <attribute name="title">
@@ -141,9 +141,24 @@
     </widget>
     <widget class="QWidget" name="Tables">
      <attribute name="title">
-      <string>Tables</string>
+      <string>Tables (List)</string>
      </attribute>
      <widget class="QListWidget" name="Tables_list">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>431</width>
+        <height>451</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tab">
+     <attribute name="title">
+      <string>Tables (Tree)</string>
+     </attribute>
+     <widget class="QTreeView" name="tV_tablesindb">
       <property name="geometry">
        <rect>
         <x>0</x>

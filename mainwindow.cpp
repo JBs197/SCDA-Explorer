@@ -62,8 +62,7 @@ void MainWindow::initialize()
     string stmt = "PRAGMA secure_delete;";
     error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare1-initialize", db); }
-    error = sqlite3_exec(db, "PRAGMA secure_delete", NULL, NULL, NULL);
-    if (error) { sqlerror("exec1-initialize", db); }
+    step(db, statement);
     //q.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
 
     // Create (if necessary) these system-wide tables. 
@@ -155,6 +154,7 @@ void MainWindow::clear_log()
 void MainWindow::update_bar()
 {
     int jump, old;
+    QString pb_text;
     if (jobs_max >= 0 && jobs_done >= 0)
     {
         jobs_percent = 100 * jobs_done / jobs_max;
@@ -165,6 +165,12 @@ void MainWindow::update_bar()
             warn(L"Progress bar single increase exceeded 15%");
         }
         ui->progressBar->setValue(jobs_percent);
+        if (jobs_percent == 100 && jump > 0)
+        {
+            pb_text = ui->QL_bar->text();
+            pb_text.append(" ... done!");
+            ui->QL_bar->setText(pb_text);
+        }
     }
     else
     {
@@ -526,6 +532,7 @@ void MainWindow::create_cata_index_table()
     if (error) { sqlerror("prepare-create_cata_index_table", db); }
     step(db, statement);
 }
+/*
 void MainWindow::create_prov_index_table()
 {
     string stmt = "CREATE TABLE IF NOT EXISTS TProvinceIndex (";
@@ -540,7 +547,63 @@ void MainWindow::create_prov_index_table()
     if (error) { sqlerror("prepare-create_prov_index_table", db); }
     step(db, statement);
 }
+*/
 
+// For a prepared matrix of QString data, display it on the GUI as a 2D tree widget (year -> cata entry).
+void MainWindow::build_ui_tree(QVector<QVector<QVector<QString>>>& qtree, int window)
+{
+    QTreeWidgetItem* item;
+    QVector<QTreeWidgetItem*> qroots;
+    switch (window)  // Window:  1 = Catalogues on Drive, 2 = Catalogues in Database
+    {
+    case 1:
+        ui->TW_cataondrive->clear();
+        for (int ii = 0; ii < qtree.size(); ii++)
+        {
+            item = new QTreeWidgetItem(ui->TW_cataondrive);  // For every year, make a root pointer.
+            item->setText(0, qtree[ii][0][0]);
+            item->setText(1, " ");
+            auto item_flags = item->flags();
+            item_flags.setFlag(Qt::ItemIsSelectable, false);
+            item->setFlags(item_flags);
+            qroots.append(item);
+            add_children(item, qtree[ii]);
+        }
+        ui->TW_cataondrive->addTopLevelItems(qroots);
+        break;
+    case 2:
+        ui->TW_cataindb->clear();
+        for (int ii = 0; ii < qtree.size(); ii++)
+        {
+            item = new QTreeWidgetItem(ui->TW_cataindb);  // For every year, make a root pointer.
+            item->setText(0, qtree[ii][0][0]);
+            item->setText(1, " ");
+            item->setText(2, " ");
+            auto item_flags = item->flags();
+            item_flags.setFlag(Qt::ItemIsSelectable, false);
+            item->setFlags(item_flags);
+            qroots.append(item);
+            add_children(item, qtree[ii]);
+        }
+        ui->TW_cataindb->addTopLevelItems(qroots);
+        break;
+    }
+}
+void MainWindow::add_children(QTreeWidgetItem* parent, QVector<QVector<QString>>& cata_list)
+{
+    QList<QTreeWidgetItem*> branch;
+    QTreeWidgetItem* item;
+    for (int ii = 0; ii < cata_list.size(); ii++)  // For every catalogue in the list...
+    {
+        item = new QTreeWidgetItem();
+        for (int jj = 0; jj < cata_list[ii].size(); jj++)  // For every column we want to display...
+        {
+            item->setText(jj, cata_list[ii][jj]);
+        }
+        branch.append(item);
+    }
+    parent->addChildren(branch);
+}
 
 
 // If the tree widget has 'max' or fewer elements, then expand those elements in the GUI.
@@ -761,8 +824,56 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<string>& gid_list, v
     ui->Tables_list->clear();
     ui->Tables_list->addItems(qtable_list);
 
+    // Populate the 'Tables as a Tree' tab.
+    vector<int> table_indent_list = get_indent_list(table_list, '$');
+    QStandardItemModel *qTreeModel = new QStandardItemModel;
+    QStandardItem* invisRoot = qTreeModel->invisibleRootItem();
+    QStandardItem* qItem;
+    QList<QStandardItem*> recent_representation = {};  // Index here is the indentation.
+    for (int ii = 0; ii < table_list.size(); ii++)
+    {
+        qItem = new QStandardItem;
+        while (recent_representation.size() <= table_indent_list[ii])
+        {
+            recent_representation.push_back(qItem);
+        }
+        qtemp = QString::fromStdString(table_list[ii]);
+        qItem->setText(qtemp);
+
+        if (table_indent_list[ii] == 0)
+        {
+            invisRoot->appendRow(qItem);
+        }
+        else
+        {
+            recent_representation[table_indent_list[ii] - 1]->appendRow(qItem);
+        }
+
+        recent_representation[table_indent_list[ii]] = qItem;
+    }
+    ui->tV_tablesindb->setModel(qTreeModel);
+    ui->tV_tablesindb->setHeaderHidden(1);
+
+
     // Report completion to the GUI thread.
+    m_job.lock();
     comm_cata[0] = -1;
+    m_job.unlock();
+}
+vector<int> MainWindow::get_indent_list(vector<string>& param_list, char param)
+{
+    vector<int> indent_list(param_list.size());
+    size_t pos1, pos2;
+    int count;
+    for (int ii = 0; ii < param_list.size(); ii++)
+    {
+        pos1 = param_list[ii].rfind(param);
+        pos2 = param_list[ii].find_last_not_of(param, pos1);
+        count = pos1 - pos2;
+        if (count < 0) { count = 0; }
+        indent_list[ii] = count;
+    }
+    return indent_list;
 }
 
 // Populate the table widget for a selected spreadsheet.
@@ -919,6 +1030,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     vector<int> prompt_csv(3);  // Form [id, bot, top]
     vector<vector<int>> prompt_csv_partial;  // Form [thread][id, gid1, gid2, ...]
     vector<vector<vector<string>>> all_queue(cores, vector<vector<string>>());  // Form [thread][CSV][statements].   
+    all_queue[0].push_back(vector<string>());
     if (partial_entry)  // If this catalogue insertion is partial, specify individual GIDs tasked to each thread.
     {
         int itemp;
@@ -983,7 +1095,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     }
 
     // Create the catalogue's primary table.
-    while (all_queue[0].size() < 3) 
+    while (all_queue[0][0].size() < 3) 
     { 
         if (geo_comm[0] == -1)
         {
@@ -1008,7 +1120,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     string stmt_primary = all_queue[0][0][0];
     string cata_desc = all_queue[0][0][1];  // Used later.
     string stmt_column = all_queue[0][0][2];
-    all_queue[0].erase(all_queue[0].begin(), all_queue[0].begin() + 3);
+    all_queue[0][0].erase(all_queue[0][0].begin(), all_queue[0][0].begin() + 3);
     m_jobs[0].unlock();
     error = sqlite3_prepare_v2(db_gui, stmt_primary.c_str(), -1, &statejudi, NULL);
     if (error) { sqlerror("prepare3-judicator", db_gui); }
@@ -1341,7 +1453,6 @@ void MainWindow::insert_csvs(vector<vector<string>>& my_queue, vector<int>& comm
     // Needed for catalogue-wide preliminary work, and best done by a thread containing a catalogue object.
     if (my_id == 0)
     {
-        my_queue.push_back(vector<string>());
         qtemp = cata.get_description();
         my_queue[0].push_back(primary_stmt);
         my_queue[0].push_back(qtemp.toStdString());
@@ -1870,13 +1981,14 @@ void MainWindow::on_pB_viewdata_clicked()
     QString qname = cata_to_do[0]->text(1);
     string sname = qname.toStdString();
     vector<string> gid_list;
+    bool working = 1;
     vector<int> comm_cata = { 0, 0, 0 };  // Form [control, progress report, size report]
     viewcata_data.resize(2);
     viewcata_data[0] = syear;
     viewcata_data[1] = sname;
 
     std::thread dispcata(&MainWindow::display_catalogue, this, ref(db), ref(gid_list), ref(comm_cata), syear, sname);
-    while (comm_cata[0] >= 0)
+    while (working)
     {
         Sleep(50);
         QCoreApplication::processEvents();
@@ -1886,6 +1998,9 @@ void MainWindow::on_pB_viewdata_clicked()
         {
             comm_cata[0] = 1;
         }
+        m_job.lock();
+        if (comm_cata[0] < 0) { working = 0; }
+        m_job.unlock();
     }
     viewcata_gid_list = gid_list;
     dispcata.join();
@@ -1912,6 +2027,17 @@ void MainWindow::on_pB_removecata_clicked()
         }
     }
     remcata.join();
+    update_cata_tree();
+    build_ui_tree(cata_tree, 2);
+    auto_expand(ui->TW_cataindb, 20);
+    if (sname == viewcata_data[1])
+    {
+        ui->GID_list->clear();
+        ui->Rows_list->clear();
+        ui->Tables_list->clear();
+        viewcata_data[0].clear();
+        viewcata_data[1].clear();
+    }
 }
 
 // All threads inserting catalogues are told to stop after finishing their current CSV.
