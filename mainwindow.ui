@@ -170,7 +170,7 @@
      </widget>
     </widget>
    </widget>
-   <widget class="QPushButton" name="pB_viewdata">
+   <widget class="QPushButton" name="pB_viewcata">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -214,7 +214,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="catas_db">
      <attribute name="title">
@@ -346,7 +346,7 @@
    <zorder>pB_test</zorder>
    <zorder>progressBar</zorder>
    <zorder>QL_bar</zorder>
-   <zorder>pB_viewdata</zorder>
+   <zorder>pB_viewcata</zorder>
    <zorder>pB_cancel</zorder>
    <zorder>tabW_catalogues</zorder>
    <zorder>pB_region</zorder>

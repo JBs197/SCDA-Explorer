@@ -8,8 +8,11 @@
 #include <QtSql>
 #include <sqlite3.h>
 #include <iostream>
+#include "winfunc.h"
+#include "qtfunc.h"
 #include "Shlwapi.h"
 #include "catalogue.h"
+#include "switchboard.h"
 #pragma comment(lib, "Shlwapi.lib")
 
 QT_BEGIN_NAMESPACE
@@ -23,6 +26,9 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    SWITCHBOARD sb;
+    WINFUNC wf;
+    QTFUNC qf;
 
 signals:
 
@@ -34,8 +40,7 @@ private slots:
     void on_pB_scan_clicked();
     void on_pB_insert_clicked();
     void on_pB_test_clicked();
-    void on_pB_benchmark_clicked();
-    void on_pB_viewdata_clicked();
+    void on_pB_viewcata_clicked();
     void on_pB_cancel_clicked();
     void on_TW_cataindb_itemSelectionChanged();
     void on_TW_cataondrive_itemSelectionChanged();
@@ -50,6 +55,7 @@ private:
     int location = 0;  // 0 = home, 1 = inn.
     int cores = 3;
     int handful = 100;  // Number of CSVs to insert between progress bar updates.
+    DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
     int jobs_max;
     int jobs_done;
     int jobs_percent;
@@ -81,30 +87,29 @@ private:
     void update_text_vars(QVector<QVector<QString>>&, QString&);
     void update_cata_tree();
     void create_cata_index_table();
-    //void create_prov_index_table();
     void all_cata_db(QVector<QVector<QVector<QString>>>&, QMap<QString, int>&);
     vector<string> scan_incomplete_cata(string, string);
-    void judicator(sqlite3*&, vector<int>&, vector<string>);
+    void judicator(sqlite3*&, SWITCHBOARD&, int, vector<string>);
     void insert_csvs(vector<vector<string>>&, vector<int>&, wstring, vector<int>);
     int insert_primary_row(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&, vector<vector<string>>&);
     int create_insert_csv_table(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
     int create_insert_csv_subtables(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
     void insert_damaged_row(vector<string>&, string, string&, int);
-    void create_insert_region_tables(vector<string>&, vector<int>&, vector<string>);
+    void create_insert_region_tables(vector<string>&, SWITCHBOARD&, int, vector<string>);
     static int sql_callback(void*, int, char**, char**);
     vector<vector<string>> step(sqlite3*&, sqlite3_stmt*);
     vector<string> step_1(sqlite3*&, sqlite3_stmt*);
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
     vector<string> missing_gids(sqlite3*&, int, string, string);
-    void display_catalogue(sqlite3*&, vector<string>&, vector<int>&, string, string);
+    void display_catalogue(sqlite3*&, SWITCHBOARD&, int, vector<string>&, string, string);
     void display_region(sqlite3*&, vector<int>&, string, int);
     void view_region(sqlite3*&, vector<int>&, int);
     vector<string> all_tables();
-    void scan_drive(vector<int>&);
+    void scan_drive(SWITCHBOARD&, int);
     bool table_exist(string&);
     int load_geo(vector<vector<string>>&, string&, string&);
-    void delete_cata(sqlite3*&, vector<int>&, string);
+    void delete_cata(sqlite3*&, SWITCHBOARD&, int, string);
     void auto_expand(QTreeWidget*&, int);
     vector<int> get_indent_list(vector<string>&, char);
 
@@ -193,6 +198,84 @@ private:
         DWORD bytes;
         DWORD fsize = (DWORD)smessage.size();
         WriteFile(hprinter, smessage.c_str(), fsize, &bytes, NULL);
+        if (hprinter)
+        {
+            CloseHandle(hprinter);
+        }
+        exit(EXIT_FAILURE);
+    }
+    template<typename S> void errnum(S, int) {}
+    template<> void errnum<string>(string func, int error)
+    {
+        string spath = sroots[location] + "\\SCDA Error Log.txt";
+        string smessage = timestamperA() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
+        lock_guard lock(m_io);
+        HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hprinter == INVALID_HANDLE_VALUE)
+        {
+            cout << "ERROR: CreateFile failed within errnum." << endl;
+            system("pause");
+        }
+        SetFilePointer(hprinter, NULL, NULL, FILE_END);
+        DWORD bytes;
+        DWORD fsize = (DWORD)smessage.size();
+        if (!WriteFile(hprinter, smessage.c_str(), fsize, &bytes, NULL))
+        {
+            cout << "ERROR: WriteFile failed within errnum." << endl;
+            system("pause");
+        }
+        if (hprinter)
+        {
+            CloseHandle(hprinter);
+        }
+        exit(EXIT_FAILURE);
+    }
+    template<> void errnum<wstring>(wstring message, int error)
+    {
+        string spath = sroots[location] + "\\SCDA Error Log.txt";
+        string func = utf16to8(message);
+        string smessage = timestamperA() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
+        lock_guard lock(m_io);
+        HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hprinter == INVALID_HANDLE_VALUE)
+        {
+            cout << "ERROR: CreateFile failed within errnum." << endl;
+            system("pause");
+        }
+        SetFilePointer(hprinter, NULL, NULL, FILE_END);
+        DWORD bytes;
+        DWORD fsize = (DWORD)smessage.size();
+        if (!WriteFile(hprinter, smessage.c_str(), fsize, &bytes, NULL))
+        {
+            cout << "ERROR: WriteFile failed within errnum." << endl;
+            system("pause");
+        }
+        if (hprinter)
+        {
+            CloseHandle(hprinter);
+        }
+        exit(EXIT_FAILURE);
+    }
+    template<> void errnum<QString>(QString message, int error)
+    {
+        string spath = sroots[location] + "\\SCDA Error Log.txt";
+        string func = message.toStdString();
+        string smessage = timestamperA() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
+        lock_guard lock(m_io);
+        HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hprinter == INVALID_HANDLE_VALUE)
+        {
+            cout << "ERROR: CreateFile failed within errnum." << endl;
+            system("pause");
+        }
+        SetFilePointer(hprinter, NULL, NULL, FILE_END);
+        DWORD bytes;
+        DWORD fsize = (DWORD)smessage.size();
+        if (!WriteFile(hprinter, smessage.c_str(), fsize, &bytes, NULL))
+        {
+            cout << "ERROR: WriteFile failed within errnum." << endl;
+            system("pause");
+        }
         if (hprinter)
         {
             CloseHandle(hprinter);

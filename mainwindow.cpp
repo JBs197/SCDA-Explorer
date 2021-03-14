@@ -476,7 +476,7 @@ vector<string> MainWindow::all_tables()
 }
 
 // Delete all tables and subtables related to the given catalogue.
-void MainWindow::delete_cata(sqlite3*& db_gui, vector<int>& comm, string sname)
+void MainWindow::delete_cata(sqlite3*& db_gui, SWITCHBOARD& sb, int sb_index, string sname)
 {
     sqlite3_stmt* state;
     vector<string> table_list = all_tables();
@@ -532,22 +532,6 @@ void MainWindow::create_cata_index_table()
     if (error) { sqlerror("prepare-create_cata_index_table", db); }
     step(db, statement);
 }
-/*
-void MainWindow::create_prov_index_table()
-{
-    string stmt = "CREATE TABLE IF NOT EXISTS TProvinceIndex (";
-    for (int ii = 0; ii < provinces.size(); ii++)
-    {
-        stmt += provinces[ii] + " INT, ";
-    }
-    stmt.pop_back();
-    stmt.pop_back();
-    stmt += ");";
-    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
-    if (error) { sqlerror("prepare-create_prov_index_table", db); }
-    step(db, statement);
-}
-*/
 
 // For a prepared matrix of QString data, display it on the GUI as a 2D tree widget (year -> cata entry).
 void MainWindow::build_ui_tree(QVector<QVector<QVector<QString>>>& qtree, int window)
@@ -604,7 +588,6 @@ void MainWindow::add_children(QTreeWidgetItem* parent, QVector<QVector<QString>>
     }
     parent->addChildren(branch);
 }
-
 
 // If the tree widget has 'max' or fewer elements, then expand those elements in the GUI.
 void MainWindow::auto_expand(QTreeWidget*& qtree, int max)
@@ -711,8 +694,12 @@ int MainWindow::sql_callback(void* NotUsed, int argc, char** argv, char** column
 // TASK FUNCTIONS, USED BY ONE OR MORE GUI BUTTONS:
 
 // Populate the 'Catalogues on Drive' tab with a tree-list of catalogues present on the selected local drive.
-void MainWindow::scan_drive(vector<int>& comm)
+void MainWindow::scan_drive(SWITCHBOARD& sb, int sb_index)
 {
+    vector<int> comm = { 0, 0, 1 };
+    thread::id myid = this_thread::get_id();
+    sb.answer_call(myid, comm, sb_index);
+
     std::vector<std::vector<std::wstring>> wtree = get_subfolders2(wdrive);
     QVector<QVector<QVector<QString>>> qtree;  // Form [year][catalogue][year, name]
     wstring wyear, wcata;
@@ -772,16 +759,18 @@ void MainWindow::scan_drive(vector<int>& comm)
     }
    
     build_ui_tree(qtree, 1);  // Window code 1 will populate the 'Catalogues on Drive' section.
-
-    m_bar.lock();
-    comm[0] = -1;
-    m_bar.unlock();
+    comm[0] = 1;
+    comm[1] = 1;
+    sb.update(myid, comm);
 }
 
 // Populate the information tabs for a selected catalogue. 
-void MainWindow::display_catalogue(sqlite3*& db_gui, vector<string>& gid_list, vector<int>& comm_cata, string syear, string sname)
+void MainWindow::display_catalogue(sqlite3*& db_gui, SWITCHBOARD& sb, int sb_index, vector<string>& gid_list, string syear, string sname)
 {
     sqlite3_stmt* state;
+    vector<int> comm = { 0, 0, 4 };
+    thread::id myid = this_thread::get_id();
+    sb.answer_call(myid, comm, sb_index);
 
     // Populate the 'Geographic Region' tab.
     string stmt = "SELECT GID, Geography FROM [" + sname + "];";
@@ -798,6 +787,8 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<string>& gid_list, v
     }
     ui->GID_list->clear();
     ui->GID_list->addItems(geo_list);
+    comm[1]++;
+    sb.update(myid, comm);
 
     // Populate the 'Row Data' tab.
     stmt = "SELECT Column FROM [" + sname + "$Columns];";
@@ -812,6 +803,8 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<string>& gid_list, v
     }
     ui->Rows_list->clear();
     ui->Rows_list->addItems(row_list);
+    comm[1]++;
+    sb.update(myid, comm);
     
     // Populate the 'Tables' tab.
     vector<string> table_list = all_tables();
@@ -823,6 +816,8 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<string>& gid_list, v
     }
     ui->Tables_list->clear();
     ui->Tables_list->addItems(qtable_list);
+    comm[1]++;
+    sb.update(myid, comm);
 
     // Populate the 'Tables as a Tree' tab.
     vector<int> table_indent_list = get_indent_list(table_list, '$');
@@ -853,12 +848,13 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, vector<string>& gid_list, v
     }
     ui->tV_tablesindb->setModel(qTreeModel);
     ui->tV_tablesindb->setHeaderHidden(1);
+    comm[1]++;
+    sb.update(myid, comm);
 
 
     // Report completion to the GUI thread.
-    m_job.lock();
-    comm_cata[0] = -1;
-    m_job.unlock();
+    comm[0] = 1;
+    sb.update(myid, comm);
 }
 vector<int> MainWindow::get_indent_list(vector<string>& param_list, char param)
 {
@@ -968,23 +964,28 @@ void MainWindow::view_region(sqlite3*& db_gui, vector<int>& comm, int row)
 }
 
 // Insert catalogue(s) from local storage into the database.
-void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<string> prompt)
+void MainWindow::judicator(sqlite3*& db_gui, SWITCHBOARD& sb, int sb_index, vector<string> prompt)
 {
+    SWITCHBOARD geo;
+
     // prompt has form [syear, sname, gid1, gid2, ...], gid list is only included for partial catalogue insertions.
     string temp = sroots[location] + "\\" + prompt[0] + "\\" + prompt[1];
     wstring cata_wpath = utf8to16(temp);
     int num_gid = get_file_path_number(cata_wpath, L".csv");
-    comm_cata[2] = num_gid;
     int workload = num_gid / cores;
     int bot = 0;
     int top = workload - 1;
     bool partial_entry = 0;
     vector<string> param(3);
     vector<string> geo_queue;
-    vector<int> geo_comm = { 0 };
+    vector<vector<int>> geo_comm = { { 0 } };
     sqlite3_stmt* statejudi;
     string stmt, stmt0;
-    int error;
+    int error, geo_index;
+
+    vector<int> comm = { 0, 0, num_gid };
+    thread::id myid = this_thread::get_id();
+    sb.answer_call(myid, comm, sb_index);
 
     bool need_geo = !table_exist(param[1]);
     if (prompt.size() > 2) { partial_entry = 1; }
@@ -1009,9 +1010,12 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     if (need_geo)
     {
         log("Begin region indexing for catalogue " + prompt[1]);
-        std::thread geo(&MainWindow::create_insert_region_tables, this, ref(geo_queue), ref(geo_comm), prompt);
+        error = geo.start_call(myid, geo_comm[0], geo_index, "Region Indexing");
+        if (error) { errnum("start_call-judicator", error); }
+        std::thread geo(&MainWindow::create_insert_region_tables, this, ref(geo_queue), ref(geo), geo_index, prompt);
         geo.detach();
     }
+    else { geo_comm[0][0] = 1; }
 
     // Create a table for this catalogue's damaged CSVs.
     temp = "[" + prompt[1] + "$Damaged]";
@@ -1096,20 +1100,25 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
 
     // Create the catalogue's primary table.
     while (all_queue[0][0].size() < 3) 
-    { 
-        if (geo_comm[0] == -1)
+    {
+        if (geo_comm[0][0] == 0)
         {
-            error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-            if (error) { sqlerror("begin transaction1.3-judicator", db_gui); }
-            for (int ii = 0; ii < geo_queue.size(); ii++)
+            geo_comm = geo.update(myid, geo_comm[0]);
+            if (geo_comm[1][0] == 1)
             {
-                error = sqlite3_prepare_v2(db_gui, geo_queue[ii].c_str(), -1, &statejudi, NULL);
-                if (error) { sqlerror("prepare3.3-judicator", db_gui); }
-                step(db_gui, statejudi);
+                error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+                if (error) { sqlerror("begin transaction1.3-judicator", db_gui); }
+                for (int ii = 0; ii < geo_queue.size(); ii++)
+                {
+                    error = sqlite3_prepare_v2(db_gui, geo_queue[ii].c_str(), -1, &statejudi, NULL);
+                    if (error) { sqlerror("prepare3.3-judicator", db_gui); }
+                    step(db_gui, statejudi);
+                }
+                error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
+                if (error) { sqlerror("commit transaction1.3-judicator", db_gui); }
+                geo_comm[0][0] = 1;
+                log("Completed the region indexing for catalogue " + prompt[1]);
             }
-            error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
-            if (error) { sqlerror("commit transaction1.3-judicator", db_gui); }
-            geo_comm[0] = 1;
         }
         else
         {
@@ -1225,17 +1234,8 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     int no_work = 0;      // Stop working if a 'jobs done' or 'cancel' signal is sent.
     QElapsedTimer batch_timer;
     batch_timer.start();
-    while (comm_cata[0] == 0)  
+    while (comm[0] == 0)  
     {
-        /*
-        progress = 0;  // RESUME HERE. Progress bar should be linked to judicator, not workers. 
-        for (int ii = 0; ii < cores; ii++)
-        {
-            progress += comm_csv[ii][1];
-        }
-        comm_cata[1] = progress;  // Report work progress to GUI thread. 
-        */
-
         csv_pile = all_queue[active_thread].size();
         if (csv_pile > 0)
         {
@@ -1270,7 +1270,8 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
                 batch_time = (int)batch_timer.restart();
                 batch_average = batch_time / dayswork;
                 qDebug() << batch_average << " msec/CSV";
-                comm_cata[1] += dayswork;
+                comm[1] += dayswork;
+                sb.update(myid, comm);
                 bot = top;
                 dayswork = min(handful, desk.size() - bot);
                 top += dayswork;
@@ -1294,8 +1295,9 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
             {
                 if (no_work >= 3 * cores)  // ... and if we have made 3 empty sweeps for work...
                 {
-                    comm_cata[1] = comm_cata[2];
-                    comm_cata[0] = 1;  // ... stop looking for work.
+                    comm[1] = comm[2];
+                    comm[0] = 1;  // ... stop looking for work.
+                    sb.update(myid, comm);
                 }
             }
         }
@@ -1386,9 +1388,10 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     }
 
     // If the geo thread had not yet finished, wait for it now.
-    while (geo_comm[0] < 1)
+    while (geo_comm[0][0] == 0)
     {
-        if (geo_comm[0] == -1)
+        geo_comm = geo.update(myid, geo_comm[0]);
+        if (geo_comm[1][0] == 1)
         {
             error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
             if (error) { sqlerror("begin transaction1.3-judicator", db_gui); }
@@ -1400,7 +1403,8 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
             }
             error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
             if (error) { sqlerror("commit transaction1.3-judicator", db_gui); }
-            geo_comm[0] = 1;
+            geo_comm[0][0] = 1;
+            log("Completed the region indexing for catalogue " + prompt[1]);
         }
         else
         {
@@ -1409,7 +1413,7 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     }
 
     // If we are done without being cancelled, we can mark the catalogue as 'complete'.
-    if (comm_cata[0] < 2)  
+    if (comm[0] < 2)  
     {
         stmt = "UPDATE TCatalogueIndex SET Description = ? WHERE Name = ?;";
         param.resize(2);
@@ -1425,7 +1429,6 @@ void MainWindow::judicator(sqlite3*& db_gui, vector<int>& comm_cata, vector<stri
     {
         log("Catalogue " + prompt[1] + " had its CSV insertion cancelled.");
     }
-    threads_working = 0;
 }
 void MainWindow::insert_csvs(vector<vector<string>>& my_queue, vector<int>& comm, wstring cata_wpath, vector<int> prompt)
 {
@@ -1659,8 +1662,12 @@ void MainWindow::insert_damaged_row(vector<string>& paperwork, string sname, str
     bind(stmt, param);
     paperwork.push_back(stmt);
 }
-void MainWindow::create_insert_region_tables(vector<string>& paperwork, vector<int>& comm, vector<string> prompt)
+void MainWindow::create_insert_region_tables(vector<string>& paperwork, SWITCHBOARD& geo, int geo_index, vector<string> prompt)
 {
+    vector<int> comm = { 0 };
+    thread::id myid = this_thread::get_id();
+    geo.answer_call(myid, comm, geo_index);
+
     // Create the region index table.
     string stmt = "CREATE TABLE IF NOT EXISTS [" + prompt[1] + "$RegionIndex] ";
     stmt += "(GID INTEGER PRIMARY KEY, [Region Name] TEXT);";
@@ -1737,7 +1744,8 @@ void MainWindow::create_insert_region_tables(vector<string>& paperwork, vector<i
     }
 
     // Signal the judicator that the work is done. 
-    comm[0] = -1;
+    comm[0] = 1;
+    geo.update(myid, comm);
 }
 int MainWindow::load_geo(vector<vector<string>>& geo_values, string& syear, string& sname)
 {
@@ -1790,31 +1798,50 @@ int MainWindow::load_geo(vector<vector<string>>& geo_values, string& syear, stri
 
 // GUI-SPECIFIC FUNCTIONS, LINKED TO A SINGLE GUI ELEMENT:
 
-// Choose a local drive to examine for spreadsheets.
-void MainWindow::on_cB_drives_currentTextChanged(const QString &arg1)
-{
-    qdrive = arg1;
-    wdrive = arg1.toStdWString();
-    sdrive = arg1.toStdString();
-}
-
 // For the given local drive, display (as a tree widget) the available catalogues, organized by year.
 void MainWindow::on_pB_scan_clicked()
 {
-    vector<int> comm = { 0, 0, 0 };  // Form [control, progress, task size].
-    std::thread scan(&MainWindow::scan_drive, this, std::ref(comm));
-    while (comm[0] >= 0)
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0] = { 0, 0, 0 };  // Form [control, progress, task size].
+    thread::id myid = this_thread::get_id();
+    int sb_index;
+    int error = sb.start_call(myid, comm[0], sb_index, "Scan Drive");
+    if (error) { errnum("start_call-pB_scan_clicked", error); }
+    std::thread scan(&MainWindow::scan_drive, this, std::ref(sb), sb_index);
+    while (1)
     {
-        Sleep(50);
+        Sleep(gui_sleep);
         QCoreApplication::processEvents();
-        if (comm[2] > 0)
+        comm = sb.update(myid, comm[0]);
+        if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
         {
-            reset_bar(comm[2], "Scanning drive  " + sdrive);
+            if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
+            {
+                comm[0][2] = comm[1][2];
+                comm[0][1] = comm[1][1];
+                reset_bar(comm[1][2], "Scanning drive  " + sdrive);  // ... initialize the progress bar.
+                jobs_done = comm[0][1];
+                update_bar();
+            }
+        }
+        else
+        {
+            comm[0][1] = comm[1][1];
+            jobs_done = comm[0][1];
+            update_bar();
+        }
+        
+        if (comm[1][0] > 0)
+        {
+            break;  
         }
     }
     scan.join();
+    error = sb.end_call(myid);
+    if (error) { errnum("end_call-pB_scan_clicked", error); }
     auto_expand(ui->TW_cataondrive, 20);
     ui->tabW_catalogues->setCurrentIndex(1);
+    log("Scanned drive " + sdrive + " for catalogues.");
 }
 
 // Insert the selected catalogues into the database.
@@ -1826,8 +1853,10 @@ void MainWindow::on_pB_insert_clicked()
     QString qyear, qname, qdesc, stmt, qtemp;
     string syear, sname;
     vector<string> prompt(2);
-    vector<int> comm_cata = { 0, 0, 0 };  // Form [control, progress report, size report].
-    int year_index, cata_index;
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0] = { 0, 0, 0 };  // Form [control, progress report, size report].
+    thread::id myid = this_thread::get_id();
+    int error, sb_index, year_index, cata_index;
     bool size_received = 0;
     bool fine;
 
@@ -1847,34 +1876,47 @@ void MainWindow::on_pB_insert_clicked()
         cata_index = map_cata.value(qname, -1);
         if (cata_index < 0)  // Catalogue is not in the database. Remedy that.
         {
-            log("Begin insertion of catalogue " + sname);
-            threads_working = 1;
-            std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(comm_cata), prompt);
-            while (!size_received)  // Start the progress bar when the judicator has reported on the total number of
-            {                       // insertions to be made.
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                QCoreApplication::processEvents();
-                if (comm_cata[2] > 0)
-                {
-                    reset_bar(comm_cata[2], "Inserting spreadsheets into  " + sname);
-                    size_received = 1;
-                }
-            }
-            while (threads_working)
+            log("Beginning insertion of catalogue " + sname);
+            error = sb.start_call(myid, comm[0], sb_index, "Insert Catalogues");
+            if (error) { errnum("start_call1-pB_insert_clicked", error); }
+            std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(sb), sb_index, prompt);
+            while (1)
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                Sleep(gui_sleep);
                 QCoreApplication::processEvents();
-                jobs_done = comm_cata[1];
-                update_bar();
-
-                if (remote_controller == 2)
+                if (remote_controller == 2)  // The 'cancel' button was pressed.
                 {
-                    comm_cata[0] = 2;
+                    comm[0][0] = 2;  // Inform the manager thread it should abort its task.
+                    remote_controller = 0;
+                }
+                comm = sb.update(myid, comm[0]);
+                if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
+                {
+                    if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
+                    {
+                        comm[0][2] = comm[1][2];
+                        comm[0][1] = comm[1][1];
+                        reset_bar(comm[1][2], "Inserting catalogue  " + sname);  // ... initialize the progress bar.
+                        jobs_done = comm[0][1];
+                        update_bar();
+                    }
+                }
+                else
+                {
+                    comm[0][1] = comm[1][1];
+                    jobs_done = comm[0][1];
+                    update_bar();
+                }
+
+                if (comm[1][0] > 0)
+                {
+                    break;
                 }
             }
-            jobs_done = comm_cata[1];
-            update_bar();
             judi.join();
+            error = sb.end_call(myid);
+            if (error) { errnum("end_call1-pB_insert_clicked", error); }
+            log("Finished insertion of catalogue " + sname);
         }
         else
         {
@@ -1883,32 +1925,47 @@ void MainWindow::on_pB_insert_clicked()
             if (qdesc == "Incomplete")  // Catalogue is partially present within the database. Finish that.
             {
                 prompt = missing_gids(db, 3, syear, sname);
-                log("Resume insertion of partial catalogue " + sname);
-                threads_working = 1;
-                std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(comm_cata), prompt);
-                while (!size_received)  // Start the progress bar when the judicator has reported on the total number of
-                {                       // insertions to be made.
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                    QCoreApplication::processEvents();
-                    if (comm_cata[2] > 0)
-                    {
-                        reset_bar(comm_cata[2], "Inserting spreadsheets into  " + sname);
-                        size_received = 1;
-                    }
-                }
-                while (threads_working)
+                log("Resuming insertion of partial catalogue " + sname);
+                error = sb.start_call(myid, comm[0], sb_index, "Insert Catalogues");
+                if (error) { errnum("start_call2-pB_insert_clicked", error); }
+                std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(sb), prompt);
+                while (1)
                 {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    Sleep(gui_sleep);
                     QCoreApplication::processEvents();
-                    jobs_done = comm_cata[1];
-                    update_bar();
-
-                    if (remote_controller == 2)
+                    if (remote_controller == 2)  // The 'cancel' button was pressed.
                     {
-                        comm_cata[0] = 2;
+                        comm[0][0] = 2;  // Inform the manager thread it should abort its task.
+                        remote_controller = 0;
+                    }
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
+                    {
+                        if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
+                        {
+                            comm[0][2] = comm[1][2];
+                            comm[0][1] = comm[1][1];
+                            reset_bar(comm[1][2], "Inserting catalogue  " + sname);  // ... initialize the progress bar.
+                            jobs_done = comm[0][1];
+                            update_bar();
+                        }
+                    }
+                    else
+                    {
+                        comm[0][1] = comm[1][1];
+                        jobs_done = comm[0][1];
+                        update_bar();
+                    }
+
+                    if (comm[1][0] > 0)
+                    {
+                        break;
                     }
                 }
                 judi.join();
+                error = sb.end_call(myid);
+                if (error) { errnum("end_call2-pB_insert_clicked", error); }
+                log("Finished insertion of catalogue " + sname);
             }
             else  // Catalogue is already present within the database. Inform the user. 
             {
@@ -1927,6 +1984,7 @@ void MainWindow::on_pB_insert_clicked()
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
+    /*
     // Remove catalogue from database. 
     QList<QTreeWidgetItem*> catas_to_do = ui->TW_cataondrive->selectedItems();
     QString qyear, qname;
@@ -1963,17 +2021,11 @@ void MainWindow::on_pB_test_clicked()
         
     }
     thr.join();
-
-}
-
-// (Debug function) Perform a series of actions to test new functions.
-void MainWindow::on_pB_benchmark_clicked()
-{
-    
+    */
 }
 
 // Display the 'tabbed data' for the selected catalogue.
-void MainWindow::on_pB_viewdata_clicked()
+void MainWindow::on_pB_viewcata_clicked()
 {
     QList<QTreeWidgetItem *> cata_to_do = ui->TW_cataindb->selectedItems();  // Only 1 catalogue can be selected.
     QString qyear = cata_to_do[0]->text(0);
@@ -1981,29 +2033,49 @@ void MainWindow::on_pB_viewdata_clicked()
     QString qname = cata_to_do[0]->text(1);
     string sname = qname.toStdString();
     vector<string> gid_list;
-    bool working = 1;
-    vector<int> comm_cata = { 0, 0, 0 };  // Form [control, progress report, size report]
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0] = { 0, 0, 0 };  // Form [control, progress report, size report]
+    thread::id myid = this_thread::get_id();
+    int sb_index;
     viewcata_data.resize(2);
     viewcata_data[0] = syear;
     viewcata_data[1] = sname;
-
-    std::thread dispcata(&MainWindow::display_catalogue, this, ref(db), ref(gid_list), ref(comm_cata), syear, sname);
-    while (working)
+    int error = sb.start_call(myid, comm[0], sb_index, "Display Catalogue");
+    if (error) { errnum("start_call-pB_viewcata_clicked", error); }
+    std::thread dispcata(&MainWindow::display_catalogue, this, ref(db), ref(sb), sb_index, ref(gid_list), syear, sname);
+    while (1)
     {
-        Sleep(50);
+        Sleep(gui_sleep);
         QCoreApplication::processEvents();
-        jobs_done = comm_cata[1];
-        update_bar();
-        if (remote_controller)
+        comm = sb.update(myid, comm[0]);
+        if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
         {
-            comm_cata[0] = 1;
+            if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
+            {
+                comm[0][2] = comm[1][2];
+                comm[0][1] = comm[1][1];
+                reset_bar(comm[1][2], "Loading catalogue  " + sname);  // ... initialize the progress bar.
+                jobs_done = comm[0][1];
+                update_bar();
+            }
         }
-        m_job.lock();
-        if (comm_cata[0] < 0) { working = 0; }
-        m_job.unlock();
+        else
+        {
+            comm[0][1] = comm[1][1];
+            jobs_done = comm[0][1];
+            update_bar();
+        }
+
+        if (comm[1][0] > 0)
+        {
+            break;
+        }
     }
-    viewcata_gid_list = gid_list;
     dispcata.join();
+    error = sb.end_call(myid);
+    if (error) { errnum("end_call-pB_viewcata_clicked", error); }
+    viewcata_gid_list = gid_list;
+    log("Displayed catalogue " + sname + " on the GUI.");
 }
 
 // Remove the selected catalogue from the database.
@@ -2012,21 +2084,44 @@ void MainWindow::on_pB_removecata_clicked()
     QList<QTreeWidgetItem*> cata_to_do = ui->TW_cataindb->selectedItems();  // Only 1 catalogue can be selected.
     QString qname = cata_to_do[0]->text(1);
     string sname = qname.toStdString();
-    vector<int> comm_cata = { 0, 0, 0 };  // Form [control, progress report, size report]
-
-    std::thread remcata(&MainWindow::delete_cata, this, ref(db), ref(comm_cata), sname);
-    while (comm_cata[0] >= 0)
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0] = { 0, 0, 0 };  // Form [control, progress report, size report]
+    thread::id myid = this_thread::get_id();
+    int sb_index;
+    int error = sb.start_call(myid, comm[0], sb_index, "Remove Catalogue");
+    if (error) { errnum("start_call-pB_removecata_clicked", error); }
+    std::thread remcata(&MainWindow::delete_cata, this, ref(db), ref(sb), sb_index, sname);
+    while (1)
     {
-        Sleep(50);
+        Sleep(gui_sleep);
         QCoreApplication::processEvents();
-        jobs_done = comm_cata[1];
-        update_bar();
-        if (remote_controller)
+        comm = sb.update(myid, comm[0]);
+        if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
         {
-            comm_cata[0] = 1;
+            if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
+            {
+                comm[0][2] = comm[1][2];
+                comm[0][1] = comm[1][1];
+                reset_bar(comm[1][2], "Removing catalogue  " + sname);  // ... initialize the progress bar.
+                jobs_done = comm[0][1];
+                update_bar();
+            }
+        }
+        else
+        {
+            comm[0][1] = comm[1][1];
+            jobs_done = comm[0][1];
+            update_bar();
+        }
+
+        if (comm[1][0] > 0)
+        {
+            break;
         }
     }
     remcata.join();
+    error = sb.end_call(myid);
+    if (error) { errnum("end_call-pB_removecata_clicked", error); }
     update_cata_tree();
     build_ui_tree(cata_tree, 2);
     auto_expand(ui->TW_cataindb, 20);
@@ -2038,6 +2133,7 @@ void MainWindow::on_pB_removecata_clicked()
         viewcata_data[0].clear();
         viewcata_data[1].clear();
     }
+    log("Removed catalogue " + sname + " from the database.");
 }
 
 // All threads inserting catalogues are told to stop after finishing their current CSV.
@@ -2049,6 +2145,8 @@ void MainWindow::on_pB_cancel_clicked()
 // Display the raw table data for the selected region.
 void MainWindow::on_pB_region_clicked()
 {
+
+    /*
     QList<QListWidgetItem*> region_selected = ui->GID_list->selectedItems();
     int row = ui->GID_list->currentRow();
     sqlite3_stmt* state;
@@ -2092,6 +2190,16 @@ void MainWindow::on_pB_region_clicked()
     }
     ui->tV_results->setModel(model);
     ui->tV_results->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    */
+
+}
+
+// Choose a local drive to examine for spreadsheets.
+void MainWindow::on_cB_drives_currentTextChanged(const QString& arg1)
+{
+    qdrive = arg1;
+    wdrive = arg1.toStdWString();
+    sdrive = arg1.toStdString();
 }
 
 // Update button status (enabled/disabled).
@@ -2103,18 +2211,18 @@ void MainWindow::on_TW_cataindb_itemSelectionChanged()
         QString qname = db_selected[0]->text(1);
         if (qname == " ")
         {
-            ui->pB_viewdata->setEnabled(0);
+            ui->pB_viewcata->setEnabled(0);
             ui->pB_removecata->setEnabled(0);
         }
         else
         {
-            ui->pB_viewdata->setEnabled(1);
+            ui->pB_viewcata->setEnabled(1);
             ui->pB_removecata->setEnabled(1);
         }
     }
     else
     {
-        ui->pB_viewdata->setEnabled(0);
+        ui->pB_viewcata->setEnabled(0);
         ui->pB_removecata->setEnabled(0);
     }
 
@@ -2144,21 +2252,6 @@ void MainWindow::on_GID_list_itemSelectionChanged()
     }
 }
 
-
-/*
-    vector<int> comm = { 0, 0, 0 };  // Form [control, progress, task size].
-    std::thread func(&MainWindow::function, this, std::ref(db), std::ref(comm));
-    while (comm[0] >= 0)
-    {
-        Sleep(50);
-        QCoreApplication::processEvents();
-        if (comm[2] > 0)
-        {
-            reset_bar(comm[2], "I am doing...  " + stuff);
-        }
-    }
-    func.join();
-*/
 
 /*
     int error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);

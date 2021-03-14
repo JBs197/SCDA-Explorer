@@ -3,6 +3,7 @@
 #include <vector>
 #include <mutex>
 #include <unordered_map>
+#include <utility>
 
 using namespace std;
 
@@ -10,19 +11,22 @@ class SWITCHBOARD                                           // comm protocol:
 {                                                           // comm[0] = task status
 	mutex m_add_remove;                                     // comm[1] = jobs completed
 	vector<mutex> m_calls;                                  // comm[2] = jobs max
-	vector<thread::id> ids;  // Form [thread index].
-	vector<vector<int>> directory;  // Form [thread index][task index, phone line position].
+	vector<bool> task_indices = { 0 };
 	vector<string> task_names;  // Form [task index].
-	vector<vector<vector<int>>> phone_lines;  // Form [task index][manager status, worker1 status, worker2 status...][data understood by participants].
+	vector<vector<vector<int>>> phone_lines;  // Form [task index][phone index][data understood by participants].
 	unordered_map<thread::id, int> map_task;
 	unordered_map<thread::id, int> map_phone;
+	unordered_map<thread::id, string> map_name;
 
 	void init();
 
 public:
 	explicit SWITCHBOARD() { init(); }
 	~SWITCHBOARD() {}
-	void start_call(thread::id id, vector<int>&, string);  // Data lines, task index, task name.
-	void answer_call(vector<int>&, int&);
+	int start_call(thread::id, vector<int>&, int&, string);  // Data lines, task index, task name.
+	int answer_call(thread::id, vector<int>&, int&);
+	int end_call(thread::id);
+	vector<vector<int>> update(thread::id, vector<int>&);
+	string get_name(thread::id);
 };
 
