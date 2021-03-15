@@ -102,12 +102,12 @@
      <rect>
       <x>370</x>
       <y>10</y>
-      <width>441</width>
+      <width>381</width>
       <height>481</height>
      </rect>
     </property>
     <property name="currentIndex">
-     <number>3</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="GID">
      <attribute name="title">
@@ -118,7 +118,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>431</width>
+        <width>371</width>
         <height>451</height>
        </rect>
       </property>
@@ -133,7 +133,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>431</width>
+        <width>371</width>
         <height>451</height>
        </rect>
       </property>
@@ -148,7 +148,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>431</width>
+        <width>371</width>
         <height>451</height>
        </rect>
       </property>
@@ -158,15 +158,23 @@
      <attribute name="title">
       <string>Tables (Tree)</string>
      </attribute>
-     <widget class="QTreeView" name="tV_tablesindb">
+     <widget class="QTreeWidget" name="TW_tablesindb">
       <property name="geometry">
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>431</width>
+        <width>371</width>
         <height>451</height>
        </rect>
       </property>
+      <attribute name="headerVisible">
+       <bool>false</bool>
+      </attribute>
+      <column>
+       <property name="text">
+        <string notr="true">1</string>
+       </property>
+      </column>
      </widget>
     </widget>
    </widget>
@@ -214,7 +222,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="catas_db">
      <attribute name="title">
@@ -296,7 +304,7 @@
      </widget>
     </widget>
    </widget>
-   <widget class="QPushButton" name="pB_region">
+   <widget class="QPushButton" name="pB_viewtable">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -310,15 +318,15 @@
     </property>
     <property name="text">
      <string>View 
- Region</string>
+ Table</string>
     </property>
    </widget>
-   <widget class="QTableView" name="tV_results">
+   <widget class="QTableView" name="tV_viewtable">
     <property name="geometry">
      <rect>
-      <x>820</x>
+      <x>760</x>
       <y>30</y>
-      <width>471</width>
+      <width>531</width>
       <height>461</height>
      </rect>
     </property>
@@ -349,8 +357,8 @@
    <zorder>pB_viewcata</zorder>
    <zorder>pB_cancel</zorder>
    <zorder>tabW_catalogues</zorder>
-   <zorder>pB_region</zorder>
-   <zorder>tV_results</zorder>
+   <zorder>pB_viewtable</zorder>
+   <zorder>tV_viewtable</zorder>
    <zorder>tabW_results</zorder>
    <zorder>pB_removecata</zorder>
   </widget>

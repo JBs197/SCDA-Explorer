@@ -35,6 +35,7 @@ int SWITCHBOARD::start_call(thread::id id, vector<int>& comm, int& tindex, strin
 		task_names.push_back(tname);
 		phone_lines.push_back(vector<vector<int>>());          // New task.
 		phone_lines[phone_lines.size() - 1].push_back(comm);   // New manager.
+		sprompt.push_back(vector<string>());
 	}
 	else
 	{
@@ -96,9 +97,6 @@ vector<vector<int>> SWITCHBOARD::update(thread::id id, vector<int>& comm)
 	lock_guard<mutex> addrem(m_add_remove);
 	int task_index = map_task.at(id);
 	int phone_index = map_phone.at(id);
-	m_add_remove.unlock();
-
-	lock_guard<mutex> mycall(m_calls[task_index]);
 	phone_lines[task_index][phone_index] = comm;
 	return phone_lines[task_index];
 }
@@ -113,4 +111,18 @@ string SWITCHBOARD::get_name(thread::id id)
 		return task_names[task_index];
 	}
 	return "ERROR: task index exceeds the boundary of the task name list.";
+}
+
+// Functions related to the switchboard buffers shared between threads. 
+void SWITCHBOARD::set_prompt(thread::id id, vector<string>& prompt)
+{
+	lock_guard<mutex> locksbuf(m_sbuf);
+	int task_index = map_task.at(id);
+	sprompt[task_index] = prompt;
+}
+vector<string> SWITCHBOARD::get_prompt(thread::id id)
+{
+	lock_guard<mutex> locksbuf(m_sbuf);
+	int task_index = map_task.at(id);
+	return sprompt[task_index];
 }

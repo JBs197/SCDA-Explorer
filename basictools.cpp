@@ -169,6 +169,20 @@ int qnum_test(QString num)
     return 0;
 }
 
+// Return the largest integer in a vector.
+int max_int(vector<int>& ivec)
+{
+    int top = 0;
+    for (int ii = 0; ii < ivec.size(); ii++)
+    {
+        if (ivec[ii] > top)
+        {
+            top = ivec[ii];
+        }
+    }
+    return top;
+}
+
 // Return a piece of the original vector, defined by the first and last positions.
 QVector<QString> string_vector_slicer(QVector<QString>& bushy, int bot, int top)
 {

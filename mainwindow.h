@@ -10,6 +10,8 @@
 #include <iostream>
 #include "winfunc.h"
 #include "qtfunc.h"
+#include "sqlfunc.h"
+#include "jfunc.h"
 #include "Shlwapi.h"
 #include "catalogue.h"
 #include "switchboard.h"
@@ -29,6 +31,8 @@ public:
     SWITCHBOARD sb;
     WINFUNC wf;
     QTFUNC qf;
+    SQLFUNC sf;
+    JFUNC jf;
 
 signals:
 
@@ -45,7 +49,7 @@ private slots:
     void on_TW_cataindb_itemSelectionChanged();
     void on_TW_cataondrive_itemSelectionChanged();
     void on_GID_list_itemSelectionChanged();
-    void on_pB_region_clicked();
+    void on_pB_viewtable_clicked();
     void on_pB_removecata_clicked();
 
 private:
@@ -78,6 +82,7 @@ private:
     vector<string> viewcata_data;  // Hold essential information for the catalogue being viewed. Form [syear, sname].
     vector<string> viewcata_gid_list;
     void build_ui_tree(QVector<QVector<QVector<QString>>>&, int);
+    QVector<QTreeWidgetItem*> build_ui_tree_temp(QVector<QVector<QVector<QString>>>&, int);
     void add_children(QTreeWidgetItem*, QVector<QVector<QString>>&);
     void clear_log();
     void update_bar();
@@ -102,11 +107,11 @@ private:
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
     vector<string> missing_gids(sqlite3*&, int, string, string);
-    void display_catalogue(sqlite3*&, SWITCHBOARD&, int, vector<string>&, string, string);
+    void display_catalogue(sqlite3*&, SWITCHBOARD&, int, vector<string>&, QList<QStringList>&, vector<vector<int>>&, vector<string>&);
     void display_region(sqlite3*&, vector<int>&, string, int);
     void view_region(sqlite3*&, vector<int>&, int);
     vector<string> all_tables();
-    void scan_drive(SWITCHBOARD&, int);
+    void scan_drive(SWITCHBOARD&, int, QVector<QTreeWidgetItem*>&);
     bool table_exist(string&);
     int load_geo(vector<vector<string>>&, string&, string&);
     void delete_cata(sqlite3*&, SWITCHBOARD&, int, string);

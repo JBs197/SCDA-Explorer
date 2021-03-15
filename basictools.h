@@ -36,6 +36,9 @@ void winerr_bt(string);
 // Determine the type of number contained within the given string. 0 = error, 1 = int, 2 = double.
 int qnum_test(QString);
 
+// Return the largest integer in a vector.
+int max_int(vector<int>&);
+
 // Return a piece of the original vector, defined by the first and last positions.
 QVector<QString> string_vector_slicer(QVector<QString>&, int, int);
 
