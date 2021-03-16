@@ -60,6 +60,7 @@ private:
     int cores = 3;
     int handful = 100;  // Number of CSVs to insert between progress bar updates.
     DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
+    int comm_length = 4;  // Number of integers used in every 'comm' vector.
     int jobs_max;
     int jobs_done;
     int jobs_percent;
@@ -94,13 +95,13 @@ private:
     void create_cata_index_table();
     void all_cata_db(QVector<QVector<QVector<QString>>>&, QMap<QString, int>&);
     vector<string> scan_incomplete_cata(string, string);
-    void judicator(sqlite3*&, SWITCHBOARD&, int, vector<string>);
-    void insert_csvs(vector<vector<string>>&, vector<int>&, wstring, vector<int>);
+    void judicator(SQLFUNC&, SWITCHBOARD&, int);
+    void insert_csvs(vector<vector<string>>&, SWITCHBOARD&, int, wstring, vector<int>);
     int insert_primary_row(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&, vector<vector<string>>&);
     int create_insert_csv_table(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
     int create_insert_csv_subtables(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
     void insert_damaged_row(vector<string>&, string, string&, int);
-    void create_insert_region_tables(vector<string>&, SWITCHBOARD&, int, vector<string>);
+    void create_insert_region_tables(vector<string>&, SWITCHBOARD&, int);
     static int sql_callback(void*, int, char**, char**);
     vector<vector<string>> step(sqlite3*&, sqlite3_stmt*);
     vector<string> step_1(sqlite3*&, sqlite3_stmt*);

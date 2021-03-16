@@ -60,6 +60,8 @@ int SWITCHBOARD::answer_call(thread::id id, vector<int>& comm, int& tindex)
 {
 	lock_guard<mutex> addrem(m_add_remove);
 	int pindex = phone_lines[tindex].size();
+	int comm_size = phone_lines[tindex][0].size();
+	comm.assign(comm_size, 0);
 	phone_lines[tindex].push_back(comm);
 	pair iresult = map_task.emplace(id, tindex);
 	bool success = get<1>(iresult);

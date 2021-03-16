@@ -61,6 +61,16 @@ void SQLFUNC::init(string db_path)
     temp1.append(" Error Log.txt");
     error_path = temp1;
 }
+int SQLFUNC::insert_tg_existing(string tname)
+{
+    // Convenience function to facilitate the insertion of tables into TGenealogy. 
+    // This function is only valid if the table in question already exists in the database.
+    
+    JFUNC jf;
+    vector<string> row_data = jf.list_from_marker(tname, '$');
+    safe_col("TGenealogy", row_data.size());
+    insert("TGenealogy", row_data);
+}
 void SQLFUNC::insert_rows(string tname, vector<vector<string>>& row_data)
 {
     vector<string> column_titles;
@@ -97,6 +107,62 @@ void SQLFUNC::insert_rows(string tname, vector<vector<string>>& row_data)
     }
     error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
     if (error) { sqlerr("commit transaction-insert_rows"); }
+}
+string SQLFUNC::insert_stmt(string tname, vector<string>& column_titles, vector<string>& row_data)
+{
+    string stmt = "INSERT INTO [" + tname + "] (";
+    for (int ii = 0; ii < column_titles.size(); ii++)
+    {
+        stmt += "[" + column_titles[ii];
+        if (ii < column_titles.size() - 1)
+        {
+            stmt += "], ";
+        }
+        else
+        {
+            stmt += "]) VALUES (";
+        }
+    }
+    for (int ii = 0; ii < column_titles.size(); ii++)
+    {
+        stmt += "?, ";
+    }
+    stmt.pop_back();
+    stmt.pop_back();
+    stmt += ");";
+
+    bind(stmt, row_data);
+    return stmt;
+}
+int SQLFUNC::tg_max_param()
+{
+    vector<string> column_titles;
+    if (TG_max_param < 0)
+    {
+        get_col_titles("TGenealogy", column_titles);
+        TG_max_param = column_titles.size() - 1;
+    }
+    return TG_max_param;
+}
+void SQLFUNC::safe_col(string tname, int num_col)
+{
+    // For a given table name, if it has fewer columns than 'num_col', then append a sufficient
+    // number of new columns to it. The new columns will be named 'paramX' where 'X' is its 
+    // column index, starting from zero.
+
+    vector<string> column_titles;
+    string stmt, temp1;
+    get_col_titles(tname, column_titles);
+    int my_num = column_titles.size();
+    while (my_num < num_col)
+    {
+        temp1 = "param" + to_string(my_num);
+        stmt = "ALTER TABLE [" + tname + "] ADD COLUMN " + temp1;
+        executor(stmt);
+        column_titles.clear();
+        get_col_titles(tname, column_titles);
+        my_num = column_titles.size();
+    }
 }
 int SQLFUNC::sclean(string& bbq, int mode)
 {

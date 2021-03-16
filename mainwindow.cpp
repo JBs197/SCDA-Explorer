@@ -64,12 +64,16 @@ void MainWindow::initialize()
     if (error) { sqlerror("prepare1-initialize", db); }
     step(db, statement);
 
-    sf.init("F:\\SCDA.db");
+    sf.init(sroots[location] + "\\SCDA.db");
 
     //q.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
 
     // Create (if necessary) these system-wide tables. 
     create_cata_index_table();  
+    vector<string> tg_titles = { "Name", "param1" };
+    vector<int> tg_types = { 0, 0 };
+    sf.create_table("TGenealogy", tg_titles, tg_types);
+    sf.tg_max_param();  // To update the internal value.
     
     update_cata_tree();  // The cata_tree matrix is kept in QString form, given its proximity to the GUI.
     build_ui_tree(cata_tree, 2);
@@ -853,7 +857,7 @@ void MainWindow::on_pB_insert_clicked()
     string syear, sname;
     vector<string> prompt(2);
     vector<vector<int>> comm(1, vector<int>());
-    comm[0] = { 0, 0, 0 };  // Form [control, progress report, size report].
+    comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
     thread::id myid = this_thread::get_id();
     int error, sb_index, year_index, cata_index;
     bool size_received = 0;
@@ -879,7 +883,7 @@ void MainWindow::on_pB_insert_clicked()
             error = sb.start_call(myid, comm[0], sb_index, "Insert Catalogues");
             if (error) { errnum("start_call1-pB_insert_clicked", error); }
             sb.set_prompt(myid, prompt);
-            std::thread judi(&MainWindow::judicator, this, std::ref(db), std::ref(sb), sb_index, prompt);
+            std::thread judi(&MainWindow::judicator, this, std::ref(sf), std::ref(sb), sb_index, prompt);
             while (1)
             {
                 Sleep(gui_sleep);
@@ -980,31 +984,34 @@ void MainWindow::on_pB_insert_clicked()
     build_ui_tree(cata_tree, 2);
     auto_expand(ui->TW_cataindb, 20);
 }
-void MainWindow::judicator(sqlite3*& db_gui, SWITCHBOARD& sb, int sb_index, vector<string> prompt)
+void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
 {
-    SWITCHBOARD geo;
-    SQLFUNC sqlf;
-    sqlf.init("F:\\SCDA.db");
+    vector<int> comm;
+    thread::id myid = this_thread::get_id();
+    sb.answer_call(myid, comm, sb_index);
+    vector<string> prompt = sb.get_prompt(myid);
 
     // prompt has form [syear, sname, gid1, gid2, ...], gid list is only included for partial catalogue insertions.
     string temp = sroots[location] + "\\" + prompt[0] + "\\" + prompt[1];
     wstring cata_wpath = utf8to16(temp);
     int num_gid = get_file_path_number(cata_wpath, L".csv");
+    comm[2] = num_gid;
+    sb.update(myid, comm);
     int workload = num_gid / cores;
     int bot = 0;
     int top = workload - 1;
     bool partial_entry = 0;
     vector<string> param(3);
     vector<string> geo_queue;
-    vector<vector<int>> geo_comm = { { 0 } };
+    vector<vector<int>> geo_comm(1, vector<int>());
+    geo_comm[0].assign(comm.size(), 0);
     sqlite3_stmt* statejudi;
     string stmt, stmt0;
-    int error, geo_index;
+    int error, geo_index, csv_tindex;
 
-    vector<int> comm = { 0, 0, num_gid };
-    thread::id myid = this_thread::get_id();
-    sb.answer_call(myid, comm, sb_index);
-
+    SWITCHBOARD sb_geo, sb_judi;
+    
+    int tg_max_param = sf.tg_max_param();
     bool need_geo = !table_exist(param[1]);
     if (prompt.size() > 2) { partial_entry = 1; }
 
@@ -1016,45 +1023,31 @@ void MainWindow::judicator(sqlite3*& db_gui, SWITCHBOARD& sb, int sb_index, vect
         param[1] = prompt[1];  // name
         param[2].assign("Incomplete");
         bind(stmt, param);
-        error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
-        if (error)
-        {
-            sqlerror("prepare1-judicator", db_gui);
-        }
-        step(db_gui, statejudi);
+        sf.executor(stmt);
     }
 
     // Perform region indexing for this catalogue, if necessary.
     if (need_geo)
     {
         log("Begin region indexing for catalogue " + prompt[1]);
-        error = geo.start_call(myid, geo_comm[0], geo_index, "Region Indexing");
-        if (error) { errnum("start_call-judicator", error); }
-        std::thread geo(&MainWindow::create_insert_region_tables, this, ref(geo_queue), ref(geo), geo_index, prompt);
+        error = sb_geo.start_call(myid, geo_comm[0], geo_index, "Region Indexing");
+        if (error) { errnum("start_call(geo)-judicator", error); }
+        sb_geo.set_prompt(myid, prompt);
+        std::thread geo(&MainWindow::create_insert_region_tables, this, ref(geo_queue), ref(sb_geo), geo_index);
         geo.detach();
     }
     else { geo_comm[0][0] = 1; }
 
     // Create a table for this catalogue's damaged CSVs.
-    /*
-    temp = prompt[1] + "$Damaged";
-    vector<string> titles = { "GID", "Number of Missing Data Entries" };
-    vector<int> types = { 1, 1 };
-    sqlf.create_table(temp, titles, types);
-    */
     temp = "[" + prompt[1] + "$Damaged]";
     stmt = "CREATE TABLE IF NOT EXISTS " + temp + " (GID NUMERIC, [Number of Missing Data Entries] NUMERIC);";
-    error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
-    if (error) { sqlerror("prepare2-judicator_noqt", db_gui); }
-    step(db_gui, statejudi);
+    sf.executor(stmt);
+    sf.insert_tg_existing(prompt[1] + "$Damaged");
 
     // Launch the worker threads, which will iterate through the CSVs.
     vector<std::thread> peons;
-    vector<vector<int>> comm_csv(cores, vector<int>());  // Form [thread][control, progress report, size report].
-    for (int ii = 0; ii < cores; ii++)
-    {
-        comm_csv[ii].assign(3, 0);
-    }
+    vector<vector<int>> comm_csv(1, vector<int>());  // Form [thread][control, progress report, size report, max params].
+    comm_csv[0].assign(comm.size(), 0);
     vector<int> prompt_csv(3);  // Form [id, bot, top]
     vector<vector<int>> prompt_csv_partial;  // Form [thread][id, gid1, gid2, ...]
     vector<vector<vector<string>>> all_queue(cores, vector<vector<string>>());  // Form [thread][CSV][statements].   
@@ -1101,6 +1094,7 @@ void MainWindow::judicator(sqlite3*& db_gui, SWITCHBOARD& sb, int sb_index, vect
             }
         }
     }
+    sb_judi.start_call(myid, comm_csv[0], csv_tindex, "CSV Insertion");
     for (int ii = 0; ii < cores; ii++)
     {
         if (!partial_entry)
@@ -1108,7 +1102,7 @@ void MainWindow::judicator(sqlite3*& db_gui, SWITCHBOARD& sb, int sb_index, vect
             prompt_csv[0] = ii;
             prompt_csv[1] = bot;
             prompt_csv[2] = top;
-            std::thread thr(&MainWindow::insert_csvs, this, std::ref(all_queue[ii]), std::ref(comm_csv[ii]), cata_wpath, prompt_csv);
+            std::thread thr(&MainWindow::insert_csvs, this, std::ref(all_queue[ii]), std::ref(sb_judi), csv_tindex, cata_wpath, prompt_csv);
             peons.push_back(std::move(thr));
             bot += workload;
             if (ii < cores - 1) { top += workload; }
@@ -1454,7 +1448,7 @@ void MainWindow::judicator(sqlite3*& db_gui, SWITCHBOARD& sb, int sb_index, vect
         log("Catalogue " + prompt[1] + " had its CSV insertion cancelled.");
     }
 }
-void MainWindow::insert_csvs(vector<vector<string>>& my_queue, vector<int>& comm, wstring cata_wpath, vector<int> prompt)
+void MainWindow::insert_csvs(vector<vector<string>>& my_queue, SWITCHBOARD& sb_judi, int csv_tindex, wstring cata_wpath, vector<int> prompt)
 {
     int my_id = prompt[0];
     vector<vector<string>> text_vars, data_rows;
@@ -1686,15 +1680,24 @@ void MainWindow::insert_damaged_row(vector<string>& paperwork, string sname, str
     bind(stmt, param);
     paperwork.push_back(stmt);
 }
-void MainWindow::create_insert_region_tables(vector<string>& paperwork, SWITCHBOARD& geo, int geo_index, vector<string> prompt)
+void MainWindow::create_insert_region_tables(vector<string>& paperwork, SWITCHBOARD& geo, int geo_index)
 {
-    vector<int> comm = { 0 };
+    SQLFUNC sf;
+    JFUNC jf;
+
+    vector<int> comm;
     thread::id myid = this_thread::get_id();
     geo.answer_call(myid, comm, geo_index);
+    vector<string> prompt = geo.get_prompt(myid);
 
     // Create the region index table.
+    string tname = prompt[1] + "$RegionIndex";
     string stmt = "CREATE TABLE IF NOT EXISTS [" + prompt[1] + "$RegionIndex] ";
     stmt += "(GID INTEGER PRIMARY KEY, [Region Name] TEXT);";
+    paperwork.push_back(stmt);
+    vector<string> col_titles = { "Name", "param1", "param2" };
+    vector<string> row_data = { tname, prompt[1], "RegionIndex" };
+    stmt = sf.insert_stmt("TGenealogy", col_titles, row_data);
     paperwork.push_back(stmt);
 
     // Populate the region index table.
@@ -1717,8 +1720,8 @@ void MainWindow::create_insert_region_tables(vector<string>& paperwork, SWITCHBO
     }
     geo_tree = tree_maker(slist, "+");  // Throughout this program, '+' is used to mark indentation.
     vector<string> tnames;
-    string tname;
-    int cheddar, ancestry, itemp;
+    int cheddar, max_cheddar, ancestry, itemp;
+    max_cheddar = 2;
     for (int ii = 0; ii < geo_tree.size(); ii++)
     {
         cheddar = 2;
@@ -1730,6 +1733,7 @@ void MainWindow::create_insert_region_tables(vector<string>& paperwork, SWITCHBO
             {
                 tname += "$";
             }
+            if (cheddar > max_cheddar) { max_cheddar = cheddar; }
             cheddar++;
             itemp = geo_tree[ii][0][jj];
             tname += slist[itemp];
@@ -1737,6 +1741,7 @@ void MainWindow::create_insert_region_tables(vector<string>& paperwork, SWITCHBO
         tname += "]";
         tnames.push_back(tname);
     }
+    comm[3] = max_cheddar + 1;
 
     // Create the subtables.
     for (int ii = 0; ii < tnames.size(); ii++)
@@ -1765,6 +1770,23 @@ void MainWindow::create_insert_region_tables(vector<string>& paperwork, SWITCHBO
             bind(stmt, geo_values[row_index]);
             paperwork.push_back(stmt);
         }
+    }
+
+    // Populate TG.
+    string temp1;
+    vector<string> params, col_temp;
+    while (col_titles.size() <= comm[3])
+    {
+        temp1 = "param" + to_string(col_titles.size());
+        col_titles.push_back(temp1);
+    }
+    for (int ii = 0; ii < tnames.size(); ii++)
+    {
+        row_data = jf.list_from_marker(tnames[ii], '$');
+        col_temp = col_titles;
+        col_temp.resize(row_data.size());
+        stmt = sf.insert_stmt("TGenealogy", col_temp, row_data);
+        paperwork.push_back(stmt);
     }
 
     // Signal the judicator that the work is done. 
@@ -1929,7 +1951,7 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, SWITCHBOARD& sb, int sb_ind
     sb.update(myid, comm);
 
     // Populate the 'Tables' tab.
-    vector<string> table_list = all_tables();
+    vector<string> table_list = all_tables();  // NOTE: This needs fixing (one cata only).
     QStringList qtable_list;
     for (int ii = 0; ii < table_list.size(); ii++)
     {
@@ -1943,7 +1965,7 @@ void MainWindow::display_catalogue(sqlite3*& db_gui, SWITCHBOARD& sb, int sb_ind
     // Populate the 'Tables as a Tree' tab.
     vector<int> table_indent_list = get_indent_list(table_list, '$');
     jf.tree_from_indent(table_indent_list, tree_st);
-    tree_pl = table_list;  // NOTE: This needs fixing (one cata only).
+    tree_pl = table_list;  
     comm[1]++;
     sb.update(myid, comm);
 

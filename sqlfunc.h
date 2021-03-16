@@ -5,14 +5,16 @@
 #include <chrono>
 #include <fstream>
 #include <sqlite3.h>
+#include "jfunc.h"
 
 using namespace std;
 
-class SQLFUNC
+class SQLFUNC 
 {
 	sqlite3* db;
 	sqlite3_stmt* state;
 	string error_path;
+    int TG_max_param = -1;  // The number of "param" columns in a Genealogy metatable.
 
     void bind(string&, vector<string>&);
     int sclean(string&, int);
@@ -24,7 +26,11 @@ public:
 	~SQLFUNC() {}
 	void init(string);
     void create_table(string, vector<string>&, vector<int>&);
+    int insert_tg_existing(string);
     void insert_rows(string, vector<vector<string>>&);
+    string insert_stmt(string, vector<string>&, vector<string>&);
+    void safe_col(string, int);
+    int tg_max_param();
 
 	// TEMPLATES
 	template<typename ... Args> void executor(string, Args& ... args) {}
@@ -181,6 +187,123 @@ public:
             vtemp[1] = results[ii][2];
             titles.push_back(vtemp);
         }
+    }
+
+    template<typename ... Args> void get_table_list(vector<string>&, Args& ... args)
+    {
+        // Return a list of all table names present within a limiting division.
+        // If only the result vector is provided, the function will return a list of all tables in the database.
+        // If a second string vector is specified, then each element in that vector will be taken as a limiting
+        // search parameter, in the same order as given. 
+        // Example: [cata_name, GID] will return a list of all subtables for that GID.
+    }
+    template<> void get_table_list<vector<string>>(vector<string>& results, vector<string>& search)
+    {
+        vector<string> chaff;
+        string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+        executor(stmt, chaff);
+        string cheddar;
+        size_t pos1, pos2;
+        for (int ii = 0; ii < chaff.size(); ii++)
+        {
+            pos1 = 0;
+            for (int jj = 0; jj < search.size(); jj++)
+            {
+                cheddar.assign(jj + 1, '$');  // RESUME HERE ONCE GENEALOGY IS INSERTED
+            }
+        }
+
+    }
+    template<> void get_table_list(vector<string>& results)
+    {
+        string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+        executor(stmt, results);
+    }
+
+    template<typename ... Args> void insert(string, Args& ... args)
+    {
+        // Insert one or more rows into the given table.
+    }
+    template<> void insert<vector<string>>(string tname, vector<string>& row_data)
+    {
+        vector<string> column_titles;
+        get_col_titles(tname, column_titles);
+        if (column_titles.size() > row_data.size())
+        {
+            column_titles.resize(row_data.size());
+        }
+        else if (column_titles.size() < row_data.size())
+        {
+            safe_col(tname, row_data.size());
+        }
+        string stmt0 = "INSERT INTO [" + tname + "] (";
+        for (int ii = 0; ii < column_titles.size(); ii++)
+        {
+            stmt0 += "[" + column_titles[ii];
+            if (ii < column_titles.size() - 1)
+            {
+                stmt0 += "], ";
+            }
+            else
+            {
+                stmt0 += "]) VALUES (";
+            }
+        }
+        for (int ii = 0; ii < column_titles.size(); ii++)
+        {
+            stmt0 += "?, ";
+        }
+        stmt0.pop_back();
+        stmt0.pop_back();
+        stmt0 += ");";
+
+        bind(stmt0, row_data);
+        executor(stmt0);
+    }
+    template<> void insert<vector<vector<string>>>(string tname, vector<vector<string>>& row_data)
+    {
+        vector<string> column_titles;
+        get_col_titles(tname, column_titles);
+        if (column_titles.size() > row_data.size())
+        {
+            column_titles.resize(row_data.size());
+        }
+        else if (column_titles.size() < row_data.size())
+        {
+            safe_col(tname, row_data.size());
+        }
+        string stmt0 = "INSERT INTO [" + tname + "] (";
+        for (int ii = 0; ii < column_titles.size(); ii++)
+        {
+            stmt0 += "[" + column_titles[ii];
+            if (ii < column_titles.size() - 1)
+            {
+                stmt0 += "], ";
+            }
+            else
+            {
+                stmt0 += "]) VALUES (";
+            }
+        }
+        for (int ii = 0; ii < column_titles.size(); ii++)
+        {
+            stmt0 += "?, ";
+        }
+        stmt0.pop_back();
+        stmt0.pop_back();
+        stmt0 += ");";
+
+        string stmt;
+        int error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+        if (error) { sqlerr("begin transaction-insert_rows"); }
+        for (int ii = 0; ii < row_data.size(); ii++)
+        {
+            stmt = stmt0;
+            bind(stmt, row_data[ii]);
+            executor(stmt);
+        }
+        error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+        if (error) { sqlerr("commit transaction-insert_rows"); }
     }
 
     template<typename ... Args> void select(string, string, Args& ... args)

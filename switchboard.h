@@ -11,7 +11,7 @@ class SWITCHBOARD                                           // comm protocol:
 {                                                           // comm[0] = task status
 	mutex m_add_remove, m_sbuf;                             // comm[1] = jobs completed
 	vector<mutex> m_calls;                                  // comm[2] = jobs max
-	vector<bool> task_indices = { 0 };
+	vector<bool> task_indices = { 0 };                      // comm[3] = max table name parameters
 	vector<string> task_names;  // Form [task index].
 	vector<vector<vector<int>>> phone_lines;  // Form [task index][phone index][data understood by participants].
 	vector<vector<string>> sprompt;  // Form [task index][prompt0, prompt1, ...].
