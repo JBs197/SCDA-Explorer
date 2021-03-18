@@ -10,6 +10,51 @@ void WINFUNC::init()
 	delete[] bufferA;
 	//int success = MessageBoxA(NULL, exec_path.c_str(), NULL, MB_OK);
 }
+vector<string> WINFUNC::get_file_list(string folder_path, string search)
+{
+	// Returns a list of file names (not full paths) within a given folder, and
+	// subject to the search criteria.
+
+	vector<string> file_list;
+	string folder_search = folder_path + "\\" + search;
+	WIN32_FIND_DATAA info;
+	DWORD attributes;
+	HANDLE hfile = FindFirstFileA(folder_search.c_str(), &info);
+	if (hfile == INVALID_HANDLE_VALUE) { winerr("FindFirstFile-get_file_list"); }
+	do
+	{
+		attributes = info.dwFileAttributes;
+		if (attributes == FILE_ATTRIBUTE_NORMAL || attributes == FILE_ATTRIBUTE_ARCHIVE)
+		{
+			file_list.push_back(info.cFileName);
+		}
+	} while (FindNextFileA(hfile, &info));
+	return file_list;
+}
+vector<string> WINFUNC::get_folder_list(string folder_path, string search)
+{
+	// Returns a list of folder names (not full paths) within a given folder, and
+	// subject to the search criteria. EXCLUDES the return system folders. 
+
+	vector<string> folder_list;
+	string folder_search = folder_path + "\\" + search;
+	WIN32_FIND_DATAA info;
+	DWORD attributes;
+	string temp1;
+	HANDLE hfile = FindFirstFileA(folder_search.c_str(), &info);
+	if (hfile == INVALID_HANDLE_VALUE) { winerr("FindFirstFile-get_folder_list"); }
+	do
+	{
+		attributes = info.dwFileAttributes;
+		if (attributes == FILE_ATTRIBUTE_DIRECTORY)
+		{
+			temp1 = info.cFileName;
+			if (temp1 == "." || temp1 == "..") { continue; }
+			folder_list.push_back(temp1);
+		}
+	} while (FindNextFileA(hfile, &info));
+	return folder_list;
+}
 void WINFUNC::make_tree_local(vector<vector<int>>& tree_st, vector<string>& tree_pl, int mode, string root_dir, int depth, string search)
 {
 	// Populate the given tree structure and payload, by searching a local drive.
@@ -200,3 +245,27 @@ void WINFUNC::make_tree_local_helper1(vector<vector<int>>& tree_st, vector<strin
 		}
 	}
 }
+string WINFUNC::utf16to8(wstring input)
+{
+	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(locale());
+	mbstate_t mb{};
+	string output(input.size() * f.max_length(), '\0');
+	const wchar_t* past;
+	char* future;
+	f.out(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
+	output.resize(future - &output[0]);
+	return output;
+}
+wstring WINFUNC::utf8to16(string input)
+{
+	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(locale());
+	mbstate_t mb{};
+	wstring output(input.size() * f.max_length(), L'\0');
+	const char* past;
+	wchar_t* future;
+	f.in(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
+	output.resize(future - &output[0]);
+	return output;
+}
+
+

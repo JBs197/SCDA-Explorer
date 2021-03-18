@@ -71,42 +71,18 @@ int SQLFUNC::insert_tg_existing(string tname)
     safe_col("TGenealogy", row_data.size());
     insert("TGenealogy", row_data);
 }
-void SQLFUNC::insert_rows(string tname, vector<vector<string>>& row_data)
+void SQLFUNC::insert_prepared(vector<string>& stmts)
 {
-    vector<string> column_titles;
-    get_col_titles(tname, column_titles);
-    string stmt0 = "INSERT INTO [" + tname + "] (";
-    for (int ii = 0; ii < column_titles.size(); ii++)
-    {
-        stmt0 += "[" + column_titles[ii];
-        if (ii < column_titles.size() - 1)
-        {
-            stmt0 += "], ";
-        }
-        else
-        {
-            stmt0 += "]) VALUES (";
-        }
-    }
-    for (int ii = 0; ii < column_titles.size(); ii++)
-    {
-        stmt0 += "?, ";
-    }
-    stmt0.pop_back();
-    stmt0.pop_back();
-    stmt0 += ");";
+    // Execute a list of prepared SQL statements as one transaction batch.
 
-    string stmt;
     int error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-    if (error) { sqlerr("begin transaction-insert_rows"); }
-    for (int ii = 0; ii < row_data.size(); ii++)
+    if (error) { sqlerr("begin transaction-insert_prepared"); }
+    for (int ii = 0; ii < stmts.size(); ii++)
     {
-        stmt = stmt0;
-        bind(stmt, row_data[ii]);
-        executor(stmt);
+        executor(stmts[ii]);
     }
     error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
-    if (error) { sqlerr("commit transaction-insert_rows"); }
+    if (error) { sqlerr("commit transaction-insert_prepared"); }
 }
 string SQLFUNC::insert_stmt(string tname, vector<string>& column_titles, vector<string>& row_data)
 {
@@ -133,16 +109,6 @@ string SQLFUNC::insert_stmt(string tname, vector<string>& column_titles, vector<
 
     bind(stmt, row_data);
     return stmt;
-}
-int SQLFUNC::tg_max_param()
-{
-    vector<string> column_titles;
-    if (TG_max_param < 0)
-    {
-        get_col_titles("TGenealogy", column_titles);
-        TG_max_param = column_titles.size() - 1;
-    }
-    return TG_max_param;
 }
 void SQLFUNC::safe_col(string tname, int num_col)
 {
@@ -223,4 +189,14 @@ string SQLFUNC::timestamper()
         else { timestampA.push_back(buffer[ii]); }
     }
     return timestampA;
+}
+int SQLFUNC::tg_max_param()
+{
+    vector<string> column_titles;
+    if (TG_max_param < 0)
+    {
+        get_col_titles("TGenealogy", column_titles);
+        TG_max_param = column_titles.size() - 1;
+    }
+    return TG_max_param;
 }

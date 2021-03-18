@@ -24,10 +24,10 @@ class SQLFUNC
 public:
 	explicit SQLFUNC() {}
 	~SQLFUNC() {}
-	void init(string);
     void create_table(string, vector<string>&, vector<int>&);
+    void init(string);
     int insert_tg_existing(string);
-    void insert_rows(string, vector<vector<string>>&);
+    void insert_prepared(vector<string>&);
     string insert_stmt(string, vector<string>&, vector<string>&);
     void safe_col(string, int);
     int tg_max_param();

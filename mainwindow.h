@@ -12,6 +12,7 @@
 #include "qtfunc.h"
 #include "sqlfunc.h"
 #include "jfunc.h"
+#include "statscan.h"
 #include "Shlwapi.h"
 #include "catalogue.h"
 #include "switchboard.h"
@@ -96,7 +97,7 @@ private:
     void all_cata_db(QVector<QVector<QVector<QString>>>&, QMap<QString, int>&);
     vector<string> scan_incomplete_cata(string, string);
     void judicator(SQLFUNC&, SWITCHBOARD&, int);
-    void insert_csvs(vector<vector<string>>&, SWITCHBOARD&, int, wstring, vector<int>);
+    void insert_csvs(vector<vector<string>>&, SWITCHBOARD&, int, STATSCAN&, vector<int>);
     int insert_primary_row(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&, vector<vector<string>>&);
     int create_insert_csv_table(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
     int create_insert_csv_subtables(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);

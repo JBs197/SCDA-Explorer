@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <codecvt>
 #include <windows.h>
 
 using namespace std;
@@ -27,6 +28,11 @@ public:
 
     vector<string> sroots = { "F:", "D:" };
     int location = 0;
+
+    vector<string> get_file_list(string, string);
+    vector<string> get_folder_list(string, string);
+    wstring utf8to16(string);
+    string utf16to8(wstring);
 
 
 	// TEMPLATES
@@ -67,6 +73,7 @@ public:
         exit(EXIT_FAILURE);
     }
     */
+
 
 };
 

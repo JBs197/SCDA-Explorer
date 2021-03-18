@@ -23,6 +23,95 @@ vector<string> JFUNC::list_from_marker(string& input, char marker)
 	}
 	return output;
 }
+string JFUNC::load(string file_path)
+{
+	// Load a file into memory as a string.
+	// Uses the first 8 bytes to guess what file encoding is being used.
+
+	FILE* pFile;
+	errno_t err = fopen_s(&pFile, file_path.c_str(), "rb");
+	if (pFile == NULL) { cerr << "ERROR: fopen-load" << endl; cin.get(); }
+	char enc[8];
+	vector<bool> zero(8, 0);
+	int encoding = 0;
+	int count = 0;
+	for (int ii = 0; ii < 8; ii++)
+	{
+		enc[ii] = fgetc(pFile);
+		if (enc[ii] != 0)
+		{
+			zero[ii] = 1;
+			count++;
+		}
+	}
+	if (count == 4)
+	{
+		count = 0; 
+		for (int ii = 0; ii < 7; ii++)
+		{
+			if (zero[ii] != zero[ii + 1])
+			{
+				count++;
+			}
+		}
+		if (count == 7)
+		{
+			encoding = 2;  // UTF16
+		}
+	}
+	else if (count > 6)
+	{
+		encoding = 1;  // UTF8
+	}
+	fclose(pFile);
+
+	string output;
+	wstring wtemp;
+	ifstream myfile;
+	wifstream mywfile;
+	streampos size;
+	wstreampos wsize;
+	char* buffer;
+	wchar_t* wbuffer;
+	long file_size;
+	size_t bytes_read, bullshit;
+	switch (encoding)
+	{
+	case 0:
+		myfile.open(file_path, ios::in | ios::binary | ios::ate);
+		size = myfile.tellg();
+		buffer = new char[size];
+		myfile.seekg(0, ios::beg);
+		myfile.read(buffer, size);
+		output.assign(buffer, size);
+		delete[] buffer;
+		break;
+
+	case 1:
+		mywfile.open(file_path, ios::in | ios::ate);
+		wsize = mywfile.tellg();
+		wbuffer = new wchar_t[wsize];
+		mywfile.seekg(0, ios::beg);
+		mywfile.read(wbuffer, wsize);
+		wtemp.assign(wbuffer, wsize);
+		delete[] wbuffer;
+		//utf8::utf16to8(wtemp.begin(), wtemp.end(), back_inserter(output));
+		output = utf16to8(wtemp);
+		break;
+
+	case 2:
+		mywfile.open(file_path, ios::in | ios::ate);
+		wsize = mywfile.tellg();
+		wbuffer = new wchar_t[wsize];
+		mywfile.seekg(0, ios::beg);
+		mywfile.read(wbuffer, wsize);
+		wtemp.assign(wbuffer, wsize);
+		delete[] wbuffer;
+		output = utf16to8(wtemp);
+		break;
+	}
+	return output;
+}
 string JFUNC::parent_from_marker(string& child, char marker)
 {
 	size_t pos1 = child.rfind(marker);
@@ -195,4 +284,26 @@ int JFUNC::tree_from_marker(vector<vector<int>>& tree_st, vector<string>& tree_p
 	}
 
 	return 0;
+}
+string JFUNC::utf16to8(wstring input)
+{
+	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(locale());
+	mbstate_t mb{};
+	string output(input.size() * f.max_length(), '\0');
+	const wchar_t* past;
+	char* future;
+	f.out(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
+	output.resize(future - &output[0]);
+	return output;
+}
+wstring JFUNC::utf8to16(string input)
+{
+	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(locale());
+	mbstate_t mb{};
+	wstring output(input.size() * f.max_length(), L'\0');
+	const char* past;
+	wchar_t* future;
+	f.in(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
+	output.resize(future - &output[0]);
+	return output;
 }

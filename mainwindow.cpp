@@ -991,28 +991,21 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
     sb.answer_call(myid, comm, sb_index);
     vector<string> prompt = sb.get_prompt(myid);
 
+    WINFUNC wf_judi;
+    JFUNC jf_judi;
+
     // prompt has form [syear, sname, gid1, gid2, ...], gid list is only included for partial catalogue insertions.
-    string temp = sroots[location] + "\\" + prompt[0] + "\\" + prompt[1];
-    wstring cata_wpath = utf8to16(temp);
+    string cata_path = sroots[location] + "\\" + prompt[0] + "\\" + prompt[1];
+    wstring cata_wpath = utf8to16(cata_path);
     int num_gid = get_file_path_number(cata_wpath, L".csv");
     comm[2] = num_gid;
     sb.update(myid, comm);
-    int workload = num_gid / cores;
-    int bot = 0;
-    int top = workload - 1;
     bool partial_entry = 0;
-    vector<string> param(3);
-    vector<string> geo_queue;
-    vector<vector<int>> geo_comm(1, vector<int>());
-    geo_comm[0].assign(comm.size(), 0);
-    sqlite3_stmt* statejudi;
     string stmt, stmt0;
     int error, geo_index, csv_tindex;
 
-    SWITCHBOARD sb_geo, sb_judi;
-    
     int tg_max_param = sf.tg_max_param();
-    bool need_geo = !table_exist(param[1]);
+    bool need_geo = !table_exist(prompt[1]);
     if (prompt.size() > 2) { partial_entry = 1; }
 
     // Insert this catalogue into the catalogue index.
@@ -1027,6 +1020,10 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
     }
 
     // Perform region indexing for this catalogue, if necessary.
+    SWITCHBOARD sb_geo;
+    vector<string> geo_queue;
+    vector<vector<int>> geo_comm(1, vector<int>());
+    geo_comm[0].assign(comm.size(), 0);
     if (need_geo)
     {
         log("Begin region indexing for catalogue " + prompt[1]);
@@ -1039,12 +1036,26 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
     else { geo_comm[0][0] = 1; }
 
     // Create a table for this catalogue's damaged CSVs.
-    temp = "[" + prompt[1] + "$Damaged]";
+    string temp = "[" + prompt[1] + "$Damaged]";
     stmt = "CREATE TABLE IF NOT EXISTS " + temp + " (GID NUMERIC, [Number of Missing Data Entries] NUMERIC);";
     sf.executor(stmt);
     sf.insert_tg_existing(prompt[1] + "$Damaged");
 
+    // Create the Stats Can helper object, and create the catalogue's primary table.
+    vector<string> csv_list = wf_judi.get_file_list(cata_path, "*.csv");
+    string sample_csv = jf_judi.load(csv_list[0]);
+    STATSCAN sc(cata_path);
+    sc.cata_init(sample_csv);
+    stmt = sc.make_create_primary_table();
+    sf.executor(stmt);
+    sf.insert_tg_existing(prompt[1]);
+    sc.extract_gid_list(csv_list);
+
     // Launch the worker threads, which will iterate through the CSVs.
+    SWITCHBOARD sb_judi;
+    int workload = num_gid / cores;
+    int bot = 0;
+    int top = workload - 1;
     vector<std::thread> peons;
     vector<vector<int>> comm_csv(1, vector<int>());  // Form [thread][control, progress report, size report, max params].
     comm_csv[0].assign(comm.size(), 0);
@@ -1102,7 +1113,7 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
             prompt_csv[0] = ii;
             prompt_csv[1] = bot;
             prompt_csv[2] = top;
-            std::thread thr(&MainWindow::insert_csvs, this, std::ref(all_queue[ii]), std::ref(sb_judi), csv_tindex, cata_wpath, prompt_csv);
+            std::thread thr(&MainWindow::insert_csvs, this, std::ref(all_queue[ii]), std::ref(sb_judi), csv_tindex, ref(sc), prompt_csv);
             peons.push_back(std::move(thr));
             bot += workload;
             if (ii < cores - 1) { top += workload; }
@@ -1116,132 +1127,17 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
         }
     }
 
-    // Create the catalogue's primary table.
-    while (all_queue[0][0].size() < 3)
+    // Try to process the geo thread's finished statements, if available.
+    if (geo_comm[0][0] == 0)
     {
-        if (geo_comm[0][0] == 0)
+        geo_comm = sb_geo.update(myid, geo_comm[0]);
+        if (geo_comm[1][0] == 1)
         {
-            geo_comm = geo.update(myid, geo_comm[0]);
-            if (geo_comm[1][0] == 1)
-            {
-                error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-                if (error) { sqlerror("begin transaction1.3-judicator", db_gui); }
-                for (int ii = 0; ii < geo_queue.size(); ii++)
-                {
-                    error = sqlite3_prepare_v2(db_gui, geo_queue[ii].c_str(), -1, &statejudi, NULL);
-                    if (error) { sqlerror("prepare3.3-judicator", db_gui); }
-                    step(db_gui, statejudi);
-                }
-                error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
-                if (error) { sqlerror("commit transaction1.3-judicator", db_gui); }
-                geo_comm[0][0] = 1;
-                log("Completed the region indexing for catalogue " + prompt[1]);
-            }
-        }
-        else
-        {
-            Sleep(20); // Wait for the first worker thread to finish its unique task.
+            sf.insert_prepared(geo_queue);
+            geo_comm[0][0] = 1;
+            log("Completed the region indexing for catalogue " + prompt[1]);
         }
     }
-    m_jobs[0].lock();
-    string stmt_primary = all_queue[0][0][0];
-    string cata_desc = all_queue[0][0][1];  // Used later.
-    string stmt_column = all_queue[0][0][2];
-    all_queue[0][0].erase(all_queue[0][0].begin(), all_queue[0][0].begin() + 3);
-    m_jobs[0].unlock();
-    error = sqlite3_prepare_v2(db_gui, stmt_primary.c_str(), -1, &statejudi, NULL);
-    if (error) { sqlerror("prepare3-judicator", db_gui); }
-    step(db_gui, statejudi);
-
-    // Create and populate the catalogue's column table.  
-    vector<string> col_titles;
-    size_t pos1, pos2;
-    pos1 = 0;
-    pos2 = stmt_column.find("!!!", pos1 + 3);
-    while (pos2 < stmt_column.size())
-    {
-        temp = stmt_column.substr(pos1 + 3, pos2 - pos1 - 3);
-        col_titles.push_back(temp);
-        pos1 = pos2;
-        pos2 = stmt_column.find("!!!", pos1 + 3);
-    }
-    error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-    if (error) { sqlerror("begin transaction1.5-judicator", db_gui); }
-    for (int ii = 0; ii < col_titles.size(); ii++)
-    {
-        error = sqlite3_prepare_v2(db_gui, col_titles[ii].c_str(), -1, &statejudi, NULL);
-        if (error) { sqlerror("prepare3.5-judicator", db_gui); }
-        step(db_gui, statejudi);
-    }
-    error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
-    if (error) { sqlerror("commit transaction1.5-judicator", db_gui); }
-
-    /*
-    // Report the total task size to the GUI thread.
-    bool size_reported = 0;
-    int num1, num2;
-    vector<int> dummy = { 0, 0 };
-    vector<vector<int>> reports;
-    while (!size_reported)  // Until we have initialized the progress bar...
-    {
-        if (geo_comm[0] == -1)
-        {
-            error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-            if (error) { sqlerror("begin transaction1.3-judicator", db_gui); }
-            for (int ii = 0; ii < geo_queue.size(); ii++)
-            {
-                error = sqlite3_prepare_v2(db_gui, geo_queue[ii].c_str(), -1, &statejudi, NULL);
-                if (error) { sqlerror("prepare3.3-judicator", db_gui); }
-                step(db_gui, statejudi);
-            }
-            error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
-            if (error) { sqlerror("commit transaction1.3-judicator", db_gui); }
-            geo_comm[0] = 1;
-        }
-        for (int ii = 0; ii < cores; ii++)  // Look at all worker thread reports...
-        {
-            if (comm_csv[ii][2] == 0)  // If the thread has not yet reported on its task size...
-            {
-                Sleep(10);  // Pause and try again.
-                break;
-            }
-            else if (ii == cores - 1)  // If all threads have reported on their size...
-            {
-                size_reported = 1;  // Ready to report to GUI.
-            }
-        }
-    }
-    reports.push_back(dummy);  // First report is automatically inserted.
-    reports[0][0] = comm_csv[0][2];
-    reports[0][1] = 1;
-    for (int ii = 1; ii < cores; ii++)
-    {
-        for (int jj = 0; jj < reports.size(); jj++)
-        {
-            if (comm_csv[ii][2] == reports[jj][0])
-            {
-                reports[jj][1]++;
-                break;
-            }
-            else if (jj == reports.size() - 1)
-            {
-                reports.push_back(dummy);
-                reports[reports.size() - 1][0] = comm_csv[ii][2];
-                reports[reports.size() - 1][1] = 1;
-            }
-        }
-    }
-    num1 = 0;
-    for (int ii = 0; ii < reports.size(); ii++)
-    {
-        if (reports[ii][1] > num1)
-        {
-            num1 = reports[ii][1];
-            num2 = reports[ii][0];
-        }
-    }
-    comm_cata[2] = num2 * num_gid;
-    */
 
     // Loop through the worker threads, inserting their statements into the database.
     //vector<int> batch_record;  // List of millisec/CSV recorded.
@@ -1408,7 +1304,7 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
     // If the geo thread had not yet finished, wait for it now.
     while (geo_comm[0][0] == 0)
     {
-        geo_comm = geo.update(myid, geo_comm[0]);
+        geo_comm = sb_geo.update(myid, geo_comm[0]);
         if (geo_comm[1][0] == 1)
         {
             error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
@@ -1431,16 +1327,14 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
     }
 
     // If we are done without being cancelled, we can mark the catalogue as 'complete'.
+    vector<string> param(2);
     if (comm[0] < 2)
     {
         stmt = "UPDATE TCatalogueIndex SET Description = ? WHERE Name = ?;";
-        param.resize(2);
-        param[0] = cata_desc;
+        param[0] = sc.get_cata_desc();
         param[1] = prompt[1];
         bind(stmt, param);
-        error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
-        if (error) { sqlerror("prepare7-judicator", db_gui); }
-        step(db_gui, statejudi);
+        sf.executor(stmt);
         log("Catalogue " + prompt[1] + " completed its CSV insertion.");
     }
     else
@@ -1448,37 +1342,22 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
         log("Catalogue " + prompt[1] + " had its CSV insertion cancelled.");
     }
 }
-void MainWindow::insert_csvs(vector<vector<string>>& my_queue, SWITCHBOARD& sb_judi, int csv_tindex, wstring cata_wpath, vector<int> prompt)
+void MainWindow::insert_csvs(vector<vector<string>>& my_queue, SWITCHBOARD& sb_judi, int csv_tindex, STATSCAN& sc, vector<int> prompt)
 {
+    vector<int> comm;
+    thread::id myid = this_thread::get_id();
+    sb_judi.answer_call(myid, comm, csv_tindex);
+
+    JFUNC jf_csv;
     int my_id = prompt[0];
-    vector<vector<string>> text_vars, data_rows;
     vector<string> paperwork;
+    vector<string> gid_list = sc.get_gid_list();
     string gid, sfile, stmt, temp;
-    wstring csv_path;
+    string csv_path;
     QString qtemp;
     int damaged_csv;
-    int stmt_count;
-    bool reported_size = 0;
-
-    // Prepare the catalogue helper object.
-    CATALOGUE cata;
-    cata.set_wpath(cata_wpath);
-    cata.initialize_table();
-    string primary_stmt = cata.create_primary_table();
-    string column_stmt = cata.create_column_table();
-    cata.insert_primary_columns_template();
-    cata.create_csv_tables_template();
-    cata.insert_csv_row_template();
-    string syear = cata.get_syear();
-
-    // Needed for catalogue-wide preliminary work, and best done by a thread containing a catalogue object.
-    if (my_id == 0)
-    {
-        qtemp = cata.get_description();
-        my_queue[0].push_back(primary_stmt);
-        my_queue[0].push_back(qtemp.toStdString());
-        my_queue[0].push_back(column_stmt);
-    }
+    //int stmt_count;
+    //bool reported_size = 0;
 
     // Iterate through the assigned CSVs...
     switch (comm[0])
@@ -1492,11 +1371,10 @@ void MainWindow::insert_csvs(vector<vector<string>>& my_queue, SWITCHBOARD& sb_j
                 return;
             }
 
-            stmt_count = 0;
             damaged_csv = 0;
-            gid = cata.get_gid(ii);
-            csv_path = cata.get_csv_path(ii);
-            sfile = s_memory(csv_path);
+            gid = gid_list[ii];   // RESUME HERE. MODIFY ROW EXTRACTION FOR DAMAGED CSVs?
+            csv_path = sc.make_csv_path(ii);
+            sfile = jf_csv.load(csv_path);
             text_vars = cata.extract_text_vars8(sfile);
             data_rows = cata.extract_data_rows8(sfile, damaged_csv);
 
@@ -2203,7 +2081,6 @@ int MainWindow::sql_callback(void* NotUsed, int argc, char** argv, char** column
     }
     return 0;
 }
-
 
 /*
     int error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
