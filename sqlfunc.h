@@ -11,6 +11,7 @@ using namespace std;
 
 class SQLFUNC 
 {
+    JFUNC jf_sql;
 	sqlite3* db;
 	sqlite3_stmt* state;
 	string error_path;
@@ -26,10 +27,11 @@ public:
 	~SQLFUNC() {}
     void create_table(string, vector<string>&, vector<int>&);
     void init(string);
-    int insert_tg_existing(string);
+    void insert_tg_existing(string);
     void insert_prepared(vector<string>&);
     string insert_stmt(string, vector<string>&, vector<string>&);
     void safe_col(string, int);
+    void select_tree(string, vector<vector<int>>&, vector<string>&);
     int tg_max_param();
 
 	// TEMPLATES
@@ -306,18 +308,30 @@ public:
         if (error) { sqlerr("commit transaction-insert_rows"); }
     }
 
-    template<typename ... Args> void select(string, string, Args& ... args)
+    template<typename ... Args> void select(vector<string>, string, Args& ... args)
     {
         // Work in progress. In time, the select functions will grow considerably in complexity.
     }
-    template<> void select<vector<string>>(string search, string tname, vector<string>& results)
+    template<> void select<vector<string>>(vector<string> search, string tname, vector<string>& results)
     {
-        string stmt = "SELECT " + search + " FROM [" + tname + "];";
+        string stmt = "SELECT ";
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "" + search[ii] + ", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM [" + tname + "];";
         executor(stmt, results);
     }
-    template<> void select<vector<vector<string>>>(string search, string tname, vector<vector<string>>& results)
+    template<> void select<vector<vector<string>>>(vector<string> search, string tname, vector<vector<string>>& results)
     {
-        string stmt = "SELECT " + search + " FROM [" + tname + "];";
+        string stmt = "SELECT ";
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "" + search[ii] + ", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM [" + tname + "];";
         executor(stmt, results);
     }
 

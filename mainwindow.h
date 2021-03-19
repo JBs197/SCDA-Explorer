@@ -109,7 +109,7 @@ private:
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
     vector<string> missing_gids(sqlite3*&, int, string, string);
-    void display_catalogue(sqlite3*&, SWITCHBOARD&, int, vector<string>&, QList<QStringList>&, vector<vector<int>>&, vector<string>&);
+    void display_catalogue(SQLFUNC&, SWITCHBOARD&, int, vector<string>&, QList<QStringList>&, vector<vector<int>>&, vector<string>&);
     void display_region(sqlite3*&, vector<int>&, string, int);
     void view_region(sqlite3*&, vector<int>&, int);
     vector<string> all_tables();

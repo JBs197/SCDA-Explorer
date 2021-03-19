@@ -61,13 +61,12 @@ void SQLFUNC::init(string db_path)
     temp1.append(" Error Log.txt");
     error_path = temp1;
 }
-int SQLFUNC::insert_tg_existing(string tname)
+void SQLFUNC::insert_tg_existing(string tname)
 {
     // Convenience function to facilitate the insertion of tables into TGenealogy. 
     // This function is only valid if the table in question already exists in the database.
     
-    JFUNC jf;
-    vector<string> row_data = jf.list_from_marker(tname, '$');
+    vector<string> row_data = jf_sql.list_from_marker(tname, '$');
     safe_col("TGenealogy", row_data.size());
     insert("TGenealogy", row_data);
 }
@@ -123,7 +122,7 @@ void SQLFUNC::safe_col(string tname, int num_col)
     while (my_num < num_col)
     {
         temp1 = "param" + to_string(my_num);
-        stmt = "ALTER TABLE [" + tname + "] ADD COLUMN " + temp1;
+        stmt = "ALTER TABLE [" + tname + "] ADD COLUMN " + temp1 + " TEXT";
         executor(stmt);
         column_titles.clear();
         get_col_titles(tname, column_titles);
@@ -160,6 +159,31 @@ int SQLFUNC::sclean(string& bbq, int mode)
         else { break; }
     }
     return count;
+}
+void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl)
+{
+    // Produce a tree structure and tree payload for the given table name as root. 
+
+    string temp;
+    vector<string> tname_params = jf_sql.list_from_marker(tname, '$');
+    string stmt = "SELECT * FROM TGenealogy WHERE (";
+    for (int ii = 1; ii < tname_params.size(); ii++)
+    {
+        stmt += "param" + to_string(ii) + " = " + tname_params[ii];
+        if (ii < tname_params.size() - 1)
+        {
+            stmt += ", ";
+        }
+        else
+        {
+            stmt += ");";
+        }
+    }
+    vector<vector<string>> results;
+    executor(stmt, results);
+
+    int bbq = 1;  // RESUME HERE. WORK IN PROGRESS.
+
 }
 void SQLFUNC::sqlerr(string func)
 {

@@ -2,6 +2,42 @@
 
 using namespace std;
 
+string JFUNC::bind(string& stmt0, vector<string>& params)
+{
+	// Replaces placeholders ('?') with parameter strings. Automatically adds single quotes.
+	string temp;
+	size_t pos1 = 0;
+	int count = 0;
+	while (pos1 < stmt0.size())
+	{
+		pos1 = stmt0.find('?', pos1 + 1);
+		if (pos1 < stmt0.size())
+		{
+			count++;
+		}
+	}
+	if (count != (int)params.size())
+	{
+		temp = "ERROR: parameter count mismatch-bind";
+		cerr << temp << endl;
+		cerr << "Given params: " << to_string(params.size()) << endl;
+		cerr << "Counted '?' params: " << to_string(count) << endl;
+		cin.get();
+		return temp;
+	}
+
+	pos1 = 0;
+	vector<string> dirt = { "[]" };
+	for (int ii = 0; ii < count; ii++)
+	{
+		clean(params[ii], dirt, "'");
+		pos1 = stmt0.find('?', pos1);
+		temp = "'" + params[ii] + "'";
+		stmt0.replace(pos1, 1, temp);
+	}
+
+	return stmt0;
+}
 vector<string> JFUNC::list_from_marker(string& input, char marker)
 {
 	// Split a string into a vector of strings, dividing when the marker char is encountered.
@@ -21,6 +57,8 @@ vector<string> JFUNC::list_from_marker(string& input, char marker)
 		if (pos1 >= input.size()) { break; }
 		pos2 = input.find(marker, pos1);
 	}
+	temp1 = input.substr(pos1);
+	output.push_back(temp1);
 	return output;
 }
 string JFUNC::load(string file_path)
@@ -105,7 +143,14 @@ string JFUNC::load(string file_path)
 		wbuffer = new wchar_t[wsize];
 		mywfile.seekg(0, ios::beg);
 		mywfile.read(wbuffer, wsize);
-		wtemp.assign(wbuffer, wsize);
+		for (int ii = 0; ii < wsize; ii++)
+		{
+			if (wbuffer[ii] != NULL)
+			{
+				wtemp.push_back(wbuffer[ii]);
+			}
+		}
+		//wtemp.assign(wbuffer, wsize);
 		delete[] wbuffer;
 		output = utf16to8(wtemp);
 		break;
@@ -118,57 +163,6 @@ string JFUNC::parent_from_marker(string& child, char marker)
 	pos1 = child.find_last_of(marker, pos1);
 	string parent = child.substr(0, pos1);
 	return parent;
-}
-int JFUNC::tree_from_indent(vector<int>& ind_list, vector<vector<int>>& tree_st)
-{
-	// Note that the tree structure is of the form 
-	// [node_index][ancestor1, ancestor2, ... , (neg) node value, child1, child2, ...]
-
-	// genealogy's indices are indent magnitudes, while its 
-	// values are the last list index to have that indentation.
-	vector<int> genealogy, vtemp;
-	int delta_indent, node, parent;
-	tree_st.resize(ind_list.size(), vector<int>());
-
-	for (int ii = 0; ii < ind_list.size(); ii++)
-	{
-		// Update genealogy.
-		delta_indent = ind_list[ii] - genealogy.size() + 1;  // New indent minus old indent.
-		if (delta_indent == 0)
-		{
-			genealogy[genealogy.size() - 1] = ii;
-		}
-		else if (delta_indent > 0)
-		{
-			for (int jj = 0; jj < delta_indent; jj++)
-			{
-				genealogy.push_back(ii);
-			}
-		}
-		else if (delta_indent < 0)
-		{
-			for (int jj = 0; jj > delta_indent; jj--)
-			{
-				genealogy.pop_back();
-			}
-			genealogy[genealogy.size() - 1] = ii;
-		}
-		else { return 1; }
-
-		// Populate the current node with its ancestry and with itself, but no children.
-		tree_st[ii] = genealogy;
-		node = tree_st[ii].size() - 1;  // Genealogical position of the current node.
-		tree_st[ii][node] *= -1;
-
-		// Determine this node's parent, and add this node to its list of children.
-		if (node == 0)
-		{
-			continue;  // This node has no parents.
-		}
-		parent = genealogy[node - 1];
-		tree_st[parent].push_back(ii);
-	}
-	return 0;
 }
 int JFUNC::tree_from_marker(vector<vector<int>>& tree_st, vector<string>& tree_pl)
 {
