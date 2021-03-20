@@ -51,22 +51,21 @@ void SQLFUNC::create_table(string tname, vector<string>& titles, vector<int>& ty
 
     executor(stmt);
 }
+void SQLFUNC::err(string func)
+{
+    jfsql.err(func);
+}
 void SQLFUNC::init(string db_path)
 {
     int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
     if (error) { sqlerr("open-init"); }
-
-    size_t pos1 = db_path.rfind(".db");
-    string temp1 = db_path.substr(0, pos1);
-    temp1.append(" Error Log.txt");
-    error_path = temp1;
 }
 void SQLFUNC::insert_tg_existing(string tname)
 {
     // Convenience function to facilitate the insertion of tables into TGenealogy. 
     // This function is only valid if the table in question already exists in the database.
     
-    vector<string> row_data = jf_sql.list_from_marker(tname, '$');
+    vector<string> row_data = jfsql.list_from_marker(tname, '$');
     safe_col("TGenealogy", row_data.size());
     insert("TGenealogy", row_data);
 }
@@ -164,15 +163,16 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
 {
     // Produce a tree structure and tree payload for the given table name as root. 
 
-    string temp;
-    vector<string> tname_params = jf_sql.list_from_marker(tname, '$');
+    string temp, sparent;
+    vector<string> tname_params = jfsql.list_from_marker(tname, '$');
+    int num_params = tname_params.size() - 1;
     string stmt = "SELECT * FROM TGenealogy WHERE (";
     for (int ii = 1; ii < tname_params.size(); ii++)
     {
-        stmt += "param" + to_string(ii) + " = " + tname_params[ii];
+        stmt += "param" + to_string(ii) + " = '" + tname_params[ii] + "'";
         if (ii < tname_params.size() - 1)
         {
-            stmt += ", ";
+            stmt += " AND ";
         }
         else
         {
@@ -182,21 +182,91 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
     vector<vector<string>> results;
     executor(stmt, results);
 
-    int bbq = 1;  // RESUME HERE. WORK IN PROGRESS.
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        for (int jj = 0; jj < results[ii].size(); jj++)
+        {
+            if (results[ii][jj] == "")
+            {
+                results[ii].erase(results[ii].begin() + jj);
+                jj--;
+            }
+        }
+    }
 
+    unordered_map<string, int> registry;
+    int pl_index, iparent, pivot;
+    size_t pos1;
+    tree_pl.clear();
+    tree_st.clear();
+    while (results.size() > 0)
+    {      
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            if (results[ii].size() == num_params + 1)
+            {
+                // Move this node from the results to the tree.
+                temp = results[ii][0];
+                results.erase(results.begin() + ii);
+                ii--;
+
+                pl_index = tree_pl.size();
+                tree_st.push_back(vector<int>());
+                tree_pl.push_back(temp);
+                registry.emplace(temp, pl_index);
+
+                pos1 = temp.rfind('$');
+                pos1 = temp.find_last_not_of('$', pos1);
+                sparent = temp.substr(0, pos1 + 1);
+                try
+                {
+                    iparent = registry.at(sparent);
+                }
+                catch (out_of_range& oor)
+                {
+                    tree_st[pl_index].push_back(-1 * pl_index);
+                    continue;
+                }
+
+                tree_st[pl_index] = tree_st[iparent];
+                for (int jj = 0; jj < tree_st[pl_index].size(); jj++)
+                {
+                    if (tree_st[pl_index][jj] < 0)
+                    {
+                        pivot = jj;
+                        break;
+                    }
+                    else if (jj == tree_st[pl_index].size() - 1)
+                    {
+                        pivot = 0;
+                    }
+                }
+                tree_st[pl_index].resize(pivot + 2);
+                tree_st[pl_index][pivot] *= -1;
+                tree_st[pl_index][pivot + 1] = -1 * pl_index;
+
+                tree_st[iparent].push_back(pl_index);
+            }
+        }
+        num_params++;
+    }
+}
+void SQLFUNC::set_error_path(string errpath)
+{
+    error_path = errpath;
 }
 void SQLFUNC::sqlerr(string func)
 {
     // Threadsafe error log function specific to SQL errors.
+    lock_guard<mutex> lock(m_err);
     int errcode = sqlite3_errcode(db);
     const char* errmsg = sqlite3_errmsg(db);
     string serrmsg(errmsg);
     string message = timestamper() + " SQL ERROR #" + to_string(errcode) + ", in ";
     message += func + "\r\n" + serrmsg + "\r\n";
-    ofstream errlog;
-    errlog.open(error_path, ios::app);
-    errlog << message << endl;
-    errlog.close();
+    ERR.open(error_path, ofstream::app);
+    ERR << message << endl;
+    ERR.close();
     exit(EXIT_FAILURE);
 }
 string SQLFUNC::timestamper()

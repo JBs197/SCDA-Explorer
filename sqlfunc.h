@@ -11,19 +11,21 @@ using namespace std;
 
 class SQLFUNC 
 {
-    JFUNC jf_sql;
+    JFUNC jfsql;
 	sqlite3* db;
 	sqlite3_stmt* state;
-	string error_path;
+    ofstream ERR;
+    string error_path = root + "\\SCDA Error Log.txt";
     int TG_max_param = -1;  // The number of "param" columns in a Genealogy metatable.
-
+    
     void bind(string&, vector<string>&);
+    void err(string);
     int sclean(string&, int);
 	void sqlerr(string);
 	string timestamper();
 
 public:
-	explicit SQLFUNC() {}
+    explicit SQLFUNC() {}
 	~SQLFUNC() {}
     void create_table(string, vector<string>&, vector<int>&);
     void init(string);
@@ -32,6 +34,7 @@ public:
     string insert_stmt(string, vector<string>&, vector<string>&);
     void safe_col(string, int);
     void select_tree(string, vector<vector<int>>&, vector<string>&);
+    void set_error_path(string);
     int tg_max_param();
 
 	// TEMPLATES
@@ -308,11 +311,28 @@ public:
         if (error) { sqlerr("commit transaction-insert_rows"); }
     }
 
-    template<typename ... Args> void select(vector<string>, string, Args& ... args)
+    template<typename ... Args> int select(vector<string>, string, Args& ... args)
     {
-        // Work in progress. In time, the select functions will grow considerably in complexity.
+        // Return (by reference) the database's values for a given the search query. 
+        // 
+        // Form (search queries, table name, results vector, conditions).
+        // 
+        // First optional parameter (results size):
+        // If a 2D string vector is referenced, the full SQL results table is returned.
+        // If a 1D string vector is referenced, and the SQL results contain only one 
+        // column, then that column is returned. However, if the SQL results contain more
+        // than one column, then it is ONLY the first row of the SQL results which are returned.
+        // 
+        // Second optional parameter (search conditions):
+        // If the vector of conditions is given, then each string's boolean expression (after the first 
+        // one) should include a logical operator "AND", "OR", "NOT". Complex logical expressions 
+        // can be made, but they must include parentheses if the logical operators are not uniform.
+        // 
+        // The formal return integer is the maximum number of columns present in the results.
+
+        return 0;
     }
-    template<> void select<vector<string>>(vector<string> search, string tname, vector<string>& results)
+    template<> int select<vector<string>>(vector<string> search, string tname, vector<string>& results)
     {
         string stmt = "SELECT ";
         for (int ii = 0; ii < search.size(); ii++)
@@ -322,8 +342,9 @@ public:
         stmt.erase(stmt.size() - 2, 2);
         stmt += " FROM [" + tname + "];";
         executor(stmt, results);
+        return results.size();
     }
-    template<> void select<vector<vector<string>>>(vector<string> search, string tname, vector<vector<string>>& results)
+    template<> int select<vector<vector<string>>>(vector<string> search, string tname, vector<vector<string>>& results)
     {
         string stmt = "SELECT ";
         for (int ii = 0; ii < search.size(); ii++)
@@ -333,6 +354,57 @@ public:
         stmt.erase(stmt.size() - 2, 2);
         stmt += " FROM [" + tname + "];";
         executor(stmt, results);
+        int max_col = 0;
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            if (results[ii].size() > max_col)
+            {
+                max_col = results[ii].size();
+            }
+        }
+        return max_col;
+    }
+    template<> int select<vector<string>, vector<string>>(vector<string> search, string tname, vector<string>& results, vector<string>& conditions)
+    {
+        string stmt = "SELECT ";
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "" + search[ii] + ", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM [" + tname + "] WHERE (";
+        for (int ii = 0; ii < conditions.size(); ii++)
+        {
+            stmt += conditions[ii] + " ";
+        }
+        stmt += ");";
+        executor(stmt, results);
+        return results.size();
+    }
+    template<> int select<vector<vector<string>>, vector<string>>(vector<string> search, string tname, vector<vector<string>>& results, vector<string>& conditions)
+    {
+        string stmt = "SELECT ";
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "" + search[ii] + ", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM [" + tname + "] WHERE (";
+        for (int ii = 0; ii < conditions.size(); ii++)
+        {
+            stmt += conditions[ii] + " ";
+        }
+        stmt += ");";
+        executor(stmt, results);
+        int max_col = 0;
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            if (results[ii].size() > max_col)
+            {
+                max_col = results[ii].size();
+            }
+        }
+        return max_col;
     }
 
 };

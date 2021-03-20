@@ -28,15 +28,29 @@ string JFUNC::bind(string& stmt0, vector<string>& params)
 
 	pos1 = 0;
 	vector<string> dirt = { "[]" };
+	string to_double = "'";
 	for (int ii = 0; ii < count; ii++)
 	{
-		clean(params[ii], dirt, "'");
+		clean(params[ii], dirt, to_double);
 		pos1 = stmt0.find('?', pos1);
 		temp = "'" + params[ii] + "'";
 		stmt0.replace(pos1, 1, temp);
 	}
 
 	return stmt0;
+}
+void JFUNC::err(string func)
+{
+	lock_guard<mutex> lock(m_err);
+	ERR.open(error_path, ofstream::app);
+	string message = timestamper() + " General error from " + func;
+	ERR << message << endl << endl;
+	ERR.close();
+	exit(EXIT_FAILURE);
+}
+string JFUNC::get_error_path()
+{
+	return error_path;
 }
 vector<string> JFUNC::list_from_marker(string& input, char marker)
 {
@@ -163,6 +177,24 @@ string JFUNC::parent_from_marker(string& child, char marker)
 	pos1 = child.find_last_of(marker, pos1);
 	string parent = child.substr(0, pos1);
 	return parent;
+}
+void JFUNC::set_error_path(string errpath)
+{
+	error_path = errpath;
+}
+string JFUNC::timestamper()
+{
+	char buffer[26];
+	string timestamp;
+	chrono::system_clock::time_point today = chrono::system_clock::now();
+	time_t tt = chrono::system_clock::to_time_t(today);
+	ctime_s(buffer, 26, &tt);
+	for (int ii = 0; ii < 26; ii++)
+	{
+		if (buffer[ii] == '\0') { break; }
+		else { timestamp.push_back(buffer[ii]); }
+	}
+	return timestamp;
 }
 int JFUNC::tree_from_marker(vector<vector<int>>& tree_st, vector<string>& tree_pl)
 {

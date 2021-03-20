@@ -2,13 +2,19 @@
 
 using namespace std;
 
-void WINFUNC::init()
+void WINFUNC::err(string func)
 {
+	jfwin.err(func);
+}
+string WINFUNC::get_exec_path()
+{
+	string exec_path;
 	LPSTR bufferA = new CHAR[500];
 	DWORD slength = GetModuleFileNameA(NULL, bufferA, 500);
+	if (slength == 0) { winerr("GetModuleFileName-wf.get_exec_path"); }
 	exec_path.assign(bufferA, slength);
 	delete[] bufferA;
-	//int success = MessageBoxA(NULL, exec_path.c_str(), NULL, MB_OK);
+	return exec_path;
 }
 vector<string> WINFUNC::get_file_list(string folder_path, string search)
 {
@@ -244,6 +250,24 @@ void WINFUNC::make_tree_local_helper1(vector<vector<int>>& tree_st, vector<strin
 			break;
 		}
 	}
+}
+void WINFUNC::set_error_path(string errpath)
+{
+	error_path = errpath;
+}
+string WINFUNC::timestamper()
+{
+	char buffer[26];
+	string timestamp;
+	chrono::system_clock::time_point today = chrono::system_clock::now();
+	time_t tt = chrono::system_clock::to_time_t(today);
+	ctime_s(buffer, 26, &tt);
+	for (int ii = 0; ii < 26; ii++)
+	{
+		if (buffer[ii] == '\0') { break; }
+		else { timestamp.push_back(buffer[ii]); }
+	}
+	return timestamp;
 }
 string WINFUNC::utf16to8(wstring input)
 {

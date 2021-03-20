@@ -107,7 +107,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>3</number>
     </property>
     <widget class="QWidget" name="GID">
      <attribute name="title">
@@ -154,7 +154,7 @@
       </property>
      </widget>
     </widget>
-    <widget class="QWidget" name="tab">
+    <widget class="QWidget" name="Tree">
      <attribute name="title">
       <string>Tables (Tree)</string>
      </attribute>
@@ -222,7 +222,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="catas_db">
      <attribute name="title">
@@ -321,16 +321,6 @@
  Table</string>
     </property>
    </widget>
-   <widget class="QTableView" name="tV_viewtable">
-    <property name="geometry">
-     <rect>
-      <x>760</x>
-      <y>30</y>
-      <width>531</width>
-      <height>461</height>
-     </rect>
-    </property>
-   </widget>
    <widget class="QPushButton" name="pB_removecata">
     <property name="enabled">
      <bool>false</bool>
@@ -348,6 +338,57 @@
  Catalogue</string>
     </property>
    </widget>
+   <widget class="QTabWidget" name="tabW_results2">
+    <property name="geometry">
+     <rect>
+      <x>760</x>
+      <y>10</y>
+      <width>531</width>
+      <height>481</height>
+     </rect>
+    </property>
+    <property name="currentIndex">
+     <number>0</number>
+    </property>
+    <widget class="QWidget" name="tab_4">
+     <attribute name="title">
+      <string>Table Data</string>
+     </attribute>
+     <widget class="QTableView" name="tV_viewtable">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>531</width>
+        <height>461</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tab_5">
+     <attribute name="title">
+      <string>Subtable Tree</string>
+     </attribute>
+     <widget class="QTreeWidget" name="treeW_subtables">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>531</width>
+        <height>451</height>
+       </rect>
+      </property>
+      <attribute name="headerVisible">
+       <bool>false</bool>
+      </attribute>
+      <column>
+       <property name="text">
+        <string notr="true">1</string>
+       </property>
+      </column>
+     </widget>
+    </widget>
+   </widget>
    <zorder>cB_drives</zorder>
    <zorder>pB_scan</zorder>
    <zorder>pB_insert</zorder>
@@ -358,9 +399,9 @@
    <zorder>pB_cancel</zorder>
    <zorder>tabW_catalogues</zorder>
    <zorder>pB_viewtable</zorder>
-   <zorder>tV_viewtable</zorder>
    <zorder>tabW_results</zorder>
    <zorder>pB_removecata</zorder>
+   <zorder>tabW_results2</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

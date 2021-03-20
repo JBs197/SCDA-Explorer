@@ -10,20 +10,29 @@
 #include <locale>
 #include <codecvt>
 #include <algorithm>
-//#include "utf8.h"
+#include <chrono>
+#include <mutex>
 
 using namespace std;
+extern mutex m_err;
+extern const string root;
 
 class JFUNC
 {
+	ofstream ERR;
+	string error_path = root + "\\SCDA Error Log.txt";
 
 public:
 	explicit JFUNC() {}
 	~JFUNC() {}
 	string bind(string&, vector<string>&);
+	void err(string);
+	string get_error_path();
 	vector<string> list_from_marker(string&, char);
 	string load(string);
 	string parent_from_marker(string&, char);
+	void set_error_path(string);
+	string timestamper();
 	int tree_from_marker(vector<vector<int>>&, vector<string>&);
 	string utf16to8(wstring);
 	wstring utf8to16(string);

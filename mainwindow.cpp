@@ -63,7 +63,6 @@ void MainWindow::initialize()
     error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerror("prepare1-initialize", db); }
     step(db, statement);
-
     sf.init(sroots[location] + "\\SCDA.db");
 
     //q.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
@@ -1409,9 +1408,8 @@ void MainWindow::insert_csvs(vector<vector<string>>& my_queue, SWITCHBOARD& sb_j
                 for (int ii = 0; ii < data_rows.size(); ii++)
                 {
                     stmt = stmt0;
-                    vtemp.assign(data_rows[ii].begin() + 1, data_rows[ii].end());  // We insert values only - no row titles.
                     tname = cata_name + "$" + gid;
-                    sc.make_insert_csv_row_statement(stmt, tname, vtemp);
+                    sc.make_insert_csv_row_statement(stmt, tname, data_rows[ii]);
                     paperwork.push_back(stmt);
                 }
 
@@ -1826,7 +1824,7 @@ void MainWindow::on_pB_viewcata_clicked()
     ui->Rows_list->addItems(qlistviews[1]);
     ui->Tables_list->clear();
     ui->Tables_list->addItems(qlistviews[2]);
-
+    ui->TW_tablesindb->clear();
     qf.display(ui->TW_tablesindb, tree_st, tree_pl);
 
     viewcata_gid_list = gid_list;
@@ -1890,14 +1888,11 @@ void MainWindow::display_catalogue(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index, v
     comm[1]++;
     sb.update(myid, comm);
 
-    // Populate the 'Tables as a Tree' tab.  //RESUME HERE. MAKE A SQL->TREE FUNCTION
-    /*
-    vector<int> table_indent_list = get_indent_list(table_list, '$');
-    jf.tree_from_indent(table_indent_list, tree_st);
-    tree_pl = table_list;  
+    // Populate the 'Tables as a Tree' tab.  
+    sf.select_tree(prompt[1], tree_st, tree_pl);
     comm[1]++;
     sb.update(myid, comm);
-    */
+
 
     // Report completion to the GUI thread.
     comm[0] = 1;
@@ -1988,96 +1983,104 @@ void MainWindow::on_pB_cancel_clicked()
 // Display the raw table data for the selected region/table.
 void MainWindow::on_pB_viewtable_clicked()
 {
-    QString qtemp;
-    string gid, tname, temp1;
-    vector<string> column_titles;
-    QStringList col_titles;
-    vector<vector<string>> row_data;
-    vector<vector<int>> row_heights;
+    ui->treeW_subtables->clear();
     int tab_index = ui->tabW_results->currentIndex();
-    int row, title_size, line_breaks, pos1, height;
-    QStandardItemModel* model = new QStandardItemModel;
-    QStandardItem* cell;
+    int row;
+    string gid, tname;
+    QList<QListWidgetItem*> qcurrent;
+    QList<QTreeWidgetItem*> qcurrent2;
+    QString qtemp;
 
+    // Obtain the table name.
     switch (tab_index)
     {
     case 0:
         row = ui->GID_list->currentRow();
         gid = viewcata_gid_list[row];
         tname = viewcata_data[1] + "$" + gid;
-        sf.get_col_titles(tname, column_titles);
-        sf.select({ "*" }, tname, row_data);
-        if (column_titles.size() <= 2) { pos1 = 1; }
-        else { pos1 = 0; }
-        for (int ii = pos1; ii < column_titles.size(); ii++)
-        {
-            qtemp = QString::fromStdString(column_titles[ii]);
-            col_titles.append(qtemp);
-        }
-        model->setRowCount(row_data.size());
-        model->setColumnCount(row_data[0].size() - 1);
-        model->setHorizontalHeaderLabels(col_titles);
-        for (int ii = 0; ii < row_data.size(); ii++)
-        {
-            qtemp = QString::fromStdString(row_data[ii][0]);
-            title_size = qtemp.size();
-            if (title_size > 20)
-            {
-                line_breaks = title_size / 20;
-                for (int jj = 1; jj < line_breaks + 1; jj++)
-                {
-                    pos1 = qtemp.lastIndexOf(' ', jj * 20);
-                    qtemp.insert(pos1, " \n");
-                }
-                height = (line_breaks + 1) * 20;
-                row_heights.push_back(vector<int>(2));
-                row_heights[row_heights.size() - 1][0] = ii;
-                row_heights[row_heights.size() - 1][1] = height;
-            }
-            model->setHeaderData(ii, Qt::Vertical, qtemp);
-            for (int jj = 1; jj < row_data[0].size(); jj++)
-            {
-                qtemp = QString::fromStdString(row_data[ii][jj]);
-                cell = new QStandardItem;
-                cell->setText(qtemp);
-                model->setItem(ii, jj - 1, cell);
-            }
-        }
-        ui->tV_viewtable->setModel(model);
-        for (int ii = 0; ii < row_heights.size(); ii++)
-        {
-            ui->tV_viewtable->setRowHeight(row_heights[ii][0], row_heights[ii][1]);
-        }
         break;
 
     case 2:
+        qcurrent = ui->Tables_list->selectedItems();
+        qtemp = qcurrent[0]->text();
+        tname = qtemp.toStdString();
+        break;
+
+    case 3:
+        qcurrent2 = ui->TW_tablesindb->selectedItems();
+        qtemp = qcurrent2[0]->text(0);
+        tname = qtemp.toStdString();
         break;
     }
+
+    // Query the database for that table's raw data, and display it as a table 
+    // on the 'Table Data' tab.
+    QStandardItemModel* model = new QStandardItemModel;
+    QStandardItem* cell;
+    vector<string> column_titles;
+    sf.get_col_titles(tname, column_titles);
+    QStringList qcolumn_titles, qrow_titles;
+    for (int ii = 1; ii < column_titles.size(); ii++)
+    {
+        qtemp = QString::fromStdString(column_titles[ii]);
+        qcolumn_titles.append(qtemp);
+    }   
+    vector<vector<string>> results;
+    int max_col = sf.select({ "*" }, tname, results);
+    int title_size, line_breaks, height, pos1;
+    vector<vector<int>> row_heights;
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        qtemp = QString::fromStdString(results[ii][0]);
+        title_size = qtemp.size();
+        if (title_size > qrow_title_width)
+        {
+            line_breaks = title_size / qrow_title_width;
+            for (int jj = 1; jj < line_breaks + 1; jj++)
+            {
+                pos1 = qtemp.lastIndexOf(' ', jj * qrow_title_width);
+                qtemp.insert(pos1, " \n");
+            }
+            height = (line_breaks + 1) * qrow_title_width;
+            row_heights.push_back(vector<int>(2));
+            row_heights[row_heights.size() - 1][0] = ii;
+            row_heights[row_heights.size() - 1][1] = height;
+        }
+        qrow_titles.append(qtemp);
+    }
+    model->setRowCount(results.size());
+    model->setColumnCount(max_col - 1);
+    model->setHorizontalHeaderLabels(qcolumn_titles);
+    model->setVerticalHeaderLabels(qrow_titles);
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        for (int jj = 1; jj < results[ii].size(); jj++)
+        {
+            qtemp = QString::fromStdString(results[ii][jj]);
+            cell = new QStandardItem;
+            cell->setText(qtemp);
+            model->setItem(ii, jj - 1, cell);
+        }
+    }
+    ui->tV_viewtable->setModel(model);
+    for (int ii = 0; ii < row_heights.size(); ii++)
+    {
+        ui->tV_viewtable->setRowHeight(row_heights[ii][0], row_heights[ii][1]);
+    }
+
+    // Using tname as the root, generate a tree structure from the database.
+    vector<vector<int>> tree_st;
+    vector<string> tree_pl;
+    sf.select_tree(tname, tree_st, tree_pl);
+
+    // Using the tree structure, populate the 'Subtable Tree' tab.
+    qf.display(ui->treeW_subtables, tree_st, tree_pl);
+
 }
 
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
-    QList<QString> qrow;
-    QString qtemp;
-    vector<vector<string>> results;
-    sf.select({ "*" }, "TGenealogy", results);
-    QStandardItemModel* model = new QStandardItemModel;
-    QStandardItem* cell;
-    model->setRowCount(results.size());
-    model->setColumnCount(6);
-
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        for (int jj = 0; jj < results[ii].size(); jj++)
-        {
-            qtemp = QString::fromStdString(results[ii][jj]);
-            cell = new QStandardItem;
-            cell->setText(qtemp);
-            model->setItem(ii, jj, cell);
-        }
-    }
-    ui->tV_viewtable->setModel(model);
 
 
 }

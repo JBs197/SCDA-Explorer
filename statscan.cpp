@@ -390,9 +390,17 @@ string STATSCAN::make_create_csv_table_statement(string& stmt0, string gid, stri
 string STATSCAN::make_create_csv_table_template(vector<string>& column_titles)
 {
     string stmt = "CREATE TABLE IF NOT EXISTS [!!!] (";
-    for (int ii = 1; ii < column_titles.size(); ii++)
+    for (int ii = 0; ii < column_titles.size(); ii++)
     {
-        stmt += "[" + column_titles[ii] + "] NUMERIC, ";
+        stmt += "[" + column_titles[ii];
+        if (ii == 0)
+        {
+            stmt += "] TEXT, ";
+        }
+        else
+        {
+            stmt += "] NUMERIC, ";
+        }
     }
     stmt.erase(stmt.size() - 2, 2);
     stmt += ");";
@@ -414,6 +422,23 @@ void STATSCAN::make_insert_csv_row_statement(string& stmt0, string tname, vector
     stmt0.replace(pos1, 3, tname);
     string stmt = jf_sc.bind(stmt0, row_vals);
     stmt0 = stmt;
+}
+string STATSCAN::make_insert_csv_row_template(vector<string>& column_titles)
+{
+    string stmt = "INSERT INTO [!!!] (";
+    for (int ii = 0; ii < column_titles.size(); ii++)
+    {
+        stmt += "[" + column_titles[ii] + "], ";
+    }
+    stmt.erase(stmt.size() - 2, 2);
+    stmt += ") VALUES (";
+    for (int ii = 0; ii < column_titles.size(); ii++)
+    {
+        stmt += "?, ";
+    }
+    stmt.erase(stmt.size() - 2, 2);
+    stmt += ");";
+    return stmt;
 }
 vector<string> STATSCAN::make_insert_csv_subtable_statements(string gid, vector<vector<int>>& tree_st, vector<vector<string>>& rows)
 {
@@ -454,15 +479,15 @@ vector<string> STATSCAN::make_insert_csv_subtable_statements(string gid, vector<
         if (children.size() > 0)
         {
             tname = make_subtable_name(num_param, cata_name, gid, tree_st[ii], tree_pl);
-            
+
             stmt0 = "INSERT INTO [" + tname + "] (";
-            for (int jj = 1; jj < column_titles.size(); jj++)
+            for (int jj = 0; jj < column_titles.size(); jj++)
             {
                 stmt0 += "[" + column_titles[jj] + "], ";
             }
             stmt0.erase(stmt0.size() - 2, 2);
             stmt0 += ") VALUES (";
-            for (int jj = 1; jj < column_titles.size(); jj++)
+            for (int jj = 0; jj < column_titles.size(); jj++)
             {
                 stmt0 += "?, ";
             }
@@ -470,7 +495,7 @@ vector<string> STATSCAN::make_insert_csv_subtable_statements(string gid, vector<
             stmt0 += ");";
 
             stmt = stmt0;
-            vtemp.assign(rows[ii].begin() + 1, rows[ii].end());
+            vtemp.assign(rows[ii].begin(), rows[ii].end());
             jf_sc.bind(stmt, vtemp);
             stmts.push_back(stmt);
 
@@ -478,30 +503,13 @@ vector<string> STATSCAN::make_insert_csv_subtable_statements(string gid, vector<
             {
                 child = children[jj];
                 stmt = stmt0;
-                vtemp.assign(rows[child].begin() + 1, rows[child].end());
+                vtemp.assign(rows[child].begin(), rows[child].end());
                 jf_sc.bind(stmt, vtemp);
                 stmts.push_back(stmt);
             }
         }
     }
     return stmts;
-}
-string STATSCAN::make_insert_csv_row_template(vector<string>& column_titles)
-{
-    string stmt = "INSERT INTO [!!!] (";
-    for (int ii = 1; ii < column_titles.size(); ii++)
-    {
-        stmt += "[" + column_titles[ii] + "], ";
-    }
-    stmt.erase(stmt.size() - 2, 2);
-    stmt += ") VALUES (";
-    for (int ii = 1; ii < column_titles.size(); ii++)
-    {
-        stmt += "?, ";
-    }
-    stmt.erase(stmt.size() - 2, 2);
-    stmt += ");";
-    return stmt;
 }
 void STATSCAN::make_insert_primary_statement(string& stmt0, string gid, vector<vector<string>>& text_vars, vector<vector<string>>& rows)
 {

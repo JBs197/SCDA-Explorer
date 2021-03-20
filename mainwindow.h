@@ -29,11 +29,11 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    JFUNC jf;
     SWITCHBOARD sb;
     WINFUNC wf;
     QTFUNC qf;
     SQLFUNC sf;
-    JFUNC jf;
 
 signals:
 
@@ -68,13 +68,14 @@ private:
     int threads_working = 0;
     int remote_controller = 0;  // 0 = standard, 1 = cancel.
     bool begun_logging = 0;
+    int qrow_title_width = 20;
     wstring wdrive;
     string sdrive;
     QString qdrive;
     string db_path;
     vector<mutex> m_jobs;
     QMutex m_job;
-    mutex m_err, m_io, m_bar, m_geo;
+    mutex m_io, m_bar, m_geo;
     vector<string> sroots = { "F:", "D:" };
     vector<wstring> wroots = { L"F:", L"D:" }; //  NOTE: REMOVE HARDCODING LATER.
     QVector<QString> qroots = { "F:", "D:" };

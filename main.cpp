@@ -1,6 +1,9 @@
 #include "mainwindow.h"
 #include <QApplication>
 
+mutex m_err;
+const string root{ "F:" };
+
 int main(int argc, char* argv[])
 {
     setlocale(LC_ALL, ".UTF8");
