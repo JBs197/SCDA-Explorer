@@ -995,17 +995,19 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
     JFUNC jf_judi;
 
     // prompt has form [syear, sname, gid1, gid2, ...], gid list is only included for partial catalogue insertions.
-    string cata_path = sroots[location] + "\\" + prompt[0] + "\\" + prompt[1];
+    string cata_path = root + "\\" + prompt[0] + "\\" + prompt[1];
     wstring cata_wpath = utf8to16(cata_path);
     int num_gid = get_file_path_number(cata_wpath, L".csv");
     comm[2] = num_gid;
     sb.update(myid, comm);
     bool partial_entry = 0;
     string stmt, stmt0;
-    int error, geo_index, csv_tindex;
+    int error, geo_col, csv_tindex;
 
+    STATSCAN sc_judi(cata_path);
     int tg_max_param = sf.tg_max_param();
-    bool need_geo = !table_exist(prompt[1]);
+    string temp = "TG_Region$" + prompt[1];
+    bool need_geo = !table_exist(temp);
     if (prompt.size() > 2) { partial_entry = 1; }
 
     // Insert this catalogue into the catalogue index.
@@ -1020,24 +1022,22 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
         sf.executor(stmt);
     }
 
-    // Perform region indexing for this catalogue, if necessary.
-    SWITCHBOARD sb_geo;
+    // Perform region indexing (TGR) for this catalogue, if necessary.
     vector<string> geo_queue;
-    vector<vector<int>> geo_comm(1, vector<int>());
-    geo_comm[0].assign(comm.size(), 0);
     if (need_geo)
     {
-        log("Begin region indexing for catalogue " + prompt[1]);
-        error = sb_geo.start_call(myid, geo_comm[0], geo_index, "Region Indexing");
-        if (error) { errnum("start_call(geo)-judicator", error); }
-        sb_geo.set_prompt(myid, prompt);
-        std::thread geo(&MainWindow::create_insert_region_tables, this, ref(geo_queue), ref(sb_geo), geo_index);
-        geo.detach();
+        log("Begin region indexing (TGR) for catalogue " + prompt[1]);
+        temp = "TG_Region$" + prompt[1];
+        geo_col = sc_judi.make_tgr_statements(geo_queue, prompt[0], prompt[1]);
+        sf.safe_col(temp, geo_col);
+        sf.executor(geo_queue[0]);
+        geo_queue.erase(geo_queue.begin());
+        sf.insert_prepared(geo_queue);
+        log("Completed region indexing (TGR) for catalogue " + prompt[1]);
     }
-    else { geo_comm[0][0] = 1; }
 
     // Create a table for this catalogue's damaged CSVs.
-    string temp = "[" + prompt[1] + "$Damaged]";
+    temp = "[" + prompt[1] + "$Damaged]";
     stmt = "CREATE TABLE IF NOT EXISTS " + temp + " (GID NUMERIC, [Number of Missing Data Entries] NUMERIC);";
     sf.executor(stmt);
     sf.insert_tg_existing(prompt[1] + "$Damaged");
@@ -1133,17 +1133,6 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
         }
     }
 
-    // Try to process the geo thread's finished statements, if available.
-    if (geo_comm[0][0] == 0)
-    {
-        geo_comm = sb_geo.update(myid, geo_comm[0]);
-        if (geo_comm[1][0] == 1)
-        {
-            sf.insert_prepared(geo_queue);
-            geo_comm[0][0] = 1;
-            log("Completed the region indexing for catalogue " + prompt[1]);
-        }
-    }
 
     // Loop through the worker threads, inserting their statements into the database.
     //vector<int> batch_record;  // List of millisec/CSV recorded.
@@ -1305,22 +1294,6 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
         }
     }
 
-    // If the geo thread had not yet finished, wait for it now.
-    while (geo_comm[0][0] == 0)
-    {
-        geo_comm = sb_geo.update(myid, geo_comm[0]);
-        if (geo_comm[1][0] == 1)
-        {
-            sf.insert_prepared(geo_queue);
-            geo_comm[0][0] = 1;
-            log("Completed the region indexing for catalogue " + prompt[1]);
-        }
-        else
-        {
-            Sleep(50);
-        }
-    }
-
     // If we are done without being cancelled, we can mark the catalogue as 'complete'.
     param.resize(2);
     if (comm[0] < 2)
@@ -1353,6 +1326,7 @@ void MainWindow::insert_csvs(vector<vector<string>>& my_queue, SWITCHBOARD& sb_j
     vector<vector<string>> data_rows;
     vector<string> linearized_titles, vtemp;
     string gid, sfile, stmt, stmt0, csv_path, tname, temp;
+    wstring csv_wpath;
     QString qtemp;
     int damaged_csv, tg_params, tg_params_max, num_subtables;
 
@@ -1381,6 +1355,8 @@ void MainWindow::insert_csvs(vector<vector<string>>& my_queue, SWITCHBOARD& sb_j
             gid = gid_list[ii];  
             csv_path = sc.make_csv_path(ii);
             sfile = jf_csv.load(csv_path);
+            //csv_wpath = sc.make_csv_wpath(ii);
+            //sfile = jf_csv.wload(csv_wpath);
             text_vars = sc.extract_text_vars(sfile);
             data_rows = sc.extract_rows(sfile, damaged_csv);
             linearized_titles = sc.linearize_row_titles(data_rows, column_titles);
@@ -1601,166 +1577,6 @@ void MainWindow::insert_damaged_row(vector<string>& paperwork, string sname, str
     bind(stmt, param);
     paperwork.push_back(stmt);
 }
-void MainWindow::create_insert_region_tables(vector<string>& paperwork, SWITCHBOARD& geo, int geo_index)
-{
-    SQLFUNC sf;
-    JFUNC jf;
-
-    vector<int> comm;
-    thread::id myid = this_thread::get_id();
-    geo.answer_call(myid, comm, geo_index);
-    vector<string> prompt = geo.get_prompt(myid);
-
-    // Create the region index table.
-    string tname = prompt[1] + "$RegionIndex";
-    string stmt = "CREATE TABLE IF NOT EXISTS [" + prompt[1] + "$RegionIndex] ";
-    stmt += "(GID INTEGER PRIMARY KEY, [Region Name] TEXT);";
-    paperwork.push_back(stmt);
-    vector<string> col_titles = { "Name", "param1", "param2" };
-    vector<string> row_data = { tname, prompt[1], "RegionIndex" };
-    stmt = sf.insert_stmt("TGenealogy", col_titles, row_data);
-    paperwork.push_back(stmt);
-
-    // Populate the region index table.
-    vector<vector<string>> geo_values;
-    int geosize = load_geo(geo_values, prompt[0], prompt[1]);  // NOTE: region names have been cleaned already.
-    string stmt0 = "INSERT INTO [" + prompt[1] + "$RegionIndex] (GID, [Region Name]) VALUES (?, ?);";
-    for (int ii = 0; ii < geosize; ii++)
-    {
-        stmt = stmt0;
-        bind(stmt, geo_values[ii]);
-        paperwork.push_back(stmt);
-    }
-
-    // Create the subtable tree and namelist (matching first indices).
-    vector<vector<vector<int>>> geo_tree;
-    vector<string> slist(geosize);
-    for (int ii = 0; ii < geosize; ii++)
-    {
-        slist[ii] = geo_values[ii][1];
-    }
-    geo_tree = tree_maker(slist, "+");  // Throughout this program, '+' is used to mark indentation.
-    vector<string> tnames;
-    int cheddar, max_cheddar, ancestry, itemp;
-    max_cheddar = 2;
-    for (int ii = 0; ii < geo_tree.size(); ii++)
-    {
-        cheddar = 2;
-        ancestry = geo_tree[ii][0].size();
-        tname = "[" + prompt[1] + "$Region";
-        for (int jj = 0; jj < ancestry; jj++)
-        {
-            for (int kk = 0; kk < cheddar; kk++)
-            {
-                tname += "$";
-            }
-            if (cheddar > max_cheddar) { max_cheddar = cheddar; }
-            cheddar++;
-            itemp = geo_tree[ii][0][jj];
-            tname += slist[itemp];
-        }
-        tname += "]";
-        tnames.push_back(tname);
-    }
-    comm[3] = max_cheddar + 1;
-
-    // Create the subtables.
-    for (int ii = 0; ii < tnames.size(); ii++)
-    {
-        stmt = "CREATE TABLE IF NOT EXISTS " + tnames[ii] + "(GID INTEGER PRIMARY KEY, [Region Name] TEXT);";
-        paperwork.push_back(stmt);
-    }
-
-    // Populate the subtables.
-    int num_rows, row_index;
-    for (int ii = 0; ii < tnames.size(); ii++)  // For every subtable...
-    {
-        stmt0 = "INSERT INTO " + tnames[ii] + " (GID, [Region Name]) VALUES (?, ?);";
-        num_rows = geo_tree[ii][1].size() + 1;  // Top row is the parent, subsequent rows are direct children.
-        for (int jj = 0; jj < num_rows; jj++)  // For every row in this subtable...
-        {
-            stmt = stmt0;
-            if (jj == 0)
-            {
-                row_index = geo_tree[ii][0][geo_tree[ii][0].size() - 1];
-            }
-            else
-            {
-                row_index = geo_tree[ii][1][jj - 1];
-            }
-            bind(stmt, geo_values[row_index]);
-            paperwork.push_back(stmt);
-        }
-    }
-
-    // Populate TG.
-    string temp1;
-    vector<string> params, col_temp;
-    while (col_titles.size() <= comm[3])
-    {
-        temp1 = "param" + to_string(col_titles.size());
-        col_titles.push_back(temp1);
-    }
-    for (int ii = 0; ii < tnames.size(); ii++)
-    {
-        row_data = jf.list_from_marker(tnames[ii], '$');
-        col_temp = col_titles;
-        col_temp.resize(row_data.size());
-        stmt = sf.insert_stmt("TGenealogy", col_temp, row_data);
-        paperwork.push_back(stmt);
-    }
-
-    // Signal the judicator that the work is done. 
-    comm[0] = 1;
-    geo.update(myid, comm);
-}
-int MainWindow::load_geo(vector<vector<string>>& geo_values, string& syear, string& sname)
-{
-    string geo_list_path = sroots[location] + "\\" + syear + "\\" + sname + "\\" + sname + " geo list.bin";
-    wstring wtemp = utf8to16(geo_list_path);
-    string geo_list = s_memory(wtemp);
-    size_t pos1, pos2;
-    string temp, region;
-    int region_index, indent;
-    pos1 = 0;
-    pos2 = geo_list.find('$');
-    do
-    {
-        region_index = geo_values.size();
-        geo_values.push_back(vector<string>(2));  // geo_values has form [region_index][gid, region name].
-        temp = geo_list.substr(pos1, pos2 - pos1);
-        geo_values[region_index][0] = temp;
-
-        pos2 = geo_list.find('\r', pos2);
-        pos1 = geo_list.rfind('$', pos2);
-        temp = geo_list.substr(pos1 + 1, pos2 - pos1 - 1);
-        try
-        {
-            indent = stoi(temp);
-        }
-        catch (invalid_argument& ia)
-        {
-            err("stoi-load_geo");
-        }
-        region.clear();
-        for (int ii = 0; ii < indent; ii++)
-        {
-            region += '+';
-        }
-
-        pos2 = geo_list.rfind('$', pos1 - 1);
-        temp = geo_list.substr(pos2 + 1, pos1 - pos2 - 1);
-        region += temp;
-        sclean(region, 1);
-        geo_values[region_index][1] = region;
-
-        pos2 = geo_list.find('\n', pos1);
-        pos1 = pos2 + 1;
-        pos2 = geo_list.find('$', pos1);
-    } while (pos2 < geo_list.size());
-    int count = (int)geo_values.size();
-    return count;
-}
 
 // Display the 'tabbed data' for the selected catalogue.
 void MainWindow::on_pB_viewcata_clicked()
@@ -1773,7 +1589,7 @@ void MainWindow::on_pB_viewcata_clicked()
     vector<string> gid_list;
     QList<QStringList> qlistviews;
     vector<vector<int>> comm(1, vector<int>());
-    comm[0] = { 0, 0, 0 };  // Form [control, progress report, size report]
+    comm[0].assign(comm_length, 0);  // Form [control, progress report, size report]
     thread::id myid = this_thread::get_id();
     int sb_index;
     viewcata_data.resize(2);
@@ -1818,8 +1634,8 @@ void MainWindow::on_pB_viewcata_clicked()
     error = sb.end_call(myid);
     if (error) { errnum("end_call-pB_viewcata_clicked", error); }
     
-    ui->GID_list->clear();
-    ui->GID_list->addItems(qlistviews[0]);
+    ui->GID_tree->clear();
+    //ui->GID_list->addItems(qlistviews[0]);
     ui->Rows_list->clear();
     ui->Rows_list->addItems(qlistviews[1]);
     ui->Tables_list->clear();
@@ -1839,9 +1655,12 @@ void MainWindow::display_catalogue(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index, v
     sb.answer_call(myid, comm, sb_index);
     vector<string> prompt = sb.get_prompt(myid);  // syear, sname.
 
-    // Populate the 'Geographic Region' tab.
+    // Populate the 'Geographic Region' tree tab.
     vector<string> vtemp = { "GID", "Geography" };
     vector<vector<string>> results;
+    int geo_size = load_geo(results, prompt[0], prompt[1]);
+
+
     sf.select(vtemp, prompt[1], results);
     QStringList geo_list;
     QString qtemp;
@@ -1888,11 +1707,13 @@ void MainWindow::display_catalogue(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index, v
     comm[1]++;
     sb.update(myid, comm);
 
-    // Populate the 'Tables as a Tree' tab.  
+    // Populate the 'Tables as a Tree' tab.
+    QElapsedTimer timer;
+    timer.start();
     sf.select_tree(prompt[1], tree_st, tree_pl);
     comm[1]++;
     sb.update(myid, comm);
-
+    qDebug() << "select_tree: " << timer.restart();
 
     // Report completion to the GUI thread.
     comm[0] = 1;
@@ -1964,7 +1785,7 @@ void MainWindow::on_pB_removecata_clicked()
     auto_expand(ui->TW_cataindb, 20);
     if (sname == viewcata_data[1])
     {
-        ui->GID_list->clear();
+        ui->GID_tree->clear();
         ui->Rows_list->clear();
         ui->Tables_list->clear();
         viewcata_data[0].clear();
@@ -1995,7 +1816,7 @@ void MainWindow::on_pB_viewtable_clicked()
     switch (tab_index)
     {
     case 0:
-        row = ui->GID_list->currentRow();
+        //row = ui->GID_tree->currentRow();
         gid = viewcata_gid_list[row];
         tname = viewcata_data[1] + "$" + gid;
         break;
@@ -2081,8 +1902,17 @@ void MainWindow::on_pB_viewtable_clicked()
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
-
-
+    QElapsedTimer timer;
+    timer.start();
+    STATSCAN sc("F:\\1981\\97-570-X1981004");
+    vector<string> tgr_stmts;
+    int num_col = sc.make_tgr_statements(tgr_stmts, "1981", "97-570-X1981004");
+    sf.executor(tgr_stmts[0]);
+    QString qtemp = QString::fromStdString(tgr_stmts[0]);
+    qDebug() << qtemp;
+    tgr_stmts.erase(tgr_stmts.begin());
+    sf.insert_prepared(tgr_stmts);
+    qDebug() << "make_tgr time: " << timer.restart();
 }
 
 // Choose a local drive to examine for spreadsheets.
@@ -2130,9 +1960,9 @@ void MainWindow::on_TW_cataondrive_itemSelectionChanged()
         ui->pB_insert->setEnabled(0);
     }
 }
-void MainWindow::on_GID_list_itemSelectionChanged()
+void MainWindow::on_GID_tree_itemSelectionChanged()
 {
-    QList<QListWidgetItem*> region_selected = ui->GID_list->selectedItems();
+    QList<QTreeWidgetItem*> region_selected = ui->GID_tree->selectedItems();
     if (region_selected.size() > 0)
     {
         ui->pB_viewtable->setEnabled(1);

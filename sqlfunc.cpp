@@ -162,7 +162,8 @@ int SQLFUNC::sclean(string& bbq, int mode)
 void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl)
 {
     // Produce a tree structure and tree payload for the given table name as root. 
-
+    QElapsedTimer timer;
+    timer.start();
     string temp, sparent;
     vector<string> tname_params = jfsql.list_from_marker(tname, '$');
     int num_params = tname_params.size() - 1;
@@ -181,7 +182,11 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
     }
     vector<vector<string>> results;
     executor(stmt, results);
+    qDebug() << "Select * from TG where... : " << timer.restart();
 
+    // Categorize each result from TG by the number of parameters it has.
+    vector<vector<int>> param_groups;  // Form [# of params - 1][results index].
+    int params;
     for (int ii = 0; ii < results.size(); ii++)
     {
         for (int jj = 0; jj < results[ii].size(); jj++)
@@ -192,6 +197,12 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
                 jj--;
             }
         }
+        params = results[ii].size() - 1;
+        while (param_groups.size() < params)
+        {
+            param_groups.push_back(vector<int>());
+        }
+        param_groups[params - 1].push_back(ii);
     }
 
     unordered_map<string, int> registry;
@@ -199,57 +210,98 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
     size_t pos1;
     tree_pl.clear();
     tree_st.clear();
-    while (results.size() > 0)
-    {      
-        for (int ii = 0; ii < results.size(); ii++)
+    timer.restart();
+    for (int ii = 0; ii < param_groups.size(); ii++)
+    {
+        for (int jj = 0; jj < param_groups[ii].size(); jj++)
         {
-            if (results[ii].size() == num_params + 1)
+            temp = results[param_groups[ii][jj]][0];
+            pl_index = tree_pl.size();
+            tree_st.push_back(vector<int>());
+            tree_pl.push_back(temp);
+            registry.emplace(temp, pl_index);
+
+            if (ii > 0)
             {
-                // Move this node from the results to the tree.
-                temp = results[ii][0];
-                results.erase(results.begin() + ii);
-                ii--;
-
-                pl_index = tree_pl.size();
-                tree_st.push_back(vector<int>());
-                tree_pl.push_back(temp);
-                registry.emplace(temp, pl_index);
-
                 pos1 = temp.rfind('$');
                 pos1 = temp.find_last_not_of('$', pos1);
                 sparent = temp.substr(0, pos1 + 1);
-                try
-                {
-                    iparent = registry.at(sparent);
-                }
-                catch (out_of_range& oor)
-                {
-                    tree_st[pl_index].push_back(-1 * pl_index);
-                    continue;
-                }
+            }
+            else
+            {
+                sparent = "";
+            }
 
-                tree_st[pl_index] = tree_st[iparent];
-                for (int jj = 0; jj < tree_st[pl_index].size(); jj++)
-                {
-                    if (tree_st[pl_index][jj] < 0)
-                    {
-                        pivot = jj;
-                        break;
-                    }
-                    else if (jj == tree_st[pl_index].size() - 1)
-                    {
-                        pivot = 0;
-                    }
-                }
-                tree_st[pl_index].resize(pivot + 2);
-                tree_st[pl_index][pivot] *= -1;
-                tree_st[pl_index][pivot + 1] = -1 * pl_index;
+            try
+            {
+                iparent = registry.at(sparent);
+            }
+            catch (out_of_range& oor)
+            {
+                tree_st[pl_index].push_back(-1 * pl_index);
+                continue;
+            }
 
-                tree_st[iparent].push_back(pl_index);
+            tree_st[pl_index] = tree_st[iparent];
+            for (int jj = 0; jj < tree_st[pl_index].size(); jj++)
+            {
+                if (tree_st[pl_index][jj] < 0)
+                {
+                    pivot = jj;
+                    break;
+                }
+                else if (jj == tree_st[pl_index].size() - 1)
+                {
+                    pivot = 0;
+                }
+            }
+            tree_st[pl_index].resize(pivot + 2);
+            tree_st[pl_index][pivot] *= -1;
+            tree_st[pl_index][pivot + 1] = -1 * pl_index;
+
+            tree_st[iparent].push_back(pl_index);
+        }
+    }
+    qDebug() << "Make tree structure: " << timer.restart();
+}
+vector<string> SQLFUNC::select_years()
+{
+    // Returns the list of (ascending, unique) years represented in the database.
+    vector<string> results;
+    string stmt = "SELECT DISTINCT Year FROM TCatalogueIndex";
+    executor(stmt, results);
+    vector<int> iresults(results.size());
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        try
+        {
+            iresults[ii] = stoi(results[ii]);
+        }
+        catch (invalid_argument& ia)
+        {
+            err("stoi-sf.select_years");
+        }
+    }
+    int count, itemp;
+    string temp;
+    do
+    {
+        count = 0;
+        for (int ii = 0; ii < iresults.size() - 1; ii++)
+        {
+            if (iresults[ii + 1] < iresults[ii])
+            {
+                itemp = iresults[ii + 1];
+                temp = results[ii + 1];
+                iresults[ii + 1] = iresults[ii];
+                results[ii + 1] = results[ii];
+                iresults[ii] = itemp;
+                results[ii] = temp;
+                count++;
             }
         }
-        num_params++;
-    }
+    } while (count > 0);
+    return results;
 }
 void SQLFUNC::set_error_path(string errpath)
 {
@@ -287,10 +339,7 @@ string SQLFUNC::timestamper()
 int SQLFUNC::tg_max_param()
 {
     vector<string> column_titles;
-    if (TG_max_param < 0)
-    {
-        get_col_titles("TGenealogy", column_titles);
-        TG_max_param = column_titles.size() - 1;
-    }
+    get_col_titles("TGenealogy", column_titles);
+    TG_max_param = column_titles.size() - 1;
     return TG_max_param;
 }

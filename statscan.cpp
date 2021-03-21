@@ -23,6 +23,10 @@ int STATSCAN::cata_init(string& sample_csv)
 
     return max_param;
 }
+void STATSCAN::err(string func)
+{
+    jf_sc.err(func);
+}
 vector<string> STATSCAN::extract_column_titles(string& sfile)
 {
     vector<string> column_titles;
@@ -375,6 +379,12 @@ string STATSCAN::make_csv_path(int gid_index)
     string csv_path = cata_path + "\\" + cata_name + " " + csv_branches[gid_index];
     return csv_path;
 }
+wstring STATSCAN::make_csv_wpath(int gid_index)
+{
+    string csv_path = cata_path + "\\" + cata_name + " " + csv_branches[gid_index];
+    wstring csv_wpath = jf_sc.utf8to16(csv_path);
+    return csv_wpath;
+}
 
 string STATSCAN::make_create_csv_table_statement(string& stmt0, string gid, string& tname_template)
 {
@@ -603,6 +613,108 @@ string STATSCAN::make_tg_insert_statement(vector<string>& row)
     stmt.erase(stmt.size() - 2, 2);
     stmt += ");";
     return stmt;
+}
+int STATSCAN::make_tgr_statements(vector<string>& tgr_stmts, string syear, string sname)
+{
+    // For a given catalogue, read its local 'geo list' bin file, then make all statements
+    // to add a complete TG_Region table to the database. Tree structure contained in param columns.
+    // Tables have name  TG_Region$cata_name  and form { GID PRIMARY, Region Name, gid0, gid1, ... }
+    // Returned integer is the max number of columns in the table. 
+    // NOTE: The first statement in the vector must be executed BEFORE declaring a transaction !
+
+    string geo_list_path = root + "\\" + syear + "\\" + sname + "\\" + sname + " geo list.bin";
+    string geo_list = jf_sc.load(geo_list_path);
+    vector<vector<string>> tgr;
+    vector<string> vtemp(3);
+    int tgr_index, inum1, inum2;
+    vector<string> hall_of_fame;
+
+    int num_col = 2;
+    size_t pos1 = 0;
+    size_t pos2 = geo_list.find('$');
+    do
+    {
+        vtemp[0] = geo_list.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = geo_list.find('$', pos2 + 1);
+        vtemp[1] = geo_list.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = geo_list.find_first_not_of("1234567890", pos2 + 1);
+        vtemp[2] = geo_list.substr(pos1, pos2 - pos1);
+        try
+        {
+            inum1 = stoi(vtemp[0]);
+            inum2 = stoi(vtemp[2]);
+        }
+        catch (invalid_argument& ia)
+        {
+            err("stoi-sc.make_tgr_statements");
+        }
+        if (inum2 + 2 > num_col)
+        {
+            num_col = inum2 + 2;
+        }
+
+        while (hall_of_fame.size() <= inum2)
+        {
+            hall_of_fame.push_back(vtemp[0]);
+        }
+        hall_of_fame[inum2] = vtemp[0];
+
+        tgr_index = tgr.size();
+        tgr.push_back(vector<string>(2));
+        tgr[tgr_index][0] = vtemp[0];
+        tgr[tgr_index][1] = vtemp[1];
+        for (int ii = 0; ii < inum2; ii++)
+        {
+            tgr[tgr_index].push_back(hall_of_fame[ii]);
+        }
+
+        pos1 = geo_list.find('\n', pos1 + 1) + 1;
+        pos2 = geo_list.find('$', pos2 + 1);
+    } while (pos2 < geo_list.size());
+
+    string temp;
+    tgr_stmts.clear();
+    vtemp.clear();
+    string stmt = "CREATE TABLE IF NOT EXISTS [TG_Region$" + sname + "] (GID INTEGER PRIMARY KEY, ";
+    stmt += "[Region Name] TEXT, ";
+    for (int ii = 0; ii < num_col - 2; ii++)
+    {
+        temp = "gid" + to_string(ii);
+        vtemp.push_back(temp);
+        stmt += temp + " INT, ";
+    }
+    stmt.erase(stmt.size() - 2, 2);
+    stmt += ");";
+    tgr_stmts.push_back(stmt);
+
+    for (int ii = 0; ii < tgr.size(); ii++)
+    {
+        stmt = "INSERT OR IGNORE INTO [TG_Region$" + sname + "] (GID, [Region Name], ";
+        for (int jj = 0; jj < tgr[ii].size() - 2; jj++)
+        {
+            stmt += vtemp[jj] + ", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += ") VALUES (";
+        for (int jj = 0; jj < tgr[ii].size(); jj++)
+        {
+            if (jj == 1)
+            {
+                sclean(tgr[ii][jj], 1);
+                stmt += "'" + tgr[ii][jj] + "', ";
+            }
+            else
+            {
+                stmt += tgr[ii][jj] + ", ";
+            }
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += ");";
+        tgr_stmts.push_back(stmt);
+    }
+    return num_col;
 }
 
 int STATSCAN::sclean(string& sval, int mode)

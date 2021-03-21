@@ -34,6 +34,7 @@ public:
 	~STATSCAN() {}
 	void set_path(string);
 	int cata_init(string&);
+	void err(string);
 	vector<string> extract_column_titles(string&);
 	string extract_description(string&);
 	void extract_csv_branches(vector<string>&);
@@ -52,6 +53,7 @@ public:
 	string get_subtable_name_template(int);
 	vector<string> linearize_row_titles(vector<vector<string>>&, vector<string>&);
 	string make_csv_path(int);
+	wstring make_csv_wpath(int);
 	string make_create_csv_table_statement(string&, string, string&);
 	string make_create_csv_table_template(vector<string>&);
 	void make_insert_csv_row_statement(string&, string, vector<string>&);
@@ -62,6 +64,7 @@ public:
 	string make_insert_primary_template(string, vector<vector<string>>&, vector<string>&);
 	string make_subtable_name(int&, string, string, vector<int>&, vector<string>&);
 	string make_tg_insert_statement(vector<string>&);
+	int make_tgr_statements(vector<string>&, string, string);
 
 
 	// TEMPLATES

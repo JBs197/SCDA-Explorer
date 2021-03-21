@@ -30,6 +30,7 @@ public:
 	string get_error_path();
 	vector<string> list_from_marker(string&, char);
 	string load(string);
+	string wload(wstring);
 	string parent_from_marker(string&, char);
 	void set_error_path(string);
 	string timestamper();

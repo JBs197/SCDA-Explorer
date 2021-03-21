@@ -49,7 +49,7 @@ private slots:
     void on_pB_cancel_clicked();
     void on_TW_cataindb_itemSelectionChanged();
     void on_TW_cataondrive_itemSelectionChanged();
-    void on_GID_list_itemSelectionChanged();
+    void on_GID_tree_itemSelectionChanged();
     void on_pB_viewtable_clicked();
     void on_pB_removecata_clicked();
 
@@ -103,7 +103,6 @@ private:
     int create_insert_csv_table(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
     int create_insert_csv_subtables(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
     void insert_damaged_row(vector<string>&, string, string&, int);
-    void create_insert_region_tables(vector<string>&, SWITCHBOARD&, int);
     static int sql_callback(void*, int, char**, char**);
     vector<vector<string>> step(sqlite3*&, sqlite3_stmt*);
     vector<string> step_1(sqlite3*&, sqlite3_stmt*);
@@ -116,7 +115,6 @@ private:
     vector<string> all_tables();
     void scan_drive(SWITCHBOARD&, int, QVector<QTreeWidgetItem*>&);
     bool table_exist(string&);
-    int load_geo(vector<vector<string>>&, string&, string&);
     void delete_cata(sqlite3*&, SWITCHBOARD&, int, string);
     void auto_expand(QTreeWidget*&, int);
     vector<int> get_indent_list(vector<string>&, char);
@@ -212,7 +210,11 @@ private:
         }
         exit(EXIT_FAILURE);
     }
-    template<typename S> void errnum(S, int) {}
+    template<typename S> void errnum(S, int bbq) 
+    {
+        int barbecue = bbq;
+        barbecue++;
+    }
     template<> void errnum<string>(string func, int error)
     {
         string spath = sroots[location] + "\\SCDA Error Log.txt";

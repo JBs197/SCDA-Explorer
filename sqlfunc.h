@@ -6,6 +6,8 @@
 #include <fstream>
 #include <sqlite3.h>
 #include "jfunc.h"
+#include <QElapsedTimer>
+#include <QDebug>
 
 using namespace std;
 
@@ -34,6 +36,7 @@ public:
     string insert_stmt(string, vector<string>&, vector<string>&);
     void safe_col(string, int);
     void select_tree(string, vector<vector<int>>&, vector<string>&);
+    vector<string> select_years();
     void set_error_path(string);
     int tg_max_param();
 

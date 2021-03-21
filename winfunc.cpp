@@ -6,6 +6,18 @@ void WINFUNC::err(string func)
 {
 	jfwin.err(func);
 }
+string WINFUNC::get_exec_dir()
+{
+	string exec_path;
+	LPSTR bufferA = new CHAR[500];
+	DWORD slength = GetModuleFileNameA(NULL, bufferA, 500);
+	if (slength == 0) { winerr("GetModuleFileName-wf.get_exec_path"); }
+	exec_path.assign(bufferA, slength);
+	delete[] bufferA;
+	size_t pos1 = exec_path.rfind('\\');
+	string exec_dir = exec_path.substr(0, pos1);
+	return exec_dir;
+}
 string WINFUNC::get_exec_path()
 {
 	string exec_path;
