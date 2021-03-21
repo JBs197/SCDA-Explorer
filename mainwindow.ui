@@ -107,7 +107,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="GID">
      <attribute name="title">
@@ -147,26 +147,11 @@
       </property>
      </widget>
     </widget>
-    <widget class="QWidget" name="Tables">
-     <attribute name="title">
-      <string>Tables (List)</string>
-     </attribute>
-     <widget class="QListWidget" name="Tables_list">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>371</width>
-        <height>451</height>
-       </rect>
-      </property>
-     </widget>
-    </widget>
     <widget class="QWidget" name="Tree">
      <attribute name="title">
-      <string>Tables (Tree)</string>
+      <string>CSV Structure</string>
      </attribute>
-     <widget class="QTreeWidget" name="TW_tablesindb">
+     <widget class="QTreeWidget" name="treeW_csvtree">
       <property name="geometry">
        <rect>
         <x>0</x>

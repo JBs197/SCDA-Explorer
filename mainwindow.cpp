@@ -1586,7 +1586,6 @@ void MainWindow::on_pB_viewcata_clicked()
     string syear = qyear.toStdString();
     QString qname = cata_to_do[0]->text(1);
     string sname = qname.toStdString();
-    vector<string> gid_list;
     QList<QStringList> qlistviews;
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report]
@@ -1595,13 +1594,13 @@ void MainWindow::on_pB_viewcata_clicked()
     viewcata_data.resize(2);
     viewcata_data[0] = syear;
     viewcata_data[1] = sname;
-    vector<vector<int>> tree_st;
-    vector<string> tree_pl;
+    vector<vector<vector<int>>> tree_st2;  // Form [region or general tree][pl_index][ancestors, node, children].
+    vector<vector<string>> tree_pl2;  // Form [region or general tree][pl_index].
     vector<string> prompt = { syear, sname };
     int error = sb.start_call(myid, comm[0], sb_index, "Display Catalogue");
     if (error) { errnum("start_call-pB_viewcata_clicked", error); }
     sb.set_prompt(myid, prompt);
-    std::thread dispcata(&MainWindow::display_catalogue, this, ref(sf), ref(sb), sb_index, ref(gid_list), ref(qlistviews), ref(tree_st), ref(tree_pl));
+    std::thread dispcata(&MainWindow::display_catalogue, this, ref(sf), ref(sb), sb_index, ref(qlistviews), ref(tree_st2), ref(tree_pl2));
     while (1)
     {
         Sleep(gui_sleep);
@@ -1635,49 +1634,36 @@ void MainWindow::on_pB_viewcata_clicked()
     if (error) { errnum("end_call-pB_viewcata_clicked", error); }
     
     ui->GID_tree->clear();
-    //ui->GID_list->addItems(qlistviews[0]);
+    qf.display(ui->GID_tree, tree_st2[0], tree_pl2[0]);
     ui->Rows_list->clear();
-    ui->Rows_list->addItems(qlistviews[1]);
-    ui->Tables_list->clear();
-    ui->Tables_list->addItems(qlistviews[2]);
-    ui->TW_tablesindb->clear();
-    qf.display(ui->TW_tablesindb, tree_st, tree_pl);
+    ui->Rows_list->addItems(qlistviews[0]);
+    ui->treeW_csvtree->clear();
+    qf.display(ui->treeW_csvtree, tree_st2[1], tree_pl2[1]);
 
-    viewcata_gid_list = gid_list;
     log("Displayed catalogue " + sname + " on the GUI.");
 }
-void MainWindow::display_catalogue(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index, vector<string>& gid_list, QList<QStringList>& qlistviews, vector<vector<int>>& tree_st, vector<string>& tree_pl)
+void MainWindow::display_catalogue(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index, QList<QStringList>& qlistviews, vector<vector<vector<int>>>& tree_st2, vector<vector<string>>& tree_pl2)
 {
     JFUNC jf;
     sqlite3_stmt* state;
-    vector<int> comm = { 0, 0, 4 };
+    vector<int> comm(comm_length, 0);
+    comm[3] = 3;
     thread::id myid = this_thread::get_id();
     sb.answer_call(myid, comm, sb_index);
     vector<string> prompt = sb.get_prompt(myid);  // syear, sname.
 
     // Populate the 'Geographic Region' tree tab.
-    vector<string> vtemp = { "GID", "Geography" };
-    vector<vector<string>> results;
-    int geo_size = load_geo(results, prompt[0], prompt[1]);
-
-
-    sf.select(vtemp, prompt[1], results);
-    QStringList geo_list;
-    QString qtemp;
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        gid_list.push_back(results[ii][0]);
-        qtemp = QString::fromStdString(results[ii][1]);
-        geo_list.append(qtemp);
-    }
-    qlistviews.append(geo_list);
+    string tname = "TG_Region$" + prompt[1];
+    sf.select_tree(tname, tree_st2[0], tree_pl2[0]);
     comm[1]++;
     sb.update(myid, comm);
 
     // Populate the 'Row Data' tab.
-    string gid = gid_list[0];
-    string tname = prompt[1] + "$" + gid;
-    vtemp = { "*" };
+    vector<vector<string>> results;
+    QString qtemp;
+    string gid = tree_pl2[0][0];
+    tname = prompt[1] + "$" + gid;
+    vector<string> vtemp = { "*" };
     sf.select(vtemp, tname, results);
     QStringList row_list;
     for (int ii = 0; ii < results.size(); ii++)
@@ -1689,28 +1675,10 @@ void MainWindow::display_catalogue(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index, v
     comm[1]++;
     sb.update(myid, comm);
 
-    // Populate the 'Tables' tab. Display only the tables with this catalogue as param1.
-    tname = "TGenealogy";
-    vtemp = { "Name", "param1" };
-    results.clear();
-    sf.select(vtemp, tname, results);
-    QStringList qtable_list;
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        if (results[ii][1] == prompt[1])
-        {
-            qtemp = QString::fromStdString(results[ii][0]);
-            qtable_list.append(qtemp);
-        }
-    }
-    qlistviews.append(qtable_list);
-    comm[1]++;
-    sb.update(myid, comm);
-
-    // Populate the 'Tables as a Tree' tab.
+    // Populate the 'CSV Structure' tab.
     QElapsedTimer timer;
     timer.start();
-    sf.select_tree(prompt[1], tree_st, tree_pl);
+    sf.select_tree(tname, tree_st2[1], tree_pl2[1]);
     comm[1]++;
     sb.update(myid, comm);
     qDebug() << "select_tree: " << timer.restart();
@@ -1807,24 +1775,31 @@ void MainWindow::on_pB_viewtable_clicked()
     ui->treeW_subtables->clear();
     int tab_index = ui->tabW_results->currentIndex();
     int row;
-    string gid, tname;
+    string gid, tname, row_title;
     QList<QListWidgetItem*> qcurrent;
     QList<QTreeWidgetItem*> qcurrent2;
+    QTreeWidgetItem* qitem;
     QString qtemp;
 
     // Obtain the table name.
     switch (tab_index)
     {
     case 0:
-        //row = ui->GID_tree->currentRow();
-        gid = viewcata_gid_list[row];
+        qcurrent2 = ui->GID_tree->selectedItems();
+        qtemp = qcurrent2[0]->text(0);
+        gid = qtemp.toStdString();
         tname = viewcata_data[1] + "$" + gid;
         break;
 
-    case 2:
-        qcurrent = ui->Tables_list->selectedItems();
+    case 1:
+        qcurrent = ui->Rows_list->selectedItems();
         qtemp = qcurrent[0]->text();
-        tname = qtemp.toStdString();
+        row_title = qtemp.toStdString();
+        qitem = ui->GID_tree->itemAt(1, 1);
+        qtemp = qitem->text(0);
+        qDebug() << "Value from arbitrary GID chosen: " << qtemp;
+        gid = qtemp.toStdString();
+        tname = qtemp.toStdString();  // RESUME HERE. Need to insert missing middle links for tname.
         break;
 
     case 3:

@@ -162,12 +162,88 @@ int SQLFUNC::sclean(string& bbq, int mode)
 void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl)
 {
     // Produce a tree structure and tree payload for the given table name as root. 
+    vector<string> tname_params = jfsql.list_from_marker(tname, '$');
+    vector<vector<string>> results;
+    unordered_map<string, int> registry;
+    vector<int> orphans, ivtemp;
+    vector<string> vtemp;
+    string temp, sparent, stmt;
+    int pl_index, iparent, pivot, inum;
+    tree_pl.clear();
+    tree_st.clear();
+
+    if (tname_params[1] == "TG_Region")
+    {
+        stmt = "SELECT * FROM [" + tname + "]";
+        executor(stmt, results);
+        tree_pl.resize(results.size());
+        tree_st.resize(results.size());
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            tree_pl[ii] = results[ii][1];
+            registry.emplace(results[ii][0], ii);  // Input gid as string, output pl_index.
+            for (int jj = 2; jj < results[ii].size(); jj++)
+            {
+                try
+                {
+                    iparent = registry.at(results[ii][jj]);
+                    tree_st[ii].push_back(iparent);
+                }
+                catch (out_of_range& oor)
+                {
+                    orphans.push_back(ii);
+                    tree_st[ii].clear();
+                    iparent = -1;
+                    break;
+                }
+            }
+            tree_st[ii].push_back(-1 * ii);
+            if (iparent >= 0)
+            {
+                tree_st[iparent].push_back(ii);
+            }
+        }
+
+        while (orphans.size() > 0)
+        {
+            for (int ii = 0; ii < orphans.size(); ii++)
+            {
+                pl_index = orphans[ii];
+                ivtemp.clear();
+                for (int jj = 2; jj < results[pl_index].size(); jj++)
+                {
+                    try
+                    {
+                        iparent = registry.at(results[pl_index][jj]);
+                        ivtemp.push_back(iparent);
+                    }
+                    catch (out_of_range& oor)
+                    {
+                        for (int kk = 0; kk < tree_st[pl_index].size(); kk++)
+                        {
+                            if (tree_st[pl_index][kk] < 0)
+                            {
+                                break;
+                            }
+                            tree_st[pl_index].erase(tree_st[pl_index].begin() + kk);
+                            kk--;
+                        }
+                        break;
+                    }
+                }
+                tree_st[pl_index].insert(tree_st[pl_index].begin(), ivtemp.begin(), ivtemp.end());
+                orphans.erase(orphans.begin() + ii);
+                ii--;
+            }
+        }
+
+        return;
+    }
+
     QElapsedTimer timer;
     timer.start();
-    string temp, sparent;
-    vector<string> tname_params = jfsql.list_from_marker(tname, '$');
     int num_params = tname_params.size() - 1;
-    string stmt = "SELECT * FROM TGenealogy WHERE (";
+    stmt = "SELECT * FROM TGenealogy WHERE (";
     for (int ii = 1; ii < tname_params.size(); ii++)
     {
         stmt += "param" + to_string(ii) + " = '" + tname_params[ii] + "'";
@@ -180,7 +256,6 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
             stmt += ");";
         }
     }
-    vector<vector<string>> results;
     executor(stmt, results);
     qDebug() << "Select * from TG where... : " << timer.restart();
 
@@ -205,11 +280,7 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
         param_groups[params - 1].push_back(ii);
     }
 
-    unordered_map<string, int> registry;
-    int pl_index, iparent, pivot;
     size_t pos1;
-    tree_pl.clear();
-    tree_st.clear();
     timer.restart();
     for (int ii = 0; ii < param_groups.size(); ii++)
     {
