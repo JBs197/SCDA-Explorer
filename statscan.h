@@ -13,11 +13,12 @@ class STATSCAN
 	string cata_name;
 	string cata_desc;
 	bool multi_column;
+
 	vector<string> gid_list;
 	vector<string> csv_branches;
 	vector<vector<string>> text_vars;
 	vector<string> column_titles;
-	vector<vector<string>> rows;  // Form [row_index][row title, row val1, row val2, ...].
+	vector<vector<string>> rows;  // Form [row_index][indented row title, row val1, row val2, ...].
 	vector<string> linearized_titles;
 	vector<vector<int>> csv_tree;  // Form [row_index][ancestor1's row_index, ... , (neg) row_index, child1's row_index, ...].
 	vector<string> subtable_names_template;  // Has '!!!' for GID. Otherwise, is complete.
@@ -46,6 +47,7 @@ public:
 	vector<string> get_column_titles();
 	string get_create_csv_table_template();
 	vector<vector<int>> get_csv_tree();
+	string get_gid(int);
 	vector<string> get_gid_list();
 	string get_insert_csv_row_template();
 	string get_insert_primary_template();
@@ -58,13 +60,12 @@ public:
 	string make_create_csv_table_template(vector<string>&);
 	void make_insert_csv_row_statement(string&, string, vector<string>&);
 	string make_insert_csv_row_template(vector<string>&);
-	vector<string> make_insert_csv_subtable_statements(string, vector<vector<int>>&, vector<vector<string>>&);
 	string make_insert_damaged_csv(string, string, int);
 	void make_insert_primary_statement(string&, string, vector<vector<string>>&, vector<vector<string>>&);
 	string make_insert_primary_template(string, vector<vector<string>>&, vector<string>&);
 	string make_subtable_name(int&, string, string, vector<int>&, vector<string>&);
-	string make_tg_insert_statement(vector<string>&);
 	int make_tgr_statements(vector<string>&, string, string);
+	int make_tgrow_statements(vector<string>&);
 
 
 	// TEMPLATES
@@ -150,7 +151,7 @@ public:
 		}
 		return subtable_list;
 	}
-	template<> vector<string> make_subtable_names_template<vector<vector<string>>>(string cata_name, int& tg_max, vector<vector<int>>& tree_st, vector<vector<string>>& rows)
+	template<> vector<string> make_subtable_names_template<vector<vector<string>>>(string cata_name, int& tg_row_col, vector<vector<int>>& tree_st, vector<vector<string>>& rows)
 	{
 		vector<string> tree_pl(rows.size());
 		for (int ii = 0; ii < rows.size(); ii++)
@@ -159,7 +160,7 @@ public:
 		}
 
 		vector<string> subtable_list;
-		tg_max = 0;
+		tg_row_col = 0;
 		int num_param, pos;
 		string tname;
 		for (int ii = 0; ii < tree_st.size(); ii++)
@@ -182,7 +183,7 @@ public:
 			if (pos < tree_st[ii].size() - 1)
 			{
 				tname = make_subtable_name(num_param, cata_name, "!!!", tree_st[ii], tree_pl);
-				if (num_param > tg_max) { tg_max = num_param; }
+				if (tg_row_col <= num_param) { tg_row_col = num_param + 1; }
 				subtable_list.push_back(tname);
 			}
 		}

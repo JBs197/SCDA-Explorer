@@ -47,11 +47,12 @@ private slots:
     void on_pB_test_clicked();
     void on_pB_viewcata_clicked();
     void on_pB_cancel_clicked();
-    void on_TW_cataindb_itemSelectionChanged();
-    void on_TW_cataondrive_itemSelectionChanged();
+    void on_treeW_cataindb_itemSelectionChanged();
+    void on_treeW_cataondrive_itemSelectionChanged();
     void on_GID_tree_itemSelectionChanged();
     void on_pB_viewtable_clicked();
     void on_pB_removecata_clicked();
+    void on_tabW_catalogues_currentChanged(int);
 
 private:
     Ui::MainWindow *ui;
@@ -74,7 +75,6 @@ private:
     QString qdrive;
     string db_path;
     vector<mutex> m_jobs;
-    QMutex m_job;
     mutex m_io, m_bar, m_geo;
     vector<string> sroots = { "F:", "D:" };
     vector<wstring> wroots = { L"F:", L"D:" }; //  NOTE: REMOVE HARDCODING LATER.
@@ -84,9 +84,6 @@ private:
     QMap<QString, int> map_tree_cata;  // For a given qname, return that cata_tree index.
     vector<string> viewcata_data;  // Hold essential information for the catalogue being viewed. Form [syear, sname].
     vector<string> viewcata_gid_list;
-    void build_ui_tree(QVector<QVector<QVector<QString>>>&, int);
-    QVector<QTreeWidgetItem*> build_ui_tree_temp(QVector<QVector<QVector<QString>>>&, int);
-    void add_children(QTreeWidgetItem*, QVector<QVector<QString>>&);
     void clear_log();
     void update_bar();
     void reset_bar(int, string);
@@ -95,29 +92,23 @@ private:
     void update_text_vars(QVector<QVector<QString>>&, QString&);
     void update_cata_tree();
     void create_cata_index_table();
+    void create_damaged_table();
     void all_cata_db(QVector<QVector<QVector<QString>>>&, QMap<QString, int>&);
     vector<string> scan_incomplete_cata(string, string);
-    void judicator(SQLFUNC&, SWITCHBOARD&, int);
-    void insert_csvs(vector<vector<string>>&, SWITCHBOARD&, int, STATSCAN&, vector<int>);
-    int insert_primary_row(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&, vector<vector<string>>&);
-    int create_insert_csv_table(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
-    int create_insert_csv_subtables(vector<string>&, CATALOGUE&, string&, vector<vector<string>>&);
-    void insert_damaged_row(vector<string>&, string, string&, int);
+    void judicator(SQLFUNC&, SWITCHBOARD&, int, WINFUNC&);
+    void insert_csvs(vector<vector<string>>&, SWITCHBOARD&, int, STATSCAN&);
     static int sql_callback(void*, int, char**, char**);
     vector<vector<string>> step(sqlite3*&, sqlite3_stmt*);
-    vector<string> step_1(sqlite3*&, sqlite3_stmt*);
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
     vector<string> missing_gids(sqlite3*&, int, string, string);
     void display_catalogue(SQLFUNC&, SWITCHBOARD&, int, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
-    void display_region(sqlite3*&, vector<int>&, string, int);
-    void view_region(sqlite3*&, vector<int>&, int);
     vector<string> all_tables();
-    void scan_drive(SWITCHBOARD&, int, QVector<QTreeWidgetItem*>&);
-    bool table_exist(string&);
+    void scan_drive(SWITCHBOARD&, int, WINFUNC&, QList<QTreeWidgetItem*>&);
     void delete_cata(sqlite3*&, SWITCHBOARD&, int, string);
     void auto_expand(QTreeWidget*&, int);
     vector<int> get_indent_list(vector<string>&, char);
+    void update_treeW_cataindb();
 
 
     // TEMPLATES

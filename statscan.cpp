@@ -18,10 +18,10 @@ int STATSCAN::cata_init(string& sample_csv)
     insert_csv_row_template = make_insert_csv_row_template(column_titles);
 
     jf_sc.tree_from_indent(csv_tree, rows);
-    int max_param;
-    subtable_names_template = make_subtable_names_template(cata_name, max_param, csv_tree, rows);
+    int tg_row_col;
+    subtable_names_template = make_subtable_names_template(cata_name, tg_row_col, csv_tree, rows);
 
-    return max_param;
+    return tg_row_col;
 }
 void STATSCAN::err(string func)
 {
@@ -264,6 +264,10 @@ vector<vector<int>> STATSCAN::get_csv_tree()
 {
     return csv_tree;
 }
+string STATSCAN::get_gid(int index)
+{
+    return gid_list[index];
+}
 vector<string> STATSCAN::get_gid_list()
 {
     return gid_list;
@@ -419,10 +423,9 @@ string STATSCAN::make_create_csv_table_template(vector<string>& column_titles)
 
 string STATSCAN::make_insert_damaged_csv(string cata_name, string gid, int damaged_val)
 {
-    string tname = cata_name + "$Damaged";
-    string stmt = "INSERT INTO [" + tname + "] (GID, [Number of Missing Data Entries]) ";
-    stmt += "VALUES (?, ?);";
-    vector<string> param = { gid, to_string(damaged_val) };
+    string stmt = "INSERT OR IGNORE INTO TDamaged ([Catalogue Name], GID, [Number of Errors]) ";
+    stmt += "VALUES (?, ?, ?);";
+    vector<string> param = { cata_name, gid, to_string(damaged_val) };
     jf_sc.bind(stmt, param);
     return stmt;
 }
@@ -449,77 +452,6 @@ string STATSCAN::make_insert_csv_row_template(vector<string>& column_titles)
     stmt.erase(stmt.size() - 2, 2);
     stmt += ");";
     return stmt;
-}
-vector<string> STATSCAN::make_insert_csv_subtable_statements(string gid, vector<vector<int>>& tree_st, vector<vector<string>>& rows)
-{
-    vector<string> tree_pl(rows.size());
-    for (int ii = 0; ii < rows.size(); ii++)
-    {
-        tree_pl[ii] = rows[ii][0];
-    }
-
-    vector<string> stmts, vtemp;
-    int num_param, pos, child;
-    vector<int> children;
-    string tname, stmt0, stmt;
-    for (int ii = 0; ii < tree_st.size(); ii++)
-    {
-        // Locate this node's position within its tree vector.
-        children.clear();
-        for (int jj = 0; jj < tree_st[ii].size(); jj++)
-        {
-            if (tree_st[ii][jj] < 0)
-            {
-                pos = jj;
-                break;
-            }
-            else if (jj == tree_st[ii].size() - 1)
-            {
-                pos = 0;
-            }
-        }
-
-        // Determine this node's children.
-        for (int jj = pos + 1; jj < tree_st[ii].size(); jj++)
-        {
-            children.push_back(tree_st[ii][jj]);
-        }
-
-        // If this node is a parent, generate insert statements for it and its children.
-        if (children.size() > 0)
-        {
-            tname = make_subtable_name(num_param, cata_name, gid, tree_st[ii], tree_pl);
-
-            stmt0 = "INSERT INTO [" + tname + "] (";
-            for (int jj = 0; jj < column_titles.size(); jj++)
-            {
-                stmt0 += "[" + column_titles[jj] + "], ";
-            }
-            stmt0.erase(stmt0.size() - 2, 2);
-            stmt0 += ") VALUES (";
-            for (int jj = 0; jj < column_titles.size(); jj++)
-            {
-                stmt0 += "?, ";
-            }
-            stmt0.erase(stmt0.size() - 2, 2);
-            stmt0 += ");";
-
-            stmt = stmt0;
-            vtemp.assign(rows[ii].begin(), rows[ii].end());
-            jf_sc.bind(stmt, vtemp);
-            stmts.push_back(stmt);
-
-            for (int jj = 0; jj < children.size(); jj++)
-            {
-                child = children[jj];
-                stmt = stmt0;
-                vtemp.assign(rows[child].begin(), rows[child].end());
-                jf_sc.bind(stmt, vtemp);
-                stmts.push_back(stmt);
-            }
-        }
-    }
-    return stmts;
 }
 void STATSCAN::make_insert_primary_statement(string& stmt0, string gid, vector<vector<string>>& text_vars, vector<vector<string>>& rows)
 {
@@ -594,31 +526,12 @@ string STATSCAN::make_subtable_name(int& num_param, string cata_name, string gid
     num_param = max_param + 1;
     return tname;
 }
-string STATSCAN::make_tg_insert_statement(vector<string>& row)
-{
-    string stmt = "INSERT INTO TGenealogy (Name, ";
-    string temp;
-    for (int ii = 1; ii < row.size(); ii++)
-    {
-        temp = "param" + to_string(ii);
-        stmt += temp + ", ";
-    }
-    stmt.erase(stmt.size() - 2, 2);
-    stmt += ") VALUES (";
-    for (int ii = 0; ii < row.size(); ii++)
-    {
-        temp = "'" + row[ii] + "'";
-        stmt += temp + ", ";
-    }
-    stmt.erase(stmt.size() - 2, 2);
-    stmt += ");";
-    return stmt;
-}
 int STATSCAN::make_tgr_statements(vector<string>& tgr_stmts, string syear, string sname)
 {
     // For a given catalogue, read its local 'geo list' bin file, then make all statements
     // to add a complete TG_Region table to the database. Tree structure contained in param columns.
-    // Tables have name  TG_Region$cata_name  and form { GID PRIMARY, Region Name, gid0, gid1, ... }
+    // Tables have name  TG_Region$cata_name  and form { GID PRIMARY, Region Name, param2, param3, ... }
+    // The list of params is the ancestry of this region, in order of trunk->leaf.
     // Returned integer is the max number of columns in the table. 
     // NOTE: The first statement in the vector must be executed BEFORE declaring a transaction !
 
@@ -679,9 +592,9 @@ int STATSCAN::make_tgr_statements(vector<string>& tgr_stmts, string syear, strin
     vtemp.clear();
     string stmt = "CREATE TABLE IF NOT EXISTS [TG_Region$" + sname + "] (GID INTEGER PRIMARY KEY, ";
     stmt += "[Region Name] TEXT, ";
-    for (int ii = 0; ii < num_col - 2; ii++)
+    for (int ii = 2; ii < num_col; ii++)
     {
-        temp = "gid" + to_string(ii);
+        temp = "param" + to_string(ii);
         vtemp.push_back(temp);
         stmt += temp + " INT, ";
     }
@@ -716,7 +629,81 @@ int STATSCAN::make_tgr_statements(vector<string>& tgr_stmts, string syear, strin
     }
     return num_col;
 }
+int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
+{
+    // For a given catalogue, scan its sample CSV file, then make all statements
+    // to add a complete TG_Row table to the database. Tree structure contained in param columns.
+    // Tables have name  TG_Row$cata_name  and form { Row Index, Row Title, param2, param3, ... }
+    // The list of params is the ancestry of this row, in order of trunk->leaf.
+    // Returned integer is the max number of columns in the table. 
+    // NOTE: The first statement in the vector must be executed BEFORE declaring a transaction !
 
+    int num_rows = rows.size();
+    if (num_rows == 0) { err("Cannot sc.make_tgrow_statements before sc.cata_init"); }
+    vector<vector<string>> tgrow(num_rows, vector<string>());
+    vector<string> hall_of_fame;
+    string temp, row;
+    int indent;
+    int tg_row_col = 0;
+    for (int ii = 0; ii < num_rows; ii++)
+    {
+        row = rows[ii][0];
+        indent = 0;
+        while (row[0] == '+')
+        {
+            indent++;
+            row.erase(row.begin());
+        }
+        while (hall_of_fame.size() <= indent)
+        {
+            hall_of_fame.push_back(row);
+        }
+        hall_of_fame[indent] = row;
+        tgrow[ii].push_back(row);
+        for (int jj = 0; jj < indent; jj++)
+        {
+            tgrow[ii].push_back(hall_of_fame[jj]);
+        }
+        if (tg_row_col < indent + 2)
+        {
+            tg_row_col = indent + 2;
+        }
+    }
+
+    tgrow_stmts.resize(num_rows + 1);
+    string stmt = "CREATE TABLE IF NOT EXISTS [TG_Row$" + cata_name + "] (";
+    stmt += "[Row Index] INTEGER PRIMARY KEY, [Row Title] TEXT, ";
+    for (int ii = 2; ii < tg_row_col; ii++)
+    {
+        temp = "param" + to_string(ii);
+        stmt += temp + " TEXT, ";
+    }
+    stmt.erase(stmt.size() - 2, 2);
+    stmt += ");";
+    tgrow_stmts[0] = stmt;
+
+    for (int ii = 0; ii < num_rows; ii++)
+    {
+        stmt = "INSERT OR IGNORE INTO [TG_Row$" + cata_name + "] ([Row Index], [Row Title], ";
+        for (int jj = 2; jj <= tgrow[ii].size(); jj++)
+        {
+            temp = "param" + to_string(jj);
+            stmt += temp + ", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += ") VALUES (" + to_string(ii) + ", ";
+        for (int jj = 0; jj < tgrow[ii].size(); jj++)
+        {
+            sclean(tgrow[ii][jj], 1);
+            stmt += "'" + tgrow[ii][jj] + "', ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += ");";
+        tgrow_stmts[ii + 1] = stmt;
+    }
+
+    return tg_row_col;
+}
 int STATSCAN::sclean(string& sval, int mode)
 {
     int count = 0;

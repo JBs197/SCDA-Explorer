@@ -28,11 +28,12 @@ public:
 	string bind(string&, vector<string>&);
 	void err(string);
 	string get_error_path();
+	void isort_slist(vector<string>&);
 	vector<string> list_from_marker(string&, char);
 	string load(string);
 	string wload(wstring);
 	string parent_from_marker(string&, char);
-	void set_error_path(string);
+	void quicksort(vector<int>&, int, int);
 	string timestamper();
 	int tree_from_marker(vector<vector<int>>&, vector<string>&);
 	string utf16to8(wstring);

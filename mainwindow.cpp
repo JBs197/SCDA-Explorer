@@ -69,13 +69,10 @@ void MainWindow::initialize()
 
     // Create (if necessary) these system-wide tables. 
     create_cata_index_table();  
-    vector<string> tg_titles = { "Name", "param1" };
-    vector<int> tg_types = { 0, 0 };
-    sf.create_table("TGenealogy", tg_titles, tg_types);
-    sf.tg_max_param();  // To update the internal value.
+    create_damaged_table();
     
-    update_cata_tree();  // The cata_tree matrix is kept in QString form, given its proximity to the GUI.
-    build_ui_tree(cata_tree, 2);
+    update_treeW_cataindb();
+    ui->tabW_catalogues->setCurrentIndex(0);
     vector<mutex> dummy(cores);
     m_jobs.swap(dummy);
 
@@ -215,23 +212,6 @@ vector<string> MainWindow::extract_gids(string cata_path)
 
     FindClose(hfile);
     return gids;
-}
-
-// Returns TRUE or FALSE as to the existance of a given table within the database.
-bool MainWindow::table_exist(string& tname)
-{
-    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
-    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
-    if (error) { sqlerror("prepare-table_exist", db); }
-    vector<vector<string>> results = step(db, statement);
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        if (tname == results[ii][0])
-        {
-            return 1;
-        }
-    }
-    return 0;
 }
 
 // For a given incomplete catalogue, determine its existing CSV entries and return a list of missing GIDs.
@@ -421,49 +401,7 @@ vector<vector<string>> MainWindow::step(sqlite3*& db, sqlite3_stmt* state)
     }
     return results;
 }
-vector<string> MainWindow::step_1(sqlite3*& db, sqlite3_stmt* state)
-{
-    // This function variant returns only the first row of the SELECT command.
-    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
-    int error = sqlite3_step(state);
-    int ivalue;
-    double dvalue;
-    string svalue;
-    vector<string> results;
 
-    if (error == 100)
-    {
-        col_count = sqlite3_column_count(state);
-        results.resize(col_count);
-        for (int ii = 0; ii < col_count; ii++)
-        {
-            type = sqlite3_column_type(state, ii);
-            switch (type)
-            {
-            case 1:
-                ivalue = sqlite3_column_int(state, ii);
-                results[ii] = to_string(ivalue);
-                break;
-            case 2:
-                dvalue = sqlite3_column_double(state, ii);
-                results[ii] = to_string(dvalue);
-                break;
-            case 3:
-                size = sqlite3_column_bytes(state, ii);
-                char* buffer = (char*)sqlite3_column_text(state, ii);
-                svalue.assign(buffer, size);
-                results[ii] = svalue;
-                break;
-            }
-        }
-        return results;
-    }
-    else if (error > 0 && error != 101)
-    {
-        sqlerror("step1: " + to_string(error), db);
-    }
-    return results;
-}
 
 // Return a list of all tables in the database.
 vector<string> MainWindow::all_tables()
@@ -537,104 +475,15 @@ void MainWindow::create_cata_index_table()
 {
     string stmt = "CREATE TABLE IF NOT EXISTS TCatalogueIndex (Year TEXT, ";
     stmt += "Name TEXT, Description TEXT);";
-    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
-    if (error) { sqlerror("prepare-create_cata_index_table", db); }
-    step(db, statement);
+    sf.executor(stmt);
+}
+void MainWindow::create_damaged_table()
+{
+    string stmt = "CREATE TABLE IF NOT EXISTS TDamaged ([Catalogue Name] TEXT, ";
+    stmt += "GID INT, [Number of Errors] INT);";
+    sf.executor(stmt);
 }
 
-// For a prepared matrix of QString data, display it on the GUI as a 2D tree widget (year -> cata entry).
-void MainWindow::build_ui_tree(QVector<QVector<QVector<QString>>>& qtree, int window)
-{
-    QTreeWidgetItem* item;
-    QVector<QTreeWidgetItem*> qroots;
-    switch (window)  // Window:  1 = Catalogues on Drive, 2 = Catalogues in Database
-    {
-    case 1:
-        ui->TW_cataondrive->clear();
-        for (int ii = 0; ii < qtree.size(); ii++)
-        {
-            item = new QTreeWidgetItem(ui->TW_cataondrive);  // For every year, make a root pointer.
-            item->setText(0, qtree[ii][0][0]);
-            item->setText(1, " ");
-            auto item_flags = item->flags();
-            item_flags.setFlag(Qt::ItemIsSelectable, false);
-            item->setFlags(item_flags);
-            qroots.append(item);
-            add_children(item, qtree[ii]);
-        }
-        ui->TW_cataondrive->addTopLevelItems(qroots);
-        break;
-    case 2:
-        ui->TW_cataindb->clear();
-        for (int ii = 0; ii < qtree.size(); ii++)
-        {
-            item = new QTreeWidgetItem(ui->TW_cataindb);  // For every year, make a root pointer.
-            item->setText(0, qtree[ii][0][0]);
-            item->setText(1, " ");
-            item->setText(2, " ");
-            auto item_flags = item->flags();
-            item_flags.setFlag(Qt::ItemIsSelectable, false);
-            item->setFlags(item_flags);
-            qroots.append(item);
-            add_children(item, qtree[ii]);
-        }
-        ui->TW_cataindb->addTopLevelItems(qroots);
-        break;
-    }
-}
-void MainWindow::add_children(QTreeWidgetItem* parent, QVector<QVector<QString>>& cata_list)
-{
-    QList<QTreeWidgetItem*> branch;
-    QTreeWidgetItem* item;
-    for (int ii = 0; ii < cata_list.size(); ii++)  // For every catalogue in the list...
-    {
-        item = new QTreeWidgetItem();
-        for (int jj = 0; jj < cata_list[ii].size(); jj++)  // For every column we want to display...
-        {
-            item->setText(jj, cata_list[ii][jj]);
-        }
-        branch.append(item);
-    }
-    parent->addChildren(branch);
-}
-QVector<QTreeWidgetItem*> MainWindow::build_ui_tree_temp(QVector<QVector<QVector<QString>>>& qtree, int window)
-{
-    QTreeWidgetItem* item;
-    QVector<QTreeWidgetItem*> qroots;
-    switch (window)  // Window:  1 = Catalogues on Drive, 2 = Catalogues in Database
-    {
-    case 1:
-        ui->TW_cataondrive->clear();
-        for (int ii = 0; ii < qtree.size(); ii++)
-        {
-            item = new QTreeWidgetItem(ui->TW_cataondrive);  // For every year, make a root pointer.
-            item->setText(0, qtree[ii][0][0]);
-            item->setText(1, " ");
-            auto item_flags = item->flags();
-            item_flags.setFlag(Qt::ItemIsSelectable, false);
-            item->setFlags(item_flags);
-            qroots.append(item);
-            add_children(item, qtree[ii]);
-        }
-        break;
-    case 2:
-        ui->TW_cataindb->clear();
-        for (int ii = 0; ii < qtree.size(); ii++)
-        {
-            item = new QTreeWidgetItem(ui->TW_cataindb);  // For every year, make a root pointer.
-            item->setText(0, qtree[ii][0][0]);
-            item->setText(1, " ");
-            item->setText(2, " ");
-            auto item_flags = item->flags();
-            item_flags.setFlag(Qt::ItemIsSelectable, false);
-            item->setFlags(item_flags);
-            qroots.append(item);
-            add_children(item, qtree[ii]);
-        }
-        break;
-    }
-    return qroots;
-}
 
 // If the tree widget has 'max' or fewer elements, then expand those elements in the GUI.
 void MainWindow::auto_expand(QTreeWidget*& qtree, int max)
@@ -683,7 +532,7 @@ void MainWindow::update_text_vars(QVector<QVector<QString>>& text_vars, QString&
     }
 }
 
-// Update the catalogue tree and the tree's maps by reading from the database.
+// Update the catalogue tree widget by checking the database.
 void MainWindow::update_cata_tree()
 {
     cata_tree.clear();
@@ -726,42 +575,69 @@ void MainWindow::update_cata_tree()
 }
 
 
+
+// GUI UPDATE FUNCTIONS
+void MainWindow::update_treeW_cataindb()
+{
+    QList<QTreeWidgetItem*> qlist;
+    QTreeWidgetItem* qitem;
+    string stmt = "SELECT DISTINCT Year FROM TCatalogueIndex;";
+    vector<string> results1;
+    sf.executor(stmt, results1);
+    jf.isort_slist(results1);
+    QString qtemp;
+    unordered_map<string, int> map_year;
+    for (int ii = 0; ii < results1.size(); ii++)
+    {
+        map_year.emplace(results1[ii], ii);
+        qtemp = QString::fromStdString(results1[ii]);
+        qitem = new QTreeWidgetItem();
+        qitem->setText(0, qtemp);
+        qlist.append(qitem);
+    }
+    stmt = "SELECT * FROM TCatalogueIndex;";
+    vector<vector<string>> results;  // Form [catalogue index][syear, sname, desc].
+    sf.executor(stmt, results);
+    int index;
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        index = map_year.at(results[ii][0]);
+        qitem = new QTreeWidgetItem(qlist[index]);
+        qtemp = QString::fromStdString(results[ii][1]);
+        qitem->setText(1, qtemp);
+        qtemp = QString::fromStdString(results[ii][2]);
+        qitem->setText(2, qtemp);
+    }
+    ui->treeW_cataindb->clear();
+    ui->treeW_cataindb->addTopLevelItems(qlist);
+}
+
+
 // GUI-SPECIFIC FUNCTIONS, WITH ASSOCIATED MANAGER AND WORKER FUNCTIONS:
 
 // For the given local drive, display (as a tree widget) the available catalogues, organized by year.
 void MainWindow::on_pB_scan_clicked()
 {
+    if (sdrive.size() < 1)
+    {
+        ui->QL_bar->setText("Choose a local drive before scanning.");
+        return;
+    }
     vector<vector<int>> comm(1, vector<int>());
-    comm[0] = { 0, 0, 0 };  // Form [control, progress, task size].
+    comm[0].assign(comm_length, 0);  // Form [control, progress, task size, max columns].
     thread::id myid = this_thread::get_id();
     int sb_index;
-    QVector<QTreeWidgetItem*> qroots;
+    QList<QTreeWidgetItem*> qroots;
+    vector<string> prompt = { sdrive };
     int error = sb.start_call(myid, comm[0], sb_index, "Scan Drive");
     if (error) { errnum("start_call-pB_scan_clicked", error); }
-    std::thread scan(&MainWindow::scan_drive, this, ref(sb), sb_index, ref(qroots));
+    sb.set_prompt(myid, prompt);
+    std::thread scan(&MainWindow::scan_drive, this, ref(sb), sb_index, ref(wf), ref(qroots));
     while (1)
     {
         Sleep(gui_sleep);
         QCoreApplication::processEvents();
-        comm = sb.update(myid, comm[0]);
-        if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
-        {
-            if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
-            {
-                comm[0][2] = comm[1][2];
-                comm[0][1] = comm[1][1];
-                reset_bar(comm[1][2], "Scanning drive  " + sdrive);  // ... initialize the progress bar.
-                jobs_done = comm[0][1];
-                update_bar();
-            }
-        }
-        else
-        {
-            comm[0][1] = comm[1][1];
-            jobs_done = comm[0][1];
-            update_bar();
-        }
-        
+        comm = sb.update(myid, comm[0]);       
         if (comm[1][0] > 0)
         {
             break;  
@@ -770,379 +646,280 @@ void MainWindow::on_pB_scan_clicked()
     scan.join();
     error = sb.end_call(myid);
     if (error) { errnum("end_call-pB_scan_clicked", error); }
-    ui->TW_cataondrive->addTopLevelItems(qroots);
-    //auto_expand(ui->TW_cataondrive, 20);
+    ui->treeW_cataondrive->addTopLevelItems(qroots);
     ui->tabW_catalogues->setCurrentIndex(1);
     log("Scanned drive " + sdrive + " for catalogues.");
 }
-void MainWindow::scan_drive(SWITCHBOARD& sb, int sb_index, QVector<QTreeWidgetItem*>& qroots)
+void MainWindow::scan_drive(SWITCHBOARD& sb, int sb_index, WINFUNC& wf, QList<QTreeWidgetItem*>& qroots)
 {
-    vector<int> comm = { 0, 0, 1 };
+    vector<int> comm;
     thread::id myid = this_thread::get_id();
     sb.answer_call(myid, comm, sb_index);
+    vector<string> prompt = sb.get_prompt(myid);
 
-    std::vector<std::vector<std::wstring>> wtree = get_subfolders2(wdrive);
-    QVector<QVector<QVector<QString>>> qtree;  // Form [year][catalogue][year, name]
-    wstring wyear, wcata;
-    QString qyear, qcata;
-    size_t pos1, pos2;
-    int iyear;
-    int cata_count = 0;
-
-    // Filter out root folders that are not years.
-    for (int ii = 0; ii < wtree.size(); ii++)
+    // Get a list of catalogue years and names.
+    vector<string> folder_list = wf.get_folder_list(prompt[0], "*");
+    int inum;
+    for (int ii = 0; ii < folder_list.size(); ii++)
     {
-        pos1 = wtree[ii][0].find(L"\\");
-        pos2 = wtree[ii][0].find(L"\\", pos1 + 1);
-        if (pos2 > wtree[ii][0].size())
+        try
         {
-            pos2 = wtree[ii][0].size();
+            inum = stoi(folder_list[ii]);
         }
-        wyear = wtree[ii][0].substr(pos1 + 1, pos2 - pos1 - 1);
-        if (wyear.size() == 4)
+        catch (invalid_argument& ia)
         {
-            try
-            {
-                iyear = stoi(wyear);  // Only folders named as 4-digit numbers are kept.
-                continue;
-            }
-            catch (invalid_argument& ia)
-            {
-                warn(L"stoi-scan_drive");
-            }
+            folder_list.erase(folder_list.begin() + ii);
+            ii--;
         }
-        wtree.erase(wtree.begin() + ii);
-        ii--;
     }
-
-    // Convert the folder/file paths into a GUI-friendly tree. 
-    for (size_t ii = 0; ii < wtree.size(); ii++)  // For every year...
+    vector<string> cata_name;
+    string temp;
+    vector<vector<string>> cata_list;  // Form [catalogue index][syear, sname].
+    for (int ii = 0; ii < folder_list.size(); ii++)
     {
-        qtree.append(QVector<QVector<QString>>());
-        pos1 = wtree[ii][0].find(L"\\");
-        pos1++;
-        pos2 = wtree[ii][0].find(L"\\", pos1);
-        wyear = wtree[ii][0].substr(pos1, pos2 - pos1);
-        qyear = QString::fromStdWString(wyear);
-        cata_count++;  // One space for a year.
-        for (size_t jj = 0; jj < wtree[ii].size(); jj++)  // For every catalogue in that year...
+        temp = sdrive + "\\" + folder_list[ii];
+        cata_name = wf.get_folder_list(temp, "*");
+        for (int jj = 0; jj < cata_name.size(); jj++)
         {
-            pos1 = wtree[ii][jj].find('.');
-            if (pos1 < wtree[ii][jj].size()) { continue; }
-            qtree[ii].append(QVector<QString>());
-            pos1 = wtree[ii][jj].rfind(L"\\");
-            wcata = wtree[ii][jj].substr(pos1 + 1);
-            qcata = QString::fromStdWString(wcata);
-            qtree[ii][qtree[ii].size() - 1].append(qyear);
-            qtree[ii][qtree[ii].size() - 1].append(qcata);
-            cata_count++;
+            temp = sdrive + "\\" + folder_list[ii] + "\\" + cata_name[jj] + "\\";
+            temp += cata_name[jj] + " geo list.bin";
+            if (wf.file_exist(temp))
+            {
+                cata_list.push_back({ folder_list[ii], cata_name[jj] });
+            }
         }
     }
 
-    qroots = build_ui_tree_temp(qtree, 1);  // Window code 1 will populate the 'Catalogues on Drive' section.
+    // Populate the tree widget with the catalogue list.
+    qroots.clear();
+    string syear = "";
+    QString qtemp;
+    QTreeWidgetItem* qitem;
+    for (int ii = 0; ii < cata_list.size(); ii++)
+    {
+        if (cata_list[ii][0] != syear)
+        {
+            inum = qroots.size();
+            syear = cata_list[ii][0];
+            qtemp = QString::fromStdString(syear);
+            qitem = new QTreeWidgetItem();
+            qitem->setText(0, qtemp);
+            qroots.append(qitem);
+        }
+        qtemp = QString::fromStdString(cata_list[ii][1]);
+        qitem = new QTreeWidgetItem(qroots[inum]);
+        qitem->setText(1, qtemp);
+    }
+
     comm[0] = 1;
     comm[1] = 1;
     sb.update(myid, comm);
-    Sleep(10);
 }
 
 // Insert the selected catalogues into the database.
 void MainWindow::on_pB_insert_clicked()
 {
-    QList<QTreeWidgetItem *> catas_to_do = ui->TW_cataondrive->selectedItems();
-    QVector<QVector<QVector<QString>>> catas_in_db;  // Form [year][name][year, name, description]
-    QMap<QString, int> map_cata;  // qyear -> year_index, qname -> cata_index
-    QString qyear, qname, qdesc, stmt, qtemp;
-    string syear, sname;
-    vector<string> prompt(2);
+    QList<QTreeWidgetItem*> catas_to_do = ui->treeW_cataondrive->selectedItems();
+    QTreeWidgetItem* qitem;
+    vector<string> prompt(3);  // syear, sname, mode.
+    vector<string> results1, search, conditions, vtemp;
+    QString qyear, qname;
+    string syear, sname, stmt;
+    int mode, error, sb_index;
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
+    
     thread::id myid = this_thread::get_id();
-    int error, sb_index, year_index, cata_index;
-    bool size_received = 0;
-    bool fine;
-
     ui->tabW_catalogues->setCurrentIndex(0);
     ui->pB_cancel->setEnabled(1);
-    all_cata_db(catas_in_db, map_cata);  // Populate the tree and map. 
+
     for (int ii = 0; ii < catas_to_do.size(); ii++)  // For each catalogue selected...
     {
-        qyear = catas_to_do[ii]->text(0);
+        qitem = catas_to_do[ii]->parent();
+        qyear = qitem->text(0);
         syear = qyear.toStdString();
         prompt[0] = syear;
         qname = catas_to_do[ii]->text(1);
         sname = qname.toStdString();
         prompt[1] = sname;
 
-        // Check if the catalogue is already in the database.
-        cata_index = map_cata.value(qname, -1);
-        if (cata_index < 0)  // Catalogue is not in the database. Remedy that.
+        // Determine that catalogue's current status in the database.
+        search = { "Description" };
+        conditions = {
+            "Year = '" + syear + "'",
+            "AND Name = '" + sname + "'"
+        };
+        sf.select(search, "TCatalogueIndex", results1, conditions);
+        if (results1.size() < 1)
         {
-            log("Beginning insertion of catalogue " + sname);
-            error = sb.start_call(myid, comm[0], sb_index, "Insert Catalogues");
-            if (error) { errnum("start_call1-pB_insert_clicked", error); }
-            sb.set_prompt(myid, prompt);
-            std::thread judi(&MainWindow::judicator, this, std::ref(sf), std::ref(sb), sb_index);
-            while (1)
-            {
-                Sleep(gui_sleep);
-                QCoreApplication::processEvents();
-                if (remote_controller == 2)  // The 'cancel' button was pressed.
-                {
-                    comm[0][0] = 2;  // Inform the manager thread it should abort its task.
-                    remote_controller = 0;
-                }
-                comm = sb.update(myid, comm[0]);
-                if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
-                {
-                    if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
-                    {
-                        comm[0][2] = comm[1][2];
-                        comm[0][1] = comm[1][1];
-                        reset_bar(comm[1][2], "Inserting catalogue  " + sname);  // ... initialize the progress bar.
-                        jobs_done = comm[0][1];
-                        update_bar();
-                    }
-                }
-                else
-                {
-                    comm[0][1] = comm[1][1];
-                    jobs_done = comm[0][1];
-                    update_bar();
-                }
-
-                if (comm[1][0] > 0)
-                {
-                    break;
-                }
-            }
-            judi.join();
-            error = sb.end_call(myid);
-            if (error) { errnum("end_call1-pB_insert_clicked", error); }
-            log("Finished insertion of catalogue " + sname);
+            mode = 0;  // Catalogue is not in database. Insert completely.
+            vtemp.resize(3);
+            vtemp[0] = prompt[0];
+            vtemp[1] = prompt[1];
+            vtemp[2] = "Incomplete";
+            sf.insert("TCatalogueIndex", vtemp);
+        }
+        else if (results1[0] == "Incomplete")
+        {                // Catalogue is partially present in the database.
+            mode = 1;    // Determine which CSVs are missing, and insert them.
         }
         else
         {
-            year_index = map_cata.value(qyear);
-            qdesc = catas_in_db[year_index][cata_index][2];
-            if (qdesc == "Incomplete")  // Catalogue is partially present within the database. Finish that.
-            {
-                prompt = missing_gids(db, 3, syear, sname);
-                log("Resuming insertion of partial catalogue " + sname);
-                error = sb.start_call(myid, comm[0], sb_index, "Insert Catalogues");
-                if (error) { errnum("start_call2-pB_insert_clicked", error); }
-                std::thread judi(&MainWindow::judicator, this, std::ref(sf), std::ref(sb), sb_index);
-                while (1)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    if (remote_controller == 2)  // The 'cancel' button was pressed.
-                    {
-                        comm[0][0] = 2;  // Inform the manager thread it should abort its task.
-                        remote_controller = 0;
-                    }
-                    comm = sb.update(myid, comm[0]);
-                    if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
-                    {
-                        if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
-                        {
-                            comm[0][2] = comm[1][2];
-                            comm[0][1] = comm[1][1];
-                            reset_bar(comm[1][2], "Inserting catalogue  " + sname);  // ... initialize the progress bar.
-                            jobs_done = comm[0][1];
-                            update_bar();
-                        }
-                    }
-                    else
-                    {
-                        comm[0][1] = comm[1][1];
-                        jobs_done = comm[0][1];
-                        update_bar();
-                    }
+            mode = 2;  // Catalogue is already present in the database. Inform the user.
+        }
 
-                    if (comm[1][0] > 0)
-                    {
-                        break;
-                    }
-                }
-                judi.join();
-                error = sb.end_call(myid);
-                if (error) { errnum("end_call2-pB_insert_clicked", error); }
-                log("Finished insertion of catalogue " + sname);
-            }
-            else  // Catalogue is already present within the database. Inform the user. 
+        // Launch the manager function to insert files (as needed).
+        switch (mode)
+        {
+        case 0:
+            log("Beginning insertion of catalogue " + sname);
+            error = sb.start_call(myid, comm[0], sb_index, "Insert Catalogues");
+            if (error) { errnum("start_call1-pB_insert_clicked", error); }
+            prompt[2] = to_string(mode);
+            sb.set_prompt(myid, prompt);
+            std::thread judi(&MainWindow::judicator, this, std::ref(sf), std::ref(sb), sb_index, ref(wf));
+            judi.detach();
+            break;
+        }
+
+        // While waiting for completion, keep the GUI active and communicate with the manager thread.
+        while (1)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            if (remote_controller == 2)  // The 'cancel' button was pressed.
             {
-                qtemp = "Catalogue " + qname + " is already present within the database.";
-                ui->progressBar->setValue(100);
-                ui->QL_bar->setText(qtemp);
+                comm[0][0] = 2;  // Inform the manager thread it should abort its task.
+                remote_controller = 0;
+            }
+            comm = sb.update(myid, comm[0]);
+            if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
+            {
+                if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
+                {
+                    comm[0][2] = comm[1][2];
+                    comm[0][1] = comm[1][1];
+                    reset_bar(comm[1][2], "Inserting catalogue  " + sname);  // ... initialize the progress bar.
+                    jobs_done = comm[0][1];
+                    update_bar();
+                }
+            }
+            else
+            {
+                comm[0][1] = comm[1][1];
+                jobs_done = comm[0][1];
+                update_bar();
+            }
+
+            if (comm[1][0] == 1 || comm[1][0] == -2)
+            {
+                error = sb.end_call(myid);
+                if (error) { errnum("sb.end_call-on_pB_insert", error); }
+                break;           // Manager reports task finished/cancelled.
             }
         }
     }
+
+    // Update the GUI and then retire to obscurity.
     ui->pB_cancel->setEnabled(0);
-    update_cata_tree();
-    build_ui_tree(cata_tree, 2);
-    auto_expand(ui->TW_cataindb, 20);
+
 }
-void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
+void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index, WINFUNC& wf)
 {
     vector<int> comm;
     vector<vector<int>> gui_comm;
     thread::id myid = this_thread::get_id();
     sb.answer_call(myid, comm, sb_index);
     vector<string> prompt = sb.get_prompt(myid);
-
-    WINFUNC wf_judi;
-    JFUNC jf_judi;
-
-    // prompt has form [syear, sname, gid1, gid2, ...], gid list is only included for partial catalogue insertions.
     string cata_path = root + "\\" + prompt[0] + "\\" + prompt[1];
-    wstring cata_wpath = utf8to16(cata_path);
-    int num_gid = get_file_path_number(cata_wpath, L".csv");
+    //wstring cata_wpath = utf8to16(cata_path);
+    int num_gid = wf.get_file_path_number(cata_path, ".csv");
     comm[2] = num_gid;
     sb.update(myid, comm);
-    bool partial_entry = 0;
-    string stmt, stmt0;
-    int error, geo_col, csv_tindex;
+    int mode, error, inum;
+    try { mode = stoi(prompt[2]); } 
+    catch (invalid_argument& ia) { err("stoi1-judicator"); }
+    JFUNC jfjudi;
 
-    STATSCAN sc_judi(cata_path);
-    int tg_max_param = sf.tg_max_param();
-    string temp = "TG_Region$" + prompt[1];
-    bool need_geo = !table_exist(temp);
-    if (prompt.size() > 2) { partial_entry = 1; }
-
-    // Insert this catalogue into the catalogue index.
-    vector<string> param(3);
-    if (!partial_entry)
+    // Create and initialize the Stats Can helper object, for the worker threads.
+    vector<string> csv_list = wf.get_file_list(cata_path, "*.csv");
+    string temp = cata_path + "\\" + csv_list[0];
+    string sample_csv = jfjudi.load(temp);
+    STATSCAN scjudi(cata_path);
+    scjudi.cata_init(sample_csv);    
+    scjudi.extract_gid_list(csv_list);
+    scjudi.extract_csv_branches(csv_list);
+    
+    // Create and insert this catalogue's row indexing table, if necessary.
+    string tname = "TG_Row$" + prompt[1];
+    int tg_row_col;
+    vector<string> row_queue;
+    if (!sf.table_exist(tname))
     {
-        stmt = "INSERT INTO TCatalogueIndex ( Year, Name, Description ) VALUES (?, ?, ?);";
-        param[0] = prompt[0];  // year
-        param[1] = prompt[1];  // name
-        param[2].assign("Incomplete");
-        bind(stmt, param);
-        sf.executor(stmt);
+        log("Begin row indexing (TGR) for catalogue " + prompt[1]);
+        tg_row_col = scjudi.make_tgrow_statements(row_queue);
+        sf.executor(row_queue[0]);
+        row_queue.erase(row_queue.begin());
+        sf.safe_col(tname, tg_row_col);
+        sf.insert_prepared(row_queue);
+        log("Completed row indexing (TGR) for catalogue " + prompt[1]);
     }
 
-    // Perform region indexing (TGR) for this catalogue, if necessary.
+    // Create and insert this catalogue's region indexing table, if necessary.
+    tname = "TG_Region$" + prompt[1];
+    int tg_region_col;
     vector<string> geo_queue;
-    if (need_geo)
+    if (!sf.table_exist(tname))
     {
         log("Begin region indexing (TGR) for catalogue " + prompt[1]);
-        temp = "TG_Region$" + prompt[1];
-        geo_col = sc_judi.make_tgr_statements(geo_queue, prompt[0], prompt[1]);
-        sf.safe_col(temp, geo_col);
+        tg_region_col = scjudi.make_tgr_statements(geo_queue, prompt[0], prompt[1]);
         sf.executor(geo_queue[0]);
         geo_queue.erase(geo_queue.begin());
+        sf.safe_col(tname, tg_region_col);
         sf.insert_prepared(geo_queue);
         log("Completed region indexing (TGR) for catalogue " + prompt[1]);
     }
 
-    // Create a table for this catalogue's damaged CSVs.
-    temp = "[" + prompt[1] + "$Damaged]";
-    stmt = "CREATE TABLE IF NOT EXISTS " + temp + " (GID NUMERIC, [Number of Missing Data Entries] NUMERIC);";
+    // Create and insert this catalogue's primary table, if necessary.
+    string stmt = scjudi.make_create_primary_table();
     sf.executor(stmt);
-    sf.insert_tg_existing(prompt[1] + "$Damaged");
-
-    // Create the Stats Can helper object, and create the catalogue's primary table.
-    vector<string> csv_list = wf_judi.get_file_list(cata_path, "*.csv");
-    temp = cata_path + "\\" + csv_list[0];
-    string sample_csv = jf_judi.load(temp);
-    STATSCAN sc(cata_path);
-    int tg_needed_param = sc.cata_init(sample_csv);
-    if (tg_needed_param > tg_max_param)
-    {
-        sf.safe_col("TGenealogy", tg_needed_param + 1);  // TG must have one column more than max param.
-    }
-    stmt = sc.make_create_primary_table();
-    sf.executor(stmt);
-    sf.insert_tg_existing(prompt[1]);
-    sc.extract_gid_list(csv_list);
-    sc.extract_csv_branches(csv_list);
 
     // Launch the worker threads, which will iterate through the CSVs.
-    SWITCHBOARD sb_judi;
+    SWITCHBOARD sbjudi;
     int workload = num_gid / cores;
     int bot = 0;
     int top = workload - 1;
-    vector<std::thread> peons;
     vector<vector<int>> comm_csv(1, vector<int>());  // Form [thread][control, progress report, size report, max params].
     comm_csv[0].assign(comm.size(), 0);
-    vector<int> prompt_csv(3);  // Form [id, bot, top]
-    vector<vector<int>> prompt_csv_partial;  // Form [thread][id, gid1, gid2, ...]
-    vector<vector<vector<string>>> all_queue(cores, vector<vector<string>>());  // Form [thread][CSV][statements].   
-    if (partial_entry)  // If this catalogue insertion is partial, specify individual GIDs tasked to each thread.
+    vector<string> prompt_csv(cores);  // Form [(bot,top)]
+    vector<vector<vector<string>>> all_queue(cores, vector<vector<string>>());  // Form [thread][CSV][statements].  
+    switch (mode)  // Mode 0 = full insertion, 1 = partial insertion.
     {
-        int itemp;
-        bot = 2;  // Passing over syear, sname...
-        workload = (prompt.size() - 2) / cores;
-        prompt_csv_partial.resize(cores);
+    case 0:
         for (int ii = 0; ii < cores; ii++)
         {
-            prompt_csv_partial[ii].resize(workload + 1);
-            prompt_csv_partial[ii][0] = ii;
-            for (int jj = 1; jj <= workload; jj++)
-            {
-                try
-                {
-                    itemp = stoi(prompt[bot + jj - 1]);
-                }
-                catch (invalid_argument& ia)
-                {
-                    err("Failed to extract integer from partial insertion prompt: " + prompt[bot + jj - 1]);
-                }
-                prompt_csv_partial[ii][jj] = itemp;
-            }
-            bot += workload;
-
-            if (ii == cores - 1)
-            {
-                top = (prompt.size() - 2) % cores;
-                for (int jj = 0; jj < top; jj++)
-                {
-                    try
-                    {
-                        itemp = stoi(prompt[bot + jj - 1]);
-                    }
-                    catch (invalid_argument& ia)
-                    {
-                        err("Failed to extract integer from partial insertion prompt: " + prompt[bot + jj - 1]);
-                    }
-                    prompt_csv_partial[ii].push_back(itemp);
-                }
-            }
-        }
-    }
-    sb_judi.start_call(myid, comm_csv[0], csv_tindex, "CSV Insertion");
-    for (int ii = 0; ii < cores; ii++)
-    {
-        if (!partial_entry)
-        {
-            prompt_csv[0] = ii;
-            prompt_csv[1] = bot;
-            prompt_csv[2] = top;
-            std::thread thr(&MainWindow::insert_csvs, this, std::ref(all_queue[ii]), std::ref(sb_judi), csv_tindex, ref(sc), prompt_csv);
-            peons.push_back(std::move(thr));
+            prompt_csv[ii] = to_string(bot) + "," + to_string(top);
             bot += workload;
             if (ii < cores - 1) { top += workload; }
             else { top = num_gid - 1; }
         }
-        else
+        error = sbjudi.start_call(myid, comm_csv[0], inum, "CSV Insertion");
+        if (error) { errnum("start_call-judicator", error); }
+        sbjudi.set_prompt(myid, prompt_csv);
+        for (int ii = 0; ii < cores; ii++)
         {
-            comm_csv[ii][0] = 3;
-            std::thread thr(&MainWindow::insert_csvs, this, std::ref(all_queue[ii]), std::ref(sb_judi), csv_tindex, ref(sc), prompt_csv_partial[ii]);
-            peons.push_back(std::move(thr));
+            std::thread incsv(&MainWindow::insert_csvs, this, ref(all_queue[ii]), ref(sbjudi), inum, ref(scjudi));
+            incsv.detach();
         }
+        break;
     }
 
-
     // Loop through the worker threads, inserting their statements into the database.
-    //vector<int> batch_record;  // List of millisec/CSV recorded.
     int active_thread = 0;
     int inert_threads = 0;
     int csv_pile, progress, num3, dayswork, batch_time, batch_average;
     vector<vector<string>> desk;  // Form [CSV][statements]
-    int no_work = 0;      // Stop working if a 'jobs done' or 'cancel' signal is sent.
-    QElapsedTimer batch_timer;
-    batch_timer.start();
+    int no_work = 0;              // Stop working if a 'jobs done' or 'cancel' signal is sent.
     while (comm[0] == 0)
     {
         m_jobs[active_thread].lock();
@@ -1150,7 +927,6 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
         m_jobs[active_thread].unlock();
         if (csv_pile > 0)
         {
-            qDebug() << "csv_pile size: " << csv_pile;
             no_work = 0;
             m_jobs[active_thread].lock();
             desk = all_queue[active_thread];
@@ -1161,30 +937,25 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
             top = dayswork;
             do
             {
-                batch_timer.restart();
                 for (int ii = bot; ii < top; ii++)   // For a specified number of CSVs in a batch...
                 {
                     sf.insert_prepared(desk[ii]);
                 }
-                batch_time = (int)batch_timer.restart();
-                batch_average = batch_time / dayswork;
-                qDebug() << batch_average << " msec/CSV";
                 comm[1] += dayswork;
                 sb.update(myid, comm);
                 bot = top;
                 dayswork = min(handful, desk.size() - bot);
                 top += dayswork;
-
             } while (dayswork > 0);
 
         }
         else
         {
             no_work++;
-            Sleep(10);
+            Sleep(20);
         }
 
-        comm_csv = sb_judi.update(myid, comm_csv[0]);
+        comm_csv = sbjudi.update(myid, comm_csv[0]);
         for (int ii = 1; ii <= cores; ii++)
         {
             if (comm_csv[ii][0] == 0)  // If the thread is still working, let it work. 
@@ -1205,383 +976,147 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index)
         active_thread++;
         if (active_thread >= cores) { active_thread = 0; }
 
-        // Update the GUI thread on manager's progress, and receive status updates from GUI.
+        // Communicate updates to/from the GUI and/or worker threads.
         gui_comm = sb.update(myid, comm);
         for (int ii = 0; ii < gui_comm[1].size(); ii++)
         {
             comm[ii] = gui_comm[1][ii];
         }
-    }
-
-    // If task is cancelled, finish inserting the CSVs that were in queue.
-    /*
-    if (comm_cata[0] == 2)
-    {
-        for (int ii = 0; ii < cores; ii++)  // Alert the worker threads to stop.
+        if (gui_comm[0][0] == 2)
         {
-            comm_csv[ii][0] = 1;
+            comm[0] = 2;
+            comm_csv = sbjudi.update(myid, comm);  // Tell the workers to stop.
         }
-        active_thread = 0;
-        while (inert_threads < cores)  // Keep working while the threads finish their final tasks.
+        if (comm[0] == 2)
         {
-            csv_pile = all_queue[active_thread].size();
-            if (csv_pile > 0)
-            {
-                m_jobs[active_thread].lock();
-                desk = all_queue[active_thread];
-                all_queue[active_thread].clear();
-                m_jobs[active_thread].unlock();
-                error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-                if (error) { sqlerror("begin transaction2-judicator", db_gui); }
-                for (int ii = 0; ii < desk.size(); ii++)
-                {
-                    error = sqlite3_prepare_v2(db_gui, desk[ii].c_str(), -1, &statejudi, NULL);
-                    if (error) { sqlerror("prepare5-judicator", db_gui); }
-                    step(db_gui, statejudi);
-                }
-                error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
-                if (error) { sqlerror("commit transaction2-judicator", db_gui); }
-            }
-            active_thread++;
-            if (active_thread >= cores) { active_thread = 0; }
-
-            inert_threads = 0;
-            for (int ii = 0; ii < cores; ii++)  // Count how many worker threads have stopped.
+            Sleep(10);
+            comm_csv = sbjudi.update(myid, comm);
+            num3 = 0;
+            for (int ii = 1; ii <= cores; ii++)
             {
                 if (comm_csv[ii][0] < 0)
                 {
-                    inert_threads++;
+                    num3++;
                 }
             }
-        }
-        for (int ii = 0; ii < cores; ii++)  // When all worker threads are done, do one final sweep of the queue.
-        {
-            pile = all_queue[ii].size();
-            if (pile > 0)
+            if (num3 >= cores)
             {
-                m_jobs[ii].lock();
-                desk = all_queue[ii];
-                all_queue[ii].clear();
-                m_jobs[ii].unlock();
-                error = sqlite3_exec(db_gui, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-                if (error) { sqlerror("begin transaction3-judicator", db_gui); }
-                for (int jj = 0; jj < desk.size(); jj++)
-                {
-                    stmt = desk[jj];
-                    error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &statejudi, NULL);
-                    if (error) { err(L"prepare7-judicator_noqt"); }
-                    step(db_gui, statejudi);
-                }
-                error = sqlite3_exec(db_gui, "COMMIT TRANSACTION", NULL, NULL, NULL);
-                if (error) { sqlerror("commit transaction3-judicator", db_gui); }
-            }
-        }
-        progress = 0;
-        for (int ii = 0; ii < cores; ii++)  // Do one final update of the progress bar.
-        {
-            progress += comm_csv[ii][1];
-        }
-        comm_cata[1] = progress;
-    }
-    */
-
-    // Tie up loose threads. 
-    for (auto& th : peons)
-    {
-        if (th.joinable())
-        {
-            th.join();
-        }
-    }
-
-    // If we are done without being cancelled, we can mark the catalogue as 'complete'.
-    param.resize(2);
-    if (comm[0] < 2)
-    {
-        stmt = "UPDATE TCatalogueIndex SET Description = ? WHERE Name = ?;";
-        param[0] = sc.get_cata_desc();
-        param[1] = prompt[1];
-        bind(stmt, param);
-        sf.executor(stmt);
-        log("Catalogue " + prompt[1] + " completed its CSV insertion.");
-    }
-    else
-    {
-        log("Catalogue " + prompt[1] + " had its CSV insertion cancelled.");
-    }
-}
-void MainWindow::insert_csvs(vector<vector<string>>& my_queue, SWITCHBOARD& sb_judi, int csv_tindex, STATSCAN& sc, vector<int> prompt)
-{
-    vector<int> comm;
-    vector<vector<int>> judi_comm;
-    thread::id myid = this_thread::get_id();
-    sb_judi.answer_call(myid, comm, csv_tindex);
-
-    JFUNC jf_csv;
-    WINFUNC wf_csv;
-    int my_id = prompt[0];
-    vector<string> paperwork;
-    vector<string> gid_list = sc.get_gid_list();
-    vector<vector<string>> text_vars;
-    vector<vector<string>> data_rows;
-    vector<string> linearized_titles, vtemp;
-    string gid, sfile, stmt, stmt0, csv_path, tname, temp;
-    wstring csv_wpath;
-    QString qtemp;
-    int damaged_csv, tg_params, tg_params_max, num_subtables;
-
-    string cata_name = sc.get_cata_name();
-    vector<vector<int>> tree_st = sc.get_csv_tree();
-    vector<string> column_titles = sc.get_column_titles();
-
-    // Iterate through the assigned CSVs...
-    switch (comm[0])
-    {
-    case 0:  // Standard work.
-        for (int ii = prompt[1]; ii <= prompt[2]; ii++)
-        {
-            // Send and receive status updates to and from the manager thread.
-            judi_comm = sb_judi.update(myid, comm);
-            comm[0] = judi_comm[0][0];
-            if (comm[0] == 2)  // If a new 'cancel' signal has been received...
-            {
-                comm[0] = -2;  // Reporting that thread work has ended.
-                sb_judi.update(myid, comm);
+                comm[0] = -2;
+                sb.update(myid, comm);
                 return;
             }
-
-            // Load values for this CSV.
-            damaged_csv = 0;
-            gid = gid_list[ii];  
-            csv_path = sc.make_csv_path(ii);
-            sfile = jf_csv.load(csv_path);
-            //csv_wpath = sc.make_csv_wpath(ii);
-            //sfile = jf_csv.wload(csv_wpath);
-            text_vars = sc.extract_text_vars(sfile);
-            data_rows = sc.extract_rows(sfile, damaged_csv);
-            linearized_titles = sc.linearize_row_titles(data_rows, column_titles);
-
-            paperwork.clear();
-            tg_params_max = 0;
-            if (damaged_csv == 0)  // Undamaged CSV - to be inserted.
-            {
-                // Insert this CSV's row in the primary table.
-                stmt = sc.get_insert_primary_template();
-                sc.make_insert_primary_statement(stmt, gid, text_vars, data_rows);
-                paperwork.push_back(stmt);
-
-                // Create this CSV's main table.
-                stmt = sc.get_create_csv_table_template();
-                temp = cata_name + "$!!!";
-                tname = sc.make_create_csv_table_statement(stmt, gid, temp);
-                paperwork.push_back(stmt);
-                vtemp = jf_csv.list_from_marker(tname, '$');
-                stmt = sc.make_tg_insert_statement(vtemp);
-                paperwork.push_back(stmt);
-
-                // Insert this CSV's main table rows.
-                stmt0 = sc.get_insert_csv_row_template();
-                for (int ii = 0; ii < data_rows.size(); ii++)
-                {
-                    stmt = stmt0;
-                    tname = cata_name + "$" + gid;
-                    sc.make_insert_csv_row_statement(stmt, tname, data_rows[ii]);
-                    paperwork.push_back(stmt);
-                }
-
-                // Create this CSV's subtables.
-                num_subtables = sc.get_num_subtables();
-                stmt0 = sc.get_create_csv_table_template();  // Subtables use the same template as the full table.
-                for (int ii = 0; ii < num_subtables; ii++)
-                {
-                    stmt = stmt0;
-                    temp = sc.get_subtable_name_template(ii);
-                    tname = sc.make_create_csv_table_statement(stmt, gid, temp);
-                    paperwork.push_back(stmt);
-                    vtemp = jf_csv.list_from_marker(tname, '$');
-                    stmt = sc.make_tg_insert_statement(vtemp);
-                    paperwork.push_back(stmt);
-                }
-
-                // Insert this CSV's subtable rows.
-                stmt0 = sc.get_insert_csv_row_template();  // Subtables use the same template as the full table.
-                vtemp = sc.make_insert_csv_subtable_statements(gid, tree_st, data_rows);
-                for (int ii = 0; ii < vtemp.size(); ii++)
-                {
-                    paperwork.push_back(vtemp[ii]);
-                }
-            }
-            else  // Damaged CSV - will not be inserted, but will be added to the catalogue's list of damaged CSVs.
-            {     // This is a temporary measure - it would be better to incorporate these CSVs however possible.
-                stmt = sc.make_insert_damaged_csv(cata_name, gid, damaged_csv);
-                log("GID " + gid + " not inserted: damaged.");
-            }
-            m_jobs[my_id].lock();
-            my_queue.push_back(paperwork);
-            m_jobs[my_id].unlock();
-
-        }
-        break;
-
-    case 2:   // Cancel.
-        comm[0] = -2;  // Reporting that thread work has ended.
-        sb_judi.update(myid, comm);
-        return;
-        /*
-        case 3:
-            for (int ii = 1; ii < prompt.size(); ii++)
-            {
-                if (comm[0] == 2)  // If a new 'cancel' signal has been received...
-                {
-                    comm[0] = -2;  // Reporting that thread work has ended.
-                    return;
-                }
-
-                stmt_count = 0;
-                damaged_csv = 0;
-                gid = cata.get_gid(prompt[ii]);
-                csv_path = cata.get_csv_path(prompt[ii]);
-                sfile = s_memory(csv_path);
-                text_vars = cata.extract_text_vars8(sfile);
-                data_rows = cata.extract_data_rows8(sfile, damaged_csv);
-
-                if (damaged_csv == 0)  // Undamaged CSV - to be inserted.
-                {
-                    stmt_count += insert_primary_row(my_queue, my_id, cata, gid, text_vars, data_rows);
-                    stmt_count += create_insert_csv_table(my_queue, my_id, cata, gid, data_rows);
-                    stmt_count += create_insert_csv_subtables(my_queue, my_id, cata, gid, data_rows);
-                }
-                else  // Damaged CSV - will not be inserted, but will be added to the catalogue's list of damaged CSVs.
-                {     // This is a temporary measure - it would be better to incorporate these CSVs however possible.
-                    insert_damaged_row(my_queue, my_id, cata.get_sname(), gid, damaged_csv);
-                    log("GID " + gid + " not inserted: damaged.");
-                    stmt_count += comm[2];
-                }
-
-                comm[1] += stmt_count;  // Add this loop's work to the progress report.
-
-                // If we have yet to do so, report the number of insertions needed for one CSV.
-                if (!reported_size)
-                {
-                    comm[2] = stmt_count;
-                    reported_size = 1;
-                }
-            }
-            break;
-            */
-    }
-
-    // Reporting 'jobs done'.
-    comm[0] = 1;
-    sb_judi.update(myid, comm);
-}
-int MainWindow::insert_primary_row(vector<string>& paperwork, CATALOGUE& cata, string& gid, vector<vector<string>>& text_vars, vector<vector<string>>& data_rows)
-{
-    string stmt = cata.get_primary_template();
-    vector<string> param = { gid };
-    for (int ii = 0; ii < text_vars.size(); ii++)
-    {
-        param.push_back(text_vars[ii][1]);
-    }
-    for (int ii = 0; ii < data_rows.size(); ii++)
-    {
-        for (int jj = 1; jj < data_rows[ii].size(); jj++)
-        {
-            param.push_back(data_rows[ii][jj]);
         }
     }
-    bind(stmt, param);
-    paperwork.push_back(stmt);
-    return 1;
 }
-int MainWindow::create_insert_csv_table(vector<string>& paperwork, CATALOGUE& cata, string& gid, vector<vector<string>>& data_rows)
+void MainWindow::insert_csvs(vector<vector<string>>& my_queue, SWITCHBOARD& sbjudi, int sb_index, STATSCAN& scjudi)
 {
-    int count = 0;
-
-    // Create this CSV's full table, starting from the template.
-    string stmt = cata.get_csv_template();
-    string sname = cata.get_sname();
-    size_t pos1 = stmt.find("!!!");
-    string tname = "[" + sname + "$" + gid + "]";
-    stmt.replace(pos1, 3, tname);
-    paperwork.push_back(stmt);
-    count++;
-
-    // Append the full table's data rows, one by one, starting from the template each time.
-    string stmt0 = cata.get_insert_csv_row_template();
-    pos1 = stmt0.find("!!!");
-    stmt0.replace(pos1, 3, tname);
-    for (int ii = 0; ii < data_rows.size(); ii++)
+    vector<int> comm;
+    vector<vector<int>> comm_judi;
+    thread::id myid = this_thread::get_id();
+    int my_id = sbjudi.answer_call(myid, comm, sb_index) - 1;
+    vector<string> prompt = sbjudi.get_prompt(myid);
+    size_t pos1 = prompt[my_id].find(',');
+    string temp1 = prompt[my_id].substr(0, pos1);
+    string temp2 = prompt[my_id].substr(pos1 + 1);
+    int bot, top, damaged_csv, num_subtables;
+    try
     {
-        stmt = stmt0;
-        sclean(data_rows[ii][0], 1);
-        bind(stmt, data_rows[ii]);
-        paperwork.push_back(stmt);
-        count++;
+        bot = stoi(temp1);
+        top = stoi(temp2);
     }
-    return count;
-}
-int MainWindow::create_insert_csv_subtables(vector<string>& paperwork, CATALOGUE& cata, string& gid, vector<vector<string>>& data_rows)
-{
-    int count = 0;
-    string sname = cata.get_sname();
-    QVector<QVector<QVector<int>>> tree = cata.get_tree();
-    string create_subtable_template = cata.get_create_sub_template();
-    string ins_csv_row_template = cata.get_insert_csv_row_template();
-    string stmt, stmt0, tname, temp;
-    size_t pos0, pos1, num_rows;
-    int row_index;
+    catch (invalid_argument& ia) { err("stoi-insert_csvs"); }
+    JFUNC jfcsv;
+    vector<vector<string>> text_vars, data_rows;
+    vector<string> vtemp, linearized_titles, paperwork;
+    string gid, csv_path, sfile, stmt, stmt0, tname;
+    string cata_name = scjudi.get_cata_name();
+    vector<string> column_titles = scjudi.get_column_titles();
 
-    // Iterate by subtable.
-    for (int ii = 0; ii < tree.size(); ii++)
+    // Iterate through the assigned CSVs...
+    for (int ii = bot; ii <= top; ii++)
     {
-        tname = cata.sublabelmaker(gid, tree[ii]);
-        num_rows = tree[ii][1].size() + 1;  // Top row is the parent, subsequent rows are direct children.
-
-        // Create the subtable.
-        stmt = create_subtable_template;
-        pos1 = stmt.find("!!!");
-        stmt.replace(pos1, 3, tname);
-        paperwork.push_back(stmt);
-        count++;
-
-        // Insert the subtable's rows.
-        stmt0 = ins_csv_row_template;
-        pos1 = stmt0.find("!!!");
-        stmt0.replace(pos1, 3, tname);
-        for (int jj = 0; jj < num_rows; jj++)
+        comm_judi = sbjudi.update(myid, comm);
+        comm[0] = comm_judi[0][0];  // Check for a 'cancel' signal from manager.
+        if (comm[0] == 2)
         {
-            stmt = stmt0;
-            if (jj == 0)
-            {
-                row_index = tree[ii][0][tree[ii][0].size() - 1];
-            }
-            else
-            {
-                row_index = tree[ii][1][jj - 1];
-            }
-            sclean(data_rows[row_index][0], 1);
-            bind(stmt, data_rows[row_index]);
+            comm[0] = -2;  // Report compliance with message.
+            sbjudi.update(myid, comm);
+            return;
+        }
+
+        // Load values for this CSV.
+        damaged_csv = 0;
+        gid = scjudi.get_gid(ii);
+        csv_path = scjudi.make_csv_path(ii);
+        sfile = jfcsv.load(csv_path);
+        text_vars = scjudi.extract_text_vars(sfile);
+        data_rows = scjudi.extract_rows(sfile, damaged_csv);
+        linearized_titles = scjudi.linearize_row_titles(data_rows, column_titles);
+        paperwork.clear();
+        if (damaged_csv == 0)
+        {
+            // Insert this CSV's row in the primary table.
+            stmt = scjudi.get_insert_primary_template();
+            scjudi.make_insert_primary_statement(stmt, gid, text_vars, data_rows);
             paperwork.push_back(stmt);
-            count++;
-        }
-    }
 
-    return count;
-}
-void MainWindow::insert_damaged_row(vector<string>& paperwork, string sname, string& gid, int damaged_csv)
-{
-    string temp = "[" + sname + "$Damaged]";
-    string stmt = "INSERT INTO " + temp + " (GID, [Number of Missing Data Entries]) VALUES (?, ?);";
-    vector<string> param = { gid, to_string(damaged_csv) };
-    bind(stmt, param);
-    paperwork.push_back(stmt);
+            // Create this CSV's main table.
+            stmt = scjudi.get_create_csv_table_template();
+            temp1 = cata_name + "$!!!";
+            tname = scjudi.make_create_csv_table_statement(stmt, gid, temp1);
+            paperwork.push_back(stmt);
+
+            // Insert this CSV's main table rows.
+            stmt0 = scjudi.get_insert_csv_row_template();
+            for (int ii = 0; ii < data_rows.size(); ii++)
+            {
+                stmt = stmt0;
+                tname = cata_name + "$" + gid;
+                scjudi.make_insert_csv_row_statement(stmt, tname, data_rows[ii]);
+                paperwork.push_back(stmt);
+            }
+
+            /*
+            // Create this CSV's subtables.
+            num_subtables = scjudi.get_num_subtables();
+            stmt0 = scjudi.get_create_csv_table_template();  // Subtables use the same template as the full table.
+            for (int ii = 0; ii < num_subtables; ii++)
+            {
+                stmt = stmt0;
+                temp1 = scjudi.get_subtable_name_template(ii);
+                tname = scjudi.make_create_csv_table_statement(stmt, gid, temp1);
+                paperwork.push_back(stmt);
+                vtemp = jfcsv.list_from_marker(tname, '$');
+                stmt = scjudi.make_tg_insert_statement(vtemp);
+                paperwork.push_back(stmt);
+            }
+
+            // Insert this CSV's subtable rows.
+            stmt0 = scjudi.get_insert_csv_row_template();  // Subtables use the same template as the full table.
+            vtemp = scjudi.make_insert_csv_subtable_statements(gid, tree_st, data_rows);
+            for (int ii = 0; ii < vtemp.size(); ii++)
+            {
+                paperwork.push_back(vtemp[ii]);
+            }
+            */
+
+        }
+        else  // Damaged CSV - will not be inserted, but will be added to the catalogue's list of damaged CSVs.
+        {     // This is a temporary measure - it would be better to incorporate these CSVs however possible.
+            stmt = scjudi.make_insert_damaged_csv(cata_name, gid, damaged_csv);
+            paperwork.push_back(stmt);
+            log("GID " + gid + " not inserted: damaged.");
+        }
+        m_jobs[my_id].lock();
+        my_queue.push_back(paperwork);
+        m_jobs[my_id].unlock();
+    }
 }
 
 // Display the 'tabbed data' for the selected catalogue.
 void MainWindow::on_pB_viewcata_clicked()
 {
-    QList<QTreeWidgetItem *> cata_to_do = ui->TW_cataindb->selectedItems();  // Only 1 catalogue can be selected.
+    QList<QTreeWidgetItem *> cata_to_do = ui->treeW_cataindb->selectedItems();  // Only 1 catalogue can be selected.
     QString qyear = cata_to_do[0]->text(0);
     string syear = qyear.toStdString();
     QString qname = cata_to_do[0]->text(1);
@@ -1653,18 +1188,27 @@ void MainWindow::display_catalogue(SQLFUNC& sf, SWITCHBOARD& sb, int sb_index, Q
     vector<string> prompt = sb.get_prompt(myid);  // syear, sname.
 
     // Populate the 'Geographic Region' tree tab.
+    tree_st2.resize(2);
+    tree_pl2.resize(2);
     string tname = "TG_Region$" + prompt[1];
     sf.select_tree(tname, tree_st2[0], tree_pl2[0]);
     comm[1]++;
     sb.update(myid, comm);
 
+    vector<string> vtemp;
+    sf.get_col_titles(prompt[1], vtemp);
     // Populate the 'Row Data' tab.
     vector<vector<string>> results;
+    vector<string> results1;
     QString qtemp;
-    string gid = tree_pl2[0][0];
+    string region_name = tree_pl2[0][0];
+    vector<string> search = { "GID" };
+    vector<string> conditions = { "Geography = '" + region_name + "'" };
+    sf.select(search, prompt[1], results1, conditions);
+    string gid = results1[0];
     tname = prompt[1] + "$" + gid;
-    vector<string> vtemp = { "*" };
-    sf.select(vtemp, tname, results);
+    search = { "*" };
+    sf.select(search, tname, results);
     QStringList row_list;
     for (int ii = 0; ii < results.size(); ii++)
     {
@@ -1706,7 +1250,9 @@ vector<int> MainWindow::get_indent_list(vector<string>& param_list, char param)
 // Remove the selected catalogue from the database.
 void MainWindow::on_pB_removecata_clicked()
 {
-    QList<QTreeWidgetItem*> cata_to_do = ui->TW_cataindb->selectedItems();  // Only 1 catalogue can be selected.
+    // NEEDS FIXING.
+
+    QList<QTreeWidgetItem*> cata_to_do = ui->treeW_cataindb->selectedItems();  // Only 1 catalogue can be selected.
     QString qname = cata_to_do[0]->text(1);
     string sname = qname.toStdString();
     vector<vector<int>> comm(1, vector<int>());
@@ -1749,16 +1295,14 @@ void MainWindow::on_pB_removecata_clicked()
     error = sb.end_call(myid);
     if (error) { errnum("end_call-pB_removecata_clicked", error); }
     update_cata_tree();
-    build_ui_tree(cata_tree, 2);
-    auto_expand(ui->TW_cataindb, 20);
+    //build_ui_tree(cata_tree, 2);
+    auto_expand(ui->treeW_cataindb, 20);
     if (sname == viewcata_data[1])
     {
         ui->GID_tree->clear();
         ui->Rows_list->clear();
-        ui->Tables_list->clear();
         viewcata_data[0].clear();
         viewcata_data[1].clear();
-        ui->TW_tablesindb->clear();
     }
     log("Removed catalogue " + sname + " from the database.");
 }
@@ -1776,6 +1320,7 @@ void MainWindow::on_pB_viewtable_clicked()
     int tab_index = ui->tabW_results->currentIndex();
     int row;
     string gid, tname, row_title;
+    vector<string> row_split;
     QList<QListWidgetItem*> qcurrent;
     QList<QTreeWidgetItem*> qcurrent2;
     QTreeWidgetItem* qitem;
@@ -1795,22 +1340,41 @@ void MainWindow::on_pB_viewtable_clicked()
         qcurrent = ui->Rows_list->selectedItems();
         qtemp = qcurrent[0]->text();
         row_title = qtemp.toStdString();
-        qitem = ui->GID_tree->itemAt(1, 1);
-        qtemp = qitem->text(0);
-        qDebug() << "Value from arbitrary GID chosen: " << qtemp;
-        gid = qtemp.toStdString();
-        tname = qtemp.toStdString();  // RESUME HERE. Need to insert missing middle links for tname.
+        row_split = jf.list_from_marker(row_title, '$');
+        qcurrent2 = ui->GID_tree->selectedItems();
+        if (qcurrent2.size() > 0)
+        {
+            qtemp = qcurrent2[0]->text(0);
+            gid = qtemp.toStdString();
+            tname = viewcata_data[1] + "$" + gid;
+            for (int ii = 1; ii < row_split.size(); ii++)
+            {
+                for (int jj = 0; jj < ii + 1; jj++)
+                {
+                    tname += "$";
+                }
+                tname += row_split[ii];
+            }
+        }
+        else
+        {
+            qDebug() << "View table function failed to obtain a GID.";
+        }
         break;
 
-    case 3:
-        qcurrent2 = ui->TW_tablesindb->selectedItems();
+    case 2:
+        qcurrent2 = ui->treeW_csvtree->selectedItems();
         qtemp = qcurrent2[0]->text(0);
-        tname = qtemp.toStdString();
+        //tname = qtemp.toStdString();
         break;
     }
 
     // Query the database for that table's raw data, and display it as a table 
     // on the 'Table Data' tab.
+    if (tname.size() < 1)
+    {
+        err("viewtable failed to obtain tname");
+    }
     QStandardItemModel* model = new QStandardItemModel;
     QStandardItem* cell;
     vector<string> column_titles;
@@ -1899,9 +1463,9 @@ void MainWindow::on_cB_drives_currentTextChanged(const QString& arg1)
 }
 
 // Update button status (enabled/disabled).
-void MainWindow::on_TW_cataindb_itemSelectionChanged()
+void MainWindow::on_treeW_cataindb_itemSelectionChanged()
 {
-    QList<QTreeWidgetItem*> db_selected = ui->TW_cataindb->selectedItems();
+    QList<QTreeWidgetItem*> db_selected = ui->treeW_cataindb->selectedItems();
     if (db_selected.size() > 0)
     {
         QString qname = db_selected[0]->text(1);
@@ -1923,9 +1487,9 @@ void MainWindow::on_TW_cataindb_itemSelectionChanged()
     }
 
 }
-void MainWindow::on_TW_cataondrive_itemSelectionChanged()
+void MainWindow::on_treeW_cataondrive_itemSelectionChanged()
 {
-    QList<QTreeWidgetItem*> local_selected = ui->TW_cataondrive->selectedItems();
+    QList<QTreeWidgetItem*> local_selected = ui->treeW_cataondrive->selectedItems();
     if (local_selected.size() > 0)
     {
         ui->pB_insert->setEnabled(1);
@@ -1947,7 +1511,32 @@ void MainWindow::on_GID_tree_itemSelectionChanged()
         ui->pB_viewtable->setEnabled(0);
     }
 }
+void MainWindow::on_tabW_catalogues_currentChanged(int index)
+{
+    QList<QTreeWidgetItem*> qtree;
+    switch (index)
+    {
+    case 0:
+        ui->pB_insert->setEnabled(0);
+        qtree = ui->treeW_cataondrive->selectedItems();
+        for (int ii = 0; ii < qtree.size(); ii++)
+        {
+            qtree[ii]->setSelected(0);
+        }
+        qtree = ui->treeW_cataindb->selectedItems();
+        if (qtree.size() > 0)
+        {
+            ui->pB_viewcata->setEnabled(1);
+            ui->pB_removecata->setEnabled(1);
+        }
+        break;
 
+    case 1:
+        ui->pB_viewcata->setEnabled(0);
+        ui->pB_removecata->setEnabled(0);
+        break;
+    }
+}
 
 // DEBUG FUNCTIONS:
 int MainWindow::sql_callback(void* NotUsed, int argc, char** argv, char** column_name)
@@ -1959,9 +1548,3 @@ int MainWindow::sql_callback(void* NotUsed, int argc, char** argv, char** column
     }
     return 0;
 }
-
-/*
-    int error = sqlite3_prepare_v2(db_gui, stmt.c_str(), -1, &state, NULL);
-    if (error) { sqlerror("The error message.", db_gui); }
-    step(db_gui, state);
-*/

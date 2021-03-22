@@ -52,6 +52,24 @@ string JFUNC::get_error_path()
 {
 	return error_path;
 }
+void JFUNC::isort_slist(vector<string>& slist)
+{
+	int isize = slist.size();
+	vector<int> ilist(isize);
+	for (int ii = 0; ii < isize; ii++)
+	{
+		try
+		{
+			ilist[ii] = stoi(slist[ii]);
+		}
+		catch (invalid_argument& ia) { err("stoi-isort_slist"); }
+	}
+	quicksort(ilist, 0, isize - 1);
+	for (int ii = 0; ii < isize; ii++)
+	{
+		slist[ii] = to_string(ilist[ii]);
+	}
+}
 vector<string> JFUNC::list_from_marker(string& input, char marker)
 {
 	// Split a string into a vector of strings, dividing when the marker char is encountered.
@@ -246,9 +264,38 @@ string JFUNC::parent_from_marker(string& child, char marker)
 	string parent = child.substr(0, pos1);
 	return parent;
 }
-void JFUNC::set_error_path(string errpath)
+void JFUNC::quicksort(vector<int>& v1, int low, int high)
 {
-	error_path = errpath;
+	auto partition = [](vector<int>& v1, int low, int high)
+	{
+		int midpoint = ((high - low) / 2) + low;
+		unsigned long long pivot = v1[midpoint];
+		int ii = low - 1;
+		unsigned long long tempnum = v1[high];
+		v1[high] = v1[midpoint];
+		v1[midpoint] = tempnum;
+		for (int jj = low; jj <= high - 1; jj++)
+		{
+			if (v1[jj] < pivot)
+			{
+				ii++;
+				tempnum = v1[jj];
+				v1[jj] = v1[ii];
+				v1[ii] = tempnum;
+			}
+		}
+		tempnum = v1[high];
+		v1[high] = v1[ii + 1];
+		v1[ii + 1] = tempnum;
+		return ii + 1;
+	};
+
+	if (low < high)
+	{
+		int pivotindex = partition(v1, low, high);
+		quicksort(v1, low, pivotindex - 1);
+		quicksort(v1, pivotindex + 1, high);
+	}
 }
 string JFUNC::timestamper()
 {

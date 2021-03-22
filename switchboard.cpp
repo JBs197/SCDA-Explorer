@@ -65,14 +65,14 @@ int SWITCHBOARD::answer_call(thread::id id, vector<int>& comm, int& tindex)
 	phone_lines[tindex].push_back(comm);
 	pair iresult = map_task.emplace(id, tindex);
 	bool success = get<1>(iresult);
-	if (!success) { return 1; }
+	if (!success) { return -1; }
 	iresult = map_phone.emplace(id, pindex);
 	success = get<1>(iresult);
-	if (!success) { return 2; }
+	if (!success) { return -2; }
 	pair sresult = map_name.emplace(id, task_names[tindex]);
 	success = get<1>(sresult);
-	if (!success) { return 3; }
-	return 0;
+	if (!success) { return -3; }
+	return pindex;  // Easy way for worker threads to gain a simple ID.
 }
 
 // Erases the switchboard's entries for the calling thread's job.

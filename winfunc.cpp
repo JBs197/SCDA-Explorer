@@ -6,6 +6,15 @@ void WINFUNC::err(string func)
 {
 	jfwin.err(func);
 }
+bool WINFUNC::file_exist(string path)
+{
+	DWORD attributes = GetFileAttributesA(path.c_str());
+	if (attributes == INVALID_FILE_ATTRIBUTES)
+	{
+		return 0;
+	}
+	return 1;
+}
 string WINFUNC::get_exec_dir()
 {
 	string exec_path;
@@ -48,6 +57,22 @@ vector<string> WINFUNC::get_file_list(string folder_path, string search)
 		}
 	} while (FindNextFileA(hfile, &info));
 	return file_list;
+}
+int WINFUNC::get_file_path_number(string folder_path, string file_extension)
+{
+	int count = 0;
+	string temp = folder_path + "\\*" + file_extension;
+	wstring folder_search = utf8to16(temp);
+	WIN32_FIND_DATAW info;
+	HANDLE hfile1 = FindFirstFileW(folder_search.c_str(), &info);
+	if (hfile1 == INVALID_HANDLE_VALUE) { winerr("FindFirstFile-get_file_path_number"); }
+	do
+	{
+		count++;
+	} while (FindNextFileW(hfile1, &info));
+
+	if (!FindClose(hfile1)) { winerr("FindClose-get_file_path_number"); }
+	return count;
 }
 vector<string> WINFUNC::get_folder_list(string folder_path, string search)
 {

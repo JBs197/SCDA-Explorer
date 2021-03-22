@@ -18,7 +18,6 @@ class SQLFUNC
 	sqlite3_stmt* state;
     ofstream ERR;
     string error_path = root + "\\SCDA Error Log.txt";
-    int TG_max_param = -1;  // The number of "param" columns in a Genealogy metatable.
     
     void bind(string&, vector<string>&);
     void err(string);
@@ -34,11 +33,12 @@ public:
     void insert_tg_existing(string);
     void insert_prepared(vector<string>&);
     string insert_stmt(string, vector<string>&, vector<string>&);
+    int get_num_col(string);
     void safe_col(string, int);
     void select_tree(string, vector<vector<int>>&, vector<string>&);
     vector<string> select_years();
     void set_error_path(string);
-    int tg_max_param();
+    bool table_exist(string);
 
 	// TEMPLATES
 	template<typename ... Args> void executor(string, Args& ... args) {}
@@ -63,6 +63,7 @@ public:
         double dvalue;
         string svalue;
         int col_count = -1;
+        results.clear();
 
         while (error == 100)
         {
@@ -94,7 +95,7 @@ public:
                         break;
                     }
                 }
-                break;
+                return;
             }
             else  // Returned result will be a column.
             {
@@ -117,6 +118,7 @@ public:
                     break;
                 }
             }
+            error = sqlite3_step(state);
         }
         if (error > 0 && error != 101)
         {
@@ -328,7 +330,7 @@ public:
         // 
         // Second optional parameter (search conditions):
         // If the vector of conditions is given, then each string's boolean expression (after the first 
-        // one) should include a logical operator "AND", "OR", "NOT". Complex logical expressions 
+        // one) must include a logical operator "AND", "OR", "NOT". Complex logical expressions 
         // can be made, but they must include parentheses if the logical operators are not uniform.
         // 
         // The formal return integer is the maximum number of columns present in the results.

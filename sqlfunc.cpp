@@ -55,6 +55,12 @@ void SQLFUNC::err(string func)
 {
     jfsql.err(func);
 }
+int SQLFUNC::get_num_col(string tname)
+{
+    vector<string> column_titles;
+    get_col_titles(tname, column_titles);
+    return column_titles.size();
+}
 void SQLFUNC::init(string db_path)
 {
     int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
@@ -62,6 +68,8 @@ void SQLFUNC::init(string db_path)
 }
 void SQLFUNC::insert_tg_existing(string tname)
 {
+    // Still needed???
+
     // Convenience function to facilitate the insertion of tables into TGenealogy. 
     // This function is only valid if the table in question already exists in the database.
     
@@ -162,6 +170,8 @@ int SQLFUNC::sclean(string& bbq, int mode)
 void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl)
 {
     // Produce a tree structure and tree payload for the given table name as root. 
+    // Certain table name parameters have special forks within the function.
+
     vector<string> tname_params = jfsql.list_from_marker(tname, '$');
     vector<vector<string>> results;
     unordered_map<string, int> registry;
@@ -178,6 +188,19 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
         executor(stmt, results);
         tree_pl.resize(results.size());
         tree_st.resize(results.size());
+        
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            for (int jj = 0; jj < results[ii].size(); jj++)
+            {
+                if (results[ii][jj] == "")
+                {
+                    results[ii].erase(results[ii].begin() + jj, results[ii].end());
+                    break;
+                }
+            }
+        }
+
         for (int ii = 0; ii < results.size(); ii++)
         {
             tree_pl[ii] = results[ii][1];
@@ -281,7 +304,6 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
     }
 
     size_t pos1;
-    timer.restart();
     for (int ii = 0; ii < param_groups.size(); ii++)
     {
         for (int jj = 0; jj < param_groups[ii].size(); jj++)
@@ -333,7 +355,6 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
             tree_st[iparent].push_back(pl_index);
         }
     }
-    qDebug() << "Make tree structure: " << timer.restart();
 }
 vector<string> SQLFUNC::select_years()
 {
@@ -386,11 +407,24 @@ void SQLFUNC::sqlerr(string func)
     const char* errmsg = sqlite3_errmsg(db);
     string serrmsg(errmsg);
     string message = timestamper() + " SQL ERROR #" + to_string(errcode) + ", in ";
-    message += func + "\r\n" + serrmsg + "\r\n";
+    message += func + serrmsg + "\r\n";
     ERR.open(error_path, ofstream::app);
     ERR << message << endl;
     ERR.close();
     exit(EXIT_FAILURE);
+}
+bool SQLFUNC::table_exist(string tname)
+{
+    // Returns TRUE or FALSE as to the existance of a given table within the database.
+
+    string stmt = "SELECT name FROM sqlite_master WHERE type='table' AND name='" + tname + "';";
+    vector<string> results1;
+    executor(stmt, results1);
+    if (results1.size() > 0)
+    {
+        return 1;
+    }
+    return 0;
 }
 string SQLFUNC::timestamper()
 {
@@ -407,10 +441,4 @@ string SQLFUNC::timestamper()
     }
     return timestampA;
 }
-int SQLFUNC::tg_max_param()
-{
-    vector<string> column_titles;
-    get_col_titles("TGenealogy", column_titles);
-    TG_max_param = column_titles.size() - 1;
-    return TG_max_param;
-}
+

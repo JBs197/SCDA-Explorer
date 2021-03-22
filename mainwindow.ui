@@ -107,7 +107,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="GID">
      <attribute name="title">
@@ -221,7 +221,7 @@
      <attribute name="title">
       <string>Catalogues in Database</string>
      </attribute>
-     <widget class="QTreeWidget" name="TW_cataindb">
+     <widget class="QTreeWidget" name="treeW_cataindb">
       <property name="geometry">
        <rect>
         <x>0</x>
@@ -260,7 +260,7 @@
      <attribute name="title">
       <string>Catalogues on Local Drive</string>
      </attribute>
-     <widget class="QTreeWidget" name="TW_cataondrive">
+     <widget class="QTreeWidget" name="treeW_cataondrive">
       <property name="geometry">
        <rect>
         <x>0</x>

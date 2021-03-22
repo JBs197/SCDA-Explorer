@@ -24,9 +24,11 @@ public:
 	explicit WINFUNC() {}
 	~WINFUNC() {}
 
+    bool file_exist(string);
     string get_exec_dir();
     string get_exec_path();
     vector<string> get_file_list(string, string);
+    int get_file_path_number(string, string);
     vector<string> get_folder_list(string, string);
     void make_tree_local(vector<vector<int>>&, vector<string>&, int, string, int, string);
     void make_tree_local_helper1(vector<vector<int>>&, vector<string>&, vector<int>, string, int, int, int, string);
