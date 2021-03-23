@@ -28,6 +28,7 @@ class SQLFUNC
 public:
     explicit SQLFUNC() {}
 	~SQLFUNC() {}
+    vector<string> all_tables();
     void create_table(string, vector<string>&, vector<int>&);
     void init(string);
     void insert_tg_existing(string);
@@ -52,7 +53,45 @@ public:
 			sqlerr("step-executor0"); 
 		}
 	}
-	template<> void executor<vector<string>>(string stmt, vector<string>& results)
+    template<> void executor<string>(string stmt, string& result)
+    {
+        // Note that this variant of the executor function will only return the first result.
+        int type, size;  // Type: 1(int), 2(double), 3(string)
+        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &state, NULL);
+        if (error) { sqlerr("prepare-executor0.5"); }
+        error = sqlite3_step(state);
+        int ivalue;
+        double dvalue;
+        string svalue;
+
+        if (error == 100)
+        {
+            type = sqlite3_column_type(state, 0);
+            switch (type)
+            {
+            case 1:
+                ivalue = sqlite3_column_int(state, 0);
+                result = to_string(ivalue);
+                break;
+            case 2:
+                dvalue = sqlite3_column_double(state, 0);
+                result = to_string(dvalue);
+                break;
+            case 3:
+                size = sqlite3_column_bytes(state, 0);
+                char* buffer = (char*)sqlite3_column_text(state, 0);
+                svalue.assign(buffer, size);
+                result = svalue;
+                break;
+            }
+            return;
+        }
+        else if (error > 0 && error != 101)
+        {
+            sqlerr("step-executor0.5");
+        }
+    }
+    template<> void executor<vector<string>>(string stmt, vector<string>& results)
 	{
         // Note that this variant of the executor function can accomodate either a column or a row as the result.
         int type, size;  // Type: 1(int), 2(double), 3(string)
@@ -316,6 +355,43 @@ public:
         if (error) { sqlerr("commit transaction-insert_rows"); }
     }
 
+    template<typename ... Args> void remove(string, Args& ... args)
+    {
+        // If only a table name is given, then delete that entire table name from the database.
+        // If a list is also given, then that list serves as boolean conditions from which 
+        // TRUE rows within the table will be deleted.
+    }
+    template<> void remove<>(string tname)
+    {
+        string stmt = "DELETE FROM [" + tname + "];";
+        if (table_exist(tname))
+        {
+            executor(stmt);
+        }
+        else
+        {
+            jfsql.log("Could not delete " + tname + " : could not find.");
+        }
+        
+    }
+    template<> void remove<vector<string>>(string tname, vector<string>& conditions)
+    {
+        string stmt = "DELETE FROM [" + tname + "] WHERE (";
+        for (int ii = 0; ii < conditions.size(); ii++)
+        {
+            stmt += conditions[ii] + " ";
+        }
+        stmt += ");";
+        if (table_exist(tname))
+        {
+            executor(stmt);
+        }
+        else
+        {
+            jfsql.log("Could not delete " + tname + " : could not find.");
+        }
+    }
+
     template<typename ... Args> int select(vector<string>, string, Args& ... args)
     {
         // Return (by reference) the database's values for a given the search query. 
@@ -336,6 +412,12 @@ public:
         // The formal return integer is the maximum number of columns present in the results.
 
         return 0;
+    }
+    template<> int select<string>(vector<string> search, string tname, string& result)
+    {
+        string stmt = "SELECT " + search[0] + " FROM [" + tname + "];";
+        executor(stmt, result);
+        return 1;
     }
     template<> int select<vector<string>>(vector<string> search, string tname, vector<string>& results)
     {
@@ -368,6 +450,17 @@ public:
             }
         }
         return max_col;
+    }
+    template<> int select<string, vector<string>>(vector<string> search, string tname, string& result, vector<string>& conditions)
+    {
+        string stmt = "SELECT " + search[0] + " FROM [" + tname + "] WHERE (";
+        for (int ii = 0; ii < conditions.size(); ii++)
+        {
+            stmt += conditions[ii] + " ";
+        }
+        stmt += ");";
+        executor(stmt, result);
+        return 1;
     }
     template<> int select<vector<string>, vector<string>>(vector<string> search, string tname, vector<string>& results, vector<string>& conditions)
     {

@@ -175,6 +175,14 @@ string JFUNC::load(string file_path)
 	}
 	return output;
 }
+void JFUNC::log(string message)
+{
+	lock_guard<mutex> lock(m_err);
+	LOG.open(log_path, ofstream::app);
+	string output = timestamper() + message;
+	LOG << output << endl << endl;
+	LOG.close();
+}
 string JFUNC::wload(wstring file_wpath)
 {
 	// Load a file into memory as a string.

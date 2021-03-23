@@ -19,8 +19,9 @@ extern const string root;
 
 class JFUNC
 {
-	ofstream ERR;
+	ofstream ERR, LOG;
 	string error_path = root + "\\SCDA Error Log.txt";
+	string log_path = root + "\\SCDA Process Log.txt";
 
 public:
 	explicit JFUNC() {}
@@ -31,6 +32,7 @@ public:
 	void isort_slist(vector<string>&);
 	vector<string> list_from_marker(string&, char);
 	string load(string);
+	void log(string);
 	string wload(wstring);
 	string parent_from_marker(string&, char);
 	void quicksort(vector<int>&, int, int);

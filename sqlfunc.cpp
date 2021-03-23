@@ -2,6 +2,13 @@
 
 using namespace std;
 
+vector<string> SQLFUNC::all_tables()
+{
+    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+    vector<string> results;
+    executor(stmt, results);
+    return results;
+}
 void SQLFUNC::bind(string& stmt, vector<string>& param)
 {
     // Replaces SQL placeholders ('?') with parameter strings. Automatically adds single quotes.
@@ -182,13 +189,14 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
     tree_pl.clear();
     tree_st.clear();
 
-    if (tname_params[1] == "TG_Region")
+    if (tname_params[1] == "TG_Region" || tname_params[1] == "TG_Row")
     {
         stmt = "SELECT * FROM [" + tname + "]";
         executor(stmt, results);
         tree_pl.resize(results.size());
         tree_st.resize(results.size());
         
+        // Remove SQL's null entries.
         for (int ii = 0; ii < results.size(); ii++)
         {
             for (int jj = 0; jj < results[ii].size(); jj++)
@@ -201,6 +209,7 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
             }
         }
 
+        // Build the tree structure.
         for (int ii = 0; ii < results.size(); ii++)
         {
             tree_pl[ii] = results[ii][1];
@@ -227,6 +236,7 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
             }
         }
 
+        // Integrate the orphans (parent node not yet loaded on first pass).
         while (orphans.size() > 0)
         {
             for (int ii = 0; ii < orphans.size(); ii++)

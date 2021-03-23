@@ -49,19 +49,21 @@ private slots:
     void on_pB_cancel_clicked();
     void on_treeW_cataindb_itemSelectionChanged();
     void on_treeW_cataondrive_itemSelectionChanged();
-    void on_GID_tree_itemSelectionChanged();
+    void on_treeW_gid_itemSelectionChanged();
     void on_pB_viewtable_clicked();
     void on_pB_removecata_clicked();
     void on_tabW_catalogues_currentChanged(int);
+    void on_tabW_results_currentChanged(int);
 
 private:
     Ui::MainWindow *ui;
     sqlite3* db;
     sqlite3_stmt* statement;
     int location = 0;  // 0 = home, 1 = inn.
-    int cores = 3;
-    int handful = 100;  // Number of CSVs to insert between progress bar updates.
-    DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
+    const int cores = 3;
+    const int handful = 100;  // Number of CSVs to insert between progress bar updates.
+    const int worker_batch = 10;  // Number of CSVs workers prepare before pushing to the manager.
+    const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
     int jobs_max;
     int jobs_done;
@@ -74,14 +76,10 @@ private:
     string sdrive;
     QString qdrive;
     string db_path;
-    vector<mutex> m_jobs;
-    mutex m_io, m_bar, m_geo;
+    mutex m_bar, m_io;
     vector<string> sroots = { "F:", "D:" };
     vector<wstring> wroots = { L"F:", L"D:" }; //  NOTE: REMOVE HARDCODING LATER.
     QVector<QString> qroots = { "F:", "D:" };
-    QVector<QVector<QVector<QString>>> cata_tree;  // Form [year][catalogue][qyear, qname, qdescription].
-    QMap<QString, int> map_tree_year;  // For a given qyear, return that cata_tree index.
-    QMap<QString, int> map_tree_cata;  // For a given qname, return that cata_tree index.
     vector<string> viewcata_data;  // Hold essential information for the catalogue being viewed. Form [syear, sname].
     vector<string> viewcata_gid_list;
     void clear_log();
@@ -90,24 +88,21 @@ private:
     void initialize();
     void sqlerror(string, sqlite3*&);
     void update_text_vars(QVector<QVector<QString>>&, QString&);
-    void update_cata_tree();
     void create_cata_index_table();
     void create_damaged_table();
     void all_cata_db(QVector<QVector<QVector<QString>>>&, QMap<QString, int>&);
     vector<string> scan_incomplete_cata(string, string);
-    void judicator(SQLFUNC&, SWITCHBOARD&, int, WINFUNC&);
-    void insert_csvs(vector<vector<string>>&, SWITCHBOARD&, int, STATSCAN&);
+    void judicator(SQLFUNC&, SWITCHBOARD&, WINFUNC&);
+    void insert_csvs(vector<vector<string>>&, SWITCHBOARD&, STATSCAN&);
     static int sql_callback(void*, int, char**, char**);
     vector<vector<string>> step(sqlite3*&, sqlite3_stmt*);
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
     vector<string> missing_gids(sqlite3*&, int, string, string);
-    void display_catalogue(SQLFUNC&, SWITCHBOARD&, int, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
-    vector<string> all_tables();
-    void scan_drive(SWITCHBOARD&, int, WINFUNC&, QList<QTreeWidgetItem*>&);
-    void delete_cata(sqlite3*&, SWITCHBOARD&, int, string);
+    void display_catalogue(SQLFUNC&, SWITCHBOARD&, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
+    void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
+    void delete_cata(SWITCHBOARD&, SQLFUNC&);
     void auto_expand(QTreeWidget*&, int);
-    vector<int> get_indent_list(vector<string>&, char);
     void update_treeW_cataindb();
 
 
@@ -436,7 +431,7 @@ private:
     template<typename S> void log(S) {}
     template<> void log<string>(string note)
     {
-        lock_guard lock(m_io);
+        lock_guard lock(m_err);
         string name = sroots[location] + "\\SCDA Process Log.txt";
         string message = timestamperA() + "  " + note + "\r\n";
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -463,7 +458,7 @@ private:
     }
     template<> void log<wstring>(wstring wnote)
     {
-        lock_guard lock(m_io);
+        lock_guard lock(m_err);
         string name = sroots[location] + "\\SCDA Process Log.txt";
         string message = timestamperA() + "  " + utf16to8(wnote) + "\r\n\r\n";
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -490,7 +485,7 @@ private:
     }
     template<> void log<QString>(QString qnote)
     {
-        lock_guard lock(m_io);
+        lock_guard lock(m_err);
         string name = sroots[location] + "\\SCDA Process Log.txt";
         string message = timestamperA() + "  " + qnote.toStdString() + "\r\n\r\n";
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -747,5 +742,25 @@ private:
 
 
 };
+
+// GUI HIDDEN ROOT DESCRIPTIONS
+//
+// treeW_cataindb
+// 
+// 
+// treeW_cataondrive
+//
+// treeW_gid
+// 0 = display root ?
+//
+// listW_csvrows
+//
+// treeW_csvtree
+// 
+// tV_viewtable
+//
+// treeW_subtables
+// 
+//
 
 #endif // MAINWINDOW_H

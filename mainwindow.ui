@@ -107,13 +107,13 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="GID">
      <attribute name="title">
       <string>Geographic Region</string>
      </attribute>
-     <widget class="QTreeWidget" name="GID_tree">
+     <widget class="QTreeWidget" name="treeW_gid">
       <property name="geometry">
        <rect>
         <x>0</x>
@@ -136,7 +136,7 @@
      <attribute name="title">
       <string>Row Data</string>
      </attribute>
-     <widget class="QListWidget" name="Rows_list">
+     <widget class="QListWidget" name="listW_csvrows">
       <property name="geometry">
        <rect>
         <x>0</x>

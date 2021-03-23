@@ -154,7 +154,9 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
     }
 
     vector<int> space_history = { 0 };
-    int spaces, indent;
+    vector<int> diff, mins;
+    int spaces, indent, inum, min, index;
+    int old_spaces = 0;
     do
     {
         pos1 = sfile.find('"', pos_nl1);
@@ -164,19 +166,80 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
         if (temp1 == "Note") { break; }  // Primary loop exit.
         rows.push_back(vector<string>(1));
 
-        for (int ii = 0; ii < space_history.size(); ii++)
+        // This portion of the code is problematic. Stats Canada was inconsistent in how 
+        // they indented their rows using single char spaces (even within the same file).
+        if (spaces == old_spaces)
         {
-            if (spaces == space_history[ii])
+            indent = space_history.size() - 1;
+        }
+        else if (spaces > old_spaces)
+        {
+            indent = space_history.size();
+            space_history.push_back(spaces);
+            old_spaces = spaces;
+        }
+        else
+        {
+            inum = old_spaces - spaces;
+            if (inum == 1)
             {
-                indent = ii;
-                break;
+                indent = space_history.size() - 1;  // Pretend it's the same as before...
             }
-            else if (ii == space_history.size() - 1)
+            else
             {
-                indent = space_history.size();
-                space_history.push_back(spaces);
+                for (int ii = space_history.size() - 1; ii >= 0; ii--)
+                {
+                    if (space_history[ii] == spaces)
+                    {
+                        indent = ii;
+                        while (ii < space_history.size() - 1)
+                        {
+                            space_history.pop_back();
+                        }
+                        old_spaces = spaces;
+                        break;
+                    }
+                    else if (ii == 0)   // Tell the program to guess. What could possibly go wrong?
+                    {
+                        diff.resize(space_history.size());
+                        for (int jj = 0; jj < space_history.size(); jj++)
+                        {
+                            diff[jj] = abs(spaces - space_history[jj]);
+                        }
+                        min = diff[0];
+                        mins = { 0 };
+                        for (int jj = 1; jj < space_history.size(); jj++)
+                        {
+                            if (diff[jj] < min)
+                            {
+                                min = diff[jj];
+                                mins = { jj };
+                            }
+                            else if (diff[jj] == min)
+                            {
+                                mins.push_back(jj);
+                            }
+                        }
+                        if (mins.size() == 1)
+                        {
+                            indent = mins[0];
+                            while (indent < space_history.size() - 1)
+                            {
+                                space_history.pop_back();
+                            }
+                            old_spaces = spaces;
+                        }
+                        else
+                        {
+                            // Give up.
+                            err("Failed to parse spaces-sc.extract_rows");
+                        }
+                    }
+                }
             }
         }
+
+
         temp1.insert(0, indent, '+');
         rows[rows.size() - 1][0] = temp1;
 
@@ -187,6 +250,7 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
             pos2 = sfile.find(',', pos1 + 1);
             if (pos2 > pos_nl2)  // If we have reached the last value on this line...
             {
+                /*
                 pos3 = sfile.find(' ', pos1 + 1);  // ... check for a space before newline.
                 if (pos3 > pos_nl2)
                 {
@@ -197,6 +261,13 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
                     }
                 }
                 temp1 = sfile.substr(pos1 + 1, pos3 - pos1 - 1);
+                if (temp1 == "..") { damaged++; }
+                rows[rows.size() - 1].push_back(temp1);
+                */
+            
+                pos3 = sfile.find_last_of("1234567890", pos_nl2) + 1;
+                pos1 = sfile.find_last_of(" ,", pos3) + 1;
+                temp1 = sfile.substr(pos1, pos3 - pos1);
                 if (temp1 == "..") { damaged++; }
                 rows[rows.size() - 1].push_back(temp1);
             }
@@ -543,7 +614,7 @@ int STATSCAN::make_tgr_statements(vector<string>& tgr_stmts, string syear, strin
     vector<string> hall_of_fame;
 
     int num_col = 2;
-    size_t pos1 = 0;
+    size_t pos1 = geo_list.find_first_of("1234567890");
     size_t pos2 = geo_list.find('$');
     do
     {
@@ -641,7 +712,7 @@ int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
     int num_rows = rows.size();
     if (num_rows == 0) { err("Cannot sc.make_tgrow_statements before sc.cata_init"); }
     vector<vector<string>> tgrow(num_rows, vector<string>());
-    vector<string> hall_of_fame;
+    vector<int> hall_of_fame;
     string temp, row;
     int indent;
     int tg_row_col = 0;
@@ -656,13 +727,14 @@ int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
         }
         while (hall_of_fame.size() <= indent)
         {
-            hall_of_fame.push_back(row);
+            hall_of_fame.push_back(ii);
         }
-        hall_of_fame[indent] = row;
+        hall_of_fame[indent] = ii;
+        tgrow[ii].push_back(to_string(ii));
         tgrow[ii].push_back(row);
         for (int jj = 0; jj < indent; jj++)
         {
-            tgrow[ii].push_back(hall_of_fame[jj]);
+            tgrow[ii].push_back(to_string(hall_of_fame[jj]));
         }
         if (tg_row_col < indent + 2)
         {
@@ -676,7 +748,7 @@ int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
     for (int ii = 2; ii < tg_row_col; ii++)
     {
         temp = "param" + to_string(ii);
-        stmt += temp + " TEXT, ";
+        stmt += temp + " INT, ";
     }
     stmt.erase(stmt.size() - 2, 2);
     stmt += ");";
@@ -685,17 +757,24 @@ int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
     for (int ii = 0; ii < num_rows; ii++)
     {
         stmt = "INSERT OR IGNORE INTO [TG_Row$" + cata_name + "] ([Row Index], [Row Title], ";
-        for (int jj = 2; jj <= tgrow[ii].size(); jj++)
+        for (int jj = 2; jj < tgrow[ii].size(); jj++)
         {
             temp = "param" + to_string(jj);
             stmt += temp + ", ";
         }
         stmt.erase(stmt.size() - 2, 2);
-        stmt += ") VALUES (" + to_string(ii) + ", ";
+        stmt += ") VALUES (";
         for (int jj = 0; jj < tgrow[ii].size(); jj++)
         {
-            sclean(tgrow[ii][jj], 1);
-            stmt += "'" + tgrow[ii][jj] + "', ";
+            if (jj == 1)
+            {
+                sclean(tgrow[ii][jj], 1);
+                stmt += "'" + tgrow[ii][jj] + "', ";
+            }
+            else
+            {
+                stmt += tgrow[ii][jj] + ", ";
+            }
         }
         stmt.erase(stmt.size() - 2, 2);
         stmt += ");";

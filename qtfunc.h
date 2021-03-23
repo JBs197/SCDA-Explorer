@@ -12,11 +12,15 @@ using namespace std;
 class QTFUNC
 {
 	JFUNC jf_qf;
+	QMap<QTreeWidget*, int> map_display_root;
 
 public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
+	void display_subt(QTreeWidget*, QTreeWidgetItem*);
 	void err(string);
+	int get_display_root(QTreeWidget*);
+	void set_display_root(QTreeWidget*, int);
 
 	// TEMPLATES
 	template<typename Q> void display(Q*, vector<vector<int>>&, vector<string>&) 
@@ -25,71 +29,16 @@ public:
 	}
 	template<> void display<QTreeWidget>(QTreeWidget* qview, vector<vector<int>>& tree_st, vector<string>& tree_pl)
 	{
+		qview->clear();
 		string temp1;
 		QString qtemp;
 		QTreeWidgetItem *qitem, *qparent;
-		QList<QTreeWidgetItem*> qroots, qregistry;
+		QList<QTreeWidgetItem*> qroots, qregistry, qTNG;
 		int pivot, iparent;
 
-		// Make a list of the tree's root elements.
-		vector<int> roots;
-		for (int ii = 0; ii < tree_st.size(); ii++)
-		{
-			for (int jj = 0; jj < tree_st[ii].size(); jj++)
-			{
-				if (tree_st[ii][jj] < 0)
-				{
-					pivot = jj;
-					break;
-				}
-				else if (jj == tree_st[ii].size() - 1)
-				{
-					pivot = 0;
-				}
-			}
-			if (pivot == 0)
-			{
-				roots.push_back(ii);
-			}
-		}
-
-		// Establish which parameters are redundant, and add them as hidden root items.
-		vector<string> redundant_params;
-		vector<string> params;  // First entry is full name.
-		temp1 = tree_pl[roots[0]];
-		params = jf_qf.list_from_marker(temp1, '$');
-		if (roots.size() == 1)
-		{
-			redundant_params.assign(params.begin() + 1, params.end());
-		}
-		else if (roots.size() > 1)
-		{
-			redundant_params.assign(params.begin() + 1, params.end() - 1);
-		}
-		for (int ii = 0; ii < redundant_params.size(); ii++)
-		{
-			qtemp = QString::fromStdString(redundant_params[ii]);
-			if (ii == 0)
-			{
-				qitem = new QTreeWidgetItem();
-				qitem->setText(0, qtemp);
-				qview->addTopLevelItem(qitem);
-			}
-			else
-			{
-				qparent = qitem;
-				qitem = new QTreeWidgetItem(qparent);
-				qitem->setText(0, qtemp);
-			}
-		}
-
-
-		// Populate the widget, only displaying each item's final parameter.
 		for (int ii = 0; ii < tree_st.size(); ii++) 
 		{
-			params = jf_qf.list_from_marker(tree_pl[ii], '$');
-			temp1 = params[params.size() - 1];
-			qtemp = QString::fromStdString(temp1);
+			qtemp = QString::fromStdString(tree_pl[ii]);
 
 			// For every node, determine its parent. Then, set its text.
 			for (int jj = 0; jj < tree_st[ii].size(); jj++) 
@@ -120,22 +69,27 @@ public:
 				qregistry.append(qitem);
 			}
 		}
-		if (qroots.size() > 1)
+		int display_root = get_display_root(qview);
+		if (display_root == 1)
 		{
 			qview->addTopLevelItems(qroots);
 		}
+		else if (display_root == 0)
+		{
+			for (int ii = 0; ii < qroots.size(); ii++)
+			{
+				qTNG.append(qroots[ii]->takeChildren());
+				qroots[ii]->setHidden(1);
+				qview->addTopLevelItem(qroots[ii]);
+			}
+			qview->addTopLevelItems(qTNG);
+		}
 		else
 		{
-			QList<QTreeWidgetItem*> qTNG = qroots[0]->takeChildren();
-			qview->addTopLevelItems(qTNG);
+			err("display_root-qt.display");
 		}
 
 		// Tidy up.
-		if (redundant_params.size() > 0)
-		{
-			qitem = qview->topLevelItem(0);
-			qitem->setHidden(1);
-		}
 		if (tree_st.size() <= 20)
 		{
 			qview->expandAll();
