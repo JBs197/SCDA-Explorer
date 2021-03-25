@@ -5,7 +5,8 @@
 #include <QTreeWidgetItem>
 #include <QStandardItemModel>
 #include <QTableView>
-#include <QtSql>
+//#include <QNetworkAccessManager>
+//#include <QNetworkReply>
 #include <sqlite3.h>
 #include <iostream>
 #include "winfunc.h"
@@ -54,12 +55,11 @@ private slots:
     void on_pB_removecata_clicked();
     void on_tabW_catalogues_currentChanged(int);
     void on_tabW_results_currentChanged(int);
+    void on_pB_mode_clicked();
+    void on_pB_usc_clicked();
 
 private:
     Ui::MainWindow *ui;
-    sqlite3* db;
-    sqlite3_stmt* statement;
-    int location = 0;  // 0 = home, 1 = inn.
     const int cores = 3;
     const int handful = 100;  // Number of CSVs to insert between progress bar updates.
     const int worker_batch = 10;  // Number of CSVs workers prepare before pushing to the manager.
@@ -72,6 +72,8 @@ private:
     int remote_controller = 0;  // 0 = standard, 1 = cancel.
     bool begun_logging = 0;
     int qrow_title_width = 20;
+    int active_mode = 0;
+    int qnam_status = 0;
     wstring wdrive;
     string sdrive;
     QString qdrive;
@@ -80,30 +82,25 @@ private:
     vector<string> sroots = { "F:", "D:" };
     vector<wstring> wroots = { L"F:", L"D:" }; //  NOTE: REMOVE HARDCODING LATER.
     QVector<QString> qroots = { "F:", "D:" };
+    vector<string> modes = { "LOCAL \n MODE ", "ONLINE \n MODE " };
     vector<string> viewcata_data;  // Hold essential information for the catalogue being viewed. Form [syear, sname].
     vector<string> viewcata_gid_list;
-    void clear_log();
     void update_bar();
     void reset_bar(int, string);
     void initialize();
-    void sqlerror(string, sqlite3*&);
-    void update_text_vars(QVector<QVector<QString>>&, QString&);
     void create_cata_index_table();
     void create_damaged_table();
-    void all_cata_db(QVector<QVector<QVector<QString>>>&, QMap<QString, int>&);
-    vector<string> scan_incomplete_cata(string, string);
     void judicator(SQLFUNC&, SWITCHBOARD&, WINFUNC&);
-    void insert_csvs(vector<vector<string>>&, SWITCHBOARD&, STATSCAN&);
+    void insert_csvs(vector<vector<vector<string>>>&, SWITCHBOARD&, STATSCAN&);
     static int sql_callback(void*, int, char**, char**);
-    vector<vector<string>> step(sqlite3*&, sqlite3_stmt*);
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
-    vector<string> missing_gids(sqlite3*&, int, string, string);
     void display_catalogue(SQLFUNC&, SWITCHBOARD&, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
     void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
     void delete_cata(SWITCHBOARD&, SQLFUNC&);
     void auto_expand(QTreeWidget*&, int);
     void update_treeW_cataindb();
+    void update_mode();
 
 
     // TEMPLATES
@@ -150,8 +147,8 @@ private:
     template<typename S> void err(S) {}
     template<> void err<string>(string message)
     {
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Generic Error: " + message + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Generic Error: " + message + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -166,8 +163,8 @@ private:
     }
     template<> void err<wstring>(wstring message)
     {
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Generic Error: " + utf16to8(message) + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Generic Error: " + jf.utf16to8(message) + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -182,8 +179,8 @@ private:
     }
     template<> void err<QString>(QString message)
     {
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Generic Error: " + message.toStdString() + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Generic Error: " + message.toStdString() + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -203,8 +200,8 @@ private:
     }
     template<> void errnum<string>(string func, int error)
     {
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hprinter == INVALID_HANDLE_VALUE)
@@ -228,9 +225,9 @@ private:
     }
     template<> void errnum<wstring>(wstring message, int error)
     {
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string func = utf16to8(message);
-        string smessage = timestamperA() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string func = jf.utf16to8(message);
+        string smessage = jf.timestamper() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hprinter == INVALID_HANDLE_VALUE)
@@ -254,9 +251,9 @@ private:
     }
     template<> void errnum<QString>(QString message, int error)
     {
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
+        string spath = root + "\\SCDA Error Log.txt";
         string func = message.toStdString();
-        string smessage = timestamperA() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
+        string smessage = jf.timestamper() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hprinter == INVALID_HANDLE_VALUE)
@@ -282,8 +279,8 @@ private:
     template<> void winerr<string>(string message)
     {
         DWORD num = GetLastError();
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Windows Error #" + to_string(num) + ", from " + message + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + message + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -299,8 +296,8 @@ private:
     template<> void winerr<wstring>(wstring message)
     {
         DWORD num = GetLastError();
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Windows Error #" + to_string(num) + ", from " + utf16to8(message) + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + jf.utf16to8(message) + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -316,8 +313,8 @@ private:
     template<> void winerr<QString>(QString message)
     {
         DWORD num = GetLastError();
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Windows Error #" + to_string(num) + ", from " + message.toStdString() + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + message.toStdString() + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -333,8 +330,8 @@ private:
     template<typename S> void warn(S) {}
     template<> void warn<string>(string message)
     {
-        string name = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Generic Warning: " + message + "\r\n\r\n";
+        string name = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Generic Warning: " + message + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -348,8 +345,8 @@ private:
     }
     template<> void warn<wstring>(wstring message)
     {
-        string name = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Generic Warning: " + utf16to8(message) + "\r\n\r\n";
+        string name = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Generic Warning: " + jf.utf16to8(message) + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -363,8 +360,8 @@ private:
     }
     template<> void warn<QString>(QString message)
     {
-        string name = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Generic Warning: " + message.toStdString() + "\r\n\r\n";
+        string name = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Generic Warning: " + message.toStdString() + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -380,8 +377,8 @@ private:
     template<> void winwarn<string>(string message)
     {
         DWORD num = GetLastError();
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Windows Error #" + to_string(num) + ", from " + message + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + message + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -396,8 +393,8 @@ private:
     template<> void winwarn<wstring>(wstring message)
     {
         DWORD num = GetLastError();
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Windows Error #" + to_string(num) + ", from " + utf16to8(message) + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + jf.utf16to8(message) + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -412,8 +409,8 @@ private:
     template<> void winwarn<QString>(QString message)
     {
         DWORD num = GetLastError();
-        string spath = sroots[location] + "\\SCDA Error Log.txt";
-        string smessage = timestamperA() + " Windows Error #" + to_string(num) + ", from " + message.toStdString() + "\r\n\r\n";
+        string spath = root + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + message.toStdString() + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         SetFilePointer(hprinter, NULL, NULL, FILE_END);
@@ -432,8 +429,8 @@ private:
     template<> void log<string>(string note)
     {
         lock_guard lock(m_err);
-        string name = sroots[location] + "\\SCDA Process Log.txt";
-        string message = timestamperA() + "  " + note + "\r\n";
+        string name = root + "\\SCDA Process Log.txt";
+        string message = jf.timestamper() + "  " + note + "\r\n";
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hprinter == INVALID_HANDLE_VALUE) { winerr(L"CreateFile-slog"); }
         if (!begun_logging)
@@ -459,8 +456,8 @@ private:
     template<> void log<wstring>(wstring wnote)
     {
         lock_guard lock(m_err);
-        string name = sroots[location] + "\\SCDA Process Log.txt";
-        string message = timestamperA() + "  " + utf16to8(wnote) + "\r\n\r\n";
+        string name = root + "\\SCDA Process Log.txt";
+        string message = jf.timestamper() + "  " + jf.utf16to8(wnote) + "\r\n\r\n";
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hprinter == INVALID_HANDLE_VALUE) { winerr(L"CreateFile-wlog"); }
         if (!begun_logging)
@@ -486,8 +483,8 @@ private:
     template<> void log<QString>(QString qnote)
     {
         lock_guard lock(m_err);
-        string name = sroots[location] + "\\SCDA Process Log.txt";
-        string message = timestamperA() + "  " + qnote.toStdString() + "\r\n\r\n";
+        string name = root + "\\SCDA Process Log.txt";
+        string message = jf.timestamper() + "  " + qnote.toStdString() + "\r\n\r\n";
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hprinter == INVALID_HANDLE_VALUE) { winerr(L"CreateFile-qlog"); }
         if (!begun_logging)
@@ -563,7 +560,7 @@ private:
         if (!ReadFile(hfile, bufferW, size, &bytes_read, NULL)) { winerr("ReadFile-wsload"); }
         wstring wfile(bufferW, size / 2);
         delete[] bufferW;
-        string sfile = utf16to8(wfile);
+        string sfile = jf.utf16to8(wfile);
         output = sfile;
     }
     template<> void load<string, wstring>(string& full_path, wstring& output)
@@ -576,7 +573,7 @@ private:
         if (!ReadFile(hfile, bufferA, size, &bytes_read, NULL)) { winerr("ReadFile-swload"); }
         string sfile(bufferA, size);
         delete[] bufferA;
-        wstring wfile = utf8to16(sfile);
+        wstring wfile = jf.utf8to16(sfile);
         output = wfile;
     }
     template<> void load<wstring, wstring>(wstring& full_path, wstring& output)

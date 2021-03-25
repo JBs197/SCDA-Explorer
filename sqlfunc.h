@@ -13,9 +13,8 @@ using namespace std;
 
 class SQLFUNC 
 {
-    JFUNC jfsql;
+    JFUNC jfsf;
 	sqlite3* db;
-	sqlite3_stmt* state;
     ofstream ERR;
     string error_path = root + "\\SCDA Error Log.txt";
     
@@ -40,14 +39,16 @@ public:
     vector<string> select_years();
     void set_error_path(string);
     bool table_exist(string);
+    vector<string> test_cata(string);
 
 	// TEMPLATES
 	template<typename ... Args> void executor(string, Args& ... args) {}
 	template<> void executor(string stmt)
 	{
-		int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &state, NULL);
+        sqlite3_stmt* statement;
+		int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
 		if (error) { sqlerr("prepare-executor0"); }
-		error = sqlite3_step(state);
+		error = sqlite3_step(statement);
 		if (error > 0 && error != 100 && error != 101) 
 		{
 			sqlerr("step-executor0"); 
@@ -57,31 +58,36 @@ public:
     {
         // Note that this variant of the executor function will only return the first result.
         int type, size;  // Type: 1(int), 2(double), 3(string)
-        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &state, NULL);
+        sqlite3_stmt* statement;
+        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
         if (error) { sqlerr("prepare-executor0.5"); }
-        error = sqlite3_step(state);
+        error = sqlite3_step(statement);
         int ivalue;
         double dvalue;
         string svalue;
+        char* buffer;
 
         if (error == 100)
         {
-            type = sqlite3_column_type(state, 0);
+            type = sqlite3_column_type(statement, 0);
             switch (type)
             {
             case 1:
-                ivalue = sqlite3_column_int(state, 0);
+                ivalue = sqlite3_column_int(statement, 0);
                 result = to_string(ivalue);
                 break;
             case 2:
-                dvalue = sqlite3_column_double(state, 0);
+                dvalue = sqlite3_column_double(statement, 0);
                 result = to_string(dvalue);
                 break;
             case 3:
-                size = sqlite3_column_bytes(state, 0);
-                char* buffer = (char*)sqlite3_column_text(state, 0);
+                size = sqlite3_column_bytes(statement, 0);
+                buffer = (char*)sqlite3_column_text(statement, 0);
                 svalue.assign(buffer, size);
                 result = svalue;
+                break;
+            case 5:
+                result = "";
                 break;
             }
             return;
@@ -95,40 +101,42 @@ public:
 	{
         // Note that this variant of the executor function can accomodate either a column or a row as the result.
         int type, size;  // Type: 1(int), 2(double), 3(string)
-        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &state, NULL);
+        sqlite3_stmt* statement;
+        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
         if (error) { sqlerr("prepare-executor1"); }
-        error = sqlite3_step(state);
+        error = sqlite3_step(statement);
         int ivalue;
         double dvalue;
         string svalue;
         int col_count = -1;
+        char* buffer;
         results.clear();
 
         while (error == 100)
         {
             if (col_count < 0)
             {
-                col_count = sqlite3_column_count(state);
+                col_count = sqlite3_column_count(statement);
             }
             if (col_count > 1)  // Returned vector will be a row.
             {
                 results.resize(col_count);
                 for (int ii = 0; ii < col_count; ii++)
                 {
-                    type = sqlite3_column_type(state, ii);
+                    type = sqlite3_column_type(statement, ii);
                     switch (type)
                     {
                     case 1:
-                        ivalue = sqlite3_column_int(state, ii);
+                        ivalue = sqlite3_column_int(statement, ii);
                         results[ii] = to_string(ivalue);
                         break;
                     case 2:
-                        dvalue = sqlite3_column_double(state, ii);
+                        dvalue = sqlite3_column_double(statement, ii);
                         results[ii] = to_string(dvalue);
                         break;
                     case 3:
-                        size = sqlite3_column_bytes(state, ii);
-                        char* buffer = (char*)sqlite3_column_text(state, ii);
+                        size = sqlite3_column_bytes(statement, ii);
+                        char* buffer = (char*)sqlite3_column_text(statement, ii);
                         svalue.assign(buffer, size);
                         results[ii] = svalue;
                         break;
@@ -138,26 +146,29 @@ public:
             }
             else  // Returned result will be a column.
             {
-                type = sqlite3_column_type(state, 0);
+                type = sqlite3_column_type(statement, 0);
                 switch (type)
                 {
                 case 1:
-                    ivalue = sqlite3_column_int(state, 0);
+                    ivalue = sqlite3_column_int(statement, 0);
                     results.push_back(to_string(ivalue));
                     break;
                 case 2:
-                    dvalue = sqlite3_column_double(state, 0);
+                    dvalue = sqlite3_column_double(statement, 0);
                     results.push_back(to_string(dvalue));
                     break;
                 case 3:
-                    size = sqlite3_column_bytes(state, 0);
-                    char* buffer = (char*)sqlite3_column_text(state, 0);
+                    size = sqlite3_column_bytes(statement, 0);
+                    buffer = (char*)sqlite3_column_text(statement, 0);
                     svalue.assign(buffer, size);
                     results.push_back(svalue);
                     break;
+                case 5:
+                    results.push_back("");
+                    break;
                 }
             }
-            error = sqlite3_step(state);
+            error = sqlite3_step(statement);
         }
         if (error > 0 && error != 101)
         {
@@ -167,39 +178,44 @@ public:
     template<> void executor<vector<vector<string>>>(string stmt, vector<vector<string>>& results)
     {
         int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
-        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &state, NULL);
+        sqlite3_stmt* statement;
+        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
         if (error) { sqlerr("prepare-executor2"); }
-        error = sqlite3_step(state);
+        error = sqlite3_step(statement);
         int ivalue;
         double dvalue;
         string svalue;
+        char* buffer;
 
         while (error == 100)
         {
-            col_count = sqlite3_column_count(state);
+            col_count = sqlite3_column_count(statement);
             results.push_back(vector<string>(col_count));
             for (int ii = 0; ii < col_count; ii++)
             {
-                type = sqlite3_column_type(state, ii);
+                type = sqlite3_column_type(statement, ii);
                 switch (type)
                 {
                 case 1:
-                    ivalue = sqlite3_column_int(state, ii);
+                    ivalue = sqlite3_column_int(statement, ii);
                     results[results.size() - 1][ii] = to_string(ivalue);
                     break;
                 case 2:
-                    dvalue = sqlite3_column_double(state, ii);
+                    dvalue = sqlite3_column_double(statement, ii);
                     results[results.size() - 1][ii] = to_string(dvalue);
                     break;
                 case 3:
-                    size = sqlite3_column_bytes(state, ii);
-                    char* buffer = (char*)sqlite3_column_text(state, ii);
+                    size = sqlite3_column_bytes(statement, ii);
+                    buffer = (char*)sqlite3_column_text(statement, ii);
                     svalue.assign(buffer, size);
                     results[results.size() - 1][ii] = svalue;
                     break;
+                case 5:
+                    results[results.size() - 1].push_back("");
+                    break;
                 }
             }
-            error = sqlite3_step(state);
+            error = sqlite3_step(statement);
         }
         if (error > 0 && error != 101)
         {
@@ -355,13 +371,42 @@ public:
         if (error) { sqlerr("commit transaction-insert_rows"); }
     }
 
-    template<typename ... Args> void remove(string, Args& ... args)
+    template<typename ... Args> void remove(Args& ... args)
     {
         // If only a table name is given, then delete that entire table name from the database.
+        // If an integer reference is given, then (mode = 1) will bypass the existance check.
         // If a list is also given, then that list serves as boolean conditions from which 
         // TRUE rows within the table will be deleted.
     }
-    template<> void remove<>(string tname)
+    template<> void remove<int, vector<string>>(int& mode, vector<string>& death_row)
+    {
+        string stmt;
+        int error;
+        if (mode == 1)
+        {
+            error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+            if (error) { sqlerr("begin transaction-remove(list)"); }
+            for (int ii = 0; ii < death_row.size(); ii++)
+            {
+                stmt = "DELETE FROM [" + death_row[ii] + "];";
+                executor(stmt);
+            }
+            error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+            if (error)
+            {
+                if (error != 5)
+                {
+                    sqlerr("commit transaction-insert_prepared");
+                }
+                while (error == 5)
+                {
+                    this_thread::sleep_for(5ms);
+                    error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+                }
+            }
+        }
+    }
+    template<> void remove<string>(string& tname)
     {
         string stmt = "DELETE FROM [" + tname + "];";
         if (table_exist(tname))
@@ -370,11 +415,11 @@ public:
         }
         else
         {
-            jfsql.log("Could not delete " + tname + " : could not find.");
+            jfsf.log("Could not delete " + tname + " : could not find.");
         }
         
     }
-    template<> void remove<vector<string>>(string tname, vector<string>& conditions)
+    template<> void remove<string, vector<string>>(string& tname, vector<string>& conditions)
     {
         string stmt = "DELETE FROM [" + tname + "] WHERE (";
         for (int ii = 0; ii < conditions.size(); ii++)
@@ -388,11 +433,11 @@ public:
         }
         else
         {
-            jfsql.log("Could not delete " + tname + " : could not find.");
+            jfsf.log("Could not delete " + tname + " : could not find.");
         }
     }
 
-    template<typename ... Args> int select(vector<string>, string, Args& ... args)
+    template<typename ... Args> int select(vector<string> search, string tname, Args& ... args)
     {
         // Return (by reference) the database's values for a given the search query. 
         // 

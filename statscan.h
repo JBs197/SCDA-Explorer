@@ -8,7 +8,7 @@ using namespace std;
 
 class STATSCAN
 {
-	JFUNC jf_sc;
+	JFUNC jfsc;
 	string cata_path;
 	string cata_name;
 	string cata_desc;

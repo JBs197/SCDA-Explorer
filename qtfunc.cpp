@@ -10,7 +10,7 @@ void QTFUNC::display_subt(QTreeWidget* qview, QTreeWidgetItem* qparent)
 }
 void QTFUNC::err(string func)
 {
-	jf_qf.err(func);
+	jfqf.err(func);
 }
 int QTFUNC::get_display_root(QTreeWidget* name)
 {

@@ -3,6 +3,7 @@
 
 mutex m_err;
 const string root{ "F:" };
+const string scroot{ "www12.statcan.gc.ca/datasets/index-eng.cfm?Temporal=2016" };
 
 int main(int argc, char* argv[])
 {

@@ -60,7 +60,7 @@ void SQLFUNC::create_table(string tname, vector<string>& titles, vector<int>& ty
 }
 void SQLFUNC::err(string func)
 {
-    jfsql.err(func);
+    jfsf.err(func);
 }
 int SQLFUNC::get_num_col(string tname)
 {
@@ -80,7 +80,7 @@ void SQLFUNC::insert_tg_existing(string tname)
     // Convenience function to facilitate the insertion of tables into TGenealogy. 
     // This function is only valid if the table in question already exists in the database.
     
-    vector<string> row_data = jfsql.list_from_marker(tname, '$');
+    vector<string> row_data = jfsf.list_from_marker(tname, '$');
     safe_col("TGenealogy", row_data.size());
     insert("TGenealogy", row_data);
 }
@@ -95,7 +95,18 @@ void SQLFUNC::insert_prepared(vector<string>& stmts)
         executor(stmts[ii]);
     }
     error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
-    if (error) { sqlerr("commit transaction-insert_prepared"); }
+    if (error) 
+    { 
+        if (error != 5)
+        {
+            sqlerr("commit transaction-insert_prepared");
+        }
+        while (error == 5)
+        {
+            this_thread::sleep_for(5ms);
+            error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+        } 
+    }
 }
 string SQLFUNC::insert_stmt(string tname, vector<string>& column_titles, vector<string>& row_data)
 {
@@ -179,10 +190,11 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
     // Produce a tree structure and tree payload for the given table name as root. 
     // Certain table name parameters have special forks within the function.
 
-    vector<string> tname_params = jfsql.list_from_marker(tname, '$');
+    vector<string> tname_params = jfsf.list_from_marker(tname, '$');
     vector<vector<string>> results;
     unordered_map<string, int> registry;
-    vector<int> orphans, ivtemp;
+    vector<vector<int>> kids;
+    vector<int> ivtemp;
     vector<string> vtemp;
     string temp, sparent, stmt;
     int pl_index, iparent, pivot, inum;
@@ -195,8 +207,9 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
         executor(stmt, results);
         tree_pl.resize(results.size());
         tree_st.resize(results.size());
+        kids.resize(results.size(), vector<int>());
         
-        // Remove SQL's null entries.
+        // Remove SQL's null entries, and register each node.
         for (int ii = 0; ii < results.size(); ii++)
         {
             for (int jj = 0; jj < results[ii].size(); jj++)
@@ -207,13 +220,13 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
                     break;
                 }
             }
-        }
-
-        // Build the tree structure.
-        for (int ii = 0; ii < results.size(); ii++)
-        {
             tree_pl[ii] = results[ii][1];
             registry.emplace(results[ii][0], ii);  // Input gid as string, output pl_index.
+        }
+
+        // Build the tree structure (parents->node).
+        for (int ii = 0; ii < results.size(); ii++)
+        {
             for (int jj = 2; jj < results[ii].size(); jj++)
             {
                 try
@@ -223,50 +236,22 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
                 }
                 catch (out_of_range& oor)
                 {
-                    orphans.push_back(ii);
-                    tree_st[ii].clear();
-                    iparent = -1;
-                    break;
+                    err("iparent registry-sf.select_tree");
                 }
+            }
+            if (results[ii].size() > 2)
+            {
+                kids[iparent].push_back(ii);
             }
             tree_st[ii].push_back(-1 * ii);
-            if (iparent >= 0)
-            {
-                tree_st[iparent].push_back(ii);
-            }
         }
 
-        // Integrate the orphans (parent node not yet loaded on first pass).
-        while (orphans.size() > 0)
+        // Build the tree structure (node->children).
+        for (int ii = 0; ii < results.size(); ii++)
         {
-            for (int ii = 0; ii < orphans.size(); ii++)
+            for (int jj = 0; jj < kids[ii].size(); jj++)
             {
-                pl_index = orphans[ii];
-                ivtemp.clear();
-                for (int jj = 2; jj < results[pl_index].size(); jj++)
-                {
-                    try
-                    {
-                        iparent = registry.at(results[pl_index][jj]);
-                        ivtemp.push_back(iparent);
-                    }
-                    catch (out_of_range& oor)
-                    {
-                        for (int kk = 0; kk < tree_st[pl_index].size(); kk++)
-                        {
-                            if (tree_st[pl_index][kk] < 0)
-                            {
-                                break;
-                            }
-                            tree_st[pl_index].erase(tree_st[pl_index].begin() + kk);
-                            kk--;
-                        }
-                        break;
-                    }
-                }
-                tree_st[pl_index].insert(tree_st[pl_index].begin(), ivtemp.begin(), ivtemp.end());
-                orphans.erase(orphans.begin() + ii);
-                ii--;
+                tree_st[ii].push_back(kids[ii][jj]);
             }
         }
 
@@ -451,4 +436,72 @@ string SQLFUNC::timestamper()
     }
     return timestampA;
 }
+vector<string> SQLFUNC::test_cata(string cata_name)
+{
+    // Returns PASS or FAIL as to whether the given catalogue has the minimum 
+    // number of tables (with entries) in the database. Each subsequent line 
+    // in the report describes the number of rows found for each table tested.
 
+    vector<string> test_results(6); 
+    vector<int> iresults(5);
+    QElapsedTimer timer;
+
+    timer.start();
+    vector<string> results1;
+    vector<string> search = { "Name" };
+    string tname = "TCatalogueIndex";
+    vector<string> conditions = { "Name = '" + cata_name + "'" };
+    select(search, tname, results1, conditions);
+    iresults[0] = results1.size();
+    test_results[1] = "TCatalogueIndex had " + to_string(iresults[0]) + " entries.";
+
+    results1.clear();
+    search = { "GID" };
+    tname = "TG_Region$" + cata_name;
+    select(search, tname, results1);
+    iresults[1] = results1.size();
+    test_results[2] = tname + " had " + to_string(iresults[1]) + " entries.";
+
+    results1.clear();
+    search = { "[Row Index]" };
+    tname = "TG_Row$" + cata_name;
+    select(search, tname, results1);
+    iresults[2] = results1.size();
+    test_results[3] = tname + " had " + to_string(iresults[2]) + " entries.";
+
+    results1.clear();
+    search = { "GID" };
+    tname = cata_name;
+    select(search, tname, results1);
+    iresults[3] = results1.size();
+    test_results[4] = tname + " had " + to_string(iresults[3]) + " entries.";
+
+    vector<string> vtemp;
+    results1.clear();
+    vector<string> tall = all_tables();
+    for (int ii = 0; ii < tall.size(); ii++)
+    {
+        vtemp = jfsf.list_from_marker(tall[ii], '$');
+        if (vtemp[1] == cata_name && vtemp.size() > 2)
+        {
+            results1.push_back(vtemp[0]);
+        }
+    }
+    iresults[4] = results1.size();
+    test_results[5] = cata_name + "$GID had " + to_string(iresults[4]) + " tables.";
+
+    for (int ii = 0; ii < iresults.size(); ii++)
+    {
+        if (iresults[ii] < 1)
+        {
+            test_results[0] = "FAIL";
+            break;
+        }
+        else if (ii == iresults.size() - 1)
+        {
+            test_results[0] = "PASS";
+        }
+    }
+    qDebug() << "cata_test time: " << timer.restart();
+    return test_results;
+}

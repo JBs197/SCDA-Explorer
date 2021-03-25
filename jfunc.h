@@ -16,6 +16,7 @@
 using namespace std;
 extern mutex m_err;
 extern const string root;
+extern const string scroot;
 
 class JFUNC
 {
@@ -30,12 +31,13 @@ public:
 	void err(string);
 	string get_error_path();
 	void isort_slist(vector<string>&);
+	int is_numeric(string&);
 	vector<string> list_from_marker(string&, char);
 	string load(string);
 	void log(string);
-	string wload(wstring);
 	string parent_from_marker(string&, char);
 	void quicksort(vector<int>&, int, int);
+	void tclean(string&, char, string);
 	string timestamper();
 	int tree_from_marker(vector<vector<int>>&, vector<string>&);
 	string utf16to8(wstring);
@@ -186,62 +188,6 @@ public:
 
 		return 0;
 	}
-	template<> int clean<string>(string& bbq, vector<string> dirt, string twins)
-	{
-		int count = 0;
-		size_t pos1, pos2;
-		for (int ii = 0; ii < dirt.size(); ii++)
-		{
-			if (dirt[ii].size() == 1)
-			{
-				pos1 = bbq.find(dirt[ii][0]);
-				while (pos1 < bbq.size())
-				{
-					bbq.erase(pos1, 1);
-					pos1 = bbq.find(dirt[ii][0], pos1);
-				}
-			}
-			else if (dirt[ii].size() == 2)
-			{
-				pos1 = bbq.find(dirt[ii][0]);
-				while (pos1 < bbq.size())
-				{
-					pos2 = bbq.find(dirt[ii][1], pos1 + 1);
-					if (pos2 > bbq.size())
-					{
-						cerr << "ERROR: no closing parameter to delete interval-clean: " << dirt[ii] << endl;
-						cin.get();
-					}
-					bbq.erase(pos1, pos2 - pos1 + 1);
-					pos1 = bbq.find(dirt[ii][0], pos1);
-				}
-			}
-		}
-
-		string temp;
-		for (int ii = 0; ii < twins.length(); ii++)
-		{
-			temp.assign(2, twins[ii]);
-			pos1 = bbq.find(twins[ii]);
-			while (pos1 < bbq.size())
-			{
-				bbq.replace(pos1, 1, temp);
-				pos1 = bbq.find(twins[ii], pos1 + 2);
-			}
-		}
-
-		while (1)
-		{
-			if (bbq.front() == ' ') { bbq.erase(0, 1); count++; }
-			else { break; }
-		}
-		while (1)
-		{
-			if (bbq.back() == ' ') { bbq.erase(bbq.size() - 1, 1); }
-			else { break; }
-		}
-		return count;
-	}
 	template<> int clean(string& bbq, vector<string> dirt)
 	{
 		int count = 0;
@@ -286,6 +232,60 @@ public:
 		}
 		return count;
 	}
+	template<> int clean<string>(string& bbq, vector<string> dirt, string twins)
+	{
+		int count = 0;
+		size_t pos1, pos2;
+		for (int ii = 0; ii < dirt.size(); ii++)
+		{
+			if (dirt[ii].size() == 1)
+			{
+				pos1 = bbq.find(dirt[ii][0]);
+				while (pos1 < bbq.size())
+				{
+					bbq.erase(pos1, 1);
+					pos1 = bbq.find(dirt[ii][0], pos1);
+				}
+			}
+			else if (dirt[ii].size() == 2)
+			{
+				pos1 = bbq.find(dirt[ii][0]);
+				while (pos1 < bbq.size())
+				{
+					pos2 = bbq.find(dirt[ii][1], pos1 + 1);
+					if (pos2 > bbq.size())
+					{
+						err("find second dirt-jf.clean");
+					}
+					bbq.erase(pos1, pos2 - pos1 + 1);
+					pos1 = bbq.find(dirt[ii][0], pos1);
+				}
+			}
+		}
 
+		string temp;
+		for (int ii = 0; ii < twins.length(); ii++)
+		{
+			temp.assign(2, twins[ii]);
+			pos1 = bbq.find(twins[ii]);
+			while (pos1 < bbq.size())
+			{
+				bbq.replace(pos1, 1, temp);
+				pos1 = bbq.find(twins[ii], pos1 + 2);
+			}
+		}
+
+		while (1)
+		{
+			if (bbq.front() == ' ') { bbq.erase(0, 1); count++; }
+			else { break; }
+		}
+		while (1)
+		{
+			if (bbq.back() == ' ') { bbq.erase(bbq.size() - 1, 1); }
+			else { break; }
+		}
+		return count;
+	}
 };
 

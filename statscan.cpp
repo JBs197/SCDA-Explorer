@@ -17,7 +17,7 @@ int STATSCAN::cata_init(string& sample_csv)
     create_csv_table_template = make_create_csv_table_template(column_titles);
     insert_csv_row_template = make_insert_csv_row_template(column_titles);
 
-    jf_sc.tree_from_indent(csv_tree, rows);
+    jfsc.tree_from_indent(csv_tree, rows);
     int tg_row_col;
     subtable_names_template = make_subtable_names_template(cata_name, tg_row_col, csv_tree, rows);
 
@@ -25,7 +25,7 @@ int STATSCAN::cata_init(string& sample_csv)
 }
 void STATSCAN::err(string func)
 {
-    jf_sc.err(func);
+    jfsc.err(func);
 }
 vector<string> STATSCAN::extract_column_titles(string& sfile)
 {
@@ -126,7 +126,7 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
     // Returns a 2D vector of the form [row index][row title, row val1, row val2, ...].
 
     vector<vector<string>> rows;
-    string temp1;
+    string line, temp1;
     size_t pos1, pos2, pos3, pos_nl1, pos_nl2;
     char math;
     damaged = 0;
@@ -145,8 +145,7 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
     }
     
     pos_nl1 = sfile.find('\n', final_text_var);
-    pos_nl2 = sfile.find('\n', pos_nl1 + 1);
-    
+    pos_nl2 = sfile.find('\n', pos_nl1 + 1);    
     if (multi_column)
     {
         pos_nl1 = pos_nl2;
@@ -155,15 +154,17 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
 
     vector<int> space_history = { 0 };
     vector<int> diff, mins;
-    int spaces, indent, inum, min, index;
+    int spaces, indent, inum, min, index, rindex;
     int old_spaces = 0;
-    do
+    do                                                   // For every line...
     {
-        pos1 = sfile.find('"', pos_nl1);
-        pos2 = sfile.find('"', pos1 + 1);
-        temp1 = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
+        line = sfile.substr(pos_nl1, pos_nl2 - pos_nl1);
+        pos1 = line.find('"');
+        pos2 = line.find('"', pos1 + 1);
+        temp1 = line.substr(pos1 + 1, pos2 - pos1 - 1);
         spaces = sclean(temp1, 0);
         if (temp1 == "Note") { break; }  // Primary loop exit.
+        rindex = rows.size();
         rows.push_back(vector<string>(1));
 
         // This portion of the code is problematic. Stats Canada was inconsistent in how 
@@ -238,46 +239,39 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
                 }
             }
         }
-
-
         temp1.insert(0, indent, '+');
-        rows[rows.size() - 1][0] = temp1;
+        rows[rindex][0] = temp1;
 
-        pos2 = sfile.find(',', pos2);
-        do
+        pos2 = line.find(',', pos2);
+        do                                // For every data value on this line...
         {
             pos1 = pos2;
-            pos2 = sfile.find(',', pos1 + 1);
-            if (pos2 > pos_nl2)  // If we have reached the last value on this line...
+            pos2 = line.find(',', pos1 + 1);
+            if (pos2 > line.size())  // If we have reached the last value on this line...
             {
-                /*
-                pos3 = sfile.find(' ', pos1 + 1);  // ... check for a space before newline.
-                if (pos3 > pos_nl2)
+                pos3 = line.find("..", pos1 + 1);  // ... check for a damaged value.
+                if (pos3 < line.size())
                 {
-                    pos3 = sfile.find('\r', pos1 + 1);  // ... check for Windows' carriage feed return.
-                    if (pos3 > pos_nl2)
-                    {
-                        pos3 = sfile.find('\n', pos1 + 1);  // ... final option, get the newline char. 
-                    }
+                    damaged++;
+                    rows[rindex].push_back("..");
+                    break;
                 }
-                temp1 = sfile.substr(pos1 + 1, pos3 - pos1 - 1);
-                if (temp1 == "..") { damaged++; }
-                rows[rows.size() - 1].push_back(temp1);
-                */
-            
-                pos3 = sfile.find_last_of("1234567890", pos_nl2) + 1;
-                pos1 = sfile.find_last_of(" ,", pos3) + 1;
-                temp1 = sfile.substr(pos1, pos3 - pos1);
-                if (temp1 == "..") { damaged++; }
-                rows[rows.size() - 1].push_back(temp1);
+
+                pos3 = line.find_last_of("1234567890") + 1;
+                pos1 = line.find_last_of(" ,", pos3 - 1) + 1;
+                temp1 = line.substr(pos1, pos3 - pos1);
+                rows[rindex].push_back(temp1);
             }
             else
             {
-                temp1 = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
+                temp1 = line.substr(pos1 + 1, pos2 - pos1 - 1);
                 if (temp1 == "..") { damaged++; }
-                rows[rows.size() - 1].push_back(temp1);
+                else if (jfsc.is_numeric(temp1))
+                {
+                    rows[rindex].push_back(temp1);
+                }
             }
-        } while (pos2 < pos_nl2);
+        } while (pos2 < line.size());
 
         pos_nl1 = pos_nl2;
         pos_nl2 = sfile.find('\n', pos_nl1 + 1);
@@ -314,7 +308,6 @@ vector<vector<string>> STATSCAN::extract_text_vars(string& sfile)
 	}
     return text_vars;
 }
-
 string STATSCAN::get_cata_desc()
 {
     return cata_desc;
@@ -457,7 +450,7 @@ string STATSCAN::make_csv_path(int gid_index)
 wstring STATSCAN::make_csv_wpath(int gid_index)
 {
     string csv_path = cata_path + "\\" + cata_name + " " + csv_branches[gid_index];
-    wstring csv_wpath = jf_sc.utf8to16(csv_path);
+    wstring csv_wpath = jfsc.utf8to16(csv_path);
     return csv_wpath;
 }
 
@@ -497,14 +490,14 @@ string STATSCAN::make_insert_damaged_csv(string cata_name, string gid, int damag
     string stmt = "INSERT OR IGNORE INTO TDamaged ([Catalogue Name], GID, [Number of Errors]) ";
     stmt += "VALUES (?, ?, ?);";
     vector<string> param = { cata_name, gid, to_string(damaged_val) };
-    jf_sc.bind(stmt, param);
+    jfsc.bind(stmt, param);
     return stmt;
 }
 void STATSCAN::make_insert_csv_row_statement(string& stmt0, string tname, vector<string>& row_vals)
 {
     size_t pos1 = stmt0.find("!!!");
     stmt0.replace(pos1, 3, tname);
-    string stmt = jf_sc.bind(stmt0, row_vals);
+    string stmt = jfsc.bind(stmt0, row_vals);
     stmt0 = stmt;
 }
 string STATSCAN::make_insert_csv_row_template(vector<string>& column_titles)
@@ -539,7 +532,7 @@ void STATSCAN::make_insert_primary_statement(string& stmt0, string gid, vector<v
             params.push_back(rows[ii][jj]);
         }
     }
-    string stmt = jf_sc.bind(stmt0, params);
+    string stmt = jfsc.bind(stmt0, params);
     stmt0 = stmt;
 }
 string STATSCAN::make_insert_primary_template(string cata_name, vector<vector<string>>& text_vars, vector<string>& linearized_titles)
@@ -607,7 +600,7 @@ int STATSCAN::make_tgr_statements(vector<string>& tgr_stmts, string syear, strin
     // NOTE: The first statement in the vector must be executed BEFORE declaring a transaction !
 
     string geo_list_path = root + "\\" + syear + "\\" + sname + "\\" + sname + " geo list.bin";
-    string geo_list = jf_sc.load(geo_list_path);
+    string geo_list = jfsc.load(geo_list_path);
     vector<vector<string>> tgr;
     vector<string> vtemp(3);
     int tgr_index, inum1, inum2;
@@ -783,6 +776,8 @@ int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
 
     return tg_row_col;
 }
+
+void STATSCAN::navigator()  // RESUME HERE
 int STATSCAN::sclean(string& sval, int mode)
 {
     int count = 0;

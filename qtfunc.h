@@ -11,7 +11,7 @@ using namespace std;
 
 class QTFUNC
 {
-	JFUNC jf_qf;
+	JFUNC jfqf;
 	QMap<QTreeWidget*, int> map_display_root;
 
 public:
@@ -25,17 +25,65 @@ public:
 	// TEMPLATES
 	template<typename Q> void display(Q*, vector<vector<int>>&, vector<string>&) 
 	{
-		// Note that this function will automatically render the root invisible if there is only one root element. 
 	}
 	template<> void display<QTreeWidget>(QTreeWidget* qview, vector<vector<int>>& tree_st, vector<string>& tree_pl)
 	{
 		qview->clear();
 		string temp1;
+		wstring wtemp;
 		QString qtemp;
 		QTreeWidgetItem *qitem, *qparent;
 		QList<QTreeWidgetItem*> qroots, qregistry, qTNG;
 		int pivot, iparent;
 
+		// Make a qitem for every node in the tree.
+		for (int ii = 0; ii < tree_st.size(); ii++)
+		{
+			wtemp = jfqf.utf8to16(tree_pl[ii]);
+			qtemp = QString::fromStdWString(wtemp);
+			qitem = new QTreeWidgetItem();
+			qitem->setText(0, qtemp);
+			qregistry.append(qitem);
+		}
+
+		// Add the roots to their list, and add every node's children to it.
+		for (int ii = 0; ii < tree_st.size(); ii++)
+		{
+			for (int jj = 0; jj < tree_st[ii].size(); jj++)
+			{
+				if (tree_st[ii][jj] < 0)
+				{
+					pivot = jj;
+					break;
+				}
+				else if (jj == tree_st[ii].size() - 1)
+				{
+					for (int kk = 0; kk < tree_st[ii].size(); kk++)
+					{
+						if (tree_st[ii][kk] == 0)
+						{
+							pivot = kk;
+							break;
+						}
+					}
+				}
+			}
+			if (pivot == 0)
+			{
+				qroots.append(qregistry[ii]);
+			}
+			if (tree_st[ii].size() > pivot + 1)  // If this node has children...
+			{
+				for (int jj = pivot + 1; jj < tree_st[ii].size(); jj++)
+				{
+					qregistry[ii]->addChild(qregistry[tree_st[ii][jj]]);
+				}
+			}
+		}
+		qview->addTopLevelItems(qroots);
+
+
+		/*
 		for (int ii = 0; ii < tree_st.size(); ii++) 
 		{
 			qtemp = QString::fromStdString(tree_pl[ii]);
@@ -88,6 +136,7 @@ public:
 		{
 			err("display_root-qt.display");
 		}
+		*/
 
 		// Tidy up.
 		if (tree_st.size() <= 20)

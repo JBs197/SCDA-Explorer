@@ -156,7 +156,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>371</width>
+        <width>381</width>
         <height>451</height>
        </rect>
       </property>
@@ -226,7 +226,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>341</width>
+        <width>351</width>
         <height>451</height>
        </rect>
       </property>
@@ -336,7 +336,7 @@
      <rect>
       <x>760</x>
       <y>10</y>
-      <width>531</width>
+      <width>281</width>
       <height>481</height>
      </rect>
     </property>
@@ -352,7 +352,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>531</width>
+        <width>281</width>
         <height>461</height>
        </rect>
       </property>
@@ -367,7 +367,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>531</width>
+        <width>281</width>
         <height>451</height>
        </rect>
       </property>
@@ -382,6 +382,100 @@
      </widget>
     </widget>
    </widget>
+   <widget class="QPushButton" name="pB_mode">
+    <property name="geometry">
+     <rect>
+      <x>1140</x>
+      <y>530</y>
+      <width>81</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Toggle 
+ Mode</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_mode">
+    <property name="geometry">
+     <rect>
+      <x>1228</x>
+      <y>530</y>
+      <width>61</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="autoFillBackground">
+     <bool>true</bool>
+    </property>
+    <property name="frameShape">
+     <enum>QFrame::StyledPanel</enum>
+    </property>
+    <property name="frameShadow">
+     <enum>QFrame::Sunken</enum>
+    </property>
+    <property name="text">
+     <string>bbq</string>
+    </property>
+    <property name="textFormat">
+     <enum>Qt::AutoText</enum>
+    </property>
+    <property name="alignment">
+     <set>Qt::AlignCenter</set>
+    </property>
+   </widget>
+   <widget class="QTabWidget" name="tabW_online">
+    <property name="geometry">
+     <rect>
+      <x>1050</x>
+      <y>10</y>
+      <width>241</width>
+      <height>481</height>
+     </rect>
+    </property>
+    <widget class="QWidget" name="tab">
+     <attribute name="title">
+      <string>Online Available</string>
+     </attribute>
+     <widget class="QTreeWidget" name="treeW_statscan">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>256</width>
+        <height>451</height>
+       </rect>
+      </property>
+      <attribute name="headerVisible">
+       <bool>false</bool>
+      </attribute>
+      <column>
+       <property name="text">
+        <string notr="true">1</string>
+       </property>
+      </column>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tab_2">
+     <attribute name="title">
+      <string>Tab 2</string>
+     </attribute>
+    </widget>
+   </widget>
+   <widget class="QPushButton" name="pB_usc">
+    <property name="geometry">
+     <rect>
+      <x>810</x>
+      <y>530</y>
+      <width>81</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Update 
+ Stats Can</string>
+    </property>
+   </widget>
    <zorder>cB_drives</zorder>
    <zorder>pB_scan</zorder>
    <zorder>pB_insert</zorder>
@@ -395,6 +489,10 @@
    <zorder>tabW_results</zorder>
    <zorder>pB_removecata</zorder>
    <zorder>tabW_results2</zorder>
+   <zorder>pB_mode</zorder>
+   <zorder>label_mode</zorder>
+   <zorder>tabW_online</zorder>
+   <zorder>pB_usc</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

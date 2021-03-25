@@ -70,6 +70,26 @@ void JFUNC::isort_slist(vector<string>& slist)
 		slist[ii] = to_string(ilist[ii]);
 	}
 }
+int JFUNC::is_numeric(string& candidate)
+{
+	// Return 0 = not a number, 1 = integer, 2 = decimal
+
+	int inum;
+	double dnum;
+	try
+	{
+		inum = stoi(candidate);
+		return 1;
+	}
+	catch (invalid_argument& ia) {}
+	try
+	{
+		dnum = stod(candidate);
+		return 2;
+	}
+	catch (invalid_argument& ia) {}
+	return 0;
+}
 vector<string> JFUNC::list_from_marker(string& input, char marker)
 {
 	// Split a string into a vector of strings, dividing when the marker char is encountered.
@@ -183,88 +203,6 @@ void JFUNC::log(string message)
 	LOG << output << endl << endl;
 	LOG.close();
 }
-string JFUNC::wload(wstring file_wpath)
-{
-	// Load a file into memory as a string.
-	// Uses the first 8 bytes to guess what file encoding is being used.
-
-	FILE* pFile;
-	errno_t error = _wfopen_s(&pFile, file_wpath.c_str(), L"rb");
-	if (pFile == NULL) { err("ERROR: fopen-wload"); }
-	wchar_t enc[8];
-	int encoding = 0;
-	int count = 0;
-	for (int ii = 0; ii < 8; ii++)
-	{
-		enc[ii] = fgetwc(pFile);
-		if (enc[ii] > 1000)
-		{
-			count++;
-		}
-	}
-	if (count >= 5)  
-	{
-		encoding = 1;  // UTF8
-	}
-	else 
-	{
-		encoding = 2;  // UTF16
-	}
-	fclose(pFile);
-
-	string output;
-	wstring wtemp;
-	ifstream myfile;
-	wifstream mywfile;
-	streampos size;
-	wstreampos wsize;
-	char* buffer;
-	wchar_t* wbuffer;
-	long file_size;
-	size_t bytes_read;
-	string file_path = utf16to8(file_wpath);
-	switch (encoding)
-	{
-	case 0:
-		myfile.open(file_path, ios::in | ios::binary | ios::ate);
-		size = myfile.tellg();
-		buffer = new char[size];
-		myfile.seekg(0, ios::beg);
-		myfile.read(buffer, size);
-		output.assign(buffer, size);
-		delete[] buffer;
-		break;
-
-	case 1:
-		mywfile.open(file_path, ios::in | ios::ate);
-		wsize = mywfile.tellg();
-		wbuffer = new wchar_t[wsize];
-		mywfile.seekg(0, ios::beg);
-		mywfile.read(wbuffer, wsize);
-		wtemp.assign(wbuffer, wsize);
-		delete[] wbuffer;
-		output = utf16to8(wtemp);
-		break;
-
-	case 2:
-		mywfile.open(file_path, ios::in | ios::ate);
-		wsize = mywfile.tellg();
-		wbuffer = new wchar_t[wsize];
-		mywfile.seekg(0, ios::beg);
-		mywfile.read(wbuffer, wsize);
-		for (int ii = 0; ii < wsize; ii++)
-		{
-			if (wbuffer[ii] != NULL)
-			{
-				wtemp.push_back(wbuffer[ii]);
-			}
-		}
-		delete[] wbuffer;
-		output = utf16to8(wtemp);
-		break;
-	}
-	return output;
-}
 string JFUNC::parent_from_marker(string& child, char marker)
 {
 	size_t pos1 = child.rfind(marker);
@@ -303,6 +241,18 @@ void JFUNC::quicksort(vector<int>& v1, int low, int high)
 		int pivotindex = partition(v1, low, high);
 		quicksort(v1, low, pivotindex - 1);
 		quicksort(v1, pivotindex + 1, high);
+	}
+}
+void JFUNC::tclean(string& bbq, char marker, string preferred)
+{
+	// Function to replace characters from the start of a string (table indents).
+
+	size_t pos1 = 0;
+	size_t psize = preferred.size();
+	while (bbq[pos1] == marker)
+	{
+		bbq.replace(pos1, 1, preferred);
+		pos1 += psize;
 	}
 }
 string JFUNC::timestamper()
