@@ -9,23 +9,23 @@ using namespace std;
 class STATSCAN
 {
 	JFUNC jfsc;
+
 	string cata_path;
 	string cata_name;
 	string cata_desc;
-	bool multi_column;
-
-	vector<string> gid_list;
-	vector<string> csv_branches;
-	vector<vector<string>> text_vars;
 	vector<string> column_titles;
-	vector<vector<string>> rows;  // Form [row_index][indented row title, row val1, row val2, ...].
-	vector<string> linearized_titles;
+	string create_csv_table_template;
+	vector<string> csv_branches;
 	vector<vector<int>> csv_tree;  // Form [row_index][ancestor1's row_index, ... , (neg) row_index, child1's row_index, ...].
-	vector<string> subtable_names_template;  // Has '!!!' for GID. Otherwise, is complete.
 	size_t final_text_var = 0;
+	vector<string> gid_list;
 	string insert_csv_row_template;
 	string insert_primary_template;
-	string create_csv_table_template;
+	vector<string> linearized_titles;
+	bool multi_column;
+	vector<vector<string>> rows;  // Form [row_index][indented row title, row val1, row val2, ...].
+	vector<vector<string>> text_vars;
+	vector<string> subtable_names_template;  // Has '!!!' for GID. Otherwise, is complete.
 
 	int sclean(string&, int);
 

@@ -17,7 +17,7 @@ class WINFUNC
     JFUNC jfwf;
     vector<string> domains = { ".com", ".net", ".org", ".edu", ".ca" };
     ofstream ERR;
-    string error_path = root + "\\SCDA Error Log.txt";
+    string error_path = sroot + "\\SCDA Error Log.txt";
     static vector<wstring> objects;
     vector<int> tree_pl_int;  // List of integer payload values in the tree.
     vector<string> tree_pl_str;  // List of string payload values in the tree.
@@ -42,9 +42,7 @@ public:
     void make_tree_local(vector<vector<int>>&, vector<string>&, int, string, int, string);
     void make_tree_local_helper1(vector<vector<int>>&, vector<string>&, vector<int>, string, int, int, int, string);
     void set_error_path(string);
-    //wstring utf8to16(string);
-    //string utf16to8(wstring);
-    //string timestamper();
+
 
 	// TEMPLATES
     template<typename S> void winerr(S) {}

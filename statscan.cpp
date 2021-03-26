@@ -777,7 +777,6 @@ int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
     return tg_row_col;
 }
 
-void STATSCAN::navigator()  // RESUME HERE
 int STATSCAN::sclean(string& sval, int mode)
 {
     int count = 0;

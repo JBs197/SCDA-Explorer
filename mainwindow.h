@@ -2,11 +2,14 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QListWidget>
+#include <QListWidgetItem>
+#include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QStandardItemModel>
 #include <QTableView>
-//#include <QNetworkAccessManager>
-//#include <QNetworkReply>
+#include <QPlainTextEdit>
+#include <QTabWidget>
 #include <sqlite3.h>
 #include <iostream>
 #include "winfunc.h"
@@ -57,6 +60,7 @@ private slots:
     void on_tabW_results_currentChanged(int);
     void on_pB_mode_clicked();
     void on_pB_usc_clicked();
+    void on_pB_search_clicked();
 
 private:
     Ui::MainWindow *ui;
@@ -96,6 +100,7 @@ private:
     void bind(string&, vector<string>&);
     vector<string> extract_gids(string);
     void display_catalogue(SQLFUNC&, SWITCHBOARD&, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
+    void display_table(string);
     void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
     void delete_cata(SWITCHBOARD&, SQLFUNC&);
     void auto_expand(QTreeWidget*&, int);

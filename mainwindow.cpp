@@ -74,13 +74,16 @@ void MainWindow::initialize()
     ui->treeW_statscan->setGeometry(0, 0, 921, 461);
     ui->treeW_statscan->setVisible(0);
     ui->pB_usc->setVisible(0);
+    ui->pte_webinput->setVisible(0);
+    ui->pte_webinput->setGeometry(370, 530, 241, 41);
+    ui->pte_localinput->setVisible(1);
+    ui->pte_localinput->setGeometry(810, 530, 81, 41);
 
     // Initialize the progress bar with blanks.
     reset_bar(100, " ");
 
     // Initialize networking capabilities.
     //qnam = new QNetworkAccessManager(this);
-
 
     // Reset the log file.
     wf.delete_file(root + "\\SCDA Process Log.txt");
@@ -252,16 +255,26 @@ void MainWindow::update_mode()
     case 0:
         ui->tabW_results->setVisible(1);
         ui->tabW_results2->setVisible(1);
+        ui->pB_viewcata->setVisible(1);
+        ui->pB_viewcata->setVisible(1);
         ui->tabW_online->setVisible(0);
         ui->treeW_statscan->setVisible(0);
         ui->pB_usc->setVisible(0);
+        ui->pte_webinput->setVisible(0);
+        ui->pte_localinput->setVisible(1);
+        ui->pB_search->setVisible(1);
         break;
     case 1:
         ui->tabW_results->setVisible(0);
         ui->tabW_results2->setVisible(0);
+        ui->pB_viewcata->setVisible(0);
+        ui->pB_viewcata->setVisible(0);
         ui->tabW_online->setVisible(1);
         ui->treeW_statscan->setVisible(1);
         ui->pB_usc->setVisible(1);
+        ui->pte_webinput->setVisible(1);
+        ui->pte_localinput->setVisible(0);
+        ui->pB_search->setVisible(0);
         break;
     }
 }
@@ -1050,8 +1063,9 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
     qDebug() << "Time to remove entries from TDamaged: " << timer.restart();
 
     // Remove entry from TCatalogueIndex.
+    tname = "TCatalogueIndex";
     conditions = { "[Name] = '" + prompt[1] + "'" };
-    sf.remove("TCatalogueIndex", conditions);
+    sf.remove(tname, conditions);
     mycomm[1]++;
     qDebug() << "Time to remove entry from TCatalogueIndex: " << timer.restart();
 
@@ -1090,17 +1104,24 @@ void MainWindow::on_pB_viewtable_clicked()
     sf.select(search, tname, gid, conditions);
     tname = viewcata_data[1] + "$" + gid;
 
+    display_table(tname);
+}
+void MainWindow::display_table(string tname)
+{
+    // Note that this helper function is meant to be run in the GUI thread. 
+
     // Pull the CSV table data and plug it in.
     QStandardItemModel* model = new QStandardItemModel;
     QStandardItem* cell;
     vector<string> column_titles;
     sf.get_col_titles(tname, column_titles);
     QStringList qcolumn_titles, qrow_titles;
+    QString qtemp;
     for (int ii = 1; ii < column_titles.size(); ii++)
     {
         qtemp = QString::fromStdString(column_titles[ii]);
         qcolumn_titles.append(qtemp);
-    }   
+    }
     vector<vector<string>> results;
     int max_col = sf.select({ "*" }, tname, results);
     int title_size, line_breaks, height, pos1;
@@ -1180,24 +1201,53 @@ void MainWindow::on_pB_mode_clicked()
     update_mode();
 }
 
+// Search the database for a table name. If an exact match is found, display 
+// that table's contents. If a partial match is found, display a list of 
+// tables which contain the search parameter. 
+void MainWindow::on_pB_search_clicked()
+{
+    QString qtemp = ui->pte_localinput->toPlainText();
+    string tname = qtemp.toStdString();
+    vector<string> results;
+    QStringList qlist;
+    if (sf.table_exist(tname))
+    {
+        display_table(tname);
+    }
+    else
+    {
+        sf.get_table_list(results, tname);
+        if (results.size() > 0)
+        {
+            for (int ii = 0; ii < results.size(); ii++)
+            {
+                qtemp = QString::fromStdString(results[ii]);
+                qlist.append(qtemp);
+            }
+        }
+        else
+        {
+            qtemp = "No results found.";
+            qlist.append(qtemp);
+        }
+        ui->listW_search->clear();
+        ui->listW_search->addItems(qlist);
+        ui->tabW_results->setCurrentIndex(3);
+    }
+}
+
+
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
-    vector<vector<string>> results;
-    QStringList qlist;
-    QString qtemp;
-    string stmt = "SELECT * FROM TCatalogueIndex";
-    sf.executor(stmt, results);
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        qlist.clear();
-        for (int jj = 0; jj < results[ii].size(); jj++)
-        {
-            qtemp = QString::fromStdString(results[ii][jj]);
-            qlist.append(qtemp);
-        }
-        qDebug() << qlist;
-    }
+
+
+    /*
+    QString qtemp = ui->pte_webinput->toPlainText();
+    string url = qtemp.toStdString();
+    string webpage = wf.browse(url);
+    jf.printer("F:\\SCDA CSV download webpage.txt", webpage);
+    */
 }
 
 // Choose a local drive to examine for spreadsheets.

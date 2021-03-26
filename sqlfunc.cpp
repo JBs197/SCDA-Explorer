@@ -2,13 +2,6 @@
 
 using namespace std;
 
-vector<string> SQLFUNC::all_tables()
-{
-    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
-    vector<string> results;
-    executor(stmt, results);
-    return results;
-}
 void SQLFUNC::bind(string& stmt, vector<string>& param)
 {
     // Replaces SQL placeholders ('?') with parameter strings. Automatically adds single quotes.
@@ -258,8 +251,6 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
         return;
     }
 
-    QElapsedTimer timer;
-    timer.start();
     int num_params = tname_params.size() - 1;
     stmt = "SELECT * FROM TGenealogy WHERE (";
     for (int ii = 1; ii < tname_params.size(); ii++)
@@ -275,7 +266,6 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
         }
     }
     executor(stmt, results);
-    qDebug() << "Select * from TG where... : " << timer.restart();
 
     // Categorize each result from TG by the number of parameters it has.
     vector<vector<int>> param_groups;  // Form [# of params - 1][results index].
@@ -444,9 +434,7 @@ vector<string> SQLFUNC::test_cata(string cata_name)
 
     vector<string> test_results(6); 
     vector<int> iresults(5);
-    QElapsedTimer timer;
 
-    timer.start();
     vector<string> results1;
     vector<string> search = { "Name" };
     string tname = "TCatalogueIndex";
@@ -478,7 +466,8 @@ vector<string> SQLFUNC::test_cata(string cata_name)
 
     vector<string> vtemp;
     results1.clear();
-    vector<string> tall = all_tables();
+    vector<string> tall;
+    all_tables(tall);
     for (int ii = 0; ii < tall.size(); ii++)
     {
         vtemp = jfsf.list_from_marker(tall[ii], '$');
@@ -502,6 +491,5 @@ vector<string> SQLFUNC::test_cata(string cata_name)
             test_results[0] = "PASS";
         }
     }
-    qDebug() << "cata_test time: " << timer.restart();
     return test_results;
 }

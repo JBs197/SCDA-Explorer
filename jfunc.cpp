@@ -203,6 +203,91 @@ void JFUNC::log(string message)
 	LOG << output << endl << endl;
 	LOG.close();
 }
+void JFUNC::navigator(vector<vector<int>>& tree_st, vector<vector<string>>& tree_pl, string& webpage, int id)
+{
+	// Recursive function used to make a tree of web URLs. Requires outside support to provide
+	// complete webpages in string form. From the starting page, it will search through its 
+	// layered search criteria and extract the objective data, or the required URLs to proceed
+	// to the next tree layer and try again. Every generation of navigator will analyze a 
+	// webpage given by its predecessor.
+	// tree_st has form [node index][ancestors, ..., node, children, ...].
+	// tree_pl has form [node index][extracted string 1, ...].
+
+	// Ensure that the search criteria is loaded into object memory. 
+	int inum, num_intervals;
+	string line, temp;
+	size_t pos1, pos2, pos_start, pos_stop;
+	if (navigator_search.size() < 1)
+	{
+		line = load(navigator_asset_path);
+		pos1 = line.find('$') + 1;
+		pos_start = line.rfind('\n', pos1);
+		pos_stop = line.find('\n', pos1);
+		do
+		{
+			inum = navigator_search.size();
+			navigator_search.push_back(vector<string>());
+			pos1 = line.find('$', pos_start) + 1;
+			if (pos1 > line.size()) { break; }
+			pos2 = line.find('$', pos1);
+			while (pos2 < pos_stop)
+			{
+				temp = line.substr(pos1, pos2 - pos1);
+				navigator_search[inum].push_back(temp);
+				pos1 = pos2 + 1;
+				pos2 = line.find('$', pos1);
+			}
+			pos_start = pos_stop;
+			pos_stop = line.find('\n', pos_start + 1);
+
+		} while (pos_stop < line.size());
+	}
+
+	// Go through the list of search criteria, from leaf->trunk, until a match is found.
+	for (int ii = 0; ii < navigator_search.size(); ii++)
+	{
+		pos1 = webpage.find(navigator_search[ii][0]);  
+		if (pos1 < webpage.size())  
+		{
+			num_intervals = 1;  // Determine how many intervals we must scan from this webpage.
+			for (int jj = ii + 1; jj < navigator_search.size(); jj++)
+			{
+				if (navigator_search[jj][0] == navigator_search[ii][0])
+				{
+					num_intervals++;
+				}
+				else
+				{
+					break;
+				}
+			}
+			
+			if (ii == 0)  // Leaf webpage.
+			{
+				for (int jj = ii; jj < ii + num_intervals; jj++)
+				{
+					pos_start = webpage.find(navigator_search[jj][1]);
+					pos_stop = webpage.find(navigator_search[jj][2], pos_start);
+					pos1 = webpage.find(navigator_search[jj][3], pos_start);
+					while (pos1 < pos_stop)
+					{
+						pos2 = webpage.find(navigator_search[jj][4], pos1 + 1);
+						temp = webpage.substr(pos1, pos2 - pos1);
+						tree_pl[id].push_back(temp);
+					}
+				}
+
+			}
+			else  // Branch webpage.
+			{
+
+			}
+			break;
+		}
+		else if (ii == navigator_search.size() - 1) { err("Failed to match unique page criteria-jf.navigator"); }
+	}
+
+}
 string JFUNC::parent_from_marker(string& child, char marker)
 {
 	size_t pos1 = child.rfind(marker);
@@ -242,6 +327,10 @@ void JFUNC::quicksort(vector<int>& v1, int low, int high)
 		quicksort(v1, low, pivotindex - 1);
 		quicksort(v1, pivotindex + 1, high);
 	}
+}
+void JFUNC::set_navigator_asset_path(string& path)
+{
+	navigator_asset_path = path;
 }
 void JFUNC::tclean(string& bbq, char marker, string preferred)
 {

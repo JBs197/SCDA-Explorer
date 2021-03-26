@@ -6,8 +6,8 @@
 #include <fstream>
 #include <sqlite3.h>
 #include "jfunc.h"
-#include <QElapsedTimer>
-#include <QDebug>
+//#include <QElapsedTimer>
+//#include <QDebug>
 
 using namespace std;
 
@@ -16,7 +16,7 @@ class SQLFUNC
     JFUNC jfsf;
 	sqlite3* db;
     ofstream ERR;
-    string error_path = root + "\\SCDA Error Log.txt";
+    string error_path = sroot + "\\SCDA Error Log.txt";
     
     void bind(string&, vector<string>&);
     void err(string);
@@ -42,6 +42,25 @@ public:
     vector<string> test_cata(string);
 
 	// TEMPLATES
+    template<typename ... Args> void all_tables(Args& ... args)
+    {
+        // Returns data obtained from the table master list, such as the number 
+        // of tables or a list of their names.
+    }
+    template<> void all_tables<int>(int& num_tables)
+    {
+        string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+        vector<string> results;
+        executor(stmt, results);
+        num_tables = results.size();
+    }
+    template<> void all_tables<vector<string>>(vector<string>& table_list)
+    {
+        table_list.clear();
+        string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+        executor(stmt, table_list);
+    }
+
 	template<typename ... Args> void executor(string, Args& ... args) {}
 	template<> void executor(string stmt)
 	{
@@ -262,8 +281,11 @@ public:
         // search parameter, in the same order as given. 
         // Example: [cata_name, GID] will return a list of all subtables for that GID.
     }
-    template<> void get_table_list<vector<string>>(vector<string>& results, vector<string>& search)
+    template<> void get_table_list<string>(vector<string>& results, string& search)
     {
+        results.clear();
+        vector<string> search_split = jfsf.list_from_marker(search, '$');
+        vector<string> chaff_split;
         vector<string> chaff;
         string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
         executor(stmt, chaff);
@@ -271,13 +293,17 @@ public:
         size_t pos1, pos2;
         for (int ii = 0; ii < chaff.size(); ii++)
         {
-            pos1 = 0;
-            for (int jj = 0; jj < search.size(); jj++)
+            chaff_split = jfsf.list_from_marker(chaff[ii], '$');
+            if (chaff_split.size() < search_split.size()) { continue; }
+            for (int jj = 1; jj < search_split.size(); jj++)
             {
-                cheddar.assign(jj + 1, '$');  // RESUME HERE ONCE GENEALOGY IS INSERTED
+                if (search_split[jj] != chaff_split[jj]) { break; }
+                else if (jj == search_split.size() - 1)
+                {
+                    results.push_back(chaff[ii]);
+                }
             }
         }
-
     }
     template<> void get_table_list(vector<string>& results)
     {

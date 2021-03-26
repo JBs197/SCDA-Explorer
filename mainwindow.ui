@@ -107,7 +107,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>3</number>
     </property>
     <widget class="QWidget" name="GID">
      <attribute name="title">
@@ -134,7 +134,7 @@
     </widget>
     <widget class="QWidget" name="Rows">
      <attribute name="title">
-      <string>Row Data</string>
+      <string>Rows</string>
      </attribute>
      <widget class="QListWidget" name="listW_csvrows">
       <property name="geometry">
@@ -168,6 +168,21 @@
         <string notr="true">1</string>
        </property>
       </column>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="Search">
+     <attribute name="title">
+      <string>Search Results</string>
+     </attribute>
+     <widget class="QListWidget" name="listW_search">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>381</width>
+        <height>451</height>
+       </rect>
+      </property>
      </widget>
     </widget>
    </widget>
@@ -341,7 +356,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="tab_4">
      <attribute name="title">
@@ -476,6 +491,39 @@
  Stats Can</string>
     </property>
    </widget>
+   <widget class="QPlainTextEdit" name="pte_webinput">
+    <property name="geometry">
+     <rect>
+      <x>460</x>
+      <y>530</y>
+      <width>16</width>
+      <height>16</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPlainTextEdit" name="pte_localinput">
+    <property name="geometry">
+     <rect>
+      <x>460</x>
+      <y>550</y>
+      <width>16</width>
+      <height>16</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pB_search">
+    <property name="geometry">
+     <rect>
+      <x>900</x>
+      <y>530</y>
+      <width>81</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Search</string>
+    </property>
+   </widget>
    <zorder>cB_drives</zorder>
    <zorder>pB_scan</zorder>
    <zorder>pB_insert</zorder>
@@ -493,6 +541,9 @@
    <zorder>label_mode</zorder>
    <zorder>tabW_online</zorder>
    <zorder>pB_usc</zorder>
+   <zorder>pte_webinput</zorder>
+   <zorder>pte_localinput</zorder>
+   <zorder>pB_search</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

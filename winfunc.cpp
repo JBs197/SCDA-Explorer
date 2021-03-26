@@ -93,6 +93,7 @@ void WINFUNC::call(HINTERNET hint, DWORD_PTR dw_context, DWORD dwInternetStatus,
 
 string WINFUNC::browse(string url)
 {
+	setlocale(LC_ALL, "en_US.utf8");
 	string server_name;
 	string object_name;
 	size_t cut_here;
@@ -116,11 +117,12 @@ string WINFUNC::browse(string url)
 	HINTERNET hrequest = NULL;
 	DWORD bytes_available;
 	DWORD bytes_read = 0;
-	unsigned char* ubufferA = new unsigned char[1];
-	int size1, size2;
+	unsigned char* ubuffer;
+	wchar_t* bufferW;
+	int size1, size2, num_chars;
 	wstring fileW;
 	string fileA;
-	bool special_char = 0;
+	vector<unsigned char> utf;
 
 	hint = InternetOpenA(agent.c_str(), INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
 	if (hint)
@@ -145,27 +147,40 @@ string WINFUNC::browse(string url)
 		{
 			bytes_available = 0;
 			InternetQueryDataAvailable(hrequest, &bytes_available, 0, 0);
-			ubufferA = new unsigned char[bytes_available];
-			if (!InternetReadFile(hrequest, ubufferA, bytes_available, &bytes_read))
+			ubuffer = new unsigned char[bytes_available];
+			if (!InternetReadFile(hrequest, ubuffer, bytes_available, &bytes_read))
 			{
 				err("internetreadfile-wf.browse");
 			}
 			for (int ii = 0; ii < bytes_available; ii++)
 			{
-				fileW.push_back((wchar_t)ubufferA[ii]);
-				if (fileW.back() == L'\x00C3' && !special_char)
+				fileW.push_back((wchar_t)ubuffer[ii]);
+				if (fileW.back() == L'\x00C3' && utf.size() == 0)
 				{
-					special_char = 1;
+					utf.push_back(fileW.back());
 				}
-				else if (special_char)
+				else if (utf.size() > 0)
 				{
-					fileW[fileW.size() - 2] = fileW[fileW.size() - 1] + 64;
-					fileW.pop_back();
-					special_char = 0;
+					utf.push_back(fileW.back());
+					if (utf.size() == 4)
+					{
+						if (utf[0] == 195 && utf[2] == 194)
+						{
+							fileW[fileW.size() - 4] = utf[3] + 64;
+							fileW.erase(fileW.size() - 3, 3);
+							utf.clear();
+						}
+						else
+						{
+							fileW[fileW.size() - 4] = utf[1] + 64;
+							fileW.erase(fileW.size() - 3, 1);
+							utf.clear();
+						}
+					}
 				}
 			}
+			delete[] ubuffer;
 		} while (bytes_available > 0);
-		delete[] ubufferA;
 	}
 	else { err("httpsendrequest-wf.browse"); }
 
@@ -559,42 +574,4 @@ void WINFUNC::set_error_path(string errpath)
 {
 	error_path = errpath;
 }
-/*
-string WINFUNC::timestamper()
-{
-	char buffer[26];
-	string timestamp;
-	chrono::system_clock::time_point today = chrono::system_clock::now();
-	time_t tt = chrono::system_clock::to_time_t(today);
-	ctime_s(buffer, 26, &tt);
-	for (int ii = 0; ii < 26; ii++)
-	{
-		if (buffer[ii] == '\0') { break; }
-		else { timestamp.push_back(buffer[ii]); }
-	}
-	return timestamp;
-}
-string WINFUNC::utf16to8(wstring input)
-{
-	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(locale());
-	mbstate_t mb{};
-	string output(input.size() * f.max_length(), '\0');
-	const wchar_t* past;
-	char* future;
-	f.out(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
-	output.resize(future - &output[0]);
-	return output;
-}
-wstring WINFUNC::utf8to16(string input)
-{
-	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(locale());
-	mbstate_t mb{};
-	wstring output(input.size() * f.max_length(), L'\0');
-	const char* past;
-	wchar_t* future;
-	f.in(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
-	output.resize(future - &output[0]);
-	return output;
-}
-*/
 
