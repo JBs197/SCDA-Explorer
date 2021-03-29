@@ -152,7 +152,7 @@ private:
     template<typename S> void err(S) {}
     template<> void err<string>(string message)
     {
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Generic Error: " + message + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -168,7 +168,7 @@ private:
     }
     template<> void err<wstring>(wstring message)
     {
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Generic Error: " + jf.utf16to8(message) + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -184,7 +184,7 @@ private:
     }
     template<> void err<QString>(QString message)
     {
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Generic Error: " + message.toStdString() + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -205,7 +205,7 @@ private:
     }
     template<> void errnum<string>(string func, int error)
     {
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -230,7 +230,7 @@ private:
     }
     template<> void errnum<wstring>(wstring message, int error)
     {
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string func = jf.utf16to8(message);
         string smessage = jf.timestamper() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
         lock_guard lock(m_io);
@@ -256,7 +256,7 @@ private:
     }
     template<> void errnum<QString>(QString message, int error)
     {
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string func = message.toStdString();
         string smessage = jf.timestamper() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
         lock_guard lock(m_io);
@@ -284,7 +284,7 @@ private:
     template<> void winerr<string>(string message)
     {
         DWORD num = GetLastError();
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + message + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -301,7 +301,7 @@ private:
     template<> void winerr<wstring>(wstring message)
     {
         DWORD num = GetLastError();
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + jf.utf16to8(message) + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -318,7 +318,7 @@ private:
     template<> void winerr<QString>(QString message)
     {
         DWORD num = GetLastError();
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + message.toStdString() + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -335,7 +335,7 @@ private:
     template<typename S> void warn(S) {}
     template<> void warn<string>(string message)
     {
-        string name = root + "\\SCDA Error Log.txt";
+        string name = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Generic Warning: " + message + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -350,7 +350,7 @@ private:
     }
     template<> void warn<wstring>(wstring message)
     {
-        string name = root + "\\SCDA Error Log.txt";
+        string name = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Generic Warning: " + jf.utf16to8(message) + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -365,7 +365,7 @@ private:
     }
     template<> void warn<QString>(QString message)
     {
-        string name = root + "\\SCDA Error Log.txt";
+        string name = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Generic Warning: " + message.toStdString() + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -382,7 +382,7 @@ private:
     template<> void winwarn<string>(string message)
     {
         DWORD num = GetLastError();
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + message + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -398,7 +398,7 @@ private:
     template<> void winwarn<wstring>(wstring message)
     {
         DWORD num = GetLastError();
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + jf.utf16to8(message) + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -414,7 +414,7 @@ private:
     template<> void winwarn<QString>(QString message)
     {
         DWORD num = GetLastError();
-        string spath = root + "\\SCDA Error Log.txt";
+        string spath = sroot + "\\SCDA Error Log.txt";
         string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + message.toStdString() + "\r\n\r\n";
         lock_guard lock(m_io);
         HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -434,7 +434,7 @@ private:
     template<> void log<string>(string note)
     {
         lock_guard lock(m_err);
-        string name = root + "\\SCDA Process Log.txt";
+        string name = sroot + "\\SCDA Process Log.txt";
         string message = jf.timestamper() + "  " + note + "\r\n";
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hprinter == INVALID_HANDLE_VALUE) { winerr(L"CreateFile-slog"); }
@@ -461,7 +461,7 @@ private:
     template<> void log<wstring>(wstring wnote)
     {
         lock_guard lock(m_err);
-        string name = root + "\\SCDA Process Log.txt";
+        string name = sroot + "\\SCDA Process Log.txt";
         string message = jf.timestamper() + "  " + jf.utf16to8(wnote) + "\r\n\r\n";
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hprinter == INVALID_HANDLE_VALUE) { winerr(L"CreateFile-wlog"); }
@@ -488,7 +488,7 @@ private:
     template<> void log<QString>(QString qnote)
     {
         lock_guard lock(m_err);
-        string name = root + "\\SCDA Process Log.txt";
+        string name = sroot + "\\SCDA Process Log.txt";
         string message = jf.timestamper() + "  " + qnote.toStdString() + "\r\n\r\n";
         HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
         if (hprinter == INVALID_HANDLE_VALUE) { winerr(L"CreateFile-qlog"); }
@@ -745,7 +745,7 @@ private:
 
 };
 
-// GUI HIDDEN ROOT DESCRIPTIONS
+// GUI HIDDEN sroot DESCRIPTIONS
 //
 // treeW_cataindb
 // 
@@ -753,7 +753,7 @@ private:
 // treeW_cataondrive
 //
 // treeW_gid
-// 0 = display root ?
+// 0 = display sroot ?
 //
 // listW_csvrows
 //

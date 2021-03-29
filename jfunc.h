@@ -38,11 +38,12 @@ public:
 	vector<string> list_from_marker(string&, char);
 	string load(string);
 	void log(string);
-	void navigator(vector<vector<int>>&, vector<vector<string>>&, string&, int);
+	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
 	string parent_from_marker(string&, char);
 	void quicksort(vector<int>&, int, int);
 	void set_navigator_asset_path(string&);
 	void tclean(string&, char, string);
+	vector<string> textParser(vector<vector<string>>&, string&);
 	string timestamper();
 	int tree_from_marker(vector<vector<int>>&, vector<string>&);
 	string utf16to8(wstring);

@@ -48,7 +48,7 @@ void MainWindow::initialize()
     viewcata_data.assign(2, "");
 
     // Open the database from an existing local db file, or (failing that) make a new one.
-    sf.init(root + "\\SCDA.db");
+    sf.init(sroot + "\\SCDA.db");
 
     //q.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
 
@@ -86,7 +86,7 @@ void MainWindow::initialize()
     //qnam = new QNetworkAccessManager(this);
 
     // Reset the log file.
-    wf.delete_file(root + "\\SCDA Process Log.txt");
+    wf.delete_file(sroot + "\\SCDA Process Log.txt");
     log("MainWindow initialized.");
 }
 
@@ -293,12 +293,12 @@ void MainWindow::on_pB_scan_clicked()
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress, task size, max columns].
     thread::id myid = this_thread::get_id();
-    QList<QTreeWidgetItem*> qroots;
+    QList<QTreeWidgetItem*> qsroots;
     vector<string> prompt = { sdrive };
     int error = sb.start_call(myid, 1, comm[0]);
     if (error) { errnum("start_call-pB_scan_clicked", error); }
     sb.set_prompt(myid, prompt);
-    std::thread scan(&MainWindow::scan_drive, this, ref(sb), ref(wf), ref(qroots));
+    std::thread scan(&MainWindow::scan_drive, this, ref(sb), ref(wf), ref(qsroots));
     while (1)
     {
         Sleep(gui_sleep);
@@ -312,11 +312,11 @@ void MainWindow::on_pB_scan_clicked()
     scan.join();
     error = sb.end_call(myid);
     if (error) { errnum("end_call-pB_scan_clicked", error); }
-    ui->treeW_cataondrive->addTopLevelItems(qroots);
+    ui->treeW_cataondrive->addTopLevelItems(qsroots);
     ui->tabW_catalogues->setCurrentIndex(1);
     log("Scanned drive " + sdrive + " for catalogues.");
 }
-void MainWindow::scan_drive(SWITCHBOARD& sb, WINFUNC& wf, QList<QTreeWidgetItem*>& qroots)
+void MainWindow::scan_drive(SWITCHBOARD& sb, WINFUNC& wf, QList<QTreeWidgetItem*>& qsroots)
 {
     vector<int> mycomm;
     thread::id myid = this_thread::get_id();
@@ -357,7 +357,7 @@ void MainWindow::scan_drive(SWITCHBOARD& sb, WINFUNC& wf, QList<QTreeWidgetItem*
     }
 
     // Populate the tree widget with the catalogue list.
-    qroots.clear();
+    qsroots.clear();
     string syear = "";
     QString qtemp;
     QTreeWidgetItem* qitem;
@@ -365,7 +365,7 @@ void MainWindow::scan_drive(SWITCHBOARD& sb, WINFUNC& wf, QList<QTreeWidgetItem*
     {
         if (cata_list[ii][0] != syear)
         {
-            inum = qroots.size();
+            inum = qsroots.size();
             syear = cata_list[ii][0];
             qtemp = QString::fromStdString(syear);
             qitem = new QTreeWidgetItem();
@@ -373,10 +373,10 @@ void MainWindow::scan_drive(SWITCHBOARD& sb, WINFUNC& wf, QList<QTreeWidgetItem*
             auto item_flags = qitem->flags();
             item_flags.setFlag(Qt::ItemIsSelectable, false);
             qitem->setFlags(item_flags);
-            qroots.append(qitem);
+            qsroots.append(qitem);
         }
         qtemp = QString::fromStdString(cata_list[ii][1]);
-        qitem = new QTreeWidgetItem(qroots[inum]);
+        qitem = new QTreeWidgetItem(qsroots[inum]);
         qitem->setText(1, qtemp);
     }
 
@@ -500,7 +500,7 @@ void MainWindow::on_pB_insert_clicked()
 
     // Update the GUI and then retire to obscurity.
     ui->pB_cancel->setEnabled(0);
-    Sleep(50);
+    Sleep(100);
     update_treeW_cataindb();
 }
 void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
@@ -510,7 +510,7 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
     thread::id myid = this_thread::get_id();
     sb.answer_call(myid, mycomm);
     vector<string> prompt = sb.get_prompt();
-    string cata_path = root + "\\" + prompt[0] + "\\" + prompt[1];
+    string cata_path = sroot + "\\" + prompt[0] + "\\" + prompt[1];
     int num_gid = wf.get_file_path_number(cata_path, ".csv");
     mycomm[2] = num_gid;
     comm_gui = sb.update(myid, mycomm);
@@ -1016,7 +1016,8 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
 
     // Remove all of this catalogue's CSV tables.
     timer.start();
-    vector<string> table_list = sf.all_tables();
+    vector<string> table_list;
+    sf.all_tables(table_list);
     vector<string> table_split, csv_list;
     int mode = 1;
     for (int ii = 0; ii < table_list.size(); ii++)
@@ -1173,10 +1174,13 @@ void MainWindow::on_pB_usc_clicked()
 {
     int error;
     string webpage;
+    string filePath = sroot + "\\SCroot.txt";
+    string url = "www12.statcan.gc.ca/English/census91/data/tables/Rp-eng.cfm?LANG=E&APATH=3&DETAIL=1&DIM=0&FL=A&FREE=1&GC=0&GID=0&GK=0&GRP=1&PID=71935&PRID=0&PTYPE=4&S=0&SHOWALL=No&SUB=0&Temporal=1991&THEME=101&VID=0&VNAMEE=&VNAMEF=";
     switch (qnam_status)
     {
     case 0:
-        webpage = wf.browse(scroot);
+        webpage = wf.browse(url);
+        jf.printer(filePath, webpage);
         break;
     }
     int bbq = 1;

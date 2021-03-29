@@ -599,7 +599,7 @@ int STATSCAN::make_tgr_statements(vector<string>& tgr_stmts, string syear, strin
     // Returned integer is the max number of columns in the table. 
     // NOTE: The first statement in the vector must be executed BEFORE declaring a transaction !
 
-    string geo_list_path = root + "\\" + syear + "\\" + sname + "\\" + sname + " geo list.bin";
+    string geo_list_path = sroot + "\\" + syear + "\\" + sname + "\\" + sname + " geo list.bin";
     string geo_list = jfsc.load(geo_list_path);
     vector<vector<string>> tgr;
     vector<string> vtemp(3);

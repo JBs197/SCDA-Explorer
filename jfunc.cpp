@@ -203,7 +203,7 @@ void JFUNC::log(string message)
 	LOG << output << endl << endl;
 	LOG.close();
 }
-void JFUNC::navigator(vector<vector<int>>& tree_st, vector<vector<string>>& tree_pl, string& webpage, int id)
+void JFUNC::navigator(vector<vector<int>>& tree_st, vector<string>& tree_pl, vector<string>& tree_url, string& webpage, int id)
 {
 	// Recursive function used to make a tree of web URLs. Requires outside support to provide
 	// complete webpages in string form. From the starting page, it will search through its 
@@ -343,6 +343,35 @@ void JFUNC::tclean(string& bbq, char marker, string preferred)
 		bbq.replace(pos1, 1, preferred);
 		pos1 += psize;
 	}
+}
+vector<string> JFUNC::textParser(vector<vector<string>>& search, string& sfile)
+{
+	vector<string> gold;
+	string temp;
+	size_t pos1, pos2, pos_start, pos_stop;
+	for (int ii = 0; ii < search.size(); ii++)
+	{
+		pos1 = sfile.find(search[ii][0]);
+		if (pos1 < sfile.size())
+		{
+			do
+			{
+				pos_start = sfile.find(search[ii][1]);
+				pos_stop = sfile.find(search[ii][2], pos_start);
+				pos1 = sfile.find(search[ii][3], pos_start);
+				pos2 = sfile.find(search[ii][4], pos1);
+				while (pos2 < pos_stop)
+				{
+					temp = sfile.substr(pos1 + search[ii][3].size(), pos2 - pos1 - search[ii][3].size());
+					gold.push_back(temp);
+					pos1 = sfile.find(search[ii][3], pos2);
+					pos2 = sfile.find(search[ii][4], pos1);
+				}
+			} while (ii < search.size() - 1 && search[ii + 1][0] == search[ii][0]);
+			break;
+		}
+	}
+	return gold;
 }
 string JFUNC::timestamper()
 {
