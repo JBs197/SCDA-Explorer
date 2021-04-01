@@ -35,6 +35,7 @@ public:
 	string get_error_path();
 	void isort_slist(vector<string>&);
 	int is_numeric(string&);
+	vector<int> get_roots(vector<vector<int>>&);
 	vector<string> list_from_marker(string&, char);
 	string load(string);
 	void log(string);
@@ -189,6 +190,8 @@ public:
 		WPR << wfile << endl;
 		WPR.close();
 	}
+
+	//template<typename ... Args> void removeBom(Args&)
 
 	template<typename ... Args> void tree_from_indent(vector<vector<int>>&, Args& ... args)
 	{

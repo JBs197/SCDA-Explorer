@@ -52,6 +52,31 @@ string JFUNC::get_error_path()
 {
 	return error_path;
 }
+vector<int> JFUNC::get_roots(vector<vector<int>>& tree_st)
+{
+	vector<int> roots;
+	int pivot;
+	for (int ii = 0; ii < tree_st.size(); ii++)
+	{
+		for (int jj = 0; jj < tree_st[ii].size(); jj++)
+		{
+			if (tree_st[ii][jj] < 0)
+			{
+				pivot = jj;
+				break;
+			}
+			else if (jj == tree_st[ii].size() - 1)
+			{
+				pivot = 0;
+			}
+		}
+		if (pivot == 0)
+		{
+			roots.push_back(ii);
+		}
+	}
+	return roots;
+}
 void JFUNC::isort_slist(vector<string>& slist)
 {
 	int isize = slist.size();
@@ -152,7 +177,7 @@ string JFUNC::load(string file_path)
 	char* buffer;
 	wchar_t* wbuffer;
 	long file_size;
-	size_t bytes_read, bullshit;
+	size_t bytes_read;
 	switch (encoding)
 	{
 	case 0:
@@ -193,6 +218,7 @@ string JFUNC::load(string file_path)
 		output = utf16to8(wtemp);
 		break;
 	}
+	int bbq = 1;
 	return output;
 }
 void JFUNC::log(string message)
@@ -273,7 +299,7 @@ void JFUNC::navigator(vector<vector<int>>& tree_st, vector<string>& tree_pl, vec
 					{
 						pos2 = webpage.find(navigator_search[jj][4], pos1 + 1);
 						temp = webpage.substr(pos1, pos2 - pos1);
-						tree_pl[id].push_back(temp);
+						//tree_pl[id].push_back(temp);
 					}
 				}
 

@@ -1244,8 +1244,8 @@ void MainWindow::on_pB_search_clicked()
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
-
-
+    string test = jf.load("D:\\SC1991.txt");
+    int bbq = 1;
     /*
     QString qtemp = ui->pte_webinput->toPlainText();
     string url = qtemp.toStdString();
