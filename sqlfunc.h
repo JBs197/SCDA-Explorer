@@ -81,7 +81,7 @@ public:
         int ivalue;
         double dvalue;
         string svalue;
-        char* buffer;
+        int iextra = 0;
 
         if (error == 100)
         {
@@ -97,11 +97,26 @@ public:
                 result += to_string(dvalue);
                 break;
             case 3:
+            {
                 size = sqlite3_column_bytes(statement, 0);
-                buffer = (char*)sqlite3_column_text(statement, 0);
-                svalue.assign(buffer, size);
+                const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                svalue.resize(size);
+                for (int ii = 0; ii < size; ii++)
+                {
+                    if (buffer[ii] > 127)
+                    {
+                        svalue[ii + iextra] = -61;
+                        iextra++;
+                        svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                    }
+                    else
+                    {
+                        svalue[ii + iextra] = buffer[ii];
+                    }
+                }
                 result += svalue;
                 break;
+            }
             case 5:
                 result += "";
                 break;
@@ -174,7 +189,7 @@ public:
         double dvalue;
         string svalue;
         int col_count = -1;
-        char* buffer;
+        int iextra = 0;
 
         while (error == 100)
         {
@@ -201,10 +216,24 @@ public:
                         break;
                     case 3:
                     {
-                        size = sqlite3_column_bytes(statement, ii);
-                        char* buffer = (char*)sqlite3_column_text(statement, ii);
-                        svalue.assign(buffer, size);
+                        size = sqlite3_column_bytes(statement, 0);
+                        const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                        svalue.resize(size);
+                        for (int ii = 0; ii < size; ii++)
+                        {
+                            if (buffer[ii] > 127)
+                            {
+                                svalue[ii + iextra] = -61;
+                                iextra++;
+                                svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                            }
+                            else
+                            {
+                                svalue[ii + iextra] = buffer[ii];
+                            }
+                        }
                         results[inum + ii] = svalue;
+                        iextra = 0;
                         break;
                     }
                     case 5:
@@ -228,11 +257,27 @@ public:
                     results.push_back(to_string(dvalue));
                     break;
                 case 3:
+                {
                     size = sqlite3_column_bytes(statement, 0);
-                    buffer = (char*)sqlite3_column_text(statement, 0);
-                    svalue.assign(buffer, size);
+                    const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                    svalue.resize(size);
+                    for (int ii = 0; ii < size; ii++)
+                    {
+                        if (buffer[ii] > 127)
+                        {
+                            svalue[ii + iextra] = -61;
+                            iextra++;
+                            svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                        }
+                        else
+                        {
+                            svalue[ii + iextra] = buffer[ii];
+                        }
+                    }
                     results.push_back(svalue);
+                    iextra = 0;
                     break;
+                }
                 case 5:
                     results.push_back("");
                     break;
@@ -348,7 +393,7 @@ public:
         int ivalue;
         double dvalue;
         string svalue;
-        char* buffer;
+        int iextra = 0;
 
         while (error == 100)
         {
@@ -369,10 +414,24 @@ public:
                     break;
                 case 3:
                 {
-                    size = sqlite3_column_bytes(statement, ii);
-                    buffer = (char*)sqlite3_column_text(statement, ii);
-                    svalue.assign(buffer, size);
+                    size = sqlite3_column_bytes(statement, 0);
+                    const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                    svalue.resize(size);
+                    for (int ii = 0; ii < size; ii++)
+                    {
+                        if (buffer[ii] > 127)
+                        {
+                            svalue[ii + iextra] = -61;
+                            iextra++;
+                            svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                        }
+                        else
+                        {
+                            svalue[ii + iextra] = buffer[ii];
+                        }
+                    }
                     results[results.size() - 1][ii] = svalue;
+                    iextra = 0;
                     break;
                 }
                 case 5:
