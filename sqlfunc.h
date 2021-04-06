@@ -6,8 +6,6 @@
 #include <fstream>
 #include <sqlite3.h>
 #include "jfunc.h"
-//#include <QElapsedTimer>
-//#include <QDebug>
 
 using namespace std;
 
@@ -27,7 +25,6 @@ class SQLFUNC
 public:
     explicit SQLFUNC() {}
 	~SQLFUNC() {}
-    vector<string> all_tables();
     void create_table(string, vector<string>&, vector<int>&);
     void init(string);
     void insert_tg_existing(string);
@@ -35,7 +32,7 @@ public:
     string insert_stmt(string, vector<string>&, vector<string>&);
     int get_num_col(string);
     void safe_col(string, int);
-    void select_tree(string, vector<vector<int>>&, vector<string>&);
+    void select_tree2(string tname, vector<vector<int>>& tree_st, vector<wstring>& tree_pl);
     vector<string> select_years();
     void set_error_path(string);
     bool table_exist(string);
@@ -93,20 +90,20 @@ public:
             {
             case 1:
                 ivalue = sqlite3_column_int(statement, 0);
-                result = to_string(ivalue);
+                result += to_string(ivalue);
                 break;
             case 2:
                 dvalue = sqlite3_column_double(statement, 0);
-                result = to_string(dvalue);
+                result += to_string(dvalue);
                 break;
             case 3:
                 size = sqlite3_column_bytes(statement, 0);
                 buffer = (char*)sqlite3_column_text(statement, 0);
                 svalue.assign(buffer, size);
-                result = svalue;
+                result += svalue;
                 break;
             case 5:
-                result = "";
+                result += "";
                 break;
             }
             return;
@@ -114,6 +111,55 @@ public:
         else if (error > 0 && error != 101)
         {
             sqlerr("step-executor0.5");
+        }
+    }
+    template<> void executor<wstring>(string stmt, wstring& result)
+    {
+        // Note that this variant of the executor function can accomodate either a column or a row as the result.
+        int type, size;  // Type: 1(int), 2(double), 3(string)
+        sqlite3_stmt* statement;
+        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+        if (error) { sqlerr("prepare-executor1"); }
+        error = sqlite3_step(statement);
+        int ivalue, inum;
+        double dvalue;
+        wstring wvalue;
+        int col_count = -1;
+        char* buffer;
+
+        if (error == 100)
+        {
+            type = sqlite3_column_type(statement, 0);
+            switch (type)
+            {
+            case 1:
+                ivalue = sqlite3_column_int(statement, 0);
+                result = to_wstring(ivalue);
+                break;
+            case 2:
+                dvalue = sqlite3_column_double(statement, 0);
+                result = to_wstring(dvalue);
+                break;
+            case 3:
+            {
+                size = sqlite3_column_bytes(statement, 0);
+                const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                wvalue.resize(size);
+                for (int jj = 0; jj < size; jj++)
+                {
+                    wvalue[jj] = (wchar_t)buffer[jj];
+                }
+                result = wvalue;
+                break;
+            }
+            case 5:
+                result = L"";
+                break;
+            }
+        }
+        else if (error > 0 && error != 101)
+        {
+            sqlerr("step-executor1");
         }
     }
     template<> void executor<vector<string>>(string stmt, vector<string>& results)
@@ -124,12 +170,11 @@ public:
         int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
         if (error) { sqlerr("prepare-executor1"); }
         error = sqlite3_step(statement);
-        int ivalue;
+        int ivalue, inum;
         double dvalue;
         string svalue;
         int col_count = -1;
         char* buffer;
-        results.clear();
 
         while (error == 100)
         {
@@ -139,7 +184,8 @@ public:
             }
             if (col_count > 1)  // Returned vector will be a row.
             {
-                results.resize(col_count);
+                inum = results.size();
+                results.resize(inum + col_count);
                 for (int ii = 0; ii < col_count; ii++)
                 {
                     type = sqlite3_column_type(statement, ii);
@@ -147,17 +193,22 @@ public:
                     {
                     case 1:
                         ivalue = sqlite3_column_int(statement, ii);
-                        results[ii] = to_string(ivalue);
+                        results[inum + ii] = to_string(ivalue);
                         break;
                     case 2:
                         dvalue = sqlite3_column_double(statement, ii);
-                        results[ii] = to_string(dvalue);
+                        results[inum + ii] = to_string(dvalue);
                         break;
                     case 3:
+                    {
                         size = sqlite3_column_bytes(statement, ii);
                         char* buffer = (char*)sqlite3_column_text(statement, ii);
                         svalue.assign(buffer, size);
-                        results[ii] = svalue;
+                        results[inum + ii] = svalue;
+                        break;
+                    }
+                    case 5:
+                        results[inum + ii] = "";
                         break;
                     }
                 }
@@ -194,6 +245,99 @@ public:
             sqlerr("step-executor1");
         }
 	}
+    template<> void executor<vector<wstring>>(string stmt, vector<wstring>& results)
+    {
+        // Note that this variant of the executor function can accomodate either a column or a row as the result.
+        int type, size;  // Type: 1(int), 2(double), 3(string)
+        sqlite3_stmt* statement;
+        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+        if (error) { sqlerr("prepare-executor1"); }
+        error = sqlite3_step(statement);
+        int ivalue, inum;
+        double dvalue;
+        wstring wvalue;
+        int col_count = -1;
+        char* buffer;
+
+        while (error == 100)
+        {
+            if (col_count < 0)
+            {
+                col_count = sqlite3_column_count(statement);
+            }
+            if (col_count > 1)  // Returned vector will be a row.
+            {
+                inum = results.size();
+                results.resize(inum + col_count);
+                for (int ii = 0; ii < col_count; ii++)
+                {
+                    type = sqlite3_column_type(statement, ii);
+                    switch (type)
+                    {
+                    case 1:
+                        ivalue = sqlite3_column_int(statement, ii);
+                        results[inum + ii] = to_wstring(ivalue);
+                        break;
+                    case 2:
+                        dvalue = sqlite3_column_double(statement, ii);
+                        results[inum + ii] = to_wstring(dvalue);
+                        break;
+                    case 3:
+                    {
+                        size = sqlite3_column_bytes(statement, ii);
+                        const unsigned char* buffer = sqlite3_column_text(statement, ii);
+                        wvalue.resize(size);
+                        for (int jj = 0; jj < size; jj++)
+                        {
+                            wvalue[jj] = (wchar_t)buffer[jj];
+                        }
+                        results[inum + ii] = wvalue;
+                        break;
+                    }
+                    case 5:
+                        results[inum + ii] = L"";
+                        break;
+                    }
+                }
+                return;
+            }
+            else  // Returned result will be a column.
+            {
+                type = sqlite3_column_type(statement, 0);
+                switch (type)
+                {
+                case 1:
+                    ivalue = sqlite3_column_int(statement, 0);
+                    results.push_back(to_wstring(ivalue));
+                    break;
+                case 2:
+                    dvalue = sqlite3_column_double(statement, 0);
+                    results.push_back(to_wstring(dvalue));
+                    break;
+                case 3:
+                {
+                    size = sqlite3_column_bytes(statement, 0);
+                    const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                    wvalue.resize(size);
+                    for (int jj = 0; jj < size; jj++)
+                    {
+                        wvalue[jj] = (wchar_t)buffer[jj];
+                    }
+                    results.push_back(wvalue);
+                    break;
+                }
+                case 5:
+                    results.push_back(L"");
+                    break;
+                }
+            }
+            error = sqlite3_step(statement);
+        }
+        if (error > 0 && error != 101)
+        {
+            sqlerr("step-executor1");
+        }
+    }
     template<> void executor<vector<vector<string>>>(string stmt, vector<vector<string>>& results)
     {
         int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
@@ -224,11 +368,13 @@ public:
                     results[results.size() - 1][ii] = to_string(dvalue);
                     break;
                 case 3:
+                {
                     size = sqlite3_column_bytes(statement, ii);
                     buffer = (char*)sqlite3_column_text(statement, ii);
                     svalue.assign(buffer, size);
                     results[results.size() - 1][ii] = svalue;
                     break;
+                }
                 case 5:
                     results[results.size() - 1].push_back("");
                     break;
@@ -241,7 +387,59 @@ public:
             sqlerr("step-executor2");
         }
     }
+    template<> void executor<vector<vector<wstring>>>(string stmt, vector<vector<wstring>>& results)
+    {
+        int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
+        sqlite3_stmt* statement;
+        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+        if (error) { sqlerr("prepare-executor2"); }
+        error = sqlite3_step(statement);
+        int ivalue;
+        double dvalue;
+        wstring wvalue;
 
+        while (error == 100)
+        {
+            col_count = sqlite3_column_count(statement);
+            results.push_back(vector<wstring>(col_count));
+            for (int ii = 0; ii < col_count; ii++)
+            {
+                type = sqlite3_column_type(statement, ii);
+                switch (type)
+                {
+                case 1:
+                    ivalue = sqlite3_column_int(statement, ii);
+                    results[results.size() - 1][ii] = to_wstring(ivalue);
+                    break;
+                case 2:
+                    dvalue = sqlite3_column_double(statement, ii);
+                    results[results.size() - 1][ii] = to_wstring(dvalue);
+                    break;
+                case 3:
+                {
+                    size = sqlite3_column_bytes(statement, ii);
+                    const unsigned char* buffer = sqlite3_column_text(statement, ii);
+                    wvalue.resize(size);
+                    for (int ii = 0; ii < size; ii++)
+                    {
+                        wvalue[ii] = (wchar_t)buffer[ii];
+                    }
+                    results[results.size() - 1][ii] = wvalue;
+                    break;
+                }
+                case 5:
+                    results[results.size() - 1].push_back(L"");
+                    break;
+                }
+            }
+            error = sqlite3_step(statement);
+        }
+        if (error > 0 && error != 101)
+        {
+            sqlerr("step-executor2");
+        }
+    }
+   
     template<typename ... Args> void get_col_titles(string, Args& ... args) 
     {
         // Referencing a 1D vector will output [name 1, name 2, ...].
@@ -251,6 +449,18 @@ public:
     {
         string temp1;
         vector<vector<string>> results;
+        string stmt = "pragma table_info ('" + tname + "')";
+        executor(stmt, results);
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            temp1 = results[ii][1];
+            titles.push_back(temp1);
+        }
+    }
+    template<> void get_col_titles<vector<wstring>>(string tname, vector<wstring>& titles)
+    {
+        wstring temp1;
+        vector<vector<wstring>> results;
         string stmt = "pragma table_info ('" + tname + "')";
         executor(stmt, results);
         for (int ii = 0; ii < results.size(); ii++)
@@ -281,6 +491,11 @@ public:
         // search parameter, in the same order as given. 
         // Example: [cata_name, GID] will return a list of all subtables for that GID.
     }
+    template<> void get_table_list(vector<string>& results)
+    {
+        string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+        executor(stmt, results);
+    }
     template<> void get_table_list<string>(vector<string>& results, string& search)
     {
         results.clear();
@@ -305,12 +520,7 @@ public:
             }
         }
     }
-    template<> void get_table_list(vector<string>& results)
-    {
-        string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
-        executor(stmt, results);
-    }
-
+    
     template<typename ... Args> void insert(string, Args& ... args)
     {
         // Insert one or more rows into the given table.
@@ -502,6 +712,18 @@ public:
         executor(stmt, results);
         return results.size();
     }
+    template<> int select<vector<wstring>>(vector<string> search, string tname, vector<wstring>& results)
+    {
+        string stmt = "SELECT ";
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "" + search[ii] + ", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM [" + tname + "];";
+        executor(stmt, results);
+        return results.size();
+    }
     template<> int select<vector<vector<string>>>(vector<string> search, string tname, vector<vector<string>>& results)
     {
         string stmt = "SELECT ";
@@ -522,7 +744,38 @@ public:
         }
         return max_col;
     }
+    template<> int select<vector<vector<wstring>>>(vector<string> search, string tname, vector<vector<wstring>>& results)
+    {
+        string stmt = "SELECT ";
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "" + search[ii] + ", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM [" + tname + "];";
+        executor(stmt, results);
+        int max_col = 0;
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            if (results[ii].size() > max_col)
+            {
+                max_col = results[ii].size();
+            }
+        }
+        return max_col;
+    }
     template<> int select<string, vector<string>>(vector<string> search, string tname, string& result, vector<string>& conditions)
+    {
+        string stmt = "SELECT " + search[0] + " FROM [" + tname + "] WHERE (";
+        for (int ii = 0; ii < conditions.size(); ii++)
+        {
+            stmt += conditions[ii] + " ";
+        }
+        stmt += ");";
+        executor(stmt, result);
+        return 1;
+    }
+    template<> int select<wstring, vector<string>>(vector<string> search, string tname, wstring& result, vector<string>& conditions)
     {
         string stmt = "SELECT " + search[0] + " FROM [" + tname + "] WHERE (";
         for (int ii = 0; ii < conditions.size(); ii++)
@@ -575,6 +828,170 @@ public:
         }
         return max_col;
     }
+    template<> int select<vector<vector<wstring>>, vector<string>>(vector<string> search, string tname, vector<vector<wstring>>& results, vector<string>& conditions)
+    {
+        string stmt = "SELECT ";
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "" + search[ii] + ", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM [" + tname + "] WHERE (";
+        for (int ii = 0; ii < conditions.size(); ii++)
+        {
+            stmt += conditions[ii] + " ";
+        }
+        stmt += ");";
+        executor(stmt, results);
+        int max_col = 0;
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            if (results[ii].size() > max_col)
+            {
+                max_col = results[ii].size();
+            }
+        }
+        return max_col;
+    }
 
+    template<typename S> void select_tree(string tname, vector<vector<int>>& tree_st, vector<S>& tree_pl) {}
+    template<> void select_tree<string>(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl)
+    {
+        // Produce a tree structure and tree payload for the given table name as root. 
+        // Certain table name parameters have special forks within the function.
+
+        vector<vector<string>> results;
+        unordered_map<string, int> registry;
+        vector<vector<int>> kids;
+        vector<int> ivtemp;
+        vector<string> vtemp;
+        string temp, sparent, stmt;
+        int pl_index, iparent, pivot, inum;
+        tree_pl.clear();
+        tree_st.clear();
+
+        stmt = "SELECT * FROM [" + tname + "]";
+        executor(stmt, results);
+        tree_pl.resize(results.size());
+        tree_st.resize(results.size());
+        kids.resize(results.size(), vector<int>());
+
+        // Remove SQL's null entries, and register each node.
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            for (int jj = 0; jj < results[ii].size(); jj++)
+            {
+                if (results[ii][jj] == "")
+                {
+                    results[ii].erase(results[ii].begin() + jj, results[ii].end());
+                    break;
+                }
+            }
+            tree_pl[ii] = results[ii][1];
+            registry.emplace(results[ii][0], ii);  // Input gid as string, output pl_index.
+        }
+
+        // Build the tree structure (parents->node).
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            for (int jj = 2; jj < results[ii].size(); jj++)
+            {
+                try
+                {
+                    iparent = registry.at(results[ii][jj]);
+                    tree_st[ii].push_back(iparent);
+                }
+                catch (out_of_range& oor)
+                {
+                    err("iparent registry-sf.select_tree");
+                }
+            }
+            if (results[ii].size() > 2)
+            {
+                kids[iparent].push_back(ii);
+            }
+            tree_st[ii].push_back(-1 * ii);
+        }
+
+        // Build the tree structure (node->children).
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            for (int jj = 0; jj < kids[ii].size(); jj++)
+            {
+                tree_st[ii].push_back(kids[ii][jj]);
+            }
+        }
+
+        return;
+    }
+    template<> void select_tree<wstring>(string tname, vector<vector<int>>& tree_st, vector<wstring>& tree_pl)
+    {
+        // Produce a tree structure and tree payload for the given table name as root. 
+        // Certain table name parameters have special forks within the function.
+
+        vector<vector<wstring>> results;
+        unordered_map<wstring, int> registry;
+        vector<vector<int>> kids;
+        vector<int> ivtemp;
+        vector<string> vtemp;
+        string temp, sparent, stmt;
+        int pl_index, iparent, pivot, inum;
+        tree_pl.clear();
+        tree_st.clear();
+
+        stmt = "SELECT * FROM [" + tname + "]";
+        executor(stmt, results);
+        tree_pl.resize(results.size());
+        tree_st.resize(results.size());
+        kids.resize(results.size(), vector<int>());
+
+        // Remove SQL's null entries, and register each node.
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            for (int jj = 0; jj < results[ii].size(); jj++)
+            {
+                if (results[ii][jj] == L"")
+                {
+                    results[ii].erase(results[ii].begin() + jj, results[ii].end());
+                    break;
+                }
+            }
+            tree_pl[ii] = results[ii][1];
+            registry.emplace(results[ii][0], ii);  // Input gid as string, output pl_index.
+        }
+
+        // Build the tree structure (parents->node).
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            for (int jj = 2; jj < results[ii].size(); jj++)
+            {
+                try
+                {
+                    iparent = registry.at(results[ii][jj]);
+                    tree_st[ii].push_back(iparent);
+                }
+                catch (out_of_range& oor)
+                {
+                    err("iparent registry-sf.select_tree");
+                }
+            }
+            if (results[ii].size() > 2)
+            {
+                kids[iparent].push_back(ii);
+            }
+            tree_st[ii].push_back(-1 * ii);
+        }
+
+        // Build the tree structure (node->children).
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            for (int jj = 0; jj < kids[ii].size(); jj++)
+            {
+                tree_st[ii].push_back(kids[ii][jj]);
+            }
+        }
+
+        return;
+    }
 };
 

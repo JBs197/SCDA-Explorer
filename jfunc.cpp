@@ -229,6 +229,15 @@ void JFUNC::log(string message)
 	LOG << output << endl << endl;
 	LOG.close();
 }
+void JFUNC::logTime(string func, long long timer)
+{
+	lock_guard<mutex> lock(m_err);
+	LOG.open(log_path, ofstream::app);
+	string output = timestamper() + func + " completed in ";
+	output += to_string(timer) + "ms.";
+	LOG << output << endl << endl;
+	LOG.close();
+}
 void JFUNC::navigator(vector<vector<int>>& tree_st, vector<string>& tree_pl, vector<string>& tree_url, string& webpage, int id)
 {
 	// Recursive function used to make a tree of web URLs. Requires outside support to provide
@@ -358,6 +367,29 @@ void JFUNC::set_navigator_asset_path(string& path)
 {
 	navigator_asset_path = path;
 }
+void JFUNC::stopWatch(atomic_int& control, atomic_ullong& timer)
+{
+	using namespace chrono;
+	timer = 0;
+	auto t1 = steady_clock::now();
+	auto t2 = steady_clock::now();
+	auto diff = t2 - t1;
+	while (control < 2)
+	{
+		t2 = steady_clock::now();
+		if (control == 1)
+		{
+			diff = t2 - t1;
+			duration<unsigned long long> d1 = duration_cast<duration<unsigned long long>>(diff);
+			timer = d1.count();
+			t1 = steady_clock::now();
+			control = 0;
+		}
+	}
+	diff = t2 - t1;
+	duration<unsigned long long> d2 = duration_cast<duration<unsigned long long>>(diff);
+	timer = d2.count();
+}
 void JFUNC::tclean(string& bbq, char marker, string preferred)
 {
 	// Function to replace characters from the start of a string (table indents).
@@ -398,6 +430,27 @@ vector<string> JFUNC::textParser(vector<vector<string>>& search, string& sfile)
 		}
 	}
 	return gold;
+}
+void JFUNC::timerStart()
+{
+	t1 = chrono::steady_clock::now();
+}
+long long JFUNC::timerRestart()
+{
+	auto t2 = chrono::steady_clock::now();  // steady_clock uses ns, but can only update every 100ns.
+	auto diff = t2 - t1;
+	auto ms = chrono::duration_cast<chrono::milliseconds>(diff);
+	auto timer = ms.count();
+	t1 = chrono::steady_clock::now();
+	return timer;
+}
+long long JFUNC::timerStop()
+{
+	auto t2 = chrono::steady_clock::now();  // steady_clock uses ns, but can only update every 100ns.
+	auto diff = t2 - t1;
+	auto ms = chrono::duration_cast<chrono::milliseconds>(diff);
+	auto timer = ms.count();
+	return timer;
 }
 string JFUNC::timestamper()
 {

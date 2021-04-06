@@ -178,168 +178,76 @@ int SQLFUNC::sclean(string& bbq, int mode)
     }
     return count;
 }
-void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl)
+void SQLFUNC::select_tree2(string tname, vector<vector<int>>& tree_st, vector<wstring>& tree_pl)
 {
     // Produce a tree structure and tree payload for the given table name as root. 
     // Certain table name parameters have special forks within the function.
 
-    vector<string> tname_params = jfsf.list_from_marker(tname, '$');
-    vector<vector<string>> results;
-    unordered_map<string, int> registry;
+    //vector<string> tname_params = jfsf.list_from_marker(tname, '$');
+    vector<vector<wstring>> results;
+    unordered_map<wstring, int> registry;
     vector<vector<int>> kids;
     vector<int> ivtemp;
     vector<string> vtemp;
+    vector<string> search = { "GID", "[Region Name]" };
     string temp, sparent, stmt;
     int pl_index, iparent, pivot, inum;
     tree_pl.clear();
     tree_st.clear();
 
-    if (tname_params[1] == "TG_Region" || tname_params[1] == "TG_Row")
-    {
-        stmt = "SELECT * FROM [" + tname + "]";
-        executor(stmt, results);
-        tree_pl.resize(results.size());
-        tree_st.resize(results.size());
-        kids.resize(results.size(), vector<int>());
-        
-        // Remove SQL's null entries, and register each node.
-        for (int ii = 0; ii < results.size(); ii++)
-        {
-            for (int jj = 0; jj < results[ii].size(); jj++)
-            {
-                if (results[ii][jj] == "")
-                {
-                    results[ii].erase(results[ii].begin() + jj, results[ii].end());
-                    break;
-                }
-            }
-            tree_pl[ii] = results[ii][1];
-            registry.emplace(results[ii][0], ii);  // Input gid as string, output pl_index.
-        }
-
-        // Build the tree structure (parents->node).
-        for (int ii = 0; ii < results.size(); ii++)
-        {
-            for (int jj = 2; jj < results[ii].size(); jj++)
-            {
-                try
-                {
-                    iparent = registry.at(results[ii][jj]);
-                    tree_st[ii].push_back(iparent);
-                }
-                catch (out_of_range& oor)
-                {
-                    err("iparent registry-sf.select_tree");
-                }
-            }
-            if (results[ii].size() > 2)
-            {
-                kids[iparent].push_back(ii);
-            }
-            tree_st[ii].push_back(-1 * ii);
-        }
-
-        // Build the tree structure (node->children).
-        for (int ii = 0; ii < results.size(); ii++)
-        {
-            for (int jj = 0; jj < kids[ii].size(); jj++)
-            {
-                tree_st[ii].push_back(kids[ii][jj]);
-            }
-        }
-
-        return;
-    }
-
-    int num_params = tname_params.size() - 1;
-    stmt = "SELECT * FROM TGenealogy WHERE (";
-    for (int ii = 1; ii < tname_params.size(); ii++)
-    {
-        stmt += "param" + to_string(ii) + " = '" + tname_params[ii] + "'";
-        if (ii < tname_params.size() - 1)
-        {
-            stmt += " AND ";
-        }
-        else
-        {
-            stmt += ");";
-        }
-    }
+    stmt = "SELECT * FROM [" + tname + "]";
     executor(stmt, results);
+    tree_pl.resize(results.size());
+    tree_st.resize(results.size());
+    kids.resize(results.size(), vector<int>());
 
-    // Categorize each result from TG by the number of parameters it has.
-    vector<vector<int>> param_groups;  // Form [# of params - 1][results index].
-    int params;
+    // Remove SQL's null entries, and register each node.
     for (int ii = 0; ii < results.size(); ii++)
     {
         for (int jj = 0; jj < results[ii].size(); jj++)
         {
-            if (results[ii][jj] == "")
+            if (results[ii][jj] == L"")
             {
-                results[ii].erase(results[ii].begin() + jj);
-                jj--;
+                results[ii].erase(results[ii].begin() + jj, results[ii].end());
+                break;
             }
         }
-        params = results[ii].size() - 1;
-        while (param_groups.size() < params)
-        {
-            param_groups.push_back(vector<int>());
-        }
-        param_groups[params - 1].push_back(ii);
+        tree_pl[ii] = results[ii][1];
+        registry.emplace(results[ii][0], ii);  // Input gid as string, output pl_index.
     }
 
-    size_t pos1;
-    for (int ii = 0; ii < param_groups.size(); ii++)
+    // Build the tree structure (parents->node).
+    for (int ii = 0; ii < results.size(); ii++)
     {
-        for (int jj = 0; jj < param_groups[ii].size(); jj++)
+        for (int jj = 2; jj < results[ii].size(); jj++)
         {
-            temp = results[param_groups[ii][jj]][0];
-            pl_index = tree_pl.size();
-            tree_st.push_back(vector<int>());
-            tree_pl.push_back(temp);
-            registry.emplace(temp, pl_index);
-
-            if (ii > 0)
-            {
-                pos1 = temp.rfind('$');
-                pos1 = temp.find_last_not_of('$', pos1);
-                sparent = temp.substr(0, pos1 + 1);
-            }
-            else
-            {
-                sparent = "";
-            }
-
             try
             {
-                iparent = registry.at(sparent);
+                iparent = registry.at(results[ii][jj]);
+                tree_st[ii].push_back(iparent);
             }
             catch (out_of_range& oor)
             {
-                tree_st[pl_index].push_back(-1 * pl_index);
-                continue;
+                err("iparent registry-sf.select_tree");
             }
+        }
+        if (results[ii].size() > 2)
+        {
+            kids[iparent].push_back(ii);
+        }
+        tree_st[ii].push_back(-1 * ii);
+    }
 
-            tree_st[pl_index] = tree_st[iparent];
-            for (int jj = 0; jj < tree_st[pl_index].size(); jj++)
-            {
-                if (tree_st[pl_index][jj] < 0)
-                {
-                    pivot = jj;
-                    break;
-                }
-                else if (jj == tree_st[pl_index].size() - 1)
-                {
-                    pivot = 0;
-                }
-            }
-            tree_st[pl_index].resize(pivot + 2);
-            tree_st[pl_index][pivot] *= -1;
-            tree_st[pl_index][pivot + 1] = -1 * pl_index;
-
-            tree_st[iparent].push_back(pl_index);
+    // Build the tree structure (node->children).
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        for (int jj = 0; jj < kids[ii].size(); jj++)
+        {
+            tree_st[ii].push_back(kids[ii][jj]);
         }
     }
+
+    return;
 }
 vector<string> SQLFUNC::select_years()
 {

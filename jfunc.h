@@ -26,10 +26,16 @@ class JFUNC
 	string navigator_asset_path = sroot + "\\SCDA Navigator Asset.bin";
 	vector<vector<string>> navigator_search;  // Form [search tree layer index][section start, section end, inside iteration, ...].
 
+	void stopWatch(atomic_int&, atomic_ullong&);
+	chrono::steady_clock::time_point t1;
 
 public:
 	explicit JFUNC() {}
 	~JFUNC() {}
+
+	atomic_ullong stopwatch = 0;  // Max timer ticks is 1.8e19.
+	atomic_int stopwatch_control = 0;
+
 	string bind(string&, vector<string>&);
 	void err(string);
 	string get_error_path();
@@ -38,13 +44,17 @@ public:
 	vector<int> get_roots(vector<vector<int>>&);
 	vector<string> list_from_marker(string&, char);
 	string load(string);
-	void log(string);
+	void log(string message);
+	void logTime(string func, long long timer);
 	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
 	string parent_from_marker(string&, char);
 	void quicksort(vector<int>&, int, int);
 	void set_navigator_asset_path(string&);
 	void tclean(string&, char, string);
 	vector<string> textParser(vector<vector<string>>&, string&);
+	void timerStart();
+	long long timerRestart();
+	long long timerStop();
 	string timestamper();
 	int tree_from_marker(vector<vector<int>>&, vector<string>&);
 	string utf16to8(wstring);
@@ -167,6 +177,17 @@ public:
 		return count;
 	}
 
+	template<typename ... Args> int maxNumCol(Args& ... args) {}
+	template<> int maxNumCol<vector<vector<wstring>>>(vector<vector<wstring>>& task)
+	{
+		int count = 0;
+		for (int ii = 0; ii < task.size(); ii++)
+		{
+			if (task[ii].size() > count) { count = task[ii].size(); }
+		}
+		return count;
+	}
+
 	template<typename ... Args> void printer(string, Args& ... args)
 	{
 		// For a given file name and (string/wstring) content, write to file in UTF-8.
@@ -191,7 +212,43 @@ public:
 		WPR.close();
 	}
 
-	//template<typename ... Args> void removeBom(Args&)
+	template<typename ... Args> void removeBlanks(Args& ... args) {}
+	template<> void removeBlanks<vector<string>>(vector<string>& task)
+	{
+		for (int ii = 0; ii < task.size(); ii++)
+		{
+			if (task[ii] == "")
+			{
+				task.erase(task.begin() + ii);
+				ii--;
+			}
+		}
+	}
+	template<> void removeBlanks<vector<wstring>>(vector<wstring>& task)
+	{
+		for (int ii = 0; ii < task.size(); ii++)
+		{
+			if (task[ii] == L"")
+			{
+				task.erase(task.begin() + ii);
+				ii--;
+			}
+		}
+	}
+	template<> void removeBlanks<vector<vector<wstring>>>(vector<vector<wstring>>& task)
+	{
+		for (int ii = 0; ii < task.size(); ii++)
+		{
+			for (int jj = 0; jj < task[ii].size(); jj++)
+			{
+				if (task[ii][jj] == L"")
+				{
+					task[ii].erase(task[ii].begin() + jj);
+					jj--;
+				}
+			}
+		}
+	}
 
 	template<typename ... Args> void tree_from_indent(vector<vector<int>>&, Args& ... args)
 	{
