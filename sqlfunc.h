@@ -31,6 +31,7 @@ public:
     void insert_prepared(vector<string>&);
     string insert_stmt(string, vector<string>&, vector<string>&);
     int get_num_col(string);
+    void makeANSI(string&);
     void safe_col(string, int);
     void select_tree2(string tname, vector<vector<int>>& tree_st, vector<wstring>& tree_pl);
     vector<string> select_years();
@@ -414,8 +415,8 @@ public:
                     break;
                 case 3:
                 {
-                    size = sqlite3_column_bytes(statement, 0);
-                    const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                    size = sqlite3_column_bytes(statement, ii);
+                    const unsigned char* buffer = sqlite3_column_text(statement, ii);
                     svalue.resize(size);
                     for (int ii = 0; ii < size; ii++)
                     {
@@ -508,7 +509,7 @@ public:
     {
         string temp1;
         vector<vector<string>> results;
-        string stmt = "pragma table_info ('" + tname + "')";
+        string stmt = "PRAGMA table_info('" + tname + "');";
         executor(stmt, results);
         for (int ii = 0; ii < results.size(); ii++)
         {
@@ -532,7 +533,7 @@ public:
     {
         vector<string> vtemp(2);
         vector<vector<string>> results;
-        string stmt = "pragma table_info ('" + tname + "')";
+        string stmt = "PRAGMA table_info('" + tname + "');";
         executor(stmt, results);
         for (int ii = 0; ii < results.size(); ii++)
         {

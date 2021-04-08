@@ -391,6 +391,7 @@ void MainWindow::on_pB_insert_clicked()
     QTreeWidgetItem* qitem;
     vector<string> prompt(3);  // syear, sname, desc, mode.
     vector<string> results1, search, conditions, vtemp;
+    vector<vector<string>> results;
     QString qyear, qname;
     string syear, sname, stmt;
     int mode, error, sb_index;
@@ -1179,7 +1180,7 @@ void MainWindow::on_pB_usc_clicked()
     switch (qnam_status)
     {
     case 0:
-        webpage = wf.browse(url);
+        webpage = wf.browse(scroot);
         jf.printer(filePath, webpage);
         break;
     }

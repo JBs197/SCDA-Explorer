@@ -127,6 +127,17 @@ string SQLFUNC::insert_stmt(string tname, vector<string>& column_titles, vector<
     bind(stmt, row_data);
     return stmt;
 }
+void SQLFUNC::makeANSI(string& task)
+{
+    for (int ii = 0; ii < task.size(); ii++)
+    {
+        if (task[ii] == -61)
+        {
+            task.erase(task.begin() + ii);
+            task[ii] += 64;
+        }
+    }
+}
 void SQLFUNC::safe_col(string tname, int num_col)
 {
     // For a given table name, if it has fewer columns than 'num_col', then append a sufficient
