@@ -115,6 +115,15 @@ int JFUNC::is_numeric(string& candidate)
 	catch (invalid_argument& ia) {}
 	return 0;
 }
+vector<string> JFUNC::ivectorToSvector(vector<int>& ivec)
+{
+	vector<string> svec(ivec.size());
+	for (int ii = 0; ii < ivec.size(); ii++)
+	{
+		svec[ii] = to_string(ivec[ii]);
+	}
+	return svec;
+}
 vector<string> JFUNC::list_from_marker(string& input, char marker)
 {
 	// Split a string into a vector of strings, dividing when the marker char is encountered.
@@ -323,6 +332,29 @@ void JFUNC::navigator(vector<vector<int>>& tree_st, vector<string>& tree_pl, vec
 	}
 
 }
+void JFUNC::navParser(string& sfile, vector<vector<string>>& search)
+{
+	size_t pos1, pos2, posNL1, posNL2;
+	string sval;
+	posNL1 = sfile.find('$') - 1;
+	posNL2 = sfile.find('\n', posNL1 + 1);
+	while (posNL2 < sfile.size())  // For every line in the file...
+	{
+		search.push_back(vector<string>());
+		pos1 = sfile.find('$', posNL1);
+		if (pos1 > sfile.size()) { break; }
+		pos2 = sfile.find('$', pos1 + 1);
+		while (pos2 < posNL2)  // For every entry on this line...
+		{
+			sval = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
+			search[search.size() - 1].push_back(sval);
+			pos1 = pos2;
+			pos2 = sfile.find('$', pos1 + 1);
+		}
+		posNL1 = posNL2;
+		posNL2 = sfile.find('\n', posNL1 + 1);
+	}
+}
 string JFUNC::parent_from_marker(string& child, char marker)
 {
 	size_t pos1 = child.rfind(marker);
@@ -390,6 +422,16 @@ void JFUNC::stopWatch(atomic_int& control, atomic_ullong& timer)
 	duration<unsigned long long> d2 = duration_cast<duration<unsigned long long>>(diff);
 	timer = d2.count();
 }
+vector<int> JFUNC::svectorToIvector(vector<string>& svec)
+{
+	vector<int> ivec(svec.size());
+	for (int ii = 0; ii < svec.size(); ii++)
+	{
+		try { ivec[ii] = stoi(svec[ii]); }
+		catch (out_of_range& oor) { err("stoi-jfunc.svectorToIvector"); }
+	}
+	return ivec;
+}
 void JFUNC::tclean(string& bbq, char marker, string preferred)
 {
 	// Function to replace characters from the start of a string (table indents).
@@ -402,33 +444,25 @@ void JFUNC::tclean(string& bbq, char marker, string preferred)
 		pos1 += psize;
 	}
 }
-vector<string> JFUNC::textParser(vector<vector<string>>& search, string& sfile)
+vector<string> JFUNC::textParser(string& sfile, vector<string>& search)
 {
 	vector<string> gold;
 	string temp;
 	size_t pos1, pos2, pos_start, pos_stop;
-	for (int ii = 0; ii < search.size(); ii++)
+	pos1 = sfile.find(search[0]);
+	if (pos1 > sfile.size()) { err("unique marker-jfunc.textParser"); }
+	pos_start = sfile.find(search[1]);
+	pos_stop = sfile.find(search[2], pos_start);
+	pos1 = sfile.find(search[3], pos_start);
+	while (pos1 < pos_stop)
 	{
-		pos1 = sfile.find(search[ii][0]);
-		if (pos1 < sfile.size())
-		{
-			do
-			{
-				pos_start = sfile.find(search[ii][1]);
-				pos_stop = sfile.find(search[ii][2], pos_start);
-				pos1 = sfile.find(search[ii][3], pos_start);
-				pos2 = sfile.find(search[ii][4], pos1);
-				while (pos2 < pos_stop)
-				{
-					temp = sfile.substr(pos1 + search[ii][3].size(), pos2 - pos1 - search[ii][3].size());
-					gold.push_back(temp);
-					pos1 = sfile.find(search[ii][3], pos2);
-					pos2 = sfile.find(search[ii][4], pos1);
-				}
-			} while (ii < search.size() - 1 && search[ii + 1][0] == search[ii][0]);
-			break;
-		}
+		pos2 = sfile.find(search[4], pos1);
+		if (pos2 > pos_stop) { break; }  // Safety.
+		temp = sfile.substr(pos1 + search[3].size(), pos2 - pos1 - search[3].size());
+		gold.push_back(temp);
+		pos1 = sfile.find(search[3], pos2);
 	}
+	if (gold.size() < 1) { err("zero results-jfunc.textParser"); }
 	return gold;
 }
 void JFUNC::timerStart()

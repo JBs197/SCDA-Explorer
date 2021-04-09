@@ -66,7 +66,9 @@ public:
 	string make_subtable_name(int&, string, string, vector<int>&, vector<string>&);
 	int make_tgr_statements(vector<string>&, string, string);
 	int make_tgrow_statements(vector<string>&);
-
+	string urlCata(string);
+	string urlCataDownload(int, string&);
+	string urlYear(string);
 
 	// TEMPLATES
 	template<typename ... Args> string make_create_primary_table(Args& ... args)

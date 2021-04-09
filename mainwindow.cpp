@@ -1173,18 +1173,107 @@ void MainWindow::display_table(string tname)
 // Query Statistics Canada for information.
 void MainWindow::on_pB_usc_clicked()
 {
-    int error;
-    string webpage;
-    string filePath = sroot + "\\SCroot.txt";
-    string url = "www12.statcan.gc.ca/English/census91/data/tables/Rp-eng.cfm?LANG=E&APATH=3&DETAIL=1&DIM=0&FL=A&FREE=1&GC=0&GID=0&GK=0&GRP=1&PID=71935&PRID=0&PTYPE=4&S=0&SHOWALL=No&SUB=0&Temporal=1991&THEME=101&VID=0&VNAMEE=&VNAMEF=";
-    switch (qnam_status)
+    int error, uscMode, iyear;
+    int iroot = -1;
+    string temp, syear, filePath, sname, webpage, navAsset, url;
+    vector<string> slayer;
+    vector<int> ilayer;
+    QTreeWidgetItem* qnode;
+    QString qtemp;
+
+    QList<QTreeWidgetItem*> qSelected = ui->treeW_statscan->selectedItems();
+    if (qSelected.size() < 1) { uscMode = 0; }
+    else
+    {
+        qnode = qSelected[0]->parent();
+        uscMode = 0;
+        while (qnode != nullptr)
+        {
+            qnode = qnode->parent();
+            uscMode++;
+        }
+    }
+
+    switch (uscMode)
     {
     case 0:
+    {
+        navAsset = jf.load(sroot + "\\SCDA Navigator Asset.bin");
+        jf.navParser(navAsset, navSearch);  // Populate the navSearch matrix.
         webpage = wf.browse(scroot);
-        jf.printer(filePath, webpage);
+        slayer = jf.textParser(webpage, navSearch[0]);
+        jf.isort_slist(slayer);
+        sname = "Statistics Canada Census Data";
+        jt.init(sname);
+        ilayer = jf.svectorToIvector(slayer);
+        jt.addChildren(slayer, ilayer, iroot);
+        ui->treeW_statscan->clear();
+        qnode = new QTreeWidgetItem();
+        qtemp = QString::fromStdString(sname);
+        qnode->setText(0, qtemp);
+        ui->treeW_statscan->addTopLevelItem(qnode);
+        populateQtree(qnode, sname);
         break;
     }
+    case 1:
+    {
+        qtemp = qSelected[0]->text(0);
+        syear = qtemp.toStdString();
+        url = sc.urlYear(syear);
+        webpage = wf.browse(url);
+        slayer = jf.textParser(webpage, navSearch[1]);
+        ilayer.assign(slayer.size(), -1);
+        jt.addChildren(slayer, ilayer, syear);
+        populateQtree(qSelected[0], syear);
+        break;
+    }
+    case 2:
+    {
+        qtemp = qSelected[0]->text(0);
+        sname = qtemp.toStdString();
+        qtemp = qSelected[0]->parent()->text(0);
+        syear = qtemp.toStdString();
+        url = sc.urlCata(syear);
+        webpage = wf.browse(url);
+        try { iyear = stoi(syear); }
+        catch (out_of_range& oor) { err("stoi-MainWindow.on_pB_usc_clicked"); }
+        slayer = { "CSV Data", "Geo Data" };
+        ilayer = { 0, 1 };
+        if (iyear >= 2011)
+        {
+            slayer.push_back("Map Data");
+            ilayer.push_back(2);
+        }
+        jt.addChildren(slayer, ilayer, sname);
+        populateQtree(qSelected[0], sname);
+        // RESUME HERE. Add column to show if CSV, Geo, Map data already local.
+        break;
+    }
+    }
     int bbq = 1;
+}
+void MainWindow::populateQtree(QTreeWidgetItem*& qparent, string sparent)
+{
+    vector<string> skids; 
+    jt.listChildren(sparent, skids);
+    if (skids.size() < 1) { return; }  // Leaf node.
+    //const QString qparent = QString::fromStdString(sparent);
+    //QList<QTreeWidgetItem*> pParents = qtree->findItems(qparent, Qt::MatchRecursive, 0);
+    //if (pParents.size() != 1) { err("qtree find parent-MainWindow.populateQtree"); }
+    QString qtemp;
+    QTreeWidgetItem* qkid;
+    QList<QTreeWidgetItem*> qkids;
+    for (int ii = 0; ii < skids.size(); ii++)
+    {
+        qtemp = QString::fromStdString(skids[ii]);
+        qkid = new QTreeWidgetItem(qparent);
+        qkid->setText(0, qtemp);
+        qkids.append(qkid);
+    }
+    for (int ii = 0; ii < skids.size(); ii++)
+    {
+        populateQtree(qkids[ii], skids[ii]);
+    }
 }
 
 // Toggle between local database mode, and online Stats Canada navigation.
@@ -1245,7 +1334,8 @@ void MainWindow::on_pB_search_clicked()
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
-    string test = jf.load("D:\\SC1991.txt");
+    string webpage = wf.browse("www12.statcan.gc.ca/English/census81/data/tables/Rp-eng.cfm?LANG=E&APATH=3&DETAIL=1&DIM=0&FL=A&FREE=1&GC=0&GID=0&GK=0&GRP=1&PID=113749&PRID=0&PTYPE=113743&S=0&SHOWALL=No&SUB=0&Temporal=1986&THEME=134&VID=0&VNAMEE=&VNAMEF=");
+    jf.printer("F:\\SCDA1981page.txt", webpage);
     int bbq = 1;
     /*
     QString qtemp = ui->pte_webinput->toPlainText();

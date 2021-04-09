@@ -15,7 +15,7 @@
 #include "winfunc.h"
 #include "qtfunc.h"
 #include "sqlfunc.h"
-#include "jfunc.h"
+#include "jtree.h"
 #include "statscan.h"
 #include "Shlwapi.h"
 #include "catalogue.h"
@@ -34,10 +34,12 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
     JFUNC jf;
+    JTREE jt;
     SWITCHBOARD sb;
     WINFUNC wf;
     QTFUNC qf;
     SQLFUNC sf;
+    STATSCAN sc;
 
 signals:
 
@@ -87,8 +89,10 @@ private:
     vector<wstring> wroots = { L"F:", L"D:" }; //  NOTE: REMOVE HARDCODING LATER.
     QVector<QString> qroots = { "F:", "D:" };
     vector<string> modes = { "LOCAL \n MODE ", "ONLINE \n MODE " };
+    vector<vector<string>> navSearch;
     vector<string> viewcata_data;  // Hold essential information for the catalogue being viewed. Form [syear, sname].
     vector<string> viewcata_gid_list;
+
     void update_bar();
     void reset_bar(int, string);
     void initialize();
@@ -104,6 +108,7 @@ private:
     void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
     void delete_cata(SWITCHBOARD&, SQLFUNC&);
     void auto_expand(QTreeWidget*&, int);
+    void populateQtree(QTreeWidgetItem*&, string);
     void update_treeW_cataindb();
     void update_mode();
 

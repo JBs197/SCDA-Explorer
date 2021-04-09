@@ -812,3 +812,29 @@ void STATSCAN::set_path(string path)
 {
 	cata_path = path;
 }
+
+string STATSCAN::urlCata(string scata)
+{
+    string url = "www12.statcan.gc.ca/global/URLRedirect.cfm?lang=E&ips=" + scata;
+    return url;
+}
+string STATSCAN::urlCataDownload(int iyear, string& sfile)
+{
+    int mode;
+    if (iyear <= 1986) { mode = 0; }
+    switch (mode)
+    {
+    case 0:
+    {
+
+        break;
+    }
+    }
+    string url;
+    return url;
+}
+string STATSCAN::urlYear(string syear)
+{
+    string url = "www12.statcan.gc.ca/datasets/index-eng.cfm?Temporal=" + syear;
+    return url;
+}
