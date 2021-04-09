@@ -41,6 +41,7 @@ public:
 		{
 			wtemp = jfqf.utf8to16(tree_pl[ii]);
 			qtemp = QString::fromStdWString(wtemp);
+			qtemp = QString::fromUtf8(tree_pl[ii]);
 			qitem = new QTreeWidgetItem();
 			qitem->setText(0, qtemp);
 			qregistry.append(qitem);

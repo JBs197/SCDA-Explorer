@@ -461,12 +461,26 @@
         <height>451</height>
        </rect>
       </property>
+      <property name="columnCount">
+       <number>2</number>
+      </property>
       <attribute name="headerVisible">
-       <bool>false</bool>
+       <bool>true</bool>
+      </attribute>
+      <attribute name="headerMinimumSectionSize">
+       <number>100</number>
+      </attribute>
+      <attribute name="headerDefaultSectionSize">
+       <number>300</number>
       </attribute>
       <column>
        <property name="text">
-        <string notr="true">1</string>
+        <string notr="true">Name</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Number</string>
        </property>
       </column>
      </widget>
@@ -514,7 +528,7 @@
    <widget class="QPushButton" name="pB_search">
     <property name="geometry">
      <rect>
-      <x>900</x>
+      <x>990</x>
       <y>530</y>
       <width>81</width>
       <height>41</height>
@@ -522,6 +536,19 @@
     </property>
     <property name="text">
      <string>Search</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pB_download">
+    <property name="geometry">
+     <rect>
+      <x>900</x>
+      <y>530</y>
+      <width>81</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Download</string>
     </property>
    </widget>
    <zorder>cB_drives</zorder>
@@ -544,6 +571,7 @@
    <zorder>pte_webinput</zorder>
    <zorder>pte_localinput</zorder>
    <zorder>pB_search</zorder>
+   <zorder>pB_download</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

@@ -74,6 +74,7 @@ void MainWindow::initialize()
     ui->treeW_statscan->setGeometry(0, 0, 921, 461);
     ui->treeW_statscan->setVisible(0);
     ui->pB_usc->setVisible(0);
+    ui->pB_download->setVisible(0);
     ui->pte_webinput->setVisible(0);
     ui->pte_webinput->setGeometry(370, 530, 241, 41);
     ui->pte_localinput->setVisible(1);
@@ -263,6 +264,7 @@ void MainWindow::update_mode()
         ui->pte_webinput->setVisible(0);
         ui->pte_localinput->setVisible(1);
         ui->pB_search->setVisible(1);
+        ui->pB_download->setVisible(0);
         break;
     case 1:
         ui->tabW_results->setVisible(0);
@@ -275,6 +277,7 @@ void MainWindow::update_mode()
         ui->pte_webinput->setVisible(1);
         ui->pte_localinput->setVisible(0);
         ui->pB_search->setVisible(0);
+        ui->pB_download->setVisible(1);
         break;
     }
 }
@@ -1173,7 +1176,7 @@ void MainWindow::display_table(string tname)
 // Query Statistics Canada for information.
 void MainWindow::on_pB_usc_clicked()
 {
-    int error, uscMode, iyear;
+    int error, uscMode, iyear, ipdf, ijpg;
     int iroot = -1;
     string temp, syear, filePath, sname, webpage, navAsset, url;
     vector<string> slayer;
@@ -1196,7 +1199,7 @@ void MainWindow::on_pB_usc_clicked()
 
     switch (uscMode)
     {
-    case 0:
+    case 0:  // Set root, display years.
     {
         navAsset = jf.load(sroot + "\\SCDA Navigator Asset.bin");
         jf.navParser(navAsset, navSearch);  // Populate the navSearch matrix.
@@ -1213,9 +1216,10 @@ void MainWindow::on_pB_usc_clicked()
         qnode->setText(0, qtemp);
         ui->treeW_statscan->addTopLevelItem(qnode);
         populateQtree(qnode, sname);
+        ui->treeW_statscan->expandAll();
         break;
     }
-    case 1:
+    case 1:  // Set year, display catalogues.
     {
         qtemp = qSelected[0]->text(0);
         syear = qtemp.toStdString();
@@ -1227,26 +1231,38 @@ void MainWindow::on_pB_usc_clicked()
         populateQtree(qSelected[0], syear);
         break;
     }
-    case 2:
+    case 2:  // Set catalogue, display data types.
     {
         qtemp = qSelected[0]->text(0);
         sname = qtemp.toStdString();
         qtemp = qSelected[0]->parent()->text(0);
         syear = qtemp.toStdString();
-        url = sc.urlCata(syear);
-        webpage = wf.browse(url);
         try { iyear = stoi(syear); }
         catch (out_of_range& oor) { err("stoi-MainWindow.on_pB_usc_clicked"); }
         slayer = { "CSV Data", "Geo Data" };
-        ilayer = { 0, 1 };
+        ilayer.resize(2);
+        temp = sroot + "\\" + syear + "\\" + sname;
+        ilayer[0] = wf.get_file_path_number(temp, ".csv");
+        temp += "\\" + sname + " geo list.bin";
+        ilayer[1] = (int)wf.file_exist(temp);
         if (iyear >= 2011)
         {
             slayer.push_back("Map Data");
-            ilayer.push_back(2);
+            temp = sroot + "\\" + syear + "\\" + sname + "\\maps";
+            if (wf.file_exist(temp))
+            {
+                ipdf = wf.get_file_path_number(temp, ".pdf");
+                ijpg = wf.get_file_path_number(temp, ".jpg");
+                ilayer.push_back(max(ipdf, ijpg));
+            }
+            else
+            {
+                ilayer.push_back(0);
+            }
         }
         jt.addChildren(slayer, ilayer, sname);
         populateQtree(qSelected[0], sname);
-        // RESUME HERE. Add column to show if CSV, Geo, Map data already local.
+        qSelected[0]->setExpanded(1);
         break;
     }
     }
@@ -1254,20 +1270,30 @@ void MainWindow::on_pB_usc_clicked()
 }
 void MainWindow::populateQtree(QTreeWidgetItem*& qparent, string sparent)
 {
+    bool twig = 0;
+    vector<int> ikids;
     vector<string> skids; 
     jt.listChildren(sparent, skids);
     if (skids.size() < 1) { return; }  // Leaf node.
-    //const QString qparent = QString::fromStdString(sparent);
-    //QList<QTreeWidgetItem*> pParents = qtree->findItems(qparent, Qt::MatchRecursive, 0);
-    //if (pParents.size() != 1) { err("qtree find parent-MainWindow.populateQtree"); }
+    string temp = "CSV Data";
+    if (skids[0] == temp)
+    {
+        jt.listChildren(sparent, ikids);
+        twig = 1;
+    }
     QString qtemp;
     QTreeWidgetItem* qkid;
     QList<QTreeWidgetItem*> qkids;
     for (int ii = 0; ii < skids.size(); ii++)
     {
-        qtemp = QString::fromStdString(skids[ii]);
+        qtemp = QString::fromUtf8(skids[ii]);
         qkid = new QTreeWidgetItem(qparent);
         qkid->setText(0, qtemp);
+        if (twig)
+        {
+            qtemp.setNum(ikids[ii]);
+            qkid->setText(1, qtemp);
+        }
         qkids.append(qkid);
     }
     for (int ii = 0; ii < skids.size(); ii++)
@@ -1275,6 +1301,9 @@ void MainWindow::populateQtree(QTreeWidgetItem*& qparent, string sparent)
         populateQtree(qkids[ii], skids[ii]);
     }
 }
+
+// Download the selected file(s).
+
 
 // Toggle between local database mode, and online Stats Canada navigation.
 void MainWindow::on_pB_mode_clicked()
@@ -1330,12 +1359,15 @@ void MainWindow::on_pB_search_clicked()
     }
 }
 
-
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
-    string webpage = wf.browse("www12.statcan.gc.ca/English/census81/data/tables/Rp-eng.cfm?LANG=E&APATH=3&DETAIL=1&DIM=0&FL=A&FREE=1&GC=0&GID=0&GK=0&GRP=1&PID=113749&PRID=0&PTYPE=113743&S=0&SHOWALL=No&SUB=0&Temporal=1986&THEME=134&VID=0&VNAMEE=&VNAMEF=");
-    jf.printer("F:\\SCDA1981page.txt", webpage);
+    QList<QTreeWidgetItem*> qSel = ui->treeW_statscan->selectedItems();
+    if (qSel.size() < 1) { return; }
+    qDebug() << "Col 1: " << qSel[0]->text(0);
+    qDebug() << "Col 2: " << qSel[0]->text(1);
+    //string webpage = wf.browse("www12.statcan.gc.ca/English/census81/data/tables/Rp-eng.cfm?LANG=E&APATH=3&DETAIL=1&DIM=0&FL=A&FREE=1&GC=0&GID=0&GK=0&GRP=1&PID=113749&PRID=0&PTYPE=113743&S=0&SHOWALL=No&SUB=0&Temporal=1986&THEME=134&VID=0&VNAMEE=&VNAMEF=");
+    //jf.printer("F:\\SCDA1981page.txt", webpage);
     int bbq = 1;
     /*
     QString qtemp = ui->pte_webinput->toPlainText();
