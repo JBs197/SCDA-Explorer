@@ -94,8 +94,7 @@ void WINFUNC::call(HINTERNET hint, DWORD_PTR dw_context, DWORD dwInternetStatus,
 string WINFUNC::browse(string url)
 {
 	setlocale(LC_ALL, "en_US.utf8");
-	string server_name;
-	string object_name;
+	string server_name, object_name;
 	size_t cut_here;
 	for (int ii = 0; ii < domains.size(); ii++)
 	{
@@ -107,7 +106,6 @@ string WINFUNC::browse(string url)
 			break;
 		}
 	}
-
 	INTERNET_STATUS_CALLBACK InternetStatusCallback;
 	DWORD context = 1;
 	BOOL yesno = 0;
@@ -386,6 +384,36 @@ vector<string> WINFUNC::get_folder_list(string folder_path, string search)
 	} while (FindNextFileA(hfile, &info));
 	return folder_list;
 }
+void WINFUNC::makeDir(string dirPath)
+{
+	vector<int> vBslash;
+	string spath;
+	DWORD gle;
+	BOOL success;
+	size_t pos1 = dirPath.find('\\');
+	while (pos1 < dirPath.size())
+	{
+		vBslash.push_back((int)pos1);
+		pos1 = dirPath.find('\\', pos1 + 1);
+	}
+	for (int ii = 0; ii < vBslash.size(); ii++)
+	{
+		if (ii == vBslash.size() - 1)
+		{
+			spath = dirPath;
+		}
+		else
+		{
+			spath = dirPath.substr(0, vBslash[ii + 1]);
+		}
+		success = CreateDirectoryA(spath.c_str(), NULL);
+		if (!success)
+		{
+			gle = GetLastError();
+			if (gle != ERROR_ALREADY_EXISTS) { winerr("CreateDirectory-wf.makeDir"); }
+		}
+	}
+}
 void WINFUNC::make_tree_local(vector<vector<int>>& tree_st, vector<string>& tree_pl, int mode, string root_dir, int depth, string search)
 {
 	// Populate the given tree structure and payload, by searching a local drive.
@@ -579,5 +607,58 @@ void WINFUNC::make_tree_local_helper1(vector<vector<int>>& tree_st, vector<strin
 void WINFUNC::set_error_path(string errpath)
 {
 	error_path = errpath;
+}
+string WINFUNC::urlRedirect(string url)
+{
+	string server_name, object_name;
+	size_t cut_here;
+	for (int ii = 0; ii < domains.size(); ii++)
+	{
+		cut_here = url.rfind(domains[ii]);
+		if (cut_here < url.size())
+		{
+			server_name = url.substr(0, cut_here + domains[ii].size());
+			object_name = url.substr(cut_here + domains[ii].size(), url.size() - cut_here - domains[ii].size());
+			break;
+		}
+	}
+
+	INTERNET_STATUS_CALLBACK InternetStatusCallback;
+	DWORD context = 1;
+	BOOL yesno = 0;
+	string agent = "urlRedirect";
+	HINTERNET hint = NULL;
+	HINTERNET hconnect = NULL;
+	HINTERNET hrequest = NULL;
+	wstring object;
+
+	hint = InternetOpenA(agent.c_str(), INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
+	if (hint)
+	{
+		InternetStatusCallback = InternetSetStatusCallback(hint, (INTERNET_STATUS_CALLBACK)call);
+		hconnect = InternetConnectA(hint, server_name.c_str(), INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, context);
+	}
+	else { err("internetopen-wf.urlRedirect"); }
+	if (hconnect)
+	{
+		hrequest = HttpOpenRequestA(hconnect, NULL, object_name.c_str(), NULL, NULL, NULL, 0, context);
+	}
+	else { err("internetconnect-wf.urlRedirect"); }
+	if (hrequest)
+	{
+		yesno = HttpSendRequest(hrequest, NULL, 0, NULL, 0);
+	}
+	else { err("httpopenrequest-wf.urlRedirect"); }
+	if (yesno)
+	{
+		if (objects.size() > 0)
+		{
+			object = objects[objects.size() - 1];
+			objects.clear();
+		}
+	}
+	else { err("httpsendrequest-wf.urlRedirect"); }
+	string newUrl = server_name + jfwf.utf16to8(object);
+	return newUrl;
 }
 

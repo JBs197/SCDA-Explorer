@@ -75,6 +75,7 @@ void MainWindow::initialize()
     ui->treeW_statscan->setVisible(0);
     ui->pB_usc->setVisible(0);
     ui->pB_download->setVisible(0);
+    ui->pB_download->setEnabled(0);
     ui->pte_webinput->setVisible(0);
     ui->pte_webinput->setGeometry(370, 530, 241, 41);
     ui->pte_localinput->setVisible(1);
@@ -1176,7 +1177,7 @@ void MainWindow::display_table(string tname)
 // Query Statistics Canada for information.
 void MainWindow::on_pB_usc_clicked()
 {
-    int error, uscMode, iyear, ipdf, ijpg;
+    int error, inum, uscMode, iyear, ipdf, ijpg;
     int iroot = -1;
     string temp, syear, filePath, sname, webpage, navAsset, url;
     vector<string> slayer;
@@ -1229,6 +1230,7 @@ void MainWindow::on_pB_usc_clicked()
         ilayer.assign(slayer.size(), -1);
         jt.addChildren(slayer, ilayer, syear);
         populateQtree(qSelected[0], syear);
+        qSelected[0]->sortChildren(0, Qt::SortOrder::AscendingOrder);
         break;
     }
     case 2:  // Set catalogue, display data types.
@@ -1237,6 +1239,14 @@ void MainWindow::on_pB_usc_clicked()
         sname = qtemp.toStdString();
         qtemp = qSelected[0]->parent()->text(0);
         syear = qtemp.toStdString();
+        QList<QTreeWidgetItem*> qChildren = qSelected[0]->takeChildren();
+        if (qChildren.size() > 0)
+        {
+            foreach(QTreeWidgetItem * child, qChildren)
+            {
+                delete child;
+            }
+        }
         try { iyear = stoi(syear); }
         catch (out_of_range& oor) { err("stoi-MainWindow.on_pB_usc_clicked"); }
         slayer = { "CSV Data", "Geo Data" };
@@ -1260,6 +1270,7 @@ void MainWindow::on_pB_usc_clicked()
                 ilayer.push_back(0);
             }
         }
+        jt.deleteChildren(sname);
         jt.addChildren(slayer, ilayer, sname);
         populateQtree(qSelected[0], sname);
         qSelected[0]->setExpanded(1);
@@ -1303,7 +1314,251 @@ void MainWindow::populateQtree(QTreeWidgetItem*& qparent, string sparent)
 }
 
 // Download the selected file(s).
+void MainWindow::on_pB_download_clicked()
+{
+    jf.timerStart();
+    QList<QTreeWidgetItem*> qlist = ui->treeW_statscan->selectedItems();
+    if (qlist.size() < 1) { return; }
+    int igen = 0;
+    QTreeWidgetItem* pNode = nullptr;
+    QTreeWidgetItem* pParent = qlist[0];
+    do
+    {
+        pNode = pParent;
+        pParent = pNode->parent();
+        igen++;
+    } while (pParent != nullptr);
+    QString qtemp;
+    vector<string> prompt(3);  // Form [syear, sname, dlType].
+    if (igen <= 3) { qtemp = qlist[0]->text(0); }
+    else { qtemp = qlist[0]->parent()->text(0); }
+    prompt[1] = qtemp.toStdString();
+    if (igen <= 3) { qtemp = qlist[0]->parent()->text(0); }
+    else { qtemp = qlist[0]->parent()->parent()->text(0); }
+    prompt[0] = qtemp.toStdString();
+    prompt[2] = "Catalogue";  // NOTE: Diversify later for CSV, Geo, Map.
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
+    thread::id myid = this_thread::get_id();
+    int error = sb.start_call(myid, 1, comm[0]);
+    if (error) { errnum("start_call-pB_download_clicked", error); }
+    sb.set_prompt(myid, prompt);
+    std::thread dl(&MainWindow::downloader, this, ref(sb), ref(wf));
+    dl.detach();
+    while (1)
+    {
+        Sleep(gui_sleep);
+        QCoreApplication::processEvents();
+        if (remote_controller == 2)  // The 'cancel' button was pressed.
+        {
+            comm[0][0] = 2;  // Inform the manager thread it should abort its task.
+            remote_controller = 0;
+        }
+        try
+        {
+            comm = sb.update(myid, comm[0]);
+            if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
+            {
+                if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
+                {
+                    comm[0][2] = comm[1][2];
+                    comm[0][1] = comm[1][1];
+                    reset_bar(comm[1][2], "Downloading catalogue  " + prompt[1]);  // ... initialize the progress bar.
+                    jobs_done = comm[0][1];
+                    update_bar();
+                }
+            }
+            else
+            {
+                comm[0][1] = comm[1][1];
+                jobs_done = comm[0][1];
+                update_bar();
+            }
+        }
+        catch (out_of_range& oor)
+        {
+            err("sb.update-on_pB_download_clicked");
+        }
 
+        if (comm[1][0] == 1 || comm[1][0] == -2)
+        {
+            error = sb.end_call(myid);
+            if (error) { errnum("sb.end_call-on_pB_download_clicked", error); }
+            jobs_done = comm[0][2];
+            update_bar();
+            break;           // Manager reports task finished/cancelled.
+        }
+    }
+    long long timer = jf.timerStop();
+    log("Downloaded catalogue " + prompt[1] + " in " + to_string(timer) + "ms");
+}
+void MainWindow::downloader(SWITCHBOARD& sb, WINFUNC& wf)
+{
+    vector<int> mycomm;
+    vector<vector<int>> comm_gui;
+    thread::id myid = this_thread::get_id();
+    sb.answer_call(myid, mycomm);
+    vector<string> prompt = sb.get_prompt();  // Form [syear, sname, sgen].
+    sc.initGeo();
+    unordered_map<string, int> mapGeoIndent;
+    int iyear;
+    try { iyear = stoi(prompt[0]); }
+    catch (out_of_range& oor) { err("stoi-MainWindow.on_pB_download_clicked"); }
+    string temp = sc.urlCata(prompt[1]);
+    string urlCata = wf.urlRedirect(temp);
+    string urlGeoList = sc.urlGeoList(iyear, urlCata);
+    prompt.push_back(urlGeoList);
+    string geoPage = wf.browse(urlGeoList);
+    vector<string> geoLayerCodes = sc.getLayerSelected(geoPage);
+    if (navSearch.size() < 1)
+    {
+        string navAsset = jf.load(sroot + "\\SCDA Navigator Asset.bin");
+        jf.navParser(navAsset, navSearch);  // Populate the navSearch matrix.
+    }
+    vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
+    vector<vector<string>> splitLinkNames = sc.splitLinkNames(geoLinkNames);  // Form [region index][indentation, url object, region name, gid].
+    temp = sroot + "\\" + prompt[0] + "\\" + prompt[1];
+    wf.makeDir(temp);
+    if (prompt[2] == "Catalogue")
+    {
+        // Define a task as 10 CSV downloads, 10 map downloads, or 1 geo list download.
+        mycomm[2] = 2 * ((splitLinkNames.size() / 10) + 1) + 1;
+        sb.update(myid, mycomm);
+        for (int ii = 0; ii < splitLinkNames.size(); ii++)
+        {
+            dlCSV(splitLinkNames, prompt, ii);
+            if (ii % 10 == 9 || ii == splitLinkNames.size() - 1)
+            {
+                mycomm[1]++;
+                comm_gui = sb.update(myid, mycomm);
+                if (comm_gui[0][0] == 2)
+                {
+                    mycomm[0] = -2;
+                    sb.update(myid, mycomm);
+                    return;
+                }
+            }
+        }
+        
+        string sgeo = dlGeo(splitLinkNames, prompt, mapGeoIndent);
+        mycomm[1]++;
+        sb.update(myid, mycomm);
+
+        for (int ii = 0; ii < splitLinkNames.size(); ii++)
+        {
+            dlMap(splitLinkNames, prompt, ii, geoLayerCodes, mapGeoIndent);
+            if (ii % 10 == 9 || ii == splitLinkNames.size() - 1)
+            {
+                mycomm[1]++;
+                comm_gui = sb.update(myid, mycomm);
+                if (comm_gui[0][0] == 2)
+                {
+                    mycomm[0] = -2;
+                    sb.update(myid, mycomm);
+                    return;
+                }
+            }
+        }
+        mycomm[0] = 1;
+        sb.update(myid, mycomm);
+    }
+
+    int bbq = 1;
+}
+void MainWindow::dlCSV(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV)
+{
+    size_t pos1 = prompt[3].rfind('/') + 1;
+    string urlServer = prompt[3].substr(0, pos1);
+    string urlCSV, pageCSV, fileCSV, urlDL, urlDL0, pathCSV, pageDL;
+    vector<string> vstemp;
+    int iyear = stoi(prompt[0]);
+    urlCSV = urlServer + sLN[indexCSV][1];
+    pageCSV = wf.browse(urlCSV);
+    pathCSV = sroot + "\\" + prompt[0] + "\\" + prompt[1] + "\\" + prompt[1];
+    pathCSV += " (" + sLN[indexCSV][3] + ") " + sLN[indexCSV][2] + ".csv";
+    if (iyear <= 2006)
+    {
+        vstemp = jf.textParser(pageCSV, navSearch[3]);
+        sc.cleanURL(vstemp[0]);
+        urlDL = urlServer + vstemp[0];
+        fileCSV = wf.browse(urlDL);
+        jf.printer(pathCSV, fileCSV);
+    }
+    else if (iyear >= 2011)
+    {
+        vstemp = jf.textParser(pageCSV, navSearch[4]);
+        sc.cleanURL(vstemp[0]);
+        urlDL0 = urlServer + vstemp[0];
+        pageDL = wf.browse(urlDL0);
+        vstemp = jf.textParser(pageDL, navSearch[5]);
+        sc.cleanURL(vstemp[0]);
+        urlDL = urlServer + vstemp[0];
+        fileCSV = wf.browse(urlDL);
+        jf.printer(pathCSV, fileCSV);
+    }
+}
+string MainWindow::dlGeo(vector<vector<string>>& sLN, vector<string>& prompt, unordered_map<string, int>& mapGeoIndent)
+{
+    string temp, sgeo;
+    size_t pos1, pos2;
+    int inum, indent, spaces;
+    vector<int> vIndents = { -1 };
+    for (int ii = 0; ii < sLN.size(); ii++)
+    {
+        for (int jj = 0; jj < vIndents.size(); jj++)
+        {
+            if (vIndents[jj] == spaces)
+            {
+                indent = jj;
+                break;
+            }
+            else if (jj == vIndents.size() - 1)
+            {
+                indent = vIndents.size();
+                vIndents.push_back(spaces);
+            }
+        }
+        if (sLN[ii][2] == "Canada") { indent = 0; }
+        mapGeoIndent.emplace(sLN[ii][2], indent);
+        temp = sLN[ii][3] + "$" + sLN[ii][2] + "$" + to_string(indent) + "\n";
+        sgeo.append(temp);
+    }
+    temp = sroot + "\\" + prompt[0] + "\\" + prompt[1] + "\\" + prompt[1] + " geo list.bin";
+    jf.printer(temp, sgeo);
+    return sgeo;
+}
+void MainWindow::dlMap(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV, vector<string>& layerCodes, unordered_map<string, int>& mapGeoIndent)
+{
+    // Get the general map page for this CSV.
+    size_t pos1 = prompt[3].rfind('/') + 1;
+    string urlServer = prompt[3].substr(0, pos1);
+    string urlMap = urlServer + sLN[indexCSV][1];
+    pos1 = urlMap.find("TABID=") + 6;
+    urlMap.replace(pos1, 1, to_string(3));
+    string pageMap = wf.browse(urlMap);
+
+    // Get the interactive map page for this CSV.
+    vector<string> vstemp = jf.textParser(pageMap, navSearch[6]);
+    size_t pos2 = vstemp[0].find(".jpg");
+    pos1 = vstemp[0].rfind('/', pos2) + 1;
+    string geocode = vstemp[0].substr(pos1, pos2 - pos1);
+    pos1 = vstemp[0].find("href=\"/", pos1) + 7;
+    string urlObject = vstemp[0].substr(pos1);
+    sc.cleanURL(urlObject);
+    pos1 = urlObject.find("Geocode=") + 8;
+    urlObject.insert(pos1, geocode);
+    int indent;
+    try { indent = mapGeoIndent.at(sLN[indexCSV][2]); }
+    catch (out_of_range& oor) { err("mapGeoIndent-MainWindow.dlMap"); }
+    pos1 = urlObject.find("layerSelected=", pos1) + 14;
+    urlObject.insert(pos1, layerCodes[indent]);
+    pos1 = urlServer.find('/') + 1;
+    urlMap = urlServer.substr(0, pos1) + urlObject;
+    pageMap = wf.browse(urlMap);
+    // RESUME HERE. Can download map page, need to download the map itself.
+    jf.printer("F:\\SCDA2013_Map2_webpage.txt", pageMap);
+    int bbq = 1;
+}
 
 // Toggle between local database mode, and online Stats Canada navigation.
 void MainWindow::on_pB_mode_clicked()
@@ -1362,12 +1617,25 @@ void MainWindow::on_pB_search_clicked()
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
+    /*
     QList<QTreeWidgetItem*> qSel = ui->treeW_statscan->selectedItems();
     if (qSel.size() < 1) { return; }
     qDebug() << "Col 1: " << qSel[0]->text(0);
     qDebug() << "Col 2: " << qSel[0]->text(1);
-    //string webpage = wf.browse("www12.statcan.gc.ca/English/census81/data/tables/Rp-eng.cfm?LANG=E&APATH=3&DETAIL=1&DIM=0&FL=A&FREE=1&GC=0&GID=0&GK=0&GRP=1&PID=113749&PRID=0&PTYPE=113743&S=0&SHOWALL=No&SUB=0&Temporal=1986&THEME=134&VID=0&VNAMEE=&VNAMEF=");
-    //jf.printer("F:\\SCDA1981page.txt", webpage);
+    */
+    QString qtemp = ui->pte_webinput->toPlainText();
+    string url = qtemp.toStdString();
+    int pos1 = url.find("http");
+    if (pos1 == 0)
+    {
+        pos1 = url.find("www");
+        url = url.substr(pos1);
+    }
+    string webpage = wf.browse(url);
+    jf.printer(sroot + "\\SCDAwebpage.txt", webpage);
+    ui->pte_webinput->clear();
+    ui->pte_webinput->insertPlainText("Done!");
+
     int bbq = 1;
     /*
     QString qtemp = ui->pte_webinput->toPlainText();
@@ -1476,6 +1744,28 @@ void MainWindow::on_tabW_results_currentChanged(int index)
     case 2:
         ui->pB_viewtable->setEnabled(0);
         break;
+    }
+}
+void MainWindow::on_treeW_statscan_itemSelectionChanged()
+{
+    QList<QTreeWidgetItem*> cataSelected = ui->treeW_statscan->selectedItems();
+    QTreeWidgetItem *pParent, *pNode;
+    int inum = -1;
+    if (cataSelected.size() < 1) { return; }
+    pParent = cataSelected[0];
+    do
+    {
+        pNode = pParent;
+        pParent = pNode->parent();
+        inum++;
+    } while (pParent != nullptr);
+    if (inum > 1)
+    {
+        ui->pB_download->setEnabled(1);
+    }
+    else
+    {
+        ui->pB_download->setEnabled(0);
     }
 }
 

@@ -22,6 +22,7 @@ class STATSCAN
 	string insert_csv_row_template;
 	string insert_primary_template;
 	vector<string> linearized_titles;
+	unordered_map<string, string> mapGeoLayers;
 	bool multi_column;
 	vector<vector<string>> rows;  // Form [row_index][indented row title, row val1, row val2, ...].
 	vector<vector<string>> text_vars;
@@ -35,6 +36,7 @@ public:
 	~STATSCAN() {}
 	void set_path(string);
 	int cata_init(string&);
+	void cleanURL(string& url);
 	void err(string);
 	vector<string> extract_column_titles(string&);
 	string extract_description(string&);
@@ -42,6 +44,7 @@ public:
 	void extract_gid_list(vector<string>&);
 	vector<vector<string>> extract_text_vars(string&);
 	vector<vector<string>> extract_rows(string&, int&);
+	vector<string> getLayerSelected(string& sfile);
 	string get_cata_desc();
 	string get_cata_name();
 	vector<string> get_column_titles();
@@ -53,6 +56,7 @@ public:
 	string get_insert_primary_template();
 	int get_num_subtables();
 	string get_subtable_name_template(int);
+	void initGeo();
 	vector<string> linearize_row_titles(vector<vector<string>>&, vector<string>&);
 	string make_csv_path(int);
 	wstring make_csv_wpath(int);
@@ -66,8 +70,11 @@ public:
 	string make_subtable_name(int&, string, string, vector<int>&, vector<string>&);
 	int make_tgr_statements(vector<string>&, string, string);
 	int make_tgrow_statements(vector<string>&);
+	vector<vector<string>> splitLinkNames(vector<string>& linkNames);
 	string urlCata(string);
 	string urlCataDownload(int, string&);
+	string urlCataList(int iyear, string scata);
+	string urlGeoList(int iyear, string urlCata);
 	string urlYear(string);
 
 	// TEMPLATES

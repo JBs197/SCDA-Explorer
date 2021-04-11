@@ -191,7 +191,7 @@ public:
 		return count;
 	}
 
-	template<typename ... Args> void printer(string, Args& ... args)
+	template<typename ... Args> void printer(string path, Args& ... args)
 	{
 		// For a given file name and (string/wstring) content, write to file in UTF-8.
 	}
@@ -201,7 +201,7 @@ public:
 		wstring wpath = utf8to16(path);
 		wofstream WPR;
 		WPR.imbue(locale(locale::empty(), new codecvt_utf8<wchar_t, 0x10ffff, generate_header>));
-		WPR.open(wpath, wofstream::trunc);
+		WPR.open(wpath, wofstream::binary, wofstream::trunc);
 		WPR << wfile << endl;
 		WPR.close();
 	}

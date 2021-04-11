@@ -23,6 +23,15 @@ int STATSCAN::cata_init(string& sample_csv)
 
     return tg_row_col;
 }
+void STATSCAN::cleanURL(string& url)
+{
+    size_t pos1 = url.find("&amp;");
+    while (pos1 < url.size())
+    {
+        url.replace(pos1, 5, "&");
+        pos1 = url.find("&amp;", pos1);
+    }
+}
 void STATSCAN::err(string func)
 {
     jfsc.err(func);
@@ -308,6 +317,33 @@ vector<vector<string>> STATSCAN::extract_text_vars(string& sfile)
 	}
     return text_vars;
 }
+vector<string> STATSCAN::getLayerSelected(string& sfile)
+{
+    // This function is meant to be used with a geo list webpage.
+    size_t pos2 = sfile.find("<div id=\"geo-download\"");
+    size_t pos1 = sfile.rfind("<strong>", pos2) + 8;
+    pos2 = sfile.find("</strong>", pos1);
+    string layerDesc = sfile.substr(pos1, pos2 - pos1);
+    layerDesc.push_back('/');
+    int numLayers = 0;
+    for (int ii = 0; ii < layerDesc.size(); ii++)
+    {
+        if (layerDesc[ii] == '/') { numLayers++; }
+    }
+    vector<string> layerCodes(numLayers);
+    pos2 = 0;
+    string temp;
+    for (int ii = 0; ii < numLayers; ii++)
+    {
+        pos1 = pos2;
+        pos2 = layerDesc.find('/', pos1);
+        temp = layerDesc.substr(pos1, pos2 - pos1);
+        try { layerCodes[ii] = mapGeoLayers.at(temp); }
+        catch (out_of_range& oor) { err("mapGeoLayers-sc.getLayerSelected"); }
+        pos2++;
+    }
+    return layerCodes;
+}
 string STATSCAN::get_cata_desc()
 {
     return cata_desc;
@@ -351,6 +387,16 @@ int STATSCAN::get_num_subtables()
 string STATSCAN::get_subtable_name_template(int index)
 {
     return subtable_names_template[index];
+}
+
+void STATSCAN::initGeo()
+{
+    string empty;
+    mapGeoLayers.emplace("Canada", empty);
+    mapGeoLayers.emplace("Prov.Terr.", "province");
+    mapGeoLayers.emplace("CMACA with Provincial Splits", "cmaca");
+    mapGeoLayers.emplace("CD", "cd");
+    mapGeoLayers.emplace("CSD", "csd");
 }
 
 vector<string> STATSCAN::linearize_row_titles(vector<vector<string>>& rows, vector<string>& column_titles)
@@ -813,6 +859,36 @@ void STATSCAN::set_path(string path)
 	cata_path = path;
 }
 
+vector<vector<string>> STATSCAN::splitLinkNames(vector<string>& linkNames)
+{
+    vector<vector<string>> split(linkNames.size(), vector<string>(4));
+    size_t pos1, pos2;
+    string gid, temp;
+    int inum;
+    for (int ii = 0; ii < linkNames.size(); ii++)
+    {
+        pos1 = linkNames[ii].find('"');
+        split[ii][0] = linkNames[ii].substr(0, pos1);
+        pos1 = linkNames[ii].find("href=\"") + 6;
+        pos2 = linkNames[ii].find('"', pos1);
+        temp = linkNames[ii].substr(pos1, pos2 - pos1);
+        cleanURL(temp);
+        split[ii][1] = temp;
+        pos1 = linkNames[ii].rfind('>') + 1;
+        split[ii][2] = linkNames[ii].substr(pos1);
+        pos1 = linkNames[ii].find("GID=") + 4;
+        pos2 = linkNames[ii].find('&', pos1);
+        gid = linkNames[ii].substr(pos1, pos2 - pos1);
+        try
+        {
+            inum = stoi(gid);
+        }
+        catch (out_of_range& oor) { err("stoi-sc.splitLinkNames"); }
+        split[ii][3] = gid;
+    }
+    return split;
+}
+
 string STATSCAN::urlCata(string scata)
 {
     string url = "www12.statcan.gc.ca/global/URLRedirect.cfm?lang=E&ips=" + scata;
@@ -832,6 +908,95 @@ string STATSCAN::urlCataDownload(int iyear, string& sfile)
     }
     string url;
     return url;
+}
+string STATSCAN::urlCataList(int iyear, string scata)
+{
+    string temp;
+    return temp;
+}
+string STATSCAN::urlGeoList(int iyear, string urlCata)
+{
+    int mode;
+    size_t pos1, pos2;
+    string temp, syear, pid, ptype, theme, urlGeo;
+    if (iyear <= 1996) { mode = 0; }
+    else if (iyear == 2001) { mode = 1; }
+    else if (iyear == 2006) { mode = 2; }
+    else if (iyear >= 2011) { mode = 3; }
+    switch (mode)
+    {
+    case 0:
+    {
+        syear = to_string(iyear);
+        temp = syear.substr(2);
+        pos1 = urlCata.find("PID=") + 4;
+        pos2 = urlCata.find('&', pos1);
+        pid = urlCata.substr(pos1, pos2 - pos1);
+        pos1 = urlCata.find("PTYPE=") + 6;
+        pos2 = urlCata.find('&', pos1);
+        ptype = urlCata.substr(pos1, pos2 - pos1);
+        pos1 = urlCata.find("THEME=") + 6;
+        pos2 = urlCata.find('&', pos1);
+        theme = urlCata.substr(pos1, pos2 - pos1);
+        urlGeo = "www12.statcan.gc.ca/English/census" + temp;
+        urlGeo += "/data/tables/Geo-index-eng.cfm?TABID=5&LANG=E&APATH=3&";
+        urlGeo += "DETAIL=1&DIM=0&FL=A&FREE=1&GC=0&GID=0&GK=0&GRP=1&PID=" + pid;
+        urlGeo += "&PRID=0&PTYPE=" + ptype + "&S=0&SHOWALL=No&SUB=0&Temporal=";
+        urlGeo += syear + "&THEME=" + theme;
+        urlGeo += "&VID=0&VNAMEE=&VNAMEF=&D1=0&D2=0&D3=0&D4=0&D5=0&D6=0";
+        break;
+    }
+    case 1:
+    {
+        syear = to_string(iyear);
+        temp = syear.substr(2);
+        pos1 = urlCata.find("PID=") + 4;
+        pos2 = urlCata.find('&', pos1);
+        pid = urlCata.substr(pos1, pos2 - pos1);
+        pos1 = urlCata.find("PTYPE=") + 6;
+        pos2 = urlCata.find('&', pos1);
+        ptype = urlCata.substr(pos1, pos2 - pos1);
+        pos1 = urlCata.find("THEME=") + 6;
+        pos2 = urlCata.find('&', pos1);
+        theme = urlCata.substr(pos1, pos2 - pos1);
+        urlGeo = "www12.statcan.gc.ca/English/census" + temp;
+        urlGeo += "/products/standard/themes/Geo-index-eng.cfm?TABID=5&LANG=E"; 
+        urlGeo += "&APATH=3&DETAIL=1&DIM=0&FL=A&FREE=1&GC=0&GID=0&GK=0&GRP=1&PID=";
+        urlGeo += pid + "&PRID=0&PTYPE=" + ptype + "&S=0&SHOWALL=No&SUB=0"; 
+        urlGeo += "&Temporal=2006&THEME=" + theme;
+        urlGeo += "&VID=0&VNAMEE=&VNAMEF=&D1=0&D2=0&D3=0&D4=0&D5=0&D6=0";
+        break;
+    }
+    case 2:
+    {
+        syear = to_string(iyear);
+        pos1 = urlCata.find("PID=") + 4;
+        pos2 = urlCata.find('&', pos1);
+        pid = urlCata.substr(pos1, pos2 - pos1);
+        pos1 = urlCata.find("PTYPE=") + 6;
+        pos2 = urlCata.find('&', pos1);
+        ptype = urlCata.substr(pos1, pos2 - pos1);
+        pos1 = urlCata.find("THEME=") + 6;
+        pos2 = urlCata.find('&', pos1);
+        theme = urlCata.substr(pos1, pos2 - pos1);
+        urlGeo = "www12.statcan.gc.ca/census-recensement/2006/dp-pd/prof";
+        urlGeo += "/rel/Geo-index-eng.cfm?TABID=5&LANG=E&APATH=3";
+        urlGeo += "&DETAIL=1&DIM=0&FL=A&FREE=1&GC=0&GID=0&GK=0&GRP=1&PID=";
+        urlGeo += pid + "&PRID=0&PTYPE=" + ptype + "&S=0&SHOWALL=No&SUB=0"; 
+        urlGeo += "&Temporal="; "&THEME=" + theme;
+        urlGeo += "&VID=0&VNAMEE=&VNAMEF=&D1=0&D2=0&D3=0&D4=0&D5=0&D6=0";
+        break;
+    }
+    case 3:
+    {
+        pos1 = urlCata.find("LANG=E");
+        urlGeo = urlCata;
+        urlGeo.insert(pos1, "TABID=6&");
+        urlGeo.append("&D1=0&D2=0&D3=0&D4=0&D5=0&D6=0");
+        break;
+    }
+    }
+    return urlGeo;
 }
 string STATSCAN::urlYear(string syear)
 {

@@ -56,6 +56,7 @@ private slots:
     void on_treeW_cataindb_itemSelectionChanged();
     void on_treeW_cataondrive_itemSelectionChanged();
     void on_treeW_gid_itemSelectionChanged();
+    void on_treeW_statscan_itemSelectionChanged();
     void on_pB_viewtable_clicked();
     void on_pB_removecata_clicked();
     void on_tabW_catalogues_currentChanged(int);
@@ -63,6 +64,7 @@ private slots:
     void on_pB_mode_clicked();
     void on_pB_usc_clicked();
     void on_pB_search_clicked();
+    void on_pB_download_clicked();
 
 private:
     Ui::MainWindow *ui;
@@ -101,14 +103,18 @@ private:
     void judicator(SQLFUNC&, SWITCHBOARD&, WINFUNC&);
     void insert_csvs(vector<vector<vector<string>>>&, SWITCHBOARD&, STATSCAN&);
     static int sql_callback(void*, int, char**, char**);
+    void auto_expand(QTreeWidget*&, int);
     void bind(string&, vector<string>&);
-    vector<string> extract_gids(string);
+    void downloader(SWITCHBOARD&, WINFUNC&);
+    void delete_cata(SWITCHBOARD&, SQLFUNC&);
     void display_catalogue(SQLFUNC&, SWITCHBOARD&, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
     void display_table(string);
-    void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
-    void delete_cata(SWITCHBOARD&, SQLFUNC&);
-    void auto_expand(QTreeWidget*&, int);
+    void dlCSV(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV);
+    string dlGeo(vector<vector<string>>& splitLinkNames, vector<string>& prompt, unordered_map<string, int>& mapGeoIndent);
+    void dlMap(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV, vector<string>& layerCodes, unordered_map<string, int>& mapGeoIndent);
+    vector<string> extract_gids(string);
     void populateQtree(QTreeWidgetItem*&, string);
+    void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
     void update_treeW_cataindb();
     void update_mode();
 
@@ -750,24 +756,5 @@ private:
 
 };
 
-// GUI HIDDEN sroot DESCRIPTIONS
-//
-// treeW_cataindb
-// 
-// 
-// treeW_cataondrive
-//
-// treeW_gid
-// 0 = display sroot ?
-//
-// listW_csvrows
-//
-// treeW_csvtree
-// 
-// tV_viewtable
-//
-// treeW_subtables
-// 
-//
 
 #endif // MAINWINDOW_H
