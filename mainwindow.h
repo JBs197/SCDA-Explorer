@@ -111,9 +111,12 @@ private:
     void display_table(string);
     void dlCSV(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV);
     string dlGeo(vector<vector<string>>& splitLinkNames, vector<string>& prompt, unordered_map<string, int>& mapGeoIndent);
-    void dlMap(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV, vector<string>& layerCodes, unordered_map<string, int>& mapGeoIndent);
+    void dlMapPDF(string urlGeo, string sRegion);
+    void dlMap2(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV, vector<string>& layerCodes, unordered_map<string, int>& mapGeoIndent);
     vector<string> extract_gids(string);
     void populateQtree(QTreeWidgetItem*&, string);
+    vector<string> notDownloaded(string syear, string sname);
+    vector<string> notInserted(string sCata);
     void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
     void update_treeW_cataindb();
     void update_mode();

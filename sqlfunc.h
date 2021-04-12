@@ -36,6 +36,7 @@ public:
     void select_tree2(string tname, vector<vector<int>>& tree_st, vector<wstring>& tree_pl);
     vector<string> select_years();
     void set_error_path(string);
+    int statusCata(string sname);
     bool table_exist(string);
     vector<string> test_cata(string);
 

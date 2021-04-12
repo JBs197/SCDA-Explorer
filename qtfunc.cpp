@@ -2,6 +2,11 @@
 
 using namespace std;
 
+void QTFUNC::displayText(QLabel* ql, string stext)
+{
+	const QString qtemp = QString::fromUtf8(stext);
+	ql->setText(qtemp);
+}
 void QTFUNC::display_subt(QTreeWidget* qview, QTreeWidgetItem* qparent)
 {
 	qview->clear();

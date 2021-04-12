@@ -317,6 +317,17 @@ void SQLFUNC::sqlerr(string func)
     ERR.close();
     exit(EXIT_FAILURE);
 }
+int SQLFUNC::statusCata(string sname)
+{
+    vector<string> search = { "Description" };
+    string tname = "TCatalogueIndex";
+    string result;
+    vector<string> conditions = { "Name = '" + sname + "'" };
+    select(search, tname, result, conditions);
+    if (result.size() < 1) { return 0; }  // Catalogue absent.
+    else if (result == "Incomplete") { return 1; }  // Catalogue incomplete.
+    return 2;  // Catalogue ready.
+}
 bool SQLFUNC::table_exist(string tname)
 {
     // Returns TRUE or FALSE as to the existance of a given table within the database.

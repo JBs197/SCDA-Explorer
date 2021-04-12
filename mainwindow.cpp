@@ -49,8 +49,11 @@ void MainWindow::initialize()
 
     // Open the database from an existing local db file, or (failing that) make a new one.
     sf.init(sroot + "\\SCDA.db");
-
     //q.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
+
+    // Populate the navSearch matrix.
+    string navAsset = jf.load(sroot + "\\SCDA Navigator Asset.bin");
+    jf.navParser(navAsset, navSearch);  
 
     // Create (if necessary) these system-wide tables. 
     create_cata_index_table();  
@@ -208,6 +211,16 @@ void MainWindow::auto_expand(QTreeWidget*& qtree, int max)
             qtree->expandItem(qitem);
         }
     }
+}
+
+// Functions for missing files.
+vector<string> MainWindow::notDownloaded(string syear, string sname)
+{
+    // Searches online for the list of CSVs included in the given catalogue.
+    // Then, it reads the local drive and returns a list of missing CSV files.
+    // Returned list entries are of the form   (gid) Region Name
+    vector<string> listCSV;
+    return listCSV;
 }
 
 // GUI UPDATE FUNCTIONS
@@ -1179,7 +1192,7 @@ void MainWindow::on_pB_usc_clicked()
 {
     int error, inum, uscMode, iyear, ipdf, ijpg;
     int iroot = -1;
-    string temp, syear, filePath, sname, webpage, navAsset, url;
+    string temp, syear, filePath, sname, webpage, url;
     vector<string> slayer;
     vector<int> ilayer;
     QTreeWidgetItem* qnode;
@@ -1202,8 +1215,6 @@ void MainWindow::on_pB_usc_clicked()
     {
     case 0:  // Set root, display years.
     {
-        navAsset = jf.load(sroot + "\\SCDA Navigator Asset.bin");
-        jf.navParser(navAsset, navSearch);  // Populate the navSearch matrix.
         webpage = wf.browse(scroot);
         slayer = jf.textParser(webpage, navSearch[0]);
         jf.isort_slist(slayer);
@@ -1336,7 +1347,14 @@ void MainWindow::on_pB_download_clicked()
     if (igen <= 3) { qtemp = qlist[0]->parent()->text(0); }
     else { qtemp = qlist[0]->parent()->parent()->text(0); }
     prompt[0] = qtemp.toStdString();
-    prompt[2] = "Catalogue";  // NOTE: Diversify later for CSV, Geo, Map.
+    int iStatusCata = sf.statusCata(prompt[1]);
+    if (iStatusCata == 2) 
+    { 
+        qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database."); 
+        return;
+    }
+    else { prompt[2] = to_string(iStatusCata); }
+
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
     thread::id myid = this_thread::get_id();
@@ -1345,6 +1363,7 @@ void MainWindow::on_pB_download_clicked()
     sb.set_prompt(myid, prompt);
     std::thread dl(&MainWindow::downloader, this, ref(sb), ref(wf));
     dl.detach();
+
     while (1)
     {
         Sleep(gui_sleep);
@@ -1398,52 +1417,75 @@ void MainWindow::downloader(SWITCHBOARD& sb, WINFUNC& wf)
     vector<vector<int>> comm_gui;
     thread::id myid = this_thread::get_id();
     sb.answer_call(myid, mycomm);
-    vector<string> prompt = sb.get_prompt();  // Form [syear, sname, sgen].
-    sc.initGeo();
-    unordered_map<string, int> mapGeoIndent;
-    int iyear;
+    vector<string> prompt = sb.get_prompt();  // Form [syear, sname, dlType].
+    int iyear, dlMode, yearMode;
     try { iyear = stoi(prompt[0]); }
-    catch (out_of_range& oor) { err("stoi-MainWindow.on_pB_download_clicked"); }
-    string temp = sc.urlCata(prompt[1]);
-    string urlCata = wf.urlRedirect(temp);
-    string urlGeoList = sc.urlGeoList(iyear, urlCata);
+    catch (out_of_range& oor) { err("stoi-MainWindow.downloader"); }
+    if (iyear <= 2006) { yearMode = 0; }
+    else if (iyear <= 2013) { yearMode = 1; }
+    else if (iyear <= 2017) { yearMode = 2; }
+    if (prompt[2] == "Catalogue") { dlMode = 0; }
+
+    string temp, urlCata, urlGeoList, geoPage;
+    temp = sc.urlCata(prompt[1]);
+    urlCata = wf.urlRedirect(temp);
+    urlGeoList = sc.urlGeoList(iyear, urlCata);
     prompt.push_back(urlGeoList);
-    string geoPage = wf.browse(urlGeoList);
-    vector<string> geoLayerCodes = sc.getLayerSelected(geoPage);
-    if (navSearch.size() < 1)
-    {
-        string navAsset = jf.load(sroot + "\\SCDA Navigator Asset.bin");
-        jf.navParser(navAsset, navSearch);  // Populate the navSearch matrix.
-    }
+    geoPage = wf.browse(urlGeoList);
     vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
     vector<vector<string>> splitLinkNames = sc.splitLinkNames(geoLinkNames);  // Form [region index][indentation, url object, region name, gid].
+    unordered_map<string, int> mapGeoIndent;
+    vector<string> geoLayerCodes;
     temp = sroot + "\\" + prompt[0] + "\\" + prompt[1];
     wf.makeDir(temp);
-    if (prompt[2] == "Catalogue")
+    switch (yearMode)  // Define a task as 10 CSV downloads, 10 map downloads, or 1 geo list download.
+    {  
+    case 0:
     {
-        // Define a task as 10 CSV downloads, 10 map downloads, or 1 geo list download.
+        mycomm[2] = (splitLinkNames.size() / 10) + 1 + 1;
+    }
+    case 1:
+    {
+        sc.initGeo();
+        geoLayerCodes = sc.getLayerSelected(geoPage);
         mycomm[2] = 2 * ((splitLinkNames.size() / 10) + 1) + 1;
-        sb.update(myid, mycomm);
-        for (int ii = 0; ii < splitLinkNames.size(); ii++)
+    }
+    case 2:
+    {
+        sc.initGeo();
+        geoLayerCodes = sc.getLayerSelected(geoPage);
+        mycomm[2] = 2 * ((splitLinkNames.size() / 10) + 1) + 1;
+    }
+    }
+    sb.update(myid, mycomm);
+
+    for (int ii = 0; ii < splitLinkNames.size(); ii++)
+    {
+        dlCSV(splitLinkNames, prompt, ii);
+        if (ii % 10 == 9 || ii == splitLinkNames.size() - 1)
         {
-            dlCSV(splitLinkNames, prompt, ii);
-            if (ii % 10 == 9 || ii == splitLinkNames.size() - 1)
+            mycomm[1]++;
+            comm_gui = sb.update(myid, mycomm);
+            if (comm_gui[0][0] == 2)
             {
-                mycomm[1]++;
-                comm_gui = sb.update(myid, mycomm);
-                if (comm_gui[0][0] == 2)
-                {
-                    mycomm[0] = -2;
-                    sb.update(myid, mycomm);
-                    return;
-                }
+                mycomm[0] = -2;
+                sb.update(myid, mycomm);
+                return;
             }
         }
-        
-        string sgeo = dlGeo(splitLinkNames, prompt, mapGeoIndent);
-        mycomm[1]++;
-        sb.update(myid, mycomm);
+    }
+    dlGeo(splitLinkNames, prompt, mapGeoIndent);
+    mycomm[1]++;
+    sb.update(myid, mycomm);
 
+    switch (yearMode)
+    {
+    case 0:
+    {
+        break;
+    }
+    case 1:
+    {
         for (int ii = 0; ii < splitLinkNames.size(); ii++)
         {
             dlMap(splitLinkNames, prompt, ii, geoLayerCodes, mapGeoIndent);
@@ -1461,6 +1503,29 @@ void MainWindow::downloader(SWITCHBOARD& sb, WINFUNC& wf)
         }
         mycomm[0] = 1;
         sb.update(myid, mycomm);
+        break;
+    }
+    case 2:
+    {
+        for (int ii = 0; ii < splitLinkNames.size(); ii++)
+        {
+            dlMap(splitLinkNames, prompt, ii, geoLayerCodes, mapGeoIndent);
+            if (ii % 10 == 9 || ii == splitLinkNames.size() - 1)
+            {
+                mycomm[1]++;
+                comm_gui = sb.update(myid, mycomm);
+                if (comm_gui[0][0] == 2)
+                {
+                    mycomm[0] = -2;
+                    sb.update(myid, mycomm);
+                    return;
+                }
+            }
+        }
+        mycomm[0] = 1;
+        sb.update(myid, mycomm);
+        break;
+    }
     }
 
     int bbq = 1;
@@ -1527,7 +1592,14 @@ string MainWindow::dlGeo(vector<vector<string>>& sLN, vector<string>& prompt, un
     jf.printer(temp, sgeo);
     return sgeo;
 }
-void MainWindow::dlMap(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV, vector<string>& layerCodes, unordered_map<string, int>& mapGeoIndent)
+void MainWindow::dlMapPDF(string urlGeo, string sRegion) 
+{
+    // RESUME HERE. 
+    // For a given CSV, scan the page to determine its rank.
+    // Then go to that folder and see if that region map is 
+    // already stored locally. Then DL if appropriate.
+}
+void MainWindow::dlMap2(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV, vector<string>& layerCodes, unordered_map<string, int>& mapGeoIndent)
 {
     // Get the general map page for this CSV.
     size_t pos1 = prompt[3].rfind('/') + 1;
@@ -1556,7 +1628,7 @@ void MainWindow::dlMap(vector<vector<string>>& sLN, vector<string>& prompt, int 
     urlMap = urlServer.substr(0, pos1) + urlObject;
     pageMap = wf.browse(urlMap);
     // RESUME HERE. Can download map page, need to download the map itself.
-    jf.printer("F:\\SCDA2013_Map2_webpage.txt", pageMap);
+    jf.printer(sroot + "\\SCDA2016_Map2_webpage.txt", pageMap);
     int bbq = 1;
 }
 

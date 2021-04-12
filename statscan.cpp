@@ -393,6 +393,7 @@ void STATSCAN::initGeo()
 {
     string empty;
     mapGeoLayers.emplace("Canada", empty);
+    mapGeoLayers.emplace("Can", empty);
     mapGeoLayers.emplace("Prov.Terr.", "province");
     mapGeoLayers.emplace("CMACA with Provincial Splits", "cmaca");
     mapGeoLayers.emplace("CD", "cd");

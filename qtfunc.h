@@ -5,6 +5,7 @@
 #include <QListView>
 #include <QTableView>
 #include <QTreeWidget>
+#include <QLabel>
 #include "jfunc.h"
 
 using namespace std;
@@ -17,6 +18,7 @@ class QTFUNC
 public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
+	void displayText(QLabel*, string stext);
 	void display_subt(QTreeWidget*, QTreeWidgetItem*);
 	void err(string);
 	int get_display_root(QTreeWidget*);
