@@ -824,6 +824,19 @@ int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
     return tg_row_col;
 }
 
+vector<vector<string>> STATSCAN::navAsset()
+{
+    vector<vector<string>> nA = {
+        {"<select name=\"Temporal\"", "<select name=\"Temporal\"", "</select>", "<option value=\"", "\" "},
+        {"<select name=\"Temporal\"", "<tbody>", "</tbody>", "&ips=", "\" targ"},
+        {">Geographic Index</h3>", "<div id=\"geo - download\"", "</ol>", "=\"indent - ", "</a>"},
+        {"Download data as displayed", "Download data as displayed", "comma-separated values", "href=\"", "\" > CSV"},
+        {"id=\"tablist\"", "<a title=\"Download\"", "Download</span>", "href=\"", "\"><"},
+        {"displayed in the Data table tab</h4>", "displayed in the Data table tab</h4>", "comma-separated values", "href=\"", "\">CSV"},
+        {"<h3>Map &ndash", "<h3>Map &ndash", "of this map</a>", "src=\"//", "\">AR"}
+    };
+    return nA;
+}
 int STATSCAN::sclean(string& sval, int mode)
 {
     int count = 0;

@@ -70,6 +70,7 @@ public:
 	string make_subtable_name(int&, string, string, vector<int>&, vector<string>&);
 	int make_tgr_statements(vector<string>&, string, string);
 	int make_tgrow_statements(vector<string>&);
+	vector<vector<string>> navAsset();
 	vector<vector<string>> splitLinkNames(vector<string>& linkNames);
 	string urlCata(string);
 	string urlCataDownload(int, string&);

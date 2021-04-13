@@ -52,8 +52,7 @@ void MainWindow::initialize()
     //q.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
 
     // Populate the navSearch matrix.
-    string navAsset = jf.load(sroot + "\\SCDA Navigator Asset.bin");
-    jf.navParser(navAsset, navSearch);  
+    navSearch = sc.navAsset();
 
     // Create (if necessary) these system-wide tables. 
     create_cata_index_table();  
@@ -1488,7 +1487,7 @@ void MainWindow::downloader(SWITCHBOARD& sb, WINFUNC& wf)
     {
         for (int ii = 0; ii < splitLinkNames.size(); ii++)
         {
-            dlMap(splitLinkNames, prompt, ii, geoLayerCodes, mapGeoIndent);
+            dlMap2(splitLinkNames, prompt, ii, geoLayerCodes, mapGeoIndent);
             if (ii % 10 == 9 || ii == splitLinkNames.size() - 1)
             {
                 mycomm[1]++;
@@ -1509,7 +1508,7 @@ void MainWindow::downloader(SWITCHBOARD& sb, WINFUNC& wf)
     {
         for (int ii = 0; ii < splitLinkNames.size(); ii++)
         {
-            dlMap(splitLinkNames, prompt, ii, geoLayerCodes, mapGeoIndent);
+            dlMap2(splitLinkNames, prompt, ii, geoLayerCodes, mapGeoIndent);
             if (ii % 10 == 9 || ii == splitLinkNames.size() - 1)
             {
                 mycomm[1]++;
