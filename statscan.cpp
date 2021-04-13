@@ -317,6 +317,19 @@ vector<vector<string>> STATSCAN::extract_text_vars(string& sfile)
 	}
     return text_vars;
 }
+
+string STATSCAN::geoLinkToRegionUrl(string& urlGeoList, string& geoLink)
+{
+    size_t pos1 = urlGeoList.rfind('/') + 1;
+    string mapUrl = urlGeoList.substr(0, pos1);
+    pos1 = geoLink.find("href=\"") + 6;
+    size_t pos2 = geoLink.find("\" ", pos1);
+    string temp = geoLink.substr(pos1, pos2 - pos1);
+    cleanURL(temp);
+    mapUrl += temp;
+    return mapUrl;
+}
+
 vector<string> STATSCAN::getLayerSelected(string& sfile)
 {
     // This function is meant to be used with a geo list webpage.
@@ -489,6 +502,25 @@ vector<string> STATSCAN::linearize_row_titles(vector<vector<string>>& rows, vect
 
     return linearized_titles;
 }
+vector<string> STATSCAN::makeGeoLayers(string& geoTemp)
+{
+    geoTemp.append("/ ");
+    vector<string> geoLayers;
+    size_t pos1 = 0;
+    size_t pos2 = geoTemp.find('/');
+    string temp, geoLayer;
+    do
+    {
+        temp = geoTemp.substr(pos1, pos2 - pos1);
+        try { geoLayer = mapGeoLayers.at(temp); }
+        catch (out_of_range& oor) { err("mapGeoLayers-sc.makeGeoLayers"); }
+        geoLayers.push_back(geoLayer);
+        pos1 = pos2 + 1;
+        pos2 = geoTemp.find('/', pos1);
+    } while (pos2 < geoTemp.size());
+    return geoLayers;
+}
+
 string STATSCAN::make_csv_path(int gid_index)
 {
     string csv_path = cata_path + "\\" + cata_name + " " + csv_branches[gid_index];
@@ -824,19 +856,43 @@ int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
     return tg_row_col;
 }
 
+string STATSCAN::mapLinkToPDFUrl(string& urlMap, string& mapLink)
+{
+    size_t pos1 = urlMap.find('/') + 1;
+    pos1 = urlMap.find('/', pos1) + 1;
+    string mapUrl = urlMap.substr(0, pos1);
+    mapUrl += "geo/maps-cartes/pdf/";
+    pos1 = mapLink.find("[%22") + 4;
+    size_t pos2 = mapLink.find("%22", pos1);
+    string dguid = mapLink.substr(pos1, pos2 - pos1);
+    string temp = dguid.substr(4, 5);
+    mapUrl += temp + "/" + dguid + ".pdf";
+    return mapUrl;
+}
 vector<vector<string>> STATSCAN::navAsset()
 {
     vector<vector<string>> nA = {
         {"<select name=\"Temporal\"", "<select name=\"Temporal\"", "</select>", "<option value=\"", "\" "},
         {"<select name=\"Temporal\"", "<tbody>", "</tbody>", "&ips=", "\" targ"},
-        {">Geographic Index</h3>", "<div id=\"geo - download\"", "</ol>", "=\"indent - ", "</a>"},
-        {"Download data as displayed", "Download data as displayed", "comma-separated values", "href=\"", "\" > CSV"},
+        {">Geographic index</h3>", "<div id=\"geo-download\"", "</ol>", "=\"indent-", "</a>"},
+        {"Download data as displayed", "Download data as displayed", "comma-separated values", "href=\"", "\">CSV"},
         {"id=\"tablist\"", "<a title=\"Download\"", "Download</span>", "href=\"", "\"><"},
         {"displayed in the Data table tab</h4>", "displayed in the Data table tab</h4>", "comma-separated values", "href=\"", "\">CSV"},
-        {"<h3>Map &ndash", "<h3>Map &ndash", "of this map</a>", "src=\"//", "\">AR"}
+        {">Geographic index</h3>", "<p><strong>", "</strong> <span", "<strong>", "</strong>"},
+        {"id=\"tablist\"", "<a title=\"Map\"", "Map</span>", "href=\"", "\"><i"},
+        {"<div id=\"map-cont", "<iframe", "</iframe>", "https://", "]}]}"}
     };
     return nA;
 }
+string STATSCAN::regionLinkToMapUrl(string& urlRegion, string& regionLink)
+{
+    size_t pos1 = urlRegion.rfind('/') + 1;
+    string mapUrl = urlRegion.substr(0, pos1);
+    mapUrl += regionLink;
+    cleanURL(mapUrl);
+    return mapUrl;
+}
+
 int STATSCAN::sclean(string& sval, int mode)
 {
     int count = 0;

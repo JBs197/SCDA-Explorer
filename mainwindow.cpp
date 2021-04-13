@@ -75,6 +75,8 @@ void MainWindow::initialize()
     ui->tabW_online->setGeometry(370, 10, 921, 481);
     ui->treeW_statscan->setGeometry(0, 0, 921, 461);
     ui->treeW_statscan->setVisible(0);
+    ui->treeW_maps->setGeometry(0, 0, 921, 461);
+    ui->treeW_maps->setVisible(0);
     ui->pB_usc->setVisible(0);
     ui->pB_download->setVisible(0);
     ui->pB_download->setEnabled(0);
@@ -273,6 +275,7 @@ void MainWindow::update_mode()
         ui->pB_viewcata->setVisible(1);
         ui->tabW_online->setVisible(0);
         ui->treeW_statscan->setVisible(0);
+        ui->treeW_maps->setVisible(0);
         ui->pB_usc->setVisible(0);
         ui->pte_webinput->setVisible(0);
         ui->pte_localinput->setVisible(1);
@@ -286,6 +289,7 @@ void MainWindow::update_mode()
         ui->pB_viewcata->setVisible(0);
         ui->tabW_online->setVisible(1);
         ui->treeW_statscan->setVisible(1);
+        ui->treeW_maps->setVisible(1);
         ui->pB_usc->setVisible(1);
         ui->pte_webinput->setVisible(1);
         ui->pte_localinput->setVisible(0);
@@ -1327,41 +1331,61 @@ void MainWindow::populateQtree(QTreeWidgetItem*& qparent, string sparent)
 void MainWindow::on_pB_download_clicked()
 {
     jf.timerStart();
-    QList<QTreeWidgetItem*> qlist = ui->treeW_statscan->selectedItems();
-    if (qlist.size() < 1) { return; }
-    int igen = 0;
-    QTreeWidgetItem* pNode = nullptr;
-    QTreeWidgetItem* pParent = qlist[0];
-    do
-    {
-        pNode = pParent;
-        pParent = pNode->parent();
-        igen++;
-    } while (pParent != nullptr);
-    QString qtemp;
-    vector<string> prompt(3);  // Form [syear, sname, dlType].
-    if (igen <= 3) { qtemp = qlist[0]->text(0); }
-    else { qtemp = qlist[0]->parent()->text(0); }
-    prompt[1] = qtemp.toStdString();
-    if (igen <= 3) { qtemp = qlist[0]->parent()->text(0); }
-    else { qtemp = qlist[0]->parent()->parent()->text(0); }
-    prompt[0] = qtemp.toStdString();
-    int iStatusCata = sf.statusCata(prompt[1]);
-    if (iStatusCata == 2) 
-    { 
-        qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database."); 
-        return;
-    }
-    else { prompt[2] = to_string(iStatusCata); }
-
+    int onlineTab = ui->tabW_online->currentIndex();
+    QList<QTreeWidgetItem*> qlist;
+    vector<string> prompt;
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
     thread::id myid = this_thread::get_id();
     int error = sb.start_call(myid, 1, comm[0]);
     if (error) { errnum("start_call-pB_download_clicked", error); }
-    sb.set_prompt(myid, prompt);
-    std::thread dl(&MainWindow::downloader, this, ref(sb), ref(wf));
-    dl.detach();
+    
+    switch (onlineTab)
+    {
+    case 0:
+    {
+        qlist = ui->treeW_statscan->selectedItems();
+        if (qlist.size() < 1) { return; }
+        int igen = 0;
+        QTreeWidgetItem* pNode = nullptr;
+        QTreeWidgetItem* pParent = qlist[0];
+        do
+        {
+            pNode = pParent;
+            pParent = pNode->parent();
+            igen++;
+        } while (pParent != nullptr);
+        QString qtemp;
+        prompt.resize(3);  // Form [syear, sname, dlType].
+        if (igen <= 3) { qtemp = qlist[0]->text(0); }
+        else { qtemp = qlist[0]->parent()->text(0); }
+        prompt[1] = qtemp.toStdString();
+        if (igen <= 3) { qtemp = qlist[0]->parent()->text(0); }
+        else { qtemp = qlist[0]->parent()->parent()->text(0); }
+        prompt[0] = qtemp.toStdString();
+        int iStatusCata = sf.statusCata(prompt[1]);
+        if (iStatusCata == 2)
+        {
+            qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
+            return;
+        }
+        else { prompt[2] = to_string(iStatusCata); }
+        sb.set_prompt(myid, prompt);
+        std::thread dl(&MainWindow::downloader, this, ref(sb));
+        dl.detach();
+        break;
+    }
+    case 1:
+    {
+        // NOTE: Display tree of existing maps.
+        prompt.resize(1);  // Form [syear].
+        prompt[0] = { "2017" };
+        sb.set_prompt(myid, prompt);
+        std::thread dl(&MainWindow::downloadMaps, this, ref(sb));
+        dl.detach();
+        return;
+    }
+    }
 
     while (1)
     {
@@ -1407,10 +1431,73 @@ void MainWindow::on_pB_download_clicked()
             break;           // Manager reports task finished/cancelled.
         }
     }
+    
     long long timer = jf.timerStop();
     log("Downloaded catalogue " + prompt[1] + " in " + to_string(timer) + "ms");
 }
-void MainWindow::downloader(SWITCHBOARD& sb, WINFUNC& wf)
+void MainWindow::downloadMaps(SWITCHBOARD& sb)
+{
+    vector<int> mycomm;
+    vector<vector<int>> comm_gui;
+    thread::id myid = this_thread::get_id();
+    sb.answer_call(myid, mycomm);
+    vector<string> prompt = sb.get_prompt();  // Form [syear].
+    sc.initGeo();
+    string urlYear, pageYear, temp, urlCata, urlGeoList, geoPage; 
+    string urlRegion, pageRegion, urlMap, pageMap, urlPDF, sPDF;
+    vector<string> geoLayers, geoTemp, geoLinkNames, regionLink;
+    vector<string> mapLink;
+    vector<vector<string>> splitLinkNames;
+    int iyear;
+    bool fileExist;
+    if (prompt.size() == 1)
+    {
+        try { iyear = stoi(prompt[0]); }
+        catch (out_of_range& oor) { err("stoi-MainWindow.downloadMaps"); }
+        urlYear = sc.urlYear(prompt[0]);
+        pageYear = wf.browse(urlYear);
+        vector<string> listCata = jf.textParser(pageYear, navSearch[1]);
+        mycomm[2] = listCata.size();
+        sb.update(myid, mycomm);
+        sort(listCata.begin(), listCata.end());
+        for (int ii = 0; ii < listCata.size(); ii++)
+        {
+            temp = sc.urlCata(listCata[ii]);
+            urlCata = wf.urlRedirect(temp);
+            urlGeoList = sc.urlGeoList(iyear, urlCata);
+            geoPage = wf.browse(urlGeoList);
+            geoTemp = jf.textParser(geoPage, navSearch[6]);
+            geoLayers = sc.makeGeoLayers(geoTemp[0]);
+            geoLinkNames = jf.textParser(geoPage, navSearch[2]);
+            for (int jj = 0; jj < geoLinkNames.size(); jj++)
+            {
+                // NOTE: Search local. Does file exist?
+                fileExist = 0;
+                if (!fileExist)
+                {
+                    urlRegion = sc.geoLinkToRegionUrl(urlGeoList, geoLinkNames[jj]);
+                    pageRegion = wf.browse(urlRegion);
+                    regionLink = jf.textParser(pageRegion, navSearch[7]);
+                    urlMap = sc.regionLinkToMapUrl(urlRegion, regionLink[0]);
+                    pageMap = wf.browse(urlMap);
+                    mapLink = jf.textParser(pageMap, navSearch[8]);
+                    urlPDF = sc.mapLinkToPDFUrl(urlMap, mapLink[0]);
+                    sPDF = wf.browse(urlPDF);  // RESUME HERE.
+                    int bbq = 1;
+                }
+            }
+
+        }
+
+        
+    }
+
+}
+void MainWindow::dlMapPDF()
+{
+
+}
+void MainWindow::downloader(SWITCHBOARD& sb)
 {
     vector<int> mycomm;
     vector<vector<int>> comm_gui;
@@ -1590,13 +1677,6 @@ string MainWindow::dlGeo(vector<vector<string>>& sLN, vector<string>& prompt, un
     temp = sroot + "\\" + prompt[0] + "\\" + prompt[1] + "\\" + prompt[1] + " geo list.bin";
     jf.printer(temp, sgeo);
     return sgeo;
-}
-void MainWindow::dlMapPDF(string urlGeo, string sRegion) 
-{
-    // RESUME HERE. 
-    // For a given CSV, scan the page to determine its rank.
-    // Then go to that folder and see if that region map is 
-    // already stored locally. Then DL if appropriate.
 }
 void MainWindow::dlMap2(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV, vector<string>& layerCodes, unordered_map<string, int>& mapGeoIndent)
 {
@@ -1799,6 +1879,18 @@ void MainWindow::on_tabW_catalogues_currentChanged(int index)
         break;
     }
 }
+void MainWindow::on_tabW_online_currentChanged(int index)
+{
+    switch (index)
+    {
+    case 0:
+        ui->pB_download->setEnabled(0);
+        break;
+    case 1:
+        ui->pB_download->setEnabled(1);
+        break;
+    }
+}
 void MainWindow::on_tabW_results_currentChanged(int index)
 {
     //QList<QTreeWidgetItem*> qtree;
@@ -1838,6 +1930,10 @@ void MainWindow::on_treeW_statscan_itemSelectionChanged()
     {
         ui->pB_download->setEnabled(0);
     }
+}
+void MainWindow::on_treeW_maps_itemSelectionChanged() 
+{
+
 }
 
 // DEBUG FUNCTIONS:

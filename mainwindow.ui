@@ -448,6 +448,9 @@
       <height>481</height>
      </rect>
     </property>
+    <property name="currentIndex">
+     <number>0</number>
+    </property>
     <widget class="QWidget" name="tab">
      <attribute name="title">
       <string>Online Available</string>
@@ -487,8 +490,26 @@
     </widget>
     <widget class="QWidget" name="tab_2">
      <attribute name="title">
-      <string>Tab 2</string>
+      <string>Maps</string>
      </attribute>
+     <widget class="QTreeWidget" name="treeW_maps">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>241</width>
+        <height>451</height>
+       </rect>
+      </property>
+      <attribute name="headerVisible">
+       <bool>false</bool>
+      </attribute>
+      <column>
+       <property name="text">
+        <string notr="true">1</string>
+       </property>
+      </column>
+     </widget>
     </widget>
    </widget>
    <widget class="QPushButton" name="pB_usc">
