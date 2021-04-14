@@ -179,6 +179,10 @@ public:
 		}
 		return count;
 	}
+	template<> int clean<vector<string>>(string& bbq, vector<string> dirt, vector<string> soap)
+	{
+		// RESUME HERE. Replace dirt with soap. 
+	}
 
 	template<typename ... Args> int maxNumCol(Args& ... args) {}
 	template<> int maxNumCol<vector<vector<wstring>>>(vector<vector<wstring>>& task)

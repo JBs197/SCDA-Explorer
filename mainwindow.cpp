@@ -1445,10 +1445,12 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
     sc.initGeo();
     string urlYear, pageYear, temp, urlCata, urlGeoList, geoPage; 
     string urlRegion, pageRegion, urlMap, pageMap, urlPDF, sPDF;
+    string nameRegion, nameMap, pathDir;
     vector<string> geoLayers, geoTemp, geoLinkNames, regionLink;
     vector<string> mapLink;
     vector<vector<string>> splitLinkNames;
-    int iyear;
+    size_t pos1;
+    int iyear, spaces, indent;
     bool fileExist;
     if (prompt.size() == 1)
     {
@@ -1469,12 +1471,45 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
             geoTemp = jf.textParser(geoPage, navSearch[6]);
             geoLayers = sc.makeGeoLayers(geoTemp[0]);
             geoLinkNames = jf.textParser(geoPage, navSearch[2]);
+            vector<int> vIndents = { -1 };
             for (int jj = 0; jj < geoLinkNames.size(); jj++)
             {
-                // NOTE: Search local. Does file exist?
-                fileExist = 0;
+                pos1 = geoLinkNames[jj].find('"');
+                temp = geoLinkNames[jj].substr(0, pos1);
+                try { spaces = stoi(temp); }
+                catch (out_of_range& oor) { err("stoi-MainWindow.downloadMaps"); }
+                for (int kk = 0; kk < vIndents.size(); kk++)
+                {
+                    if (vIndents[kk] == spaces)
+                    {
+                        indent = kk;
+                        break;
+                    }
+                    else if (kk == vIndents.size() - 1)
+                    {
+                        indent = vIndents.size();
+                        vIndents.push_back(spaces);
+                    }
+                }
+
+                pos1 = geoLinkNames[jj].rfind('>') + 1;
+                nameRegion = geoLinkNames[jj].substr(pos1);
+                if (nameRegion == "Canada") { indent = 0; }
+
+                nameMap = sroot + "\\maps\\";
+                for (int kk = 0; kk < indent; kk++)
+                {
+                    try { nameMap += geoLayers[kk + 1] + "\\"; }
+                    catch (out_of_range& oor) { nameMap += geoLayers[geoLayers.size() - 1] + "\\"; }
+                }
+                pathDir = nameMap;
+                pathDir.pop_back();
+                nameMap += nameRegion + ".pdf";
+
+                fileExist = wf.file_exist(nameMap);
                 if (!fileExist)
                 {
+                    wf.makeDir(pathDir);
                     urlRegion = sc.geoLinkToRegionUrl(urlGeoList, geoLinkNames[jj]);
                     pageRegion = wf.browse(urlRegion);
                     regionLink = jf.textParser(pageRegion, navSearch[7]);
@@ -1482,8 +1517,8 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
                     pageMap = wf.browse(urlMap);
                     mapLink = jf.textParser(pageMap, navSearch[8]);
                     urlPDF = sc.mapLinkToPDFUrl(urlMap, mapLink[0]);
-                    wf.download(urlPDF, sroot + "\\PDFtest.pdf");
-                    // RESUME 
+                    wf.download(urlPDF, nameMap);
+                    // RESUME HERE. Work some PDF magic.
                     int bbq = 1;
                 }
             }
