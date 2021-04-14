@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <fstream>
 #include <mutex>
 #include <codecvt>
 #include <windows.h>

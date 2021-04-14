@@ -1482,7 +1482,8 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
                     pageMap = wf.browse(urlMap);
                     mapLink = jf.textParser(pageMap, navSearch[8]);
                     urlPDF = sc.mapLinkToPDFUrl(urlMap, mapLink[0]);
-                    sPDF = wf.browse(urlPDF);  // RESUME HERE.
+                    wf.download(urlPDF, sroot + "\\PDFtest.pdf");
+                    // RESUME 
                     int bbq = 1;
                 }
             }

@@ -217,11 +217,15 @@ int WINFUNC::download(string url, string filepath)
 	HINTERNET hrequest = NULL;
 	DWORD bytes_available;
 	DWORD bytes_read = 0;
-	unsigned char* ubufferA = new unsigned char[1];
+	unsigned char* ubufferA;
 	int size1, size2;
 	wstring fileW;
-	string fileA;
+	string sfile;
 	bool special_char = 0;
+	bool saveBinary = 0;
+
+	size_t pos1 = filepath.rfind(".pdf");
+	if (pos1 < filepath.size()) { saveBinary = 1; }
 
 	hint = InternetOpenA(agent.c_str(), INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
 	if (hint)
@@ -242,40 +246,58 @@ int WINFUNC::download(string url, string filepath)
 	else { return 3; }
 	if (yesno)
 	{
-		do
+		if (saveBinary)
 		{
-			bytes_available = 0;
-			InternetQueryDataAvailable(hrequest, &bytes_available, 0, 0);
-			ubufferA = new unsigned char[bytes_available];
-			if (!InternetReadFile(hrequest, ubufferA, bytes_available, &bytes_read))
+			ofstream PRINTER(filepath.c_str(), ofstream::binary, ofstream::trunc);
+			do
 			{
-				return 4;
-			}
-			for (int ii = 0; ii < bytes_available; ii++)
+				bytes_available = 0;
+				InternetQueryDataAvailable(hrequest, &bytes_available, 0, 0);
+				ubufferA = new unsigned char[bytes_available];
+				if (!InternetReadFile(hrequest, ubufferA, bytes_available, &bytes_read))
+				{
+					return 4;
+				}
+				PRINTER.write((const char*)ubufferA, bytes_available);
+				delete[] ubufferA;
+			} while (bytes_available > 0);
+		}
+		else
+		{
+			do
 			{
-				fileW.push_back((wchar_t)ubufferA[ii]);
-				if (fileW.back() == L'\x00C3' && !special_char)
+				bytes_available = 0;
+				InternetQueryDataAvailable(hrequest, &bytes_available, 0, 0);
+				ubufferA = new unsigned char[bytes_available];
+				if (!InternetReadFile(hrequest, ubufferA, bytes_available, &bytes_read))
 				{
-					special_char = 1;
+					return 4;
 				}
-				else if (special_char)
+				for (int ii = 0; ii < bytes_available; ii++)
 				{
-					fileW[fileW.size() - 2] = fileW[fileW.size() - 1] + 64;
-					fileW.pop_back();
-					special_char = 0;
+					fileW.push_back((wchar_t)ubufferA[ii]);
+					if (fileW.back() == L'\x00C3' && !special_char)
+					{
+						special_char = 1;
+					}
+					else if (special_char)
+					{
+						fileW[fileW.size() - 2] = fileW[fileW.size() - 1] + 64;
+						fileW.pop_back();
+						special_char = 0;
+					}
 				}
-			}
-		} while (bytes_available > 0);
-		delete[] ubufferA;
+			} while (bytes_available > 0);
+			delete[] ubufferA;
+			sfile = jfwf.utf16to8(fileW);
+			HANDLE hprinter = CreateFileA(filepath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, CREATE_ALWAYS, 0, NULL);
+			if (hprinter == INVALID_HANDLE_VALUE) { return 6; }
+			DWORD bytes_written;
+			DWORD file_size = sfile.size();
+			if (!WriteFile(hprinter, sfile.c_str(), file_size, &bytes_written, NULL)) { return 7; }
+		}
 	}
 	else { return 5; }
-
-	fileA = jfwf.utf16to8(fileW);
-	HANDLE hprinter = CreateFileA(filepath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, CREATE_ALWAYS, 0, NULL);
-	if (hprinter == INVALID_HANDLE_VALUE) { return 6; }
-	DWORD bytes_written;
-	DWORD file_size = fileA.size();
-	if (!WriteFile(hprinter, fileA.c_str(), file_size, &bytes_written, NULL)) { return 7; }
 
 	if (hrequest) { InternetCloseHandle(hrequest); }
 	if (hconnect) { InternetCloseHandle(hconnect); }
