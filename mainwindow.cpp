@@ -1383,7 +1383,7 @@ void MainWindow::on_pB_download_clicked()
         sb.set_prompt(myid, prompt);
         std::thread dl(&MainWindow::downloadMaps, this, ref(sb));
         dl.detach();
-        return;
+        break;
     }
     }
 
@@ -1405,7 +1405,14 @@ void MainWindow::on_pB_download_clicked()
                 {
                     comm[0][2] = comm[1][2];
                     comm[0][1] = comm[1][1];
-                    reset_bar(comm[1][2], "Downloading catalogue  " + prompt[1]);  // ... initialize the progress bar.
+                    if (onlineTab == 0)
+                    {
+                        reset_bar(comm[1][2], "Downloading catalogue  " + prompt[1]);  // ... initialize the progress bar.
+                    }
+                    else if (onlineTab == 1)
+                    {
+                        reset_bar(comm[1][2], "Downloading maps...");  // ... initialize the progress bar.
+                    }
                     jobs_done = comm[0][1];
                     update_bar();
                 }
@@ -1449,6 +1456,8 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
     vector<string> geoLayers, geoTemp, geoLinkNames, regionLink;
     vector<string> mapLink;
     vector<vector<string>> splitLinkNames;
+    vector<string> badChar = { "/" };
+    vector<string> goodChar = { "or" };
     size_t pos1;
     int iyear, spaces, indent;
     bool fileExist;
@@ -1462,7 +1471,7 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
         mycomm[2] = listCata.size();
         sb.update(myid, mycomm);
         sort(listCata.begin(), listCata.end());
-        for (int ii = 0; ii < listCata.size(); ii++)
+        for (int ii = 3; ii < listCata.size(); ii++)
         {
             temp = sc.urlCata(listCata[ii]);
             urlCata = wf.urlRedirect(temp);
@@ -1495,12 +1504,15 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
                 pos1 = geoLinkNames[jj].rfind('>') + 1;
                 nameRegion = geoLinkNames[jj].substr(pos1);
                 if (nameRegion == "Canada") { indent = 0; }
+                jf.clean(nameRegion, badChar, goodChar);
 
                 nameMap = sroot + "\\maps\\";
                 for (int kk = 0; kk < indent; kk++)
                 {
-                    try { nameMap += geoLayers[kk + 1] + "\\"; }
-                    catch (out_of_range& oor) { nameMap += geoLayers[geoLayers.size() - 1] + "\\"; }
+                    if (kk < geoLayers.size() - 1)
+                    {
+                        nameMap += geoLayers[kk + 1] + "\\";
+                    }
                 }
                 pathDir = nameMap;
                 pathDir.pop_back();
@@ -1518,16 +1530,14 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
                     mapLink = jf.textParser(pageMap, navSearch[8]);
                     urlPDF = sc.mapLinkToPDFUrl(urlMap, mapLink[0]);
                     wf.download(urlPDF, nameMap);
-                    // RESUME HERE. Work some PDF magic.
-                    int bbq = 1;
                 }
             }
-
+            mycomm[1]++;
+            sb.update(myid, mycomm);
         }
-
-        
+        mycomm[0] = 1;
+        sb.update(myid, mycomm);
     }
-
 }
 void MainWindow::dlMapPDF()
 {

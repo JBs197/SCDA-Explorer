@@ -181,7 +181,18 @@ public:
 	}
 	template<> int clean<vector<string>>(string& bbq, vector<string> dirt, vector<string> soap)
 	{
-		// RESUME HERE. Replace dirt with soap. 
+		if (dirt.size() != soap.size()) { err("size mismatch-jf.clean"); }
+		size_t pos1;
+		for (int ii = 0; ii < dirt.size(); ii++)
+		{
+			pos1 = bbq.find(dirt[ii]);
+			while (pos1 < bbq.size())
+			{
+				bbq.replace(pos1, dirt[ii].size(), soap[ii]);
+				pos1 = bbq.find(dirt[ii], pos1 + soap[ii].size());
+			}
+		}
+		return 0;
 	}
 
 	template<typename ... Args> int maxNumCol(Args& ... args) {}

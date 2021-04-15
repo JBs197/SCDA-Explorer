@@ -93,8 +93,7 @@ void WINFUNC::call(HINTERNET hint, DWORD_PTR dw_context, DWORD dwInternetStatus,
 
 string WINFUNC::browse(string url)
 {
-	setlocale(LC_ALL, "en_US.utf8");
-	string server_name, object_name;
+	string server_name, object_name, sPage;
 	size_t cut_here;
 	for (int ii = 0; ii < domains.size(); ii++)
 	{
@@ -106,84 +105,15 @@ string WINFUNC::browse(string url)
 			break;
 		}
 	}
-	INTERNET_STATUS_CALLBACK InternetStatusCallback;
-	DWORD context = 1;
-	BOOL yesno = 0;
-	string agent = "browser";
-	HINTERNET hint = NULL;
-	HINTERNET hconnect = NULL;
-	HINTERNET hrequest = NULL;
-	DWORD bytes_available;
-	DWORD bytes_read = 0;
-	unsigned char* ubuffer;
-	wchar_t* bufferW;
-	int size1, size2, num_chars;
-	wstring fileW;
-	string fileA;
-	vector<unsigned char> utf;
-
-	hint = InternetOpenA(agent.c_str(), INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
-	if (hint)
+	if (server_name == hServer)
 	{
-		InternetStatusCallback = InternetSetStatusCallback(hint, (INTERNET_STATUS_CALLBACK)call);
-		hconnect = InternetConnectA(hint, server_name.c_str(), INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, context);
+		sPage = browseHelper(object_name, hConnect);
 	}
-	else { err("internetopen-wf.browse"); }
-	if (hconnect)
+	else
 	{
-		hrequest = HttpOpenRequestA(hconnect, NULL, object_name.c_str(), NULL, NULL, NULL, 0, context);
+		sPage = browseHelper(url);
 	}
-	else { err("internetconnect-wf.browse"); }
-	if (hrequest)
-	{
-		yesno = HttpSendRequest(hrequest, NULL, 0, NULL, 0);
-	}
-	else { err("httpopenrequest-wf.browse"); }
-	if (yesno)
-	{
-		do
-		{
-			bytes_available = 0;
-			InternetQueryDataAvailable(hrequest, &bytes_available, 0, 0);
-			ubuffer = new unsigned char[bytes_available];
-			if (!InternetReadFile(hrequest, ubuffer, bytes_available, &bytes_read))
-			{
-				err("internetreadfile-wf.browse");
-			}
-			for (int ii = 0; ii < bytes_available; ii++)
-			{
-				fileW.push_back((wchar_t)ubuffer[ii]);
-				if (fileW.back() == L'\x00C3' && utf.size() == 0)
-				{
-					utf.push_back(fileW.back());
-				}
-				else if (utf.size() > 0)
-				{
-					utf.push_back(fileW.back());
-					if (utf.size() == 4)
-					{
-						if (utf[0] == 195 && utf[2] == 194)
-						{
-							fileW[fileW.size() - 4] = utf[3] + 64;
-							fileW.erase(fileW.size() - 3, 3);
-							utf.clear();
-						}
-						else
-						{
-							fileW[fileW.size() - 4] = utf[1] + 64;
-							fileW.erase(fileW.size() - 3, 1);
-							utf.clear();
-						}
-					}
-				}
-			}
-			delete[] ubuffer;
-		} while (bytes_available > 0);
-	}
-	else { err("httpsendrequest-wf.browse"); }
-
-	fileA = jfwf.utf16to8(fileW);
-	return fileA;
+	return sPage;
 }
 void WINFUNC::delete_file(string path)
 {
@@ -217,6 +147,7 @@ int WINFUNC::download(string url, string filepath)
 	HINTERNET hrequest = NULL;
 	DWORD bytes_available;
 	DWORD bytes_read = 0;
+	char* bufferA;
 	unsigned char* ubufferA;
 	int size1, size2;
 	wstring fileW;
@@ -248,19 +179,24 @@ int WINFUNC::download(string url, string filepath)
 	{
 		if (saveBinary)
 		{
-			ofstream PRINTER(filepath.c_str(), ofstream::binary, ofstream::trunc);
+			ofstream PRINTER(filepath.c_str(), ios::binary | ios::trunc);
+			auto report = PRINTER.rdstate();
+			bool Fail = PRINTER.fail();
+			DWORD dwErr = GetLastError();
 			do
 			{
 				bytes_available = 0;
 				InternetQueryDataAvailable(hrequest, &bytes_available, 0, 0);
-				ubufferA = new unsigned char[bytes_available];
-				if (!InternetReadFile(hrequest, ubufferA, bytes_available, &bytes_read))
+				bufferA = new char[bytes_available];
+				if (!InternetReadFile(hrequest, bufferA, bytes_available, &bytes_read))
 				{
 					return 4;
 				}
-				PRINTER.write((const char*)ubufferA, bytes_available);
-				delete[] ubufferA;
+				PRINTER.write(bufferA, bytes_available);
+				PRINTER.flush();
+				delete[] bufferA;
 			} while (bytes_available > 0);
+			PRINTER.close();
 		}
 		else
 		{
