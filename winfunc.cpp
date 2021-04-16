@@ -154,6 +154,8 @@ int WINFUNC::download(string url, string filepath)
 	string sfile;
 	bool special_char = 0;
 	bool saveBinary = 0;
+	ofstream PRINTER;
+	wofstream WPRINTER;
 
 	size_t pos1 = filepath.rfind(".pdf");
 	if (pos1 < filepath.size()) { saveBinary = 1; }
@@ -179,24 +181,55 @@ int WINFUNC::download(string url, string filepath)
 	{
 		if (saveBinary)
 		{
-			ofstream PRINTER(filepath.c_str(), ios::binary | ios::trunc);
+			PRINTER.open(filepath.c_str(), ios::binary | ios::trunc);
 			auto report = PRINTER.rdstate();
 			bool Fail = PRINTER.fail();
 			DWORD dwErr = GetLastError();
-			do
+			if (Fail == 1 && dwErr == 1113)
 			{
-				bytes_available = 0;
-				InternetQueryDataAvailable(hrequest, &bytes_available, 0, 0);
-				bufferA = new char[bytes_available];
-				if (!InternetReadFile(hrequest, bufferA, bytes_available, &bytes_read))
+				PRINTER.close();
+				wstring wfilepath = jfwf.utf8to16(filepath);
+				WPRINTER.open(wfilepath.c_str(), wios::binary | wios::trunc);
+				report = WPRINTER.rdstate();
+				Fail = WPRINTER.fail();
+				do
 				{
-					return 4;
-				}
-				PRINTER.write(bufferA, bytes_available);
-				PRINTER.flush();
-				delete[] bufferA;
-			} while (bytes_available > 0);
-			PRINTER.close();
+					bytes_available = 0;
+					InternetQueryDataAvailable(hrequest, &bytes_available, 0, 0);
+					ubufferA = new unsigned char[bytes_available];
+					auto bufferW = new wchar_t[bytes_available];
+					if (!InternetReadFile(hrequest, ubufferA, bytes_available, &bytes_read))
+					{
+						return 4;
+					}
+					for (int ii = 0; ii < bytes_available; ii++)
+					{
+						bufferW[ii] = (wchar_t)ubufferA[ii];
+					}
+					WPRINTER.write(bufferW, bytes_available);
+					WPRINTER.flush();
+					delete[] ubufferA;
+					delete[] bufferW;
+				} while (bytes_available > 0);
+				WPRINTER.close();
+			}
+			else
+			{
+				do
+				{
+					bytes_available = 0;
+					InternetQueryDataAvailable(hrequest, &bytes_available, 0, 0);
+					bufferA = new char[bytes_available];
+					if (!InternetReadFile(hrequest, bufferA, bytes_available, &bytes_read))
+					{
+						return 4;
+					}
+					PRINTER.write(bufferA, bytes_available);
+					PRINTER.flush();
+					delete[] bufferA;
+				} while (bytes_available > 0);
+				PRINTER.close();
+			}
 		}
 		else
 		{

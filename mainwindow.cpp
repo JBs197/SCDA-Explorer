@@ -1471,7 +1471,7 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
         mycomm[2] = listCata.size();
         sb.update(myid, mycomm);
         sort(listCata.begin(), listCata.end());
-        for (int ii = 3; ii < listCata.size(); ii++)
+        for (int ii = 6; ii < listCata.size(); ii++)
         {
             temp = sc.urlCata(listCata[ii]);
             urlCata = wf.urlRedirect(temp);
