@@ -362,6 +362,10 @@ string JFUNC::parent_from_marker(string& child, char marker)
 	string parent = child.substr(0, pos1);
 	return parent;
 }
+void JFUNC::pngRead(string& pathPNG)
+{
+	int bbq = 1;
+}
 void JFUNC::quicksort(vector<int>& v1, int low, int high)
 {
 	auto partition = [](vector<int>& v1, int low, int high)

@@ -50,6 +50,7 @@ public:
 	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
 	void navParser(string& sfile, vector<vector<string>>& search);
 	string parent_from_marker(string&, char);
+	void pngRead(string& pathPNG);
 	void quicksort(vector<int>&, int, int);
 	void set_navigator_asset_path(string&);
 	vector<int> svectorToIvector(vector<string>&);

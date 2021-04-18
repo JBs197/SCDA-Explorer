@@ -44,7 +44,7 @@ public:
     void makeDir(string);
     void make_tree_local(vector<vector<int>>&, vector<string>&, int, string, int, string);
     void make_tree_local_helper1(vector<vector<int>>&, vector<string>&, vector<int>, string, int, int, int, string);
-    void set_error_path(string);
+	void set_error_path(string);
     string urlRedirect(string url);
 
 
@@ -231,6 +231,7 @@ public:
 		}
 		else
 		{
+			return to_string(GetLastError());
 			winerr("httpsendrequest-wf.browse");
 		}
 

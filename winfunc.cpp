@@ -94,6 +94,7 @@ void WINFUNC::call(HINTERNET hint, DWORD_PTR dw_context, DWORD dwInternetStatus,
 string WINFUNC::browse(string url)
 {
 	string server_name, object_name, sPage;
+	string oddError = "12002";
 	size_t cut_here;
 	for (int ii = 0; ii < domains.size(); ii++)
 	{

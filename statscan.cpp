@@ -409,9 +409,14 @@ void STATSCAN::initGeo()
     mapGeoLayers.emplace("Can", empty);
     mapGeoLayers.emplace("Prov.Terr.", "province");
     mapGeoLayers.emplace("Prov.Terr", "province");
+    mapGeoLayers.emplace("CMACA", "cmaca");
     mapGeoLayers.emplace("CMACA with Provincial Splits", "cmaca");
+    mapGeoLayers.emplace("CT", "ct");
     mapGeoLayers.emplace("CD", "cd");
     mapGeoLayers.emplace("CSD", "csd");
+    mapGeoLayers.emplace("FED", "fed");
+    mapGeoLayers.emplace("ER", "er");
+    //mapGeoLayers.emplace("FSA", "fsa");
 }
 
 vector<string> STATSCAN::linearize_row_titles(vector<vector<string>>& rows, vector<string>& column_titles)

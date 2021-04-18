@@ -1379,7 +1379,7 @@ void MainWindow::on_pB_download_clicked()
     {
         // NOTE: Display tree of existing maps.
         prompt.resize(1);  // Form [syear].
-        prompt[0] = { "2017" };
+        prompt[0] = { "2016" };
         sb.set_prompt(myid, prompt);
         std::thread dl(&MainWindow::downloadMaps, this, ref(sb));
         dl.detach();
@@ -1452,13 +1452,13 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
     sc.initGeo();
     string urlYear, pageYear, temp, urlCata, urlGeoList, geoPage; 
     string urlRegion, pageRegion, urlMap, pageMap, urlPDF, sPDF;
-    string nameRegion, nameMap, pathDir;
+    string nameRegion, namePDF, namePNG, pathDirPDF, pathDirPNG, typeMap;
     vector<string> geoLayers, geoTemp, geoLinkNames, regionLink;
     vector<string> mapLink;
     vector<vector<string>> splitLinkNames;
     vector<string> badChar = { "/" };
     vector<string> goodChar = { "or" };
-    size_t pos1;
+    size_t pos1, pos2;
     int iyear, spaces, indent;
     bool fileExist;
     if (prompt.size() == 1)
@@ -1471,7 +1471,7 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
         mycomm[2] = listCata.size();
         sb.update(myid, mycomm);
         sort(listCata.begin(), listCata.end());
-        for (int ii = 6; ii < listCata.size(); ii++)
+        for (int ii = 19; ii < listCata.size(); ii++)
         {
             temp = sc.urlCata(listCata[ii]);
             urlCata = wf.urlRedirect(temp);
@@ -1501,27 +1501,60 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
                     }
                 }
 
-                pos1 = geoLinkNames[jj].rfind('>') + 1;
-                nameRegion = geoLinkNames[jj].substr(pos1);
+                if (jj == 0 && indent > 0)
+                {
+                    geoLayers.insert(geoLayers.begin(), "Canada");
+                }
+
+                typeMap = geoLayers[indent];
+                if (typeMap == "ct")
+                {
+                    pos1 = geoLinkNames[jj].rfind('>') + 1;
+                    pos2 = geoLinkNames[jj].find_first_of("0123456789", pos1);
+                    if (pos2 == pos1)
+                    {
+                        pos2 = geoLinkNames[jj].rfind(')');
+                        pos1 = geoLinkNames[jj].rfind('(', pos2) + 1;
+                        nameRegion = geoLinkNames[jj].substr(pos1, pos2 - pos1);
+                    }
+                    else
+                    {
+                        pos2 = geoLinkNames[jj].rfind('"');
+                        pos1 = geoLinkNames[jj].rfind('"', pos2 - 1) + 1;
+                        nameRegion = geoLinkNames[jj].substr(pos1, pos2 - pos1);
+                    }
+
+                }
+                else
+                {
+                    pos1 = geoLinkNames[jj].rfind('>') + 1;
+                    nameRegion = geoLinkNames[jj].substr(pos1);
+                }
                 if (nameRegion == "Canada") { indent = 0; }
                 jf.clean(nameRegion, badChar, goodChar);
 
-                nameMap = sroot + "\\maps\\";
+                namePDF = sroot + "\\mapsPDF\\";
+                namePNG = sroot + "\\mapsPNG\\";
                 for (int kk = 0; kk < indent; kk++)
                 {
                     if (kk < geoLayers.size() - 1)
                     {
-                        nameMap += geoLayers[kk + 1] + "\\";
+                        namePDF += geoLayers[kk + 1] + "\\";
+                        namePNG += geoLayers[kk + 1] + "\\";
                     }
                 }
-                pathDir = nameMap;
-                pathDir.pop_back();
-                nameMap += nameRegion + ".pdf";
+                pathDirPDF = namePDF;
+                pathDirPDF.pop_back();
+                namePDF += nameRegion + ".pdf";
+                pathDirPNG = namePNG;
+                pathDirPNG.pop_back();
+                namePNG += nameRegion + ".png";
 
-                fileExist = wf.file_exist(nameMap);
+                fileExist = wf.file_exist(namePNG);
                 if (!fileExist)
                 {
-                    wf.makeDir(pathDir);
+                    // Download the PDF map.
+                    wf.makeDir(pathDirPDF);
                     urlRegion = sc.geoLinkToRegionUrl(urlGeoList, geoLinkNames[jj]);
                     pageRegion = wf.browse(urlRegion);
                     regionLink = jf.textParser(pageRegion, navSearch[7]);
@@ -1529,7 +1562,11 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
                     pageMap = wf.browse(urlMap);
                     mapLink = jf.textParser(pageMap, navSearch[8]);
                     urlPDF = sc.mapLinkToPDFUrl(urlMap, mapLink[0]);
-                    wf.download(urlPDF, nameMap);
+                    wf.download(urlPDF, namePDF);
+
+                    // Convert the PDF map to a PNG map.
+                    wf.makeDir(pathDirPNG);
+                    gf.pdfToPng(namePDF, namePNG);
                 }
             }
             mycomm[1]++;
@@ -1538,10 +1575,6 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
         mycomm[0] = 1;
         sb.update(myid, mycomm);
     }
-}
-void MainWindow::dlMapPDF()
-{
-
 }
 void MainWindow::downloader(SWITCHBOARD& sb)
 {
@@ -1610,56 +1643,6 @@ void MainWindow::downloader(SWITCHBOARD& sb)
     mycomm[1]++;
     sb.update(myid, mycomm);
 
-    switch (yearMode)
-    {
-    case 0:
-    {
-        break;
-    }
-    case 1:
-    {
-        for (int ii = 0; ii < splitLinkNames.size(); ii++)
-        {
-            dlMap2(splitLinkNames, prompt, ii, geoLayerCodes, mapGeoIndent);
-            if (ii % 10 == 9 || ii == splitLinkNames.size() - 1)
-            {
-                mycomm[1]++;
-                comm_gui = sb.update(myid, mycomm);
-                if (comm_gui[0][0] == 2)
-                {
-                    mycomm[0] = -2;
-                    sb.update(myid, mycomm);
-                    return;
-                }
-            }
-        }
-        mycomm[0] = 1;
-        sb.update(myid, mycomm);
-        break;
-    }
-    case 2:
-    {
-        for (int ii = 0; ii < splitLinkNames.size(); ii++)
-        {
-            dlMap2(splitLinkNames, prompt, ii, geoLayerCodes, mapGeoIndent);
-            if (ii % 10 == 9 || ii == splitLinkNames.size() - 1)
-            {
-                mycomm[1]++;
-                comm_gui = sb.update(myid, mycomm);
-                if (comm_gui[0][0] == 2)
-                {
-                    mycomm[0] = -2;
-                    sb.update(myid, mycomm);
-                    return;
-                }
-            }
-        }
-        mycomm[0] = 1;
-        sb.update(myid, mycomm);
-        break;
-    }
-    }
-
     int bbq = 1;
 }
 void MainWindow::dlCSV(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV)
@@ -1724,38 +1707,6 @@ string MainWindow::dlGeo(vector<vector<string>>& sLN, vector<string>& prompt, un
     jf.printer(temp, sgeo);
     return sgeo;
 }
-void MainWindow::dlMap2(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV, vector<string>& layerCodes, unordered_map<string, int>& mapGeoIndent)
-{
-    // Get the general map page for this CSV.
-    size_t pos1 = prompt[3].rfind('/') + 1;
-    string urlServer = prompt[3].substr(0, pos1);
-    string urlMap = urlServer + sLN[indexCSV][1];
-    pos1 = urlMap.find("TABID=") + 6;
-    urlMap.replace(pos1, 1, to_string(3));
-    string pageMap = wf.browse(urlMap);
-
-    // Get the interactive map page for this CSV.
-    vector<string> vstemp = jf.textParser(pageMap, navSearch[6]);
-    size_t pos2 = vstemp[0].find(".jpg");
-    pos1 = vstemp[0].rfind('/', pos2) + 1;
-    string geocode = vstemp[0].substr(pos1, pos2 - pos1);
-    pos1 = vstemp[0].find("href=\"/", pos1) + 7;
-    string urlObject = vstemp[0].substr(pos1);
-    sc.cleanURL(urlObject);
-    pos1 = urlObject.find("Geocode=") + 8;
-    urlObject.insert(pos1, geocode);
-    int indent;
-    try { indent = mapGeoIndent.at(sLN[indexCSV][2]); }
-    catch (out_of_range& oor) { err("mapGeoIndent-MainWindow.dlMap"); }
-    pos1 = urlObject.find("layerSelected=", pos1) + 14;
-    urlObject.insert(pos1, layerCodes[indent]);
-    pos1 = urlServer.find('/') + 1;
-    urlMap = urlServer.substr(0, pos1) + urlObject;
-    pageMap = wf.browse(urlMap);
-    // RESUME HERE. Can download map page, need to download the map itself.
-    jf.printer(sroot + "\\SCDA2016_Map2_webpage.txt", pageMap);
-    int bbq = 1;
-}
 
 // Toggle between local database mode, and online Stats Canada navigation.
 void MainWindow::on_pB_mode_clicked()
@@ -1814,12 +1765,10 @@ void MainWindow::on_pB_search_clicked()
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
+    string pathPNG = "F:\\mapsPNG\\cmaca\\Drummondville.png";
+    jf.pngRead(pathPNG);
+
     /*
-    QList<QTreeWidgetItem*> qSel = ui->treeW_statscan->selectedItems();
-    if (qSel.size() < 1) { return; }
-    qDebug() << "Col 1: " << qSel[0]->text(0);
-    qDebug() << "Col 2: " << qSel[0]->text(1);
-    */
     QString qtemp = ui->pte_webinput->toPlainText();
     string url = qtemp.toStdString();
     int pos1 = url.find("http");
@@ -1832,6 +1781,7 @@ void MainWindow::on_pB_test_clicked()
     jf.printer(sroot + "\\SCDAwebpage.txt", webpage);
     ui->pte_webinput->clear();
     ui->pte_webinput->insertPlainText("Done!");
+    */
 
     int bbq = 1;
     /*

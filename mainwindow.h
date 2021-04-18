@@ -16,6 +16,7 @@
 #include "qtfunc.h"
 #include "sqlfunc.h"
 #include "jtree.h"
+#include "gsfunc.h"
 #include "statscan.h"
 #include "Shlwapi.h"
 #include "catalogue.h"
@@ -33,13 +34,14 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    GSFUNC gf;
     JFUNC jf;
     JTREE jt;
-    SWITCHBOARD sb;
-    WINFUNC wf;
     QTFUNC qf;
+    SWITCHBOARD sb;
     SQLFUNC sf;
     STATSCAN sc;
+    WINFUNC wf;
 
 signals:
 
@@ -75,9 +77,7 @@ private:
     const int worker_batch = 10;  // Number of CSVs workers prepare before pushing to the manager.
     const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
-    int jobs_max;
-    int jobs_done;
-    int jobs_percent;
+    int jobs_max, jobs_done, jobs_percent;
     int threads_working = 0;
     int remote_controller = 0;  // 0 = standard, 1 = cancel.
     bool begun_logging = 0;
@@ -112,8 +112,6 @@ private:
     void display_table(string);
     void dlCSV(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV);
     string dlGeo(vector<vector<string>>& splitLinkNames, vector<string>& prompt, unordered_map<string, int>& mapGeoIndent);
-    void dlMapPDF();
-    void dlMap2(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV, vector<string>& layerCodes, unordered_map<string, int>& mapGeoIndent);
     void downloader(SWITCHBOARD&);
     void downloadMaps(SWITCHBOARD&);
     vector<string> extract_gids(string);
