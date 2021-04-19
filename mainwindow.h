@@ -17,6 +17,7 @@
 #include "sqlfunc.h"
 #include "jtree.h"
 #include "gsfunc.h"
+#include "imgfunc.h"
 #include "statscan.h"
 #include "Shlwapi.h"
 #include "catalogue.h"
@@ -35,6 +36,7 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
     GSFUNC gf;
+    IMGFUNC im;
     JFUNC jf;
     JTREE jt;
     QTFUNC qf;
@@ -165,6 +167,22 @@ private:
 
     // (THREADSAFE) Make an entry into the error log. If the error is severe, terminate the application.
     template<typename S> void err(S) {}
+    template<> void err<const char*>(const char* message)
+    {
+        string spath = sroot + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Generic Error: " + message + "\r\n\r\n";
+        lock_guard lock(m_io);
+        HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        SetFilePointer(hprinter, NULL, NULL, FILE_END);
+        DWORD bytes;
+        DWORD fsize = (DWORD)smessage.size();
+        WriteFile(hprinter, smessage.c_str(), fsize, &bytes, NULL);
+        if (hprinter)
+        {
+            CloseHandle(hprinter);
+        }
+        exit(EXIT_FAILURE);
+    }
     template<> void err<string>(string message)
     {
         string spath = sroot + "\\SCDA Error Log.txt";
@@ -217,6 +235,31 @@ private:
     {
         int barbecue = bbq;
         barbecue++;
+    }
+    template<> void errnum<const char*>(const char* func, int error)
+    {
+        string spath = sroot + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Function Error #" + to_string(error) + " from " + func + "\r\n\r\n";
+        lock_guard lock(m_io);
+        HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hprinter == INVALID_HANDLE_VALUE)
+        {
+            cout << "ERROR: CreateFile failed within errnum." << endl;
+            system("pause");
+        }
+        SetFilePointer(hprinter, NULL, NULL, FILE_END);
+        DWORD bytes;
+        DWORD fsize = (DWORD)smessage.size();
+        if (!WriteFile(hprinter, smessage.c_str(), fsize, &bytes, NULL))
+        {
+            cout << "ERROR: WriteFile failed within errnum." << endl;
+            system("pause");
+        }
+        if (hprinter)
+        {
+            CloseHandle(hprinter);
+        }
+        exit(EXIT_FAILURE);
     }
     template<> void errnum<string>(string func, int error)
     {
@@ -296,6 +339,23 @@ private:
         exit(EXIT_FAILURE);
     }
     template<typename S> void winerr(S) {}
+    template<> void winerr<const char*>(const char* message)
+    {
+        DWORD num = GetLastError();
+        string spath = sroot + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + message + "\r\n\r\n";
+        lock_guard lock(m_io);
+        HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        SetFilePointer(hprinter, NULL, NULL, FILE_END);
+        DWORD bytes;
+        DWORD fsize = (DWORD)smessage.size();
+        WriteFile(hprinter, smessage.c_str(), fsize, &bytes, NULL);
+        if (hprinter)
+        {
+            CloseHandle(hprinter);
+        }
+        exit(EXIT_FAILURE);
+    }
     template<> void winerr<string>(string message)
     {
         DWORD num = GetLastError();
@@ -348,6 +408,21 @@ private:
         exit(EXIT_FAILURE);
     }
     template<typename S> void warn(S) {}
+    template<> void warn<const char*>(const char* message)
+    {
+        string name = sroot + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Generic Warning: " + message + "\r\n\r\n";
+        lock_guard lock(m_io);
+        HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        SetFilePointer(hprinter, NULL, NULL, FILE_END);
+        DWORD bytes;
+        DWORD fsize = (DWORD)smessage.size();
+        WriteFile(hprinter, smessage.c_str(), fsize, &bytes, NULL);
+        if (hprinter)
+        {
+            CloseHandle(hprinter);
+        }
+    }
     template<> void warn<string>(string message)
     {
         string name = sroot + "\\SCDA Error Log.txt";
@@ -394,6 +469,22 @@ private:
         }
     }
     template<typename S> void winwarn(S) {}
+    template<> void winwarn<const char*>(const char* message)
+    {
+        DWORD num = GetLastError();
+        string spath = sroot + "\\SCDA Error Log.txt";
+        string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + message + "\r\n\r\n";
+        lock_guard lock(m_io);
+        HANDLE hprinter = CreateFileA(spath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        SetFilePointer(hprinter, NULL, NULL, FILE_END);
+        DWORD bytes;
+        DWORD fsize = (DWORD)smessage.size();
+        WriteFile(hprinter, smessage.c_str(), fsize, &bytes, NULL);
+        if (hprinter)
+        {
+            CloseHandle(hprinter);
+        }
+    }
     template<> void winwarn<string>(string message)
     {
         DWORD num = GetLastError();
@@ -446,6 +537,33 @@ private:
     // Make an entry into the process log for the current runtime.
     // (THREADSAFE) Make an entry into the process log, for the most recent runtime.
     template<typename S> void log(S) {}
+    template<> void log<const char*>(const char* note)
+    {
+        lock_guard lock(m_err);
+        string name = sroot + "\\SCDA Process Log.txt";
+        string message = jf.timestamper() + "  " + note + "\r\n";
+        HANDLE hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (hprinter == INVALID_HANDLE_VALUE) { winerr(L"CreateFile-slog"); }
+        if (!begun_logging)
+        {
+            if (!DeleteFileA(name.c_str())) { winerr(L"DeleteFile-slog"); }
+            if (!CloseHandle(hprinter)) { winerr(L"CloseHandle-slog"); }
+            hprinter = CreateFileA(name.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (hprinter == INVALID_HANDLE_VALUE) { winerr(L"CreateFile2-slog"); }
+            begun_logging = 1;
+        }
+        SetFilePointer(hprinter, NULL, NULL, FILE_END);
+        DWORD bytes;
+        DWORD fsize = (DWORD)message.size();
+        if (!WriteFile(hprinter, message.c_str(), fsize, &bytes, NULL))
+        {
+            winerr("writefile-slog");
+        }
+        if (!CloseHandle(hprinter))
+        {
+            winerr("closehandle2-slog");
+        }
+    }
     template<> void log<string>(string note)
     {
         lock_guard lock(m_err);

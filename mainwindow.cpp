@@ -1471,7 +1471,7 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
         mycomm[2] = listCata.size();
         sb.update(myid, mycomm);
         sort(listCata.begin(), listCata.end());
-        for (int ii = 19; ii < listCata.size(); ii++)
+        for (int ii = 0; ii < listCata.size(); ii++)
         {
             temp = sc.urlCata(listCata[ii]);
             urlCata = wf.urlRedirect(temp);
@@ -1506,7 +1506,15 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
                     geoLayers.insert(geoLayers.begin(), "Canada");
                 }
 
-                typeMap = geoLayers[indent];
+                if (indent < geoLayers.size())
+                {
+                    typeMap = geoLayers[indent];
+                }
+                else
+                {
+                    typeMap = geoLayers[geoLayers.size() - 1];
+                }
+
                 if (typeMap == "ct")
                 {
                     pos1 = geoLinkNames[jj].rfind('>') + 1;
@@ -1766,7 +1774,60 @@ void MainWindow::on_pB_search_clicked()
 void MainWindow::on_pB_test_clicked()
 {
     string pathPNG = "F:\\mapsPNG\\cmaca\\Drummondville.png";
-    jf.pngRead(pathPNG);
+    if (!im.isInit()) { im.pngLoad(pathPNG); }
+    if (!im.mapIsInit()) { im.initMapColours(); }
+
+    vector<vector<int>> vBorderPath(1, vector<int>());
+    vBorderPath[0] = im.borderFindStart();  // This is the border's first and last point.
+    if (vBorderPath[0].size() != 2) { err("borderFindStart-MainWindow.pB_test"); }
+    vector<vector<int>> tracks; 
+    for (int ii = 0; ii < 10; ii++)
+    {
+        if (vBorderPath.size() > 3)
+        {
+            tracks[0] = tracks[1];
+            tracks[1] = tracks[2];
+            tracks[2] = vBorderPath[vBorderPath.size() - 1];
+        }
+        else
+        {
+            tracks = vBorderPath;
+        }
+        vBorderPath.push_back(im.borderFindNext(tracks));
+    }
+
+
+    /*
+    QString qtemp = ui->pte_webinput->toPlainText();
+    string sCoords = qtemp.toStdString();
+    if (sCoords.size() < 1) { return; }
+    vector<int> iCoords = im.coordStoi(sCoords);
+    vector<unsigned char> rgb = im.pixelRGB(iCoords[0], iCoords[1]);
+    qDebug() << "Pixel (" << iCoords[0] << "," << iCoords[1] << ") has RGB (" << rgb[0] << "," << rgb[1] << "," << rgb[2] << ")";
+    string sZone = im.pixelZone(rgb);
+    qDebug() << "It is within a(n) " << QString::fromStdString(sZone) << " zone.";
+    */
+
+    /*
+    vector<vector<unsigned char>> rgb;
+    int coordDiag = 0;
+    vector<unsigned char> tempRGB = im.pixelRGB(coordDiag, coordDiag);
+    while (tempRGB.size() == 3)
+    {
+        rgb.push_back(tempRGB);
+        coordDiag++;
+        tempRGB = im.pixelRGB(coordDiag, coordDiag);
+    }
+    string sDiag;
+    for (int ii = 0; ii < rgb.size(); ii++)
+    {
+        sDiag += "Pixel (" + to_string(ii) + "," + to_string(ii) + ") has RGB (";
+        sDiag += to_string(rgb[ii][0]) + "," + to_string(rgb[ii][1]) + ",";
+        sDiag += to_string(rgb[ii][2]) + ") \r\n";
+    }
+    string pathTest = sroot + "\\Test Output.txt";
+    jf.printer(pathTest, sDiag);
+    */
 
     /*
     QString qtemp = ui->pte_webinput->toPlainText();

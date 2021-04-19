@@ -411,6 +411,7 @@ void STATSCAN::initGeo()
     mapGeoLayers.emplace("Prov.Terr", "province");
     mapGeoLayers.emplace("CMACA", "cmaca");
     mapGeoLayers.emplace("CMACA with Provincial Splits", "cmaca");
+    mapGeoLayers.emplace("CMACA with Provincial Splits 2016", "cmaca");
     mapGeoLayers.emplace("CT", "ct");
     mapGeoLayers.emplace("CD", "cd");
     mapGeoLayers.emplace("CSD", "csd");

@@ -196,6 +196,58 @@ public:
 		return 0;
 	}
 
+	template<typename ... Args> string decToHex(Args& ... args) {}
+	template<> string decToHex<int>(int& idec)
+	{
+		string shex;
+		vector<int> remainders = { idec % 16 };
+		vector<int> quotients = { idec / 16 };
+		int index = 0;
+		while (quotients[index] > 0)
+		{
+			remainders.push_back(quotients[index] % 16);
+			quotients.push_back(quotients[index] / 16);
+			index++;
+		}
+		for (int ii = index; ii >= 0; ii--)
+		{
+			if (remainders[ii] < 10)
+			{
+				shex.append(to_string(remainders[ii]));
+			}
+			else 
+			{
+				shex.push_back(remainders[ii] + 55);
+			}
+		}
+		return shex;
+	}
+	template<> string decToHex<unsigned char>(unsigned char& ucdec)
+	{
+		string shex;
+		vector<int> remainders = { ucdec % 16 };
+		vector<int> quotients = { ucdec / 16 };
+		int index = 0;
+		while (quotients[index] > 0)
+		{
+			remainders.push_back(quotients[index] % 16);
+			quotients.push_back(quotients[index] / 16);
+			index++;
+		}
+		for (int ii = index; ii >= 0; ii--)
+		{
+			if (remainders[ii] < 10)
+			{
+				shex.append(to_string(remainders[ii]));
+			}
+			else
+			{
+				shex.push_back(remainders[ii] + 55);
+			}
+		}
+		return shex;
+	}
+
 	template<typename ... Args> int maxNumCol(Args& ... args) {}
 	template<> int maxNumCol<vector<vector<wstring>>>(vector<vector<wstring>>& task)
 	{
