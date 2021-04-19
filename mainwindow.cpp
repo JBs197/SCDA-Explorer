@@ -1773,7 +1773,7 @@ void MainWindow::on_pB_search_clicked()
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
-    string pathPNG = "F:\\mapsPNG\\cmaca\\Drummondville.png";
+    string pathPNG = "F:\\debug\\Drummondville.png";
     if (!im.isInit()) { im.pngLoad(pathPNG); }
     if (!im.mapIsInit()) { im.initMapColours(); }
 
@@ -1781,7 +1781,7 @@ void MainWindow::on_pB_test_clicked()
     vBorderPath[0] = im.borderFindStart();  // This is the border's first and last point.
     if (vBorderPath[0].size() != 2) { err("borderFindStart-MainWindow.pB_test"); }
     vector<vector<int>> tracks; 
-    for (int ii = 0; ii < 10; ii++)
+    while(1)
     {
         if (vBorderPath.size() > 3)
         {
@@ -1794,6 +1794,10 @@ void MainWindow::on_pB_test_clicked()
             tracks = vBorderPath;
         }
         vBorderPath.push_back(im.borderFindNext(tracks));
+        if (vBorderPath.size() > 10)
+        {
+            if (im.jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
+        }
     }
 
 
@@ -1843,7 +1847,7 @@ void MainWindow::on_pB_test_clicked()
     ui->pte_webinput->clear();
     ui->pte_webinput->insertPlainText("Done!");
     */
-
+    im.pngPrint();
     int bbq = 1;
     /*
     QString qtemp = ui->pte_webinput->toPlainText();

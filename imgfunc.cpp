@@ -2,38 +2,52 @@
 
 vector<int> IMGFUNC::borderFindNext(vector<vector<int>> tracks)
 {
-    vector<vector<int>> vvStar = zoneStar(tracks);
-    vector<vector<double>> listDist(tracks.size() + 1, vector<double>(8));
-    for (int ii = 0; ii < tracks.size(); ii++)
+    vector<int> origin = tracks[tracks.size() - 1];
+    int radius = 10 * borderThickness;
+    vector<vector<int>> octoPath = octogonPath(origin, radius);
+    vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
+    if (debug) { octogonPaint(debugDataPNG, origin, radius, Red); }
+    string sZone = "zoneBorder";
+    vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath);
+    if (candidates.size() != 2)
     {
-        listDist[ii + 1] = coordDist(tracks[ii], vvStar);
-    }
-    for (int ii = 0; ii < 8; ii++)
-    {
-        listDist[0][ii] = 0.0;
-        for (int jj = 0; jj < tracks.size(); jj++)
+        if (candidates.size() < 2)
         {
-            listDist[0][ii] += (((double)jj + 1.0) / 2.0) * listDist[jj + 1][ii];
+            while (candidates.size() < 2)
+            {
+                radius += (4 * borderThickness);
+                octoPath = octogonPath(origin, radius);
+                octoRGB = octogonRGB(octoPath);
+                if (debug) { octogonPaint(debugDataPNG, origin, radius, Red); }
+                candidates = zoneSweep(sZone, octoRGB, octoPath);
+            }
+        }
+        else
+        {
+            while (candidates.size() > 2)
+            {
+                radius -= (4 * borderThickness);
+                octoPath = octogonPath(origin, radius);
+                octoRGB = octogonRGB(octoPath);
+                if (debug) { octogonPaint(debugDataPNG, origin, radius, Red); }
+                candidates = zoneSweep(sZone, octoRGB, octoPath);
+            }
         }
     }
-    double dLongest = 0.0;
-    int iLongest = -1;
-    int iForbidden = -1;
-    if (recordVictor >= 0)
+    if (tracks.size() < 2) { return candidates[0]; }
+    vector<int> originPast = tracks[tracks.size() - 2];
+    vector<double> distances = coordDist(originPast, candidates);
+    double maxDistance = 0.0;
+    int winner = -1;
+    for (int ii = 0; ii < distances.size(); ii++)
     {
-        iForbidden = (recordVictor + 4) % 8;  // Path CANNOT reverse course.
-    }
-    for (int ii = 0; ii < listDist[0].size(); ii++)
-    {
-        if (ii == iForbidden) { continue; }
-        if (listDist[0][ii] > dLongest)
+        if (distances[ii] > maxDistance)
         {
-            dLongest = listDist[0][ii];
-            iLongest = ii;
+            maxDistance = distances[ii];
+            winner = ii;
         }
     }
-    recordVictor = iLongest;
-    return vvStar[iLongest];
+    return candidates[winner];
 }
 vector<int> IMGFUNC::borderFindStart()
 {
@@ -57,12 +71,21 @@ vector<int> IMGFUNC::borderFindStart()
         else { break; }
     }
     vector<int> vStart;
+    vector<double> thickness;
     if (vCross1.size() == 2 && vCross2.size() == 2)
     {
         vvI[0] = vCross1[1];
         vvI[1] = vCross2[0];
         vStart = coordMid(vvI);
+        pointOfOrigin = vStart;
+        vCross1.resize(1);
+        vCross1[0] = vvI[0];
+        thickness = coordDist(vCross2[0], vCross1);
+        thickness[0] = ceil(thickness[0]);
+        borderThickness = int(thickness[0]);
     }
+
+    if (debug) { drawMarker(debugDataPNG, vStart); }
     return vStart;
 }
 vector<double> IMGFUNC::coordDist(vector<int> zZ, vector<vector<int>> cList)
@@ -99,6 +122,53 @@ vector<int> IMGFUNC::coordStoi(string& sCoords)
 	try { vCoords[1] = stoi(temp); }
 	catch (invalid_argument& ia) { jf.err("stoi2-im.coordStoi"); }
 	return vCoords;
+}
+void IMGFUNC::drawMarker(vector<unsigned char>& img, vector<int>& vCoord)
+{
+    // Paint a 3x3 red square on the selected map/point.
+    vector<int> vTemp(2);
+    for (int ii = 0; ii < 3; ii++)
+    {
+        vTemp[1] = vCoord[1] - 1 + ii;
+        for (int jj = 0; jj < 3; jj++)
+        {
+            vTemp[0] = vCoord[0] - 1 + jj;
+            pixelPaint(img, Red, vTemp);
+        }
+    }
+}
+vector<vector<int>> IMGFUNC::frameCorners()
+{
+    vector<string> sZones = { "white", "black" };
+    vector<string> sZonesReverse = { "black", "white" };
+    vector<vector<int>> corners(4, vector<int>(2));
+    vector<vector<int>> vVictor(2, vector<int>(2));
+    vVictor[0] = { 0, height / 2 };
+    vVictor[1] = { 1, 0 };
+    vector<vector<int>> vvTemp = zoneChangeLinear(sZones, vVictor);
+    vVictor[0] = { vvTemp[1][0], height / 2 };
+    vVictor[1] = { 0, -1 };
+    vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
+    corners[0] = vvTemp[0];
+    vVictor[0] = vvTemp[0];
+    vVictor[1] = { 1, 0 };
+    vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
+    corners[1] = vvTemp[0];
+    vVictor[0] = vvTemp[0];
+    vVictor[1] = { 0, 1 };
+    vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
+    corners[2] = vvTemp[0];
+    vVictor[0] = vvTemp[0];
+    vVictor[1] = { -1, 0 };
+    vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
+    corners[3] = vvTemp[0];
+    return corners;
+}
+int IMGFUNC::getOffset(vector<int>& vCoord)
+{
+    int offRow = vCoord[1] * width * numComponents;
+    int offCol = vCoord[0] * numComponents;
+    return offRow + offCol;
 }
 void IMGFUNC::initMapColours()
 {
@@ -176,6 +246,57 @@ bool IMGFUNC::isInit()
 	if (numComponents < 1) { return 0; }
 	return 1;
 }
+bool IMGFUNC::jobsDone(vector<int> vCoord)
+{
+    double winCondition = 10.0 * (double)borderThickness;
+    vector<vector<int>> vvTemp(1, vector<int>());
+    vvTemp[0] = vCoord;
+    vector<double> dist = coordDist(pointOfOrigin, vvTemp);
+    if (dist[0] < winCondition) { return 1; }
+    return 0;
+}
+void IMGFUNC::linePaint(vector<unsigned char>& img, vector<vector<int>>& vVictor, int length, vector<unsigned char>& colour)
+{
+    vector<int> vCoord = vVictor[0];
+    for (int ii = 0; ii < length; ii++)
+    {
+        vCoord[0] += vVictor[1][0];
+        vCoord[1] += vVictor[1][1];
+        pixelPaint(img, colour, vCoord);
+    }
+    vVictor[0] = vCoord;
+}
+vector<vector<int>> IMGFUNC::linePath(vector<vector<int>>& vVictor, int length)
+{
+    // Returns the xy coordinates for a given straight line and length.
+    // Does NOT return coords for the starting point in vVictor.
+    // Will update the coordinate row of vVictor with the final point measured.
+    vector<vector<int>> lineP(length, vector<int>(2));
+    vector<int> vTemp = vVictor[0];
+    for (int ii = 0; ii < length; ii++)
+    {
+        vTemp[0] += vVictor[1][0];
+        vTemp[1] += vVictor[1][1];
+        lineP[ii] = vTemp;
+    }
+    vVictor[0] = vTemp;
+    return lineP;
+}
+vector<vector<unsigned char>> IMGFUNC::lineRGB(vector<vector<int>>& vVictor, int length)
+{
+    vector<vector<unsigned char>> Lrgb(length, vector<unsigned char>(3));
+    int coordX = vVictor[0][0];
+    int coordY = vVictor[0][1];
+    for (int ii = 0; ii < length; ii++)
+    {
+        coordX += vVictor[1][0];
+        coordY += vVictor[1][1];
+        Lrgb[ii] = pixelRGB(coordX, coordY);
+    }
+    vVictor[0][0] = coordX;
+    vVictor[0][1] = coordY;
+    return Lrgb;
+}
 string IMGFUNC::pixelDecToHex(vector<unsigned char>& rgb)
 {
     string shex, temp;
@@ -186,6 +307,13 @@ string IMGFUNC::pixelDecToHex(vector<unsigned char>& rgb)
     }
     return shex;
 }
+void IMGFUNC::pixelPaint(vector<unsigned char>& img, vector<unsigned char>& colour, vector<int>& vCoord)
+{
+    int offset = getOffset(vCoord);
+    img[offset + 0] = colour[0];
+    img[offset + 1] = colour[1];
+    img[offset + 2] = colour[2];
+}
 vector<unsigned char> IMGFUNC::pixelRGB(int x, int y)
 {
 	if (dataPNG.size() < 1) { jf.err("No loaded image-im.pixelRGB"); } 
@@ -195,11 +323,15 @@ vector<unsigned char> IMGFUNC::pixelRGB(int x, int y)
 		rgb.resize(0);  // Indicates range error.
 		return rgb;
 	}
-	int offsetRow = y * width * numComponents;
-	int offsetCol = x * numComponents;
-	rgb[0] = dataPNG[offsetRow + offsetCol + 0];
-	rgb[1] = dataPNG[offsetRow + offsetCol + 1];
-	rgb[2] = dataPNG[offsetRow + offsetCol + 2];
+    vector<int> vCoord = { x, y };
+    int offset = getOffset(vCoord);
+	rgb[0] = dataPNG[offset + 0];
+	rgb[1] = dataPNG[offset + 1];
+	rgb[2] = dataPNG[offset + 2];
+    if (rgb[0] == 255 && rgb[1] == 0)
+    {
+        int bbq = 1;
+    }
 	return rgb;
 }
 string IMGFUNC::pixelZone(vector<unsigned char>& rgb)
@@ -216,25 +348,161 @@ void IMGFUNC::pngLoad(string& pathPNG)
 	int sizeTemp = width * height * numComponents;
 	dataPNG.resize(sizeTemp);
 	copy(dataTemp, dataTemp + sizeTemp, dataPNG.begin());
+    pathActivePNG = pathPNG;
+    debugDataPNG = dataPNG;
 
-    if (vvStar.size() == 0)
+}
+void IMGFUNC::pngPrint()
+{
+    int imgSize = debugDataPNG.size();
+    int channels = 3;
+    auto bufferUC = new unsigned char[imgSize + 1];
+    for (int ii = 0; ii < imgSize; ii++)
     {
-        vvStar.resize(8);
-        vvStar[0] = { 0,1 };
-        vvStar[1] = { 1,1 };
-        vvStar[2] = { 1,0 };
-        vvStar[3] = { 1,-1 };
-        vvStar[4] = { 0,-1 };
-        vvStar[5] = { -1,-1 };
-        vvStar[6] = { -1,0 };
-        vvStar[7] = { -1,1 };
+        bufferUC[ii] = debugDataPNG[ii];
     }
+    int error = stbi_write_png("F:\\debug\\testing.png", width, height, channels, bufferUC, 0);
+
+    delete[] bufferUC;
+    int barbecue = 1;
+}
+void IMGFUNC::pngToBin(string& pathPNG, string& pathBIN)
+{
+    if (!mapIsInit()) { initMapColours(); }
+    pngLoad(pathPNG);
+    vector<vector<int>> vBorderPath(1, vector<int>());
+    vBorderPath[0] = borderFindStart();
+    vector<vector<int>> tracks;
+    while (1)
+    {
+        if (vBorderPath.size() > 3)
+        {
+            tracks[0] = tracks[1];
+            tracks[1] = tracks[2];
+            tracks[2] = vBorderPath[vBorderPath.size() - 1];
+        }
+        else
+        {
+            tracks = vBorderPath;
+        }
+        vBorderPath.push_back(borderFindNext(tracks));
+        if (vBorderPath.size() > 10)
+        {
+            if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
+        }
+    }
+    vector<vector<int>> corners = frameCorners();
+
+    ofstream sPrinter(pathBIN.c_str(), ios::trunc);
+    auto report = sPrinter.rdstate();
+    sPrinter << "//frame" << endl;
+    for (int ii = 0; ii < corners.size(); ii++)
+    {
+        sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
+    }
+    sPrinter << endl;
+
+    sPrinter << "//border" << endl;
+    for (int ii = 0; ii < vBorderPath.size(); ii++)
+    {
+        sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
+    }
+
 }
 bool IMGFUNC::mapIsInit()
 {
     size_t size = mapColour.size();
     if (size > 0) { return 1; }
     return 0;
+}
+void IMGFUNC::octogonPaint(vector<unsigned char>& img, vector<int>& origin, int radius, vector<unsigned char>& colour)
+{
+    int lenPerp, lenDiag;
+    if (radius % 2 == 0)  // Even.
+    {
+        lenPerp = radius;
+        lenDiag = radius / 2;
+    }
+    else if (radius % 2 == 1)  // Odd.
+    {
+        lenPerp = radius - 1;
+        lenDiag = (radius / 2) + 1;
+    }
+    vector<int> vCoord = origin;
+    vCoord[1] -= radius;
+    pixelPaint(img, colour, vCoord);
+    vector<vector<int>> vVictor = { vCoord, {1, 0} };
+    linePaint(img, vVictor, radius / 2, colour);
+
+    vVictor[1] = { 1, 1 };
+    linePaint(img, vVictor, lenDiag, colour);
+    vVictor[1] = { 0, 1 };
+    linePaint(img, vVictor, lenPerp, colour);
+    vVictor[1] = { -1, 1 };
+    linePaint(img, vVictor, lenDiag, colour);
+    vVictor[1] = { -1, 0 };
+    linePaint(img, vVictor, lenPerp, colour);
+    vVictor[1] = { -1, -1 };
+    linePaint(img, vVictor, lenDiag, colour);
+    vVictor[1] = { 0, -1 };
+    linePaint(img, vVictor, lenPerp, colour);
+    vVictor[1] = { 1, -1 };
+    linePaint(img, vVictor, lenDiag, colour);
+    vVictor[1] = { 1, 0 };
+    linePaint(img, vVictor, radius / 2, colour);
+}
+vector<vector<int>> IMGFUNC::octogonPath(vector<int>& origin, int radius)
+{
+    // Returns a list of xy coordinates for the perimeter of a given octogon.
+    // List starts at 12 o'clock and progresses clockwise.
+    // Radius is measured along a vertical or horizontal line. 
+    int lenPerp, lenDiag;
+    if (radius % 2 == 0)  // Even.
+    {
+        lenPerp = radius;
+        lenDiag = radius / 2;
+    }
+    else if (radius % 2 == 1)  // Odd.
+    {
+        lenPerp = radius - 1;
+        lenDiag = (radius / 2) + 1;
+    }
+    vector<vector<int>> octoPath(1, vector<int>(2));
+    vector<vector<int>> vvTemp;
+    octoPath[0][0] = origin[0];
+    octoPath[0][1] = origin[1] - radius;
+    vector<vector<int>> vVictor(2, vector<int>(2));
+    vVictor[0] = octoPath[0];
+    vVictor[1] = { 1, 0 };
+    vvTemp = linePath(vVictor, radius / 2);
+    octoPath.insert(octoPath.end(), vvTemp.begin(), vvTemp.end());
+
+    vVictor[1] = { 1, 1 };
+    vvTemp = linePath(vVictor, lenDiag);
+    octoPath.insert(octoPath.end(), vvTemp.begin(), vvTemp.end());
+    vVictor[1] = { 0, 1 };
+    vvTemp = linePath(vVictor, lenPerp);
+    octoPath.insert(octoPath.end(), vvTemp.begin(), vvTemp.end());
+    vVictor[1] = { -1, 1 };
+    vvTemp = linePath(vVictor, lenDiag);
+    octoPath.insert(octoPath.end(), vvTemp.begin(), vvTemp.end());
+    vVictor[1] = { -1, 0 };
+    vvTemp = linePath(vVictor, lenPerp);
+    octoPath.insert(octoPath.end(), vvTemp.begin(), vvTemp.end());
+    vVictor[1] = { -1, -1 };
+    vvTemp = linePath(vVictor, lenDiag);
+    octoPath.insert(octoPath.end(), vvTemp.begin(), vvTemp.end());
+    vVictor[1] = { 0, -1 };
+    vvTemp = linePath(vVictor, lenPerp);
+    octoPath.insert(octoPath.end(), vvTemp.begin(), vvTemp.end());
+    vVictor[1] = { 1, -1 };
+    vvTemp = linePath(vVictor, lenDiag);
+    octoPath.insert(octoPath.end(), vvTemp.begin(), vvTemp.end());
+    vVictor[1] = { 1, 0 };
+    vvTemp = linePath(vVictor, radius / 2);
+    octoPath.insert(octoPath.end(), vvTemp.begin(), vvTemp.end());
+
+    return octoPath;
 }
 vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec)
 {
@@ -280,7 +548,7 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
                     vBorder[1] = coordA;
                 }
                 return vBorder;
-            }
+            }  // RESUME HERE. Handle multiple border paths.
         }
 
         // Same zone as before, or the new zone is not the goal. Record the coords, 
@@ -319,29 +587,56 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
     vBorder.resize(0);
     return vBorder;
 }
-vector<vector<int>> IMGFUNC::zoneStar(vector<vector<int>>& tracks)
+vector<vector<int>> IMGFUNC::zoneSweep(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath)
 {
-    // This function takes one point inside a zone, and fires off
-    // a uniform distribution of vectors away from that point. 
-    // The returned list of coordinates represents the points where 
-    // each vector left that zone. 
-    vector<vector<int>> listStar(8, vector<int>(2));
-    vector<vector<int>> vvTemp;
-    vector<string> szones = { "zoneBorder", "known" };
-    int pixelJump = 2;
-    vector<vector<int>> vvI(2, vector<int>(2));
-    vvI[0] = tracks[tracks.size() - 1];
-    for (int ii = 0; ii < listStar.size(); ii++)
+    // For a given list of RGB values, return the middle pixel coordinates of every
+    // (desired) szone interval. Commonly used to scan the perimeter of a shape.
+    vector<vector<int>> goldilocks;
+    vector<int> zoneFreezer;
+    vector<vector<int>> startStop(2, vector<int>(2));
+    int index = 0;
+    bool zoneActive = 0;
+    string szone = pixelZone(Lrgb[index]);
+    if (szone == sZone)
     {
-        vvI[1][0] = vvStar[ii][0] * pixelJump;
-        vvI[1][1] = vvStar[ii][1] * pixelJump;
-        vvTemp = zoneChangeLinear(szones, vvI);
-        if (vvTemp.size() == 2)
+        while (szone == sZone)
         {
-            listStar[ii] = vvTemp[0];
+            index++;
+            szone = pixelZone(Lrgb[index]);
         }
-        else { jf.err("zoneChangeLinear-im.zoneStar"); }
+        zoneFreezer = zonePath[index - 1];  // Keep for the end.
     }
-    return listStar;
+    index++;
+    while (index < Lrgb.size())
+    {
+        szone = pixelZone(Lrgb[index]);
+        if (szone == sZone)
+        {
+            if (!zoneActive) 
+            {
+                zoneActive = 1; 
+                startStop[0] = zonePath[index];
+            }
+        }
+        else
+        {
+            if (zoneActive)
+            {
+                zoneActive = 0;
+                startStop[1] = zonePath[index];
+                goldilocks.push_back(coordMid(startStop));
+            }
+        }
+        index++;
+    }
+    if (zoneFreezer.size() > 0)
+    {
+        if (!zoneActive)
+        {
+            startStop[0] = zonePath[0];
+        }
+        startStop[1] = zoneFreezer;
+        goldilocks.push_back(coordMid(startStop));
+    }
+    return goldilocks;
 }
-// RESUME HERE. Try a scanOctogon method to make jumps. 

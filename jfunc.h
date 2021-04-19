@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <chrono>
 #include <mutex>
+#include <cmath>
 
 using namespace std;
 extern mutex m_err;

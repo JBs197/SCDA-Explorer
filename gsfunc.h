@@ -13,7 +13,6 @@ public:
 	explicit GSFUNC() {}
 	~GSFUNC() {}
 	void pdfToPng(string& pdfPath, string& pngPath);
-	void pdfDecrypt(string& pathPDF);
 
 };
 
