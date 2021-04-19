@@ -11,7 +11,7 @@ using namespace std;
 class IMGFUNC
 {
 	vector<vector<int>> borderRegion;  // Sequence of coords that represent the region's border.
-	int borderThickness;
+	int borderThickness = 6;
 	vector<unsigned char> dataPNG, debugDataPNG;
 	bool debug = 0;
     string pathActivePNG;
@@ -28,7 +28,9 @@ public:
 	vector<int> borderFindStart();
 	vector<double> coordDist(vector<int> zeroZero, vector<vector<int>> coordList);
 	vector<int> coordMid(vector<vector<int>>& vCoords);
-	vector<int> coordStoi(string& sCoords);
+    vector<vector<int>> coordPath(vector<vector<int>> startStop);
+    int coordRGB(vector<vector<int>> startStop, string szone);
+    vector<int> coordStoi(string& sCoords);
 	void drawMarker(vector<unsigned char>& img, vector<int>& vCoord);
     vector<vector<int>> frameCorners();
 	int getOffset(vector<int>& vCoord);

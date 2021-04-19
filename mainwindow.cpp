@@ -1773,10 +1773,17 @@ void MainWindow::on_pB_search_clicked()
 // (Debug function) Display some information.
 void MainWindow::on_pB_test_clicked()
 {
+    string pathPNG = sroot + "\\mapsPNG\\province\\Alberta.png";
+    string pathBIN = sroot + "\\mapsBIN\\province\\Alberta.bin";
+    im.pngToBin(pathPNG, pathBIN);
+
+    //string dirPDF = sroot + "\\mapsPDF\\province\\cmaca";
+    //gf.folderConvert(dirPDF);
+
+    /*
     string pathPNG = "F:\\debug\\Drummondville.png";
     if (!im.isInit()) { im.pngLoad(pathPNG); }
     if (!im.mapIsInit()) { im.initMapColours(); }
-
     vector<vector<int>> vBorderPath(1, vector<int>());
     vBorderPath[0] = im.borderFindStart();  // This is the border's first and last point.
     if (vBorderPath[0].size() != 2) { err("borderFindStart-MainWindow.pB_test"); }
@@ -1799,7 +1806,7 @@ void MainWindow::on_pB_test_clicked()
             if (im.jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
         }
     }
-
+    */
 
     /*
     QString qtemp = ui->pte_webinput->toPlainText();
@@ -1847,7 +1854,6 @@ void MainWindow::on_pB_test_clicked()
     ui->pte_webinput->clear();
     ui->pte_webinput->insertPlainText("Done!");
     */
-    im.pngPrint();
     int bbq = 1;
     /*
     QString qtemp = ui->pte_webinput->toPlainText();

@@ -9,41 +9,48 @@ vector<int> IMGFUNC::borderFindNext(vector<vector<int>> tracks)
     if (debug) { octogonPaint(debugDataPNG, origin, radius, Red); }
     string sZone = "zoneBorder";
     vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath);
-    if (candidates.size() != 2)
+    vector<vector<int>> vvTemp, cPath;
+    while (candidates.size() < 2)
     {
-        if (candidates.size() < 2)
-        {
-            while (candidates.size() < 2)
-            {
-                radius += (4 * borderThickness);
-                octoPath = octogonPath(origin, radius);
-                octoRGB = octogonRGB(octoPath);
-                if (debug) { octogonPaint(debugDataPNG, origin, radius, Red); }
-                candidates = zoneSweep(sZone, octoRGB, octoPath);
-            }
-        }
-        else
-        {
-            while (candidates.size() > 2)
-            {
-                radius -= (4 * borderThickness);
-                octoPath = octogonPath(origin, radius);
-                octoRGB = octogonRGB(octoPath);
-                if (debug) { octogonPaint(debugDataPNG, origin, radius, Red); }
-                candidates = zoneSweep(sZone, octoRGB, octoPath);
-            }
-        }
+        radius += (4 * borderThickness);
+        octoPath = octogonPath(origin, radius);
+        octoRGB = octogonRGB(octoPath);
+        if (debug) { octogonPaint(debugDataPNG, origin, radius, Red); }
+        candidates = zoneSweep(sZone, octoRGB, octoPath);
     }
     if (tracks.size() < 2) { return candidates[0]; }
     vector<int> originPast = tracks[tracks.size() - 2];
     vector<double> distances = coordDist(originPast, candidates);
-    double maxDistance = 0.0;
-    int winner = -1;
-    for (int ii = 0; ii < distances.size(); ii++)
+    double minDistance = distances[0];
+    int elimIndex = 0;
+    for (int ii = 1; ii < distances.size(); ii++)
     {
-        if (distances[ii] > maxDistance)
+        if (distances[ii] < minDistance)
         {
-            maxDistance = distances[ii];
+            minDistance = distances[ii];
+            elimIndex = ii;
+        }
+    }
+    candidates.erase(candidates.begin() + elimIndex);
+    if (candidates.size() == 1) { return candidates[0]; }
+
+    sZone = "white";
+    vector<int> rgbCount(candidates.size());
+    vvTemp.resize(2);
+    vvTemp[0] = origin;
+    for (int ii = 0; ii < candidates.size(); ii++)
+    {
+        vvTemp[1] = candidates[ii];
+        cPath = coordPath(vvTemp);
+        rgbCount[ii] = coordRGB(cPath, sZone);
+    }
+    int winner = 0;
+    int bestCount = rgbCount[0];
+    for (int ii = 1; ii < rgbCount.size(); ii++)
+    {
+        if (rgbCount[ii] > bestCount)
+        {
+            bestCount = rgbCount[ii];
             winner = ii;
         }
     }
@@ -52,7 +59,7 @@ vector<int> IMGFUNC::borderFindNext(vector<vector<int>> tracks)
 vector<int> IMGFUNC::borderFindStart()
 {
     if (!isInit()) { jf.err("No init-im.borderFindStart"); }
-    vector<string> szones = { "zoneOutside", "zoneBorder" };
+    vector<string> szones = { "zoneBorder", "white" };
     int pixelJump = 2;
     vector<vector<int>> vCorners = { {0,0}, {width-1,0}, {0,height-1}, {width-1,height-1} }; 
     vector<vector<int>> vVictors = { {pixelJump, pixelJump}, {-1 * pixelJump, pixelJump}, {pixelJump, -1 * pixelJump}, {-1 * pixelJump, -1 * pixelJump} };
@@ -64,8 +71,10 @@ vector<int> IMGFUNC::borderFindStart()
         vCross1 = zoneChangeLinear(szones, vvI);
         if (vCross1.size() == 0) { continue; }
 
-        szones = { "zoneBorder", "white" };
-        vvI[0] = vCross1[1];
+        szones = { "zoneBorder", "zoneOutside" };
+        vvI[0] = vCross1[0];
+        vvI[1][0] *= -1;
+        vvI[1][1] *= -1;
         vCross2 = zoneChangeLinear(szones, vvI);
         if (vCross2.size() == 0) { continue; }
         else { break; }
@@ -74,15 +83,10 @@ vector<int> IMGFUNC::borderFindStart()
     vector<double> thickness;
     if (vCross1.size() == 2 && vCross2.size() == 2)
     {
-        vvI[0] = vCross1[1];
+        vvI[0] = vCross1[0];
         vvI[1] = vCross2[0];
         vStart = coordMid(vvI);
         pointOfOrigin = vStart;
-        vCross1.resize(1);
-        vCross1[0] = vvI[0];
-        thickness = coordDist(vCross2[0], vCross1);
-        thickness[0] = ceil(thickness[0]);
-        borderThickness = int(thickness[0]);
     }
 
     if (debug) { drawMarker(debugDataPNG, vStart); }
@@ -106,6 +110,28 @@ vector<int> IMGFUNC::coordMid(vector<vector<int>>& vCoords)
     vMid[0] = (vCoords[0][0] + vCoords[1][0]) / 2;
     vMid[1] = (vCoords[0][1] + vCoords[1][1]) / 2;
     return vMid;
+}
+vector<vector<int>> IMGFUNC::coordPath(vector<vector<int>> startStop)
+{
+    double dx = (double)(startStop[1][0] - startStop[0][0]);
+    double dy = (double)(startStop[1][1] - startStop[0][1]);
+    double slope = dy / dx;
+    int bbq = 1;
+    vector<vector<int>> cPath;
+    return cPath;
+}
+int IMGFUNC::coordRGB(vector<vector<int>> cPath, string sZone)
+{
+    int count = 0;
+    vector<unsigned char> rgb;
+    string szone;
+    for (int ii = 0; ii < cPath.size(); ii++)
+    {
+        rgb = pixelRGB(cPath[ii][0], cPath[ii][1]);
+        szone = pixelZone(rgb);
+        if (szone == sZone) { count++; }
+    }
+    return count;
 }
 vector<int> IMGFUNC::coordStoi(string& sCoords)
 {
