@@ -1332,8 +1332,8 @@ void MainWindow::on_pB_download_clicked()
 {
     jf.timerStart();
     int onlineTab = ui->tabW_online->currentIndex();
-    QList<QTreeWidgetItem*> qlist;
-    vector<string> prompt;
+    QList<QTreeWidgetItem*> qlist, qChildren;
+    vector<string> prompt, listCata;
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
     thread::id myid = this_thread::get_id();
@@ -1346,6 +1346,7 @@ void MainWindow::on_pB_download_clicked()
     {
         qlist = ui->treeW_statscan->selectedItems();
         if (qlist.size() < 1) { return; }
+        int kids, iStatusCata;
         int igen = 0;
         QTreeWidgetItem* pNode = nullptr;
         QTreeWidgetItem* pParent = qlist[0];
@@ -1357,22 +1358,126 @@ void MainWindow::on_pB_download_clicked()
         } while (pParent != nullptr);
         QString qtemp;
         prompt.resize(3);  // Form [syear, sname, dlType].
-        if (igen <= 3) { qtemp = qlist[0]->text(0); }
-        else { qtemp = qlist[0]->parent()->text(0); }
-        prompt[1] = qtemp.toStdString();
-        if (igen <= 3) { qtemp = qlist[0]->parent()->text(0); }
-        else { qtemp = qlist[0]->parent()->parent()->text(0); }
-        prompt[0] = qtemp.toStdString();
-        int iStatusCata = sf.statusCata(prompt[1]);
-        if (iStatusCata == 2)
+        if (igen <= 2) 
         {
-            qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
+            qtemp = qlist[0]->text(0);
+            prompt[0] = qtemp.toStdString();
+            kids = qlist[0]->childCount();
+            if (kids > 0)
+            {
+                listCata.resize(kids);
+                for (int ii = 0; ii < kids; ii++)
+                {
+                    pNode = qlist[0]->child(ii);
+                    qtemp = pNode->text(0);
+                    listCata[ii] = qtemp.toStdString();
+                }
+            }
+            else
+            {
+                string url = sc.urlYear(prompt[0]);
+                string webpage = wf.browse(url);
+                listCata = jf.textParser(webpage, navSearch[1]);
+            }
+        }
+        else if (igen == 3) 
+        { 
+            qtemp = qlist[0]->parent()->text(0);
+            prompt[0] = qtemp.toStdString();
+            qtemp = qlist[0]->text(0);
+            prompt[1] = qtemp.toStdString();
+        }
+        else 
+        { 
+            qtemp = qlist[0]->parent()->parent()->text(0);
+            prompt[0] = qtemp.toStdString();
+            qtemp = qlist[0]->parent()->text(0);
+            prompt[1] = qtemp.toStdString();
+        }
+        
+        if (listCata.size() < 1)
+        {
+            iStatusCata = sf.statusCata(prompt[1]);
+            if (iStatusCata == 2)
+            {
+                qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
+                return;
+            }
+            else { prompt[2] = to_string(iStatusCata); }
+            sb.set_prompt(myid, prompt);
+            std::thread dl(&MainWindow::downloader, this, ref(sb));
+            dl.detach();
+        }
+        else
+        {
+            for (int ii = 0; ii < listCata.size(); ii++)
+            {
+                prompt[1] = listCata[ii];
+                iStatusCata = sf.statusCata(prompt[1]);
+                if (iStatusCata == 2)
+                {
+                    qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
+                    continue;
+                }
+                else { prompt[2] = to_string(iStatusCata); }
+                sb.set_prompt(myid, prompt);
+                std::thread dl(&MainWindow::downloader, this, ref(sb));
+                dl.detach();
+                while (1)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    if (remote_controller == 2)  // The 'cancel' button was pressed.
+                    {
+                        comm[0][0] = 2;  // Inform the manager thread it should abort its task.
+                        remote_controller = 0;
+                    }
+                    try
+                    {
+                        comm = sb.update(myid, comm[0]);
+                        if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
+                        {
+                            if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
+                            {
+                                comm[0][2] = comm[1][2];
+                                comm[0][1] = comm[1][1];
+                                if (onlineTab == 0)
+                                {
+                                    reset_bar(comm[1][2], "Downloading catalogue  " + prompt[1]);  // ... initialize the progress bar.
+                                }
+                                else if (onlineTab == 1)
+                                {
+                                    reset_bar(comm[1][2], "Downloading maps...");  // ... initialize the progress bar.
+                                }
+                                jobs_done = comm[0][1];
+                                update_bar();
+                            }
+                        }
+                        else
+                        {
+                            comm[0][1] = comm[1][1];
+                            jobs_done = comm[0][1];
+                            update_bar();
+                        }
+                    }
+                    catch (out_of_range& oor)
+                    {
+                        err("sb.update-on_pB_download_clicked");
+                    }
+
+                    if (comm[1][0] == 1 || comm[1][0] == -2)
+                    {
+                        error = sb.end_call(myid);
+                        if (error) { errnum("sb.end_call-on_pB_download_clicked", error); }
+                        jobs_done = comm[0][2];
+                        update_bar();
+                        break;           // Manager reports task finished/cancelled.
+                    }
+                }
+            }
             return;
         }
-        else { prompt[2] = to_string(iStatusCata); }
-        sb.set_prompt(myid, prompt);
-        std::thread dl(&MainWindow::downloader, this, ref(sb));
-        dl.detach();
+
         break;
     }
     case 1:
@@ -1616,18 +1721,21 @@ void MainWindow::downloader(SWITCHBOARD& sb)
     case 0:
     {
         mycomm[2] = (splitLinkNames.size() / 10) + 1 + 1;
+        break;
     }
     case 1:
     {
         sc.initGeo();
         geoLayerCodes = sc.getLayerSelected(geoPage);
         mycomm[2] = 2 * ((splitLinkNames.size() / 10) + 1) + 1;
+        break;
     }
     case 2:
     {
         sc.initGeo();
         geoLayerCodes = sc.getLayerSelected(geoPage);
         mycomm[2] = 2 * ((splitLinkNames.size() / 10) + 1) + 1;
+        break;
     }
     }
     sb.update(myid, mycomm);
@@ -1661,9 +1769,10 @@ void MainWindow::dlCSV(vector<vector<string>>& sLN, vector<string>& prompt, int 
     vector<string> vstemp;
     int iyear = stoi(prompt[0]);
     urlCSV = urlServer + sLN[indexCSV][1];
-    pageCSV = wf.browse(urlCSV);
     pathCSV = sroot + "\\" + prompt[0] + "\\" + prompt[1] + "\\" + prompt[1];
     pathCSV += " (" + sLN[indexCSV][3] + ") " + sLN[indexCSV][2] + ".csv";
+    if (wf.file_exist(pathCSV)) { return; }
+    pageCSV = wf.browse(urlCSV);
     if (iyear <= 2006)
     {
         vstemp = jf.textParser(pageCSV, navSearch[3]);
@@ -1989,7 +2098,7 @@ void MainWindow::on_treeW_statscan_itemSelectionChanged()
         pParent = pNode->parent();
         inum++;
     } while (pParent != nullptr);
-    if (inum > 1)
+    if (inum > 0)
     {
         ui->pB_download->setEnabled(1);
     }

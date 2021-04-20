@@ -881,7 +881,7 @@ vector<vector<string>> STATSCAN::navAsset()
     vector<vector<string>> nA = {
         {"<select name=\"Temporal\"", "<select name=\"Temporal\"", "</select>", "<option value=\"", "\" "},
         {"<select name=\"Temporal\"", "<tbody>", "</tbody>", "&ips=", "\" targ"},
-        {">Geographic index</h3>", "<div id=\"geo-download\"", "</ol>", "=\"indent-", "</a>"},
+        {"ndex</h3>", "<div id=\"geo-download\"", "</ol>", "=\"indent-", "</a>"},
         {"Download data as displayed", "Download data as displayed", "comma-separated values", "href=\"", "\">CSV"},
         {"id=\"tablist\"", "<a title=\"Download\"", "Download</span>", "href=\"", "\"><"},
         {"displayed in the Data table tab</h4>", "displayed in the Data table tab</h4>", "comma-separated values", "href=\"", "\">CSV"},
@@ -1060,7 +1060,7 @@ string STATSCAN::urlGeoList(int iyear, string urlCata)
         urlGeo += "/rel/Geo-index-eng.cfm?TABID=5&LANG=E&APATH=3";
         urlGeo += "&DETAIL=1&DIM=0&FL=A&FREE=1&GC=0&GID=0&GK=0&GRP=1&PID=";
         urlGeo += pid + "&PRID=0&PTYPE=" + ptype + "&S=0&SHOWALL=No&SUB=0"; 
-        urlGeo += "&Temporal="; "&THEME=" + theme;
+        urlGeo += "&Temporal=" + syear + "&THEME=" + theme;
         urlGeo += "&VID=0&VNAMEE=&VNAMEF=&D1=0&D2=0&D3=0&D4=0&D5=0&D6=0";
         break;
     }

@@ -174,6 +174,9 @@ public:
 		BOOL yesno = 0;
 		DWORD bytes_available;
 		DWORD bytes_read = 0;
+		DWORD headerIndex = 0;
+		DWORD bufQsize = 1000;
+		char bufferQuery[1000];
 		unsigned char* ubuffer;
 		wchar_t* bufferW;
 		int size1, size2, num_chars;
@@ -190,6 +193,7 @@ public:
 		else { winerr("httpopenrequest-wf.browse"); }
 		if (yesno)
 		{
+			yesno = HttpQueryInfoA(hrequest, HTTP_QUERY_CONTENT_LENGTH, bufferQuery, &bufQsize, &headerIndex);
 			do
 			{
 				bytes_available = 0;

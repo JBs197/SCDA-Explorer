@@ -106,6 +106,7 @@ string WINFUNC::browse(string url)
 			break;
 		}
 	}
+
 	if (server_name == hServer)
 	{
 		sPage = browseHelper(object_name, hConnect);
@@ -114,6 +115,7 @@ string WINFUNC::browse(string url)
 	{
 		sPage = browseHelper(url);
 	}
+
 	return sPage;
 }
 void WINFUNC::delete_file(string path)
