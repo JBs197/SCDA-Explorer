@@ -6,7 +6,8 @@
 #include <QTableView>
 #include <QTreeWidget>
 #include <QLabel>
-#include "jfunc.h"
+#include <QPainter>
+#include "imgfunc.h"
 
 using namespace std;
 
@@ -14,12 +15,16 @@ class QTFUNC
 {
 	JFUNC jfqf;
 	QMap<QTreeWidget*, int> map_display_root;
+	QPixmap pm;
 
 public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
+	void displayBin(QLabel*& qlabel, string& pathBIN);
 	void displayText(QLabel*, string stext);
 	void display_subt(QTreeWidget*, QTreeWidgetItem*);
+	void drawFrame(QPixmap& pm, vector<vector<int>>& topleftBotright);
+	void initPixmap(QLabel* qlabel);
 	void err(string);
 	int get_display_root(QTreeWidget*);
 	void set_display_root(QTreeWidget*, int);

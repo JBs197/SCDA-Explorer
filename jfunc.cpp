@@ -200,7 +200,7 @@ string JFUNC::load(string file_path)
 		break;
 
 	case 1:
-		mywfile.open(file_wpath, ios::in | ios::ate);
+		mywfile.open(file_wpath, wios::in | wios::ate);
 		wsize = mywfile.tellg();
 		wbuffer = new wchar_t[wsize];
 		mywfile.seekg(0, ios::beg);
@@ -211,7 +211,7 @@ string JFUNC::load(string file_path)
 		break;
 
 	case 2:
-		mywfile.open(file_wpath, ios::in | ios::ate);
+		mywfile.open(file_wpath, wios::in | wios::ate);
 		wsize = mywfile.tellg();
 		wbuffer = new wchar_t[wsize];
 		mywfile.seekg(0, ios::beg);

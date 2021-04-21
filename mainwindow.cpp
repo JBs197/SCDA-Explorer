@@ -77,6 +77,8 @@ void MainWindow::initialize()
     ui->treeW_statscan->setVisible(0);
     ui->treeW_maps->setGeometry(0, 0, 921, 461);
     ui->treeW_maps->setVisible(0);
+    ui->label_maps->setGeometry(0, 0, 921, 461);
+    ui->label_maps->setVisible(0);
     ui->pB_usc->setVisible(0);
     ui->pB_download->setVisible(0);
     ui->pB_download->setEnabled(0);
@@ -276,6 +278,7 @@ void MainWindow::update_mode()
         ui->tabW_online->setVisible(0);
         ui->treeW_statscan->setVisible(0);
         ui->treeW_maps->setVisible(0);
+        ui->label_maps->setVisible(0);
         ui->pB_usc->setVisible(0);
         ui->pte_webinput->setVisible(0);
         ui->pte_localinput->setVisible(1);
@@ -290,6 +293,7 @@ void MainWindow::update_mode()
         ui->tabW_online->setVisible(1);
         ui->treeW_statscan->setVisible(1);
         ui->treeW_maps->setVisible(1);
+        ui->label_maps->setVisible(1);
         ui->pB_usc->setVisible(1);
         ui->pte_webinput->setVisible(1);
         ui->pte_localinput->setVisible(0);
@@ -1340,23 +1344,23 @@ void MainWindow::on_pB_download_clicked()
     int error = sb.start_call(myid, 1, comm[0]);
     if (error) { errnum("start_call-pB_download_clicked", error); }
     
+    qlist = ui->treeW_statscan->selectedItems();
+    if (qlist.size() < 1) { return; }
+    int kids, iStatusCata;
+    int igen = 0;
+    QTreeWidgetItem* pNode = nullptr;
+    QTreeWidgetItem* pParent = qlist[0];
+    do
+    {
+        pNode = pParent;
+        pParent = pNode->parent();
+        igen++;
+    } while (pParent != nullptr);
+    QString qtemp;
     switch (onlineTab)
     {
     case 0:
     {
-        qlist = ui->treeW_statscan->selectedItems();
-        if (qlist.size() < 1) { return; }
-        int kids, iStatusCata;
-        int igen = 0;
-        QTreeWidgetItem* pNode = nullptr;
-        QTreeWidgetItem* pParent = qlist[0];
-        do
-        {
-            pNode = pParent;
-            pParent = pNode->parent();
-            igen++;
-        } while (pParent != nullptr);
-        QString qtemp;
         prompt.resize(3);  // Form [syear, sname, dlType].
         if (igen <= 2) 
         {
@@ -1474,6 +1478,7 @@ void MainWindow::on_pB_download_clicked()
                         break;           // Manager reports task finished/cancelled.
                     }
                 }
+                int bbq = 1;
             }
             return;
         }
@@ -1482,6 +1487,7 @@ void MainWindow::on_pB_download_clicked()
     }
     case 1:
     {
+
         // NOTE: Display tree of existing maps.
         prompt.resize(1);  // Form [syear].
         prompt[0] = { "2016" };
@@ -1879,43 +1885,99 @@ void MainWindow::on_pB_search_clicked()
     }
 }
 
-// (Debug function) Display some information.
+// (Debug function) Perform a test function.
+// 0 = download given webpage
+// 1 = single file PNG->BIN,  2 = contents of folder PNG->BIN.
+// 3 = display BIN map.
 void MainWindow::on_pB_test_clicked()
 {
-    string pathPNG = sroot + "\\mapsPNG\\province\\Alberta.png";
-    string pathBIN = sroot + "\\mapsBIN\\province\\Alberta.bin";
-    im.pngToBin(pathPNG, pathBIN);
+    string temp, pathPNG, pathBIN, dirPNG, dirBIN;
+    vector<string> dirt, soap, slist;
 
-    //string dirPDF = sroot + "\\mapsPDF\\province\\cmaca";
-    //gf.folderConvert(dirPDF);
+    int mode = 3;
+    dirPNG = sroot + "\\debug";
+    pathBIN = sroot + "\\debug\\Alberta.bin";
 
-    /*
-    string pathPNG = "F:\\debug\\Drummondville.png";
-    if (!im.isInit()) { im.pngLoad(pathPNG); }
-    if (!im.mapIsInit()) { im.initMapColours(); }
-    vector<vector<int>> vBorderPath(1, vector<int>());
-    vBorderPath[0] = im.borderFindStart();  // This is the border's first and last point.
-    if (vBorderPath[0].size() != 2) { err("borderFindStart-MainWindow.pB_test"); }
-    vector<vector<int>> tracks; 
-    while(1)
+    switch (mode)
     {
-        if (vBorderPath.size() > 3)
+    case 0:
+    {
+        QString qtemp = ui->pte_webinput->toPlainText();
+        string url = qtemp.toStdString();
+        string webpage = wf.browse(url);
+        jf.printer(sroot + "\\Test webpage.txt", webpage);
+    }
+    case 1:
+    {
+        if (pathPNG.size() < 1)
         {
-            tracks[0] = tracks[1];
-            tracks[1] = tracks[2];
-            tracks[2] = vBorderPath[vBorderPath.size() - 1];
+            reset_bar(100, "No PNG path specified.");
+        }
+        else if (pathBIN.size() < 1)
+        {
+            pathBIN = pathPNG;
+            dirt = { "PNG", ".png" };
+            soap = { "BIN", ".bin" };
+            jf.clean(pathBIN, dirt, soap);
+            im.pngToBin(pathPNG, pathBIN);
+            reset_bar(100, pathBIN + " done!");          
         }
         else
         {
-            tracks = vBorderPath;
+            im.pngToBin(pathPNG, pathBIN);
+            reset_bar(100, pathBIN + " done!");
         }
-        vBorderPath.push_back(im.borderFindNext(tracks));
-        if (vBorderPath.size() > 10)
-        {
-            if (im.jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
-        }
+        break;
     }
-    */
+    case 2:
+    {
+        if (dirPNG.size() < 1)
+        {
+            reset_bar(100, "No PNG folder directory specified.");
+        }
+        else if (dirBIN.size() < 1)
+        {
+            dirBIN = dirPNG;
+            dirt = { "PNG", ".png" };
+            soap = { "BIN", ".bin" };
+            jf.clean(dirBIN, dirt, soap);
+            slist = wf.get_file_list(dirPNG, "*.png");
+            for (int ii = 0; ii < slist.size(); ii++)
+            {
+                pathPNG = dirPNG + "\\" + slist[ii];
+                pathBIN = pathPNG;
+                jf.clean(pathBIN, dirt, soap);
+                im.pngToBin(pathPNG, pathBIN);
+            }
+            reset_bar(100, pathBIN + " done!");
+        }
+        else
+        {
+            dirt = { "PNG", ".png" };
+            soap = { "BIN", ".bin" };
+            slist = wf.get_file_list(dirPNG, "*.png");
+            for (int ii = 0; ii < slist.size(); ii++)
+            {
+                pathPNG = dirPNG + "\\" + slist[ii];
+                temp = slist[ii];
+                jf.clean(temp, dirt, soap);
+                pathBIN = dirBIN + "\\" + temp;
+                im.pngToBin(pathPNG, pathBIN);
+            }
+            reset_bar(100, pathBIN + " done!");
+        }
+        break;
+    }
+    case 3:
+    {
+        qf.initPixmap(ui->label_maps);
+        qf.displayBin(ui->label_maps, pathBIN);
+        break;
+    }
+    }
+
+    //string dirPDF = sroot + "\\mapsPDF\\province\\cmaca";
+    //gf.folderConvert(dirPDF);
 
     /*
     QString qtemp = ui->pte_webinput->toPlainText();
@@ -1928,48 +1990,7 @@ void MainWindow::on_pB_test_clicked()
     qDebug() << "It is within a(n) " << QString::fromStdString(sZone) << " zone.";
     */
 
-    /*
-    vector<vector<unsigned char>> rgb;
-    int coordDiag = 0;
-    vector<unsigned char> tempRGB = im.pixelRGB(coordDiag, coordDiag);
-    while (tempRGB.size() == 3)
-    {
-        rgb.push_back(tempRGB);
-        coordDiag++;
-        tempRGB = im.pixelRGB(coordDiag, coordDiag);
-    }
-    string sDiag;
-    for (int ii = 0; ii < rgb.size(); ii++)
-    {
-        sDiag += "Pixel (" + to_string(ii) + "," + to_string(ii) + ") has RGB (";
-        sDiag += to_string(rgb[ii][0]) + "," + to_string(rgb[ii][1]) + ",";
-        sDiag += to_string(rgb[ii][2]) + ") \r\n";
-    }
-    string pathTest = sroot + "\\Test Output.txt";
-    jf.printer(pathTest, sDiag);
-    */
-
-    /*
-    QString qtemp = ui->pte_webinput->toPlainText();
-    string url = qtemp.toStdString();
-    int pos1 = url.find("http");
-    if (pos1 == 0)
-    {
-        pos1 = url.find("www");
-        url = url.substr(pos1);
-    }
-    string webpage = wf.browse(url);
-    jf.printer(sroot + "\\SCDAwebpage.txt", webpage);
-    ui->pte_webinput->clear();
-    ui->pte_webinput->insertPlainText("Done!");
-    */
     int bbq = 1;
-    /*
-    QString qtemp = ui->pte_webinput->toPlainText();
-    string url = qtemp.toStdString();
-    string webpage = wf.browse(url);
-    jf.printer("F:\\SCDA CSV download webpage.txt", webpage);
-    */
 }
 
 // Choose a local drive to examine for spreadsheets.

@@ -449,7 +449,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="tab">
      <attribute name="title">
@@ -468,7 +468,7 @@
        <number>2</number>
       </property>
       <attribute name="headerVisible">
-       <bool>true</bool>
+       <bool>false</bool>
       </attribute>
       <attribute name="headerMinimumSectionSize">
        <number>100</number>
@@ -509,6 +509,24 @@
         <string notr="true">1</string>
        </property>
       </column>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tab_3">
+     <attribute name="title">
+      <string>Map View</string>
+     </attribute>
+     <widget class="QLabel" name="label_maps">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>231</width>
+        <height>451</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
      </widget>
     </widget>
    </widget>

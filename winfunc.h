@@ -38,7 +38,7 @@ public:
     bool file_exist(string);
     string get_exec_dir();
     string get_exec_path();
-    vector<string> get_file_list(string, string);
+    vector<string> get_file_list(string folder_path, string search);
     int get_file_path_number(string, string);
     vector<string> get_folder_list(string, string);
     void makeDir(string);

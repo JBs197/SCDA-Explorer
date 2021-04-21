@@ -339,11 +339,11 @@ int WINFUNC::get_file_path_number(string folder_path, string file_extension)
 	wstring folder_search = jfwf.utf8to16(temp);
 	WIN32_FIND_DATAW info;
 	HANDLE hfile1 = FindFirstFileW(folder_search.c_str(), &info);
-	if (hfile1 == INVALID_HANDLE_VALUE) { winerr("FindFirstFile-get_file_path_number"); }
+	//if (hfile1 == INVALID_HANDLE_VALUE) { winerr("FindFirstFile-get_file_path_number"); }
 	if (hfile1 == (HANDLE)-1)
 	{
 		DWORD gle = GetLastError();
-		if (gle == 3) { return 0; }
+		if (gle == 2 || gle == 3) { return 0; }
 		else { winerr("FindFirstFile-get_file_path_number"); }
 	}
 	do

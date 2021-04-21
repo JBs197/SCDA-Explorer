@@ -71,7 +71,7 @@ vector<int> IMGFUNC::borderFindStart()
         vCross1 = zoneChangeLinear(szones, vvI);
         if (vCross1.size() == 0) { continue; }
 
-        szones = { "zoneBorder", "zoneOutside" };
+        szones = { "zoneBorder", "known" };
         vvI[0] = vCross1[0];
         vvI[1][0] *= -1;
         vvI[1][1] *= -1;
@@ -113,11 +113,35 @@ vector<int> IMGFUNC::coordMid(vector<vector<int>>& vCoords)
 }
 vector<vector<int>> IMGFUNC::coordPath(vector<vector<int>> startStop)
 {
-    double dx = (double)(startStop[1][0] - startStop[0][0]);
-    double dy = (double)(startStop[1][1] - startStop[0][1]);
-    double slope = dy / dx;
-    int bbq = 1;
-    vector<vector<int>> cPath;
+    // Returns a list of coordinates connecting the start and 
+    // stop points via straight line. Includes the start point.
+    double deltax = (double)(startStop[1][0] - startStop[0][0]);
+    double deltay = (double)(startStop[1][1] - startStop[0][1]);
+    double dx, dy, xCoord, yCoord;
+    if (abs(deltax) >= abs(deltay))
+    {
+        dx = deltax / abs(deltax);
+        dy = deltay / abs(deltax);
+    }
+    else
+    {
+        dx = deltax / abs(deltay);
+        dy = deltay / abs(deltay);
+    }
+    vector<vector<int>> cPath(1, vector<int>(2));
+    vector<int> vTemp(2);
+    cPath[0] = startStop[0];
+    xCoord = (double)startStop[0][0];
+    yCoord = (double)startStop[0][1];
+    while (1)
+    {
+        xCoord += dx;
+        yCoord += dy;
+        vTemp[0] = (int)round(xCoord);
+        vTemp[1] = (int)round(yCoord);
+        cPath.push_back(vTemp);
+        if (vTemp == startStop[1]) { break; }
+    }
     return cPath;
 }
 int IMGFUNC::coordRGB(vector<vector<int>> cPath, string sZone)
