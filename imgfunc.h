@@ -30,6 +30,7 @@ public:
 	vector<int> coordMid(vector<vector<int>>& vCoords);
     vector<vector<int>> coordPath(vector<vector<int>> startStop);
     int coordRGB(vector<vector<int>> startStop, string szone);
+    vector<vector<int>> coordShift(vector<vector<int>>& coordList, vector<int> DxDy);
     vector<int> coordStoi(string& sCoords);
 	void drawMarker(vector<unsigned char>& img, vector<int>& vCoord);
     vector<vector<int>> frameCorners();
@@ -120,6 +121,37 @@ public:
             octoRGB[ii] = pixelRGB(octoPath[ii][0], octoPath[ii][1]);
         }
         return octoRGB;
+    }
+
+    template<typename ... Args> void coordScale(vector<vector<int>>& coordList, double scaleFactor, Args& ... args)
+    {
+
+    }
+    template<> void coordScale<vector<vector<int>>>(vector<vector<int>>& coordList, double scaleFactor, vector<vector<int>>& coordListScaled)
+    {
+        coordListScaled.resize(coordList.size(), vector<int>(2));
+        double dtemp0, dtemp1;
+        for (int ii = 0; ii < coordList.size(); ii++)
+        {
+            dtemp0 = (double)coordList[ii][0] * scaleFactor;
+            dtemp0 = round(dtemp0);
+            coordListScaled[ii][0] = int(dtemp0);
+            dtemp1 = (double)coordList[ii][1] * scaleFactor;
+            dtemp1 = round(dtemp1);
+            coordListScaled[ii][1] = int(dtemp1);
+        }
+    }
+    template<> void coordScale<vector<vector<double>>>(vector<vector<int>>& coordList, double scaleFactor, vector<vector<double>>& coordListScaled)
+    {
+        coordListScaled.resize(coordList.size(), vector<double>(2));
+        double dtemp0, dtemp1;
+        for (int ii = 0; ii < coordList.size(); ii++)
+        {
+            dtemp0 = (double)coordList[ii][0] * scaleFactor;
+            coordListScaled[ii][0] = round(dtemp0);
+            dtemp1 = (double)coordList[ii][1] * scaleFactor;
+            coordListScaled[ii][1] = round(dtemp1);
+        }
     }
 
 };

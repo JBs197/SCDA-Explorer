@@ -77,7 +77,7 @@ void MainWindow::initialize()
     ui->treeW_statscan->setVisible(0);
     ui->treeW_maps->setGeometry(0, 0, 921, 461);
     ui->treeW_maps->setVisible(0);
-    ui->label_maps->setGeometry(0, 0, 921, 461);
+    ui->label_maps->setGeometry(0, 0, 920, 450);
     ui->label_maps->setVisible(0);
     ui->pB_usc->setVisible(0);
     ui->pB_download->setVisible(0);
@@ -1722,11 +1722,11 @@ void MainWindow::downloader(SWITCHBOARD& sb)
     vector<string> geoLayerCodes;
     temp = sroot + "\\" + prompt[0] + "\\" + prompt[1];
     wf.makeDir(temp);
-    switch (yearMode)  // Define a task as 10 CSV downloads, 10 map downloads, or 1 geo list download.
+    switch (yearMode)  // Define a task as 10 CSV downloads, or 1 geo list download.
     {  
     case 0:
     {
-        mycomm[2] = (splitLinkNames.size() / 10) + 1 + 1;
+        mycomm[2] = (splitLinkNames.size() / 10) + 1;
         break;
     }
     case 1:
@@ -1894,9 +1894,10 @@ void MainWindow::on_pB_test_clicked()
     string temp, pathPNG, pathBIN, dirPNG, dirBIN;
     vector<string> dirt, soap, slist;
 
-    int mode = 3;
-    dirPNG = sroot + "\\debug";
-    pathBIN = sroot + "\\debug\\Alberta.bin";
+    int mode = 1;
+    //dirPNG = sroot + "\\debug\\displayBIN";
+    pathPNG = sroot + "\\debug\\displayBIN\\Alberta.png";
+    pathBIN = sroot + "\\debug\\displayBIN\\Alberta.bin";
 
     switch (mode)
     {

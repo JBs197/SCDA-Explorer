@@ -7,12 +7,14 @@
 #include <QTreeWidget>
 #include <QLabel>
 #include <QPainter>
+#include <QPainterPath>
 #include "imgfunc.h"
 
 using namespace std;
 
 class QTFUNC
 {
+	IMGFUNC im;
 	JFUNC jfqf;
 	QMap<QTreeWidget*, int> map_display_root;
 	QPixmap pm;
@@ -153,7 +155,32 @@ public:
 		}
 	}
 
+	template<typename T> QPainterPath pathMake(T&)
+	{
 
+	}
+	template<> QPainterPath pathMake<vector<vector<int>>>(vector<vector<int>>& coordList)
+	{
+		QPainterPath path;
+		path.moveTo((double)coordList[0][0], (double)coordList[0][0]);
+		for (int ii = 1; ii < coordList.size(); ii++)
+		{
+			path.lineTo((double)coordList[ii][0], (double)coordList[ii][1]);
+		}
+		path.closeSubpath();
+		return path;
+	}
+	template<> QPainterPath pathMake<vector<vector<double>>>(vector<vector<double>>& coordList)
+	{
+		QPainterPath path;
+		path.moveTo(coordList[0][0], coordList[0][0]);
+		for (int ii = 1; ii < coordList.size(); ii++)
+		{
+			path.lineTo(coordList[ii][0], coordList[ii][1]);
+		}
+		path.closeSubpath();
+		return path;
+	}
 
 };
 

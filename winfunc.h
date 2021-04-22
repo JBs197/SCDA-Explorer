@@ -176,6 +176,7 @@ public:
 		DWORD bytes_read = 0;
 		DWORD headerIndex = 0;
 		DWORD bufQsize = 1000;
+		size_t pos1;
 		char bufferQuery[1000];
 		unsigned char* ubuffer;
 		wchar_t* bufferW;
@@ -225,7 +226,15 @@ public:
 							{
 								fileW[fileW.size() - 4] = utf[1] + 64;
 								fileW.erase(fileW.size() - 3, 1);
-								utf.clear();
+								if (utf[2] == 195)
+								{
+									utf.erase(utf.begin(), utf.begin() + 2);
+								}
+								else if (utf[3] == 195)
+								{
+									utf.erase(utf.begin(), utf.begin() + 3);
+								}
+								else { utf.clear(); }
 							}
 						}
 					}

@@ -32,6 +32,7 @@ vector<int> IMGFUNC::borderFindNext(vector<vector<int>> tracks)
         }
     }
     candidates.erase(candidates.begin() + elimIndex);
+    distances.erase(distances.begin() + elimIndex);
     if (candidates.size() == 1) { return candidates[0]; }
 
     sZone = "white";
@@ -44,16 +45,41 @@ vector<int> IMGFUNC::borderFindNext(vector<vector<int>> tracks)
         cPath = coordPath(vvTemp);
         rgbCount[ii] = coordRGB(cPath, sZone);
     }
-    int winner = 0;
-    int bestCount = rgbCount[0];
+    bool rgbDiff = 0;
     for (int ii = 1; ii < rgbCount.size(); ii++)
     {
-        if (rgbCount[ii] > bestCount)
+        if (rgbCount[ii] != rgbCount[0])
         {
-            bestCount = rgbCount[ii];
-            winner = ii;
+            rgbDiff = 1;
+            break;
         }
     }
+    int winner = 0;
+    if (rgbDiff)
+    {
+        int bestCount = rgbCount[0];
+        for (int ii = 1; ii < rgbCount.size(); ii++)
+        {
+            if (rgbCount[ii] > bestCount)
+            {
+                bestCount = rgbCount[ii];
+                winner = ii;
+            }
+        }
+    }
+    else
+    {
+        double maxDist = distances[0];
+        for (int ii = 0; ii < distances.size(); ii++)
+        {
+            if (distances[ii] > maxDist)
+            {
+                maxDist = distances[ii];
+                winner = ii;
+            }
+        }
+    }
+
     return candidates[winner];
 }
 vector<int> IMGFUNC::borderFindStart()
@@ -156,6 +182,16 @@ int IMGFUNC::coordRGB(vector<vector<int>> cPath, string sZone)
         if (szone == sZone) { count++; }
     }
     return count;
+}
+vector<vector<int>> IMGFUNC::coordShift(vector<vector<int>>& coordList, vector<int> DxDy)
+{
+    vector<vector<int>> coordListShifted(coordList.size(), vector<int>(2));
+    for (int ii = 0; ii < coordList.size(); ii++)
+    {
+        coordListShifted[ii][0] = coordList[ii][0] + DxDy[0];
+        coordListShifted[ii][1] = coordList[ii][1] + DxDy[1];
+    }
+    return coordListShifted;
 }
 vector<int> IMGFUNC::coordStoi(string& sCoords)
 {
