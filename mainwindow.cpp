@@ -1341,12 +1341,10 @@ void MainWindow::on_pB_download_clicked()
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
     thread::id myid = this_thread::get_id();
-    int error = sb.start_call(myid, 1, comm[0]);
-    if (error) { errnum("start_call-pB_download_clicked", error); }
     
     qlist = ui->treeW_statscan->selectedItems();
     if (qlist.size() < 1) { return; }
-    int kids, iStatusCata;
+    int kids, iStatusCata, error;
     int igen = 0;
     QTreeWidgetItem* pNode = nullptr;
     QTreeWidgetItem* pParent = qlist[0];
@@ -1424,6 +1422,8 @@ void MainWindow::on_pB_download_clicked()
                     continue;
                 }
                 else { prompt[2] = to_string(iStatusCata); }
+                error = sb.start_call(myid, 1, comm[0]);
+                if (error) { errnum("start_call-pB_download_clicked", error); }
                 sb.set_prompt(myid, prompt);
                 std::thread dl(&MainWindow::downloader, this, ref(sb));
                 dl.detach();
@@ -1487,8 +1487,9 @@ void MainWindow::on_pB_download_clicked()
     }
     case 1:
     {
-
         // NOTE: Display tree of existing maps.
+        error = sb.start_call(myid, 1, comm[0]);
+        if (error) { errnum("start_call-pB_download_clicked", error); }
         prompt.resize(1);  // Form [syear].
         prompt[0] = { "2016" };
         sb.set_prompt(myid, prompt);
@@ -1763,6 +1764,7 @@ void MainWindow::downloader(SWITCHBOARD& sb)
     }
     dlGeo(splitLinkNames, prompt, mapGeoIndent);
     mycomm[1]++;
+    mycomm[0] = 1;
     sb.update(myid, mycomm);
 
     int bbq = 1;
@@ -1892,7 +1894,14 @@ void MainWindow::on_pB_search_clicked()
 void MainWindow::on_pB_test_clicked()
 {
     string temp, pathPNG, pathBIN, dirPNG, dirBIN;
-    vector<string> dirt, soap, slist;
+    vector<string> prompt, dirt, soap, slist;
+    vector<vector<double>> pathBorder, pathBorderShared;
+    int error;
+    bool frameDone = 0;
+    QPainterPath pathFrame, pathBorder;
+    thread::id myid = this_thread::get_id();
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
 
     int mode = 1;
     //dirPNG = sroot + "\\debug\\displayBIN";
@@ -1907,34 +1916,40 @@ void MainWindow::on_pB_test_clicked()
         string url = qtemp.toStdString();
         string webpage = wf.browse(url);
         jf.printer(sroot + "\\Test webpage.txt", webpage);
+        return;
     }
     case 1:
     {
+        prompt.resize(2);
+        prompt[0] = pathPNG;
+
         if (pathPNG.size() < 1)
         {
             reset_bar(100, "No PNG path specified.");
+            return;
         }
         else if (pathBIN.size() < 1)
         {
-            pathBIN = pathPNG;
+            prompt[1] = pathPNG;
             dirt = { "PNG", ".png" };
             soap = { "BIN", ".bin" };
-            jf.clean(pathBIN, dirt, soap);
-            im.pngToBin(pathPNG, pathBIN);
-            reset_bar(100, pathBIN + " done!");          
+            jf.clean(prompt[1], dirt, soap);       
         }
-        else
-        {
-            im.pngToBin(pathPNG, pathBIN);
-            reset_bar(100, pathBIN + " done!");
-        }
+        error = sb.start_call(myid, cores, comm[0]);
+        if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
+        sb.set_prompt(myid, prompt);
+        std::thread dl(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorder));
+        dl.detach();
+        reset_bar(100, "Converting " + pathPNG);
         break;
     }
     case 2:
     {
+        prompt.resize(2);
         if (dirPNG.size() < 1)
         {
             reset_bar(100, "No PNG folder directory specified.");
+            return;
         }
         else if (dirBIN.size() < 1)
         {
@@ -1942,54 +1957,62 @@ void MainWindow::on_pB_test_clicked()
             dirt = { "PNG", ".png" };
             soap = { "BIN", ".bin" };
             jf.clean(dirBIN, dirt, soap);
-            slist = wf.get_file_list(dirPNG, "*.png");
-            for (int ii = 0; ii < slist.size(); ii++)
-            {
-                pathPNG = dirPNG + "\\" + slist[ii];
-                pathBIN = pathPNG;
-                jf.clean(pathBIN, dirt, soap);
-                im.pngToBin(pathPNG, pathBIN);
-            }
-            reset_bar(100, pathBIN + " done!");
         }
-        else
+        
+        slist = wf.get_file_list(dirPNG, "*.png");
+        for (int ii = 0; ii < slist.size(); ii++)
         {
+            prompt[0] = dirPNG + "\\" + slist[ii];
+            prompt[1] = dirBIN + "\\" + slist[ii];
             dirt = { "PNG", ".png" };
             soap = { "BIN", ".bin" };
-            slist = wf.get_file_list(dirPNG, "*.png");
-            for (int ii = 0; ii < slist.size(); ii++)
-            {
-                pathPNG = dirPNG + "\\" + slist[ii];
-                temp = slist[ii];
-                jf.clean(temp, dirt, soap);
-                pathBIN = dirBIN + "\\" + temp;
-                im.pngToBin(pathPNG, pathBIN);
-            }
-            reset_bar(100, pathBIN + " done!");
+            jf.clean(prompt[1], dirt, soap);
+            error = sb.start_call(myid, cores, comm[0]);
+            if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
+            sb.set_prompt(myid, prompt);
+            std::thread dl(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorder));
+            dl.detach();
+            reset_bar(100, "Converting " + prompt[0]);
         }
+        reset_bar(100, prompt[1] + " done!");
+        
         break;
     }
     case 3:
     {
         qf.initPixmap(ui->label_maps);
         qf.displayBin(ui->label_maps, pathBIN);
-        break;
+        return;
     }
+    }
+
+    while (1)
+    {
+        Sleep(gui_sleep);
+        error = sb.pull(myid, 0);
+        if (error < 0) { err("sb.pull-MainWindow.on_pB_test"); }
+        pathBorderShared = pathBorder;
+        if (!frameDone)
+        {
+
+            pathBorder.clear();
+            frameDone = 1;
+        }
+
+        sb.done(myid);
+        QCoreApplication::processEvents();
+        if (comm[1][0] == 1 || comm[1][0] == -2)
+        {
+            error = sb.end_call(myid);
+            if (error) { errnum("sb.end_call-on_pB_insert", error); }
+            jobs_done = comm[0][2];
+            update_bar();
+            break;           // Manager reports task finished/cancelled.
+        }
     }
 
     //string dirPDF = sroot + "\\mapsPDF\\province\\cmaca";
     //gf.folderConvert(dirPDF);
-
-    /*
-    QString qtemp = ui->pte_webinput->toPlainText();
-    string sCoords = qtemp.toStdString();
-    if (sCoords.size() < 1) { return; }
-    vector<int> iCoords = im.coordStoi(sCoords);
-    vector<unsigned char> rgb = im.pixelRGB(iCoords[0], iCoords[1]);
-    qDebug() << "Pixel (" << iCoords[0] << "," << iCoords[1] << ") has RGB (" << rgb[0] << "," << rgb[1] << "," << rgb[2] << ")";
-    string sZone = im.pixelZone(rgb);
-    qDebug() << "It is within a(n) " << QString::fromStdString(sZone) << " zone.";
-    */
 
     int bbq = 1;
 }

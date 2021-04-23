@@ -322,6 +322,19 @@ public:
 		}
 	}
 
+	template<typename ... Args> void toDouble(Args& ... args)
+	{
+
+	}
+	template<> void toDouble<vector<int>, vector<double>>(vector<int>& input, vector<double>& output)
+	{
+		output.resize(input.size());
+		for (int ii = 0; ii < input.size(); ii++)
+		{
+			output[ii] = (double)input[ii];
+		}
+	}
+
 	template<typename ... Args> void tree_from_indent(vector<vector<int>>&, Args& ... args)
 	{
 		// Populates a tree structure from the '+' indentations within the row list entries.

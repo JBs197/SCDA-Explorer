@@ -223,11 +223,11 @@ void IMGFUNC::drawMarker(vector<unsigned char>& img, vector<int>& vCoord)
         }
     }
 }
-vector<vector<int>> IMGFUNC::frameCorners()
+vector<vector<double>> IMGFUNC::frameCorners()
 {
     vector<string> sZones = { "white", "black" };
     vector<string> sZonesReverse = { "black", "white" };
-    vector<vector<int>> corners(4, vector<int>(2));
+    vector<vector<double>> corners(4, vector<double>(2));
     vector<vector<int>> vVictor(2, vector<int>(2));
     vVictor[0] = { 0, height / 2 };
     vVictor[1] = { 1, 0 };
@@ -235,19 +235,23 @@ vector<vector<int>> IMGFUNC::frameCorners()
     vVictor[0] = { vvTemp[1][0], height / 2 };
     vVictor[1] = { 0, -1 };
     vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
-    corners[0] = vvTemp[0];
+    corners[0][0] = (double)vvTemp[0][0];
+    corners[0][1] = (double)vvTemp[0][1];
     vVictor[0] = vvTemp[0];
     vVictor[1] = { 1, 0 };
     vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
-    corners[1] = vvTemp[0];
+    corners[1][0] = (double)vvTemp[0][0];
+    corners[1][1] = (double)vvTemp[0][1];
     vVictor[0] = vvTemp[0];
     vVictor[1] = { 0, 1 };
     vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
-    corners[2] = vvTemp[0];
+    corners[2][0] = (double)vvTemp[0][0];
+    corners[2][1] = (double)vvTemp[0][1];
     vVictor[0] = vvTemp[0];
     vVictor[1] = { -1, 0 };
     vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
-    corners[3] = vvTemp[0];
+    corners[3][0] = (double)vvTemp[0][0];
+    corners[3][1] = (double)vvTemp[0][1];
     return corners;
 }
 int IMGFUNC::getOffset(vector<int>& vCoord)
@@ -452,10 +456,28 @@ void IMGFUNC::pngPrint()
     delete[] bufferUC;
     int barbecue = 1;
 }
-void IMGFUNC::pngToBin(string& pathPNG, string& pathBIN)
+void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
 {
+    jf.timerStart();
+    vector<int> mycomm;
+    vector<vector<int>> comm_gui;
+    thread::id myid = this_thread::get_id();
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();
+    bool success, frameDone;
+
     if (!mapIsInit()) { initMapColours(); }
-    pngLoad(pathPNG);
+    pngLoad(prompt[0]);
+    vector<vector<double>> corners = frameCorners();
+    success = sbgui.push(myid);
+    if (success)
+    {
+        border = corners;
+        success = sbgui.done(myid);
+        if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
+        frameDone = 0;
+    }
+
     vector<vector<int>> vBorderPath(1, vector<int>());
     vBorderPath[0] = borderFindStart();
     vector<vector<int>> tracks;
@@ -472,14 +494,30 @@ void IMGFUNC::pngToBin(string& pathPNG, string& pathBIN)
             tracks = vBorderPath;
         }
         vBorderPath.push_back(borderFindNext(tracks));
+        success = sbgui.push(myid);
+        if (success)
+        {
+            if (frameDone)
+            {
+                jf.toDouble(vBorderPath, border);
+                success = sbgui.done(myid);
+                if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
+            }
+            else if (border.size() == 0)
+            {
+                frameDone = 1;
+                border = corners;
+                success = sbgui.done(myid);
+                if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
+            }
+        }
         if (vBorderPath.size() > 10)
         {
             if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
         }
     }
-    vector<vector<int>> corners = frameCorners();
 
-    ofstream sPrinter(pathBIN.c_str(), ios::trunc);
+    ofstream sPrinter(prompt[1].c_str(), ios::trunc);
     auto report = sPrinter.rdstate();
     sPrinter << "//frame" << endl;
     for (int ii = 0; ii < corners.size(); ii++)
@@ -494,6 +532,10 @@ void IMGFUNC::pngToBin(string& pathPNG, string& pathBIN)
         sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
     }
 
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+    long long timer = jf.timerStop();
+    jf.logTime("Converted " + prompt[0] + " to BIN coordinates", timer);
 }
 bool IMGFUNC::mapIsInit()
 {

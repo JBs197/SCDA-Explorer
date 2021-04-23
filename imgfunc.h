@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include "jfunc.h"
+#include "switchboard.h"
 
 using namespace std;
 
@@ -33,7 +34,7 @@ public:
     vector<vector<int>> coordShift(vector<vector<int>>& coordList, vector<int> DxDy);
     vector<int> coordStoi(string& sCoords);
 	void drawMarker(vector<unsigned char>& img, vector<int>& vCoord);
-    vector<vector<int>> frameCorners();
+    vector<vector<double>> frameCorners();
 	int getOffset(vector<int>& vCoord);
 	void initMapColours();
 	bool isInit();
@@ -50,7 +51,7 @@ public:
 	string pixelZone(vector<unsigned char>& rgb);
 	void pngLoad(string& pathPNG);
     void pngPrint();
-    void pngToBin(string& pathPNG, string& pathBIN);
+    void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
 	vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
 	vector<vector<int>> zoneSweep(string szone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath);
 
@@ -152,6 +153,109 @@ public:
             dtemp1 = (double)coordList[ii][1] * scaleFactor;
             coordListScaled[ii][1] = round(dtemp1);
         }
+    }
+
+    template<typename ... Args> void pngToBin(SWITCHBOARD& sbgui, Args& ... args)
+    {
+
+    }
+    template<> void pngToBin< >(SWITCHBOARD& sbgui)
+    {
+        vector<int> mycomm;
+        vector<vector<int>> comm_gui;
+        thread::id myid = this_thread::get_id();
+        sbgui.answer_call(myid, mycomm);
+        vector<string> prompt = sbgui.get_prompt();
+
+        if (!mapIsInit()) { initMapColours(); }
+        pngLoad(prompt[0]);
+        vector<vector<int>> vBorderPath(1, vector<int>());
+        vBorderPath[0] = borderFindStart();
+        vector<vector<int>> tracks;
+        while (1)
+        {
+            if (vBorderPath.size() > 3)
+            {
+                tracks[0] = tracks[1];
+                tracks[1] = tracks[2];
+                tracks[2] = vBorderPath[vBorderPath.size() - 1];
+            }
+            else
+            {
+                tracks = vBorderPath;
+            }
+            vBorderPath.push_back(borderFindNext(tracks));
+            if (vBorderPath.size() > 10)
+            {
+                if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
+            }
+        }
+        vector<vector<int>> corners = frameCorners();
+
+        ofstream sPrinter(prompt[1].c_str(), ios::trunc);
+        auto report = sPrinter.rdstate();
+        sPrinter << "//frame" << endl;
+        for (int ii = 0; ii < corners.size(); ii++)
+        {
+            sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
+        }
+        sPrinter << endl;
+
+        sPrinter << "//border" << endl;
+        for (int ii = 0; ii < vBorderPath.size(); ii++)
+        {
+            sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
+        }
+
+    }
+    template<> void pngToBin<vector<vector<int>>>(SWITCHBOARD& sbgui, vector<vector<int>>& border)
+    {
+        vector<int> mycomm;
+        vector<vector<int>> comm_gui;
+        thread::id myid = this_thread::get_id();
+        sbgui.answer_call(myid, mycomm);
+        vector<string> prompt = sbgui.get_prompt();
+
+        if (!mapIsInit()) { initMapColours(); }
+        pngLoad(prompt[0]);
+        vector<vector<int>> vBorderPath(1, vector<int>());
+        vBorderPath[0] = borderFindStart();
+        vector<vector<int>> tracks;
+        while (1)
+        {
+            if (vBorderPath.size() > 3)
+            {
+                tracks[0] = tracks[1];
+                tracks[1] = tracks[2];
+                tracks[2] = vBorderPath[vBorderPath.size() - 1];
+            }
+            else
+            {
+                tracks = vBorderPath;
+            }
+            vBorderPath.push_back(borderFindNext(tracks));
+            if (vBorderPath.size() > 10)
+            {
+                if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
+            }
+        }
+        vector<vector<int>> corners = frameCorners();
+
+        ofstream sPrinter(prompt[1].c_str(), ios::trunc);
+        auto report = sPrinter.rdstate();
+        sPrinter << "//frame" << endl;
+        for (int ii = 0; ii < corners.size(); ii++)
+        {
+            sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
+        }
+        sPrinter << endl;
+
+        sPrinter << "//border" << endl;
+        for (int ii = 0; ii < vBorderPath.size(); ii++)
+        {
+            sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
+        }
+
     }
 
 };

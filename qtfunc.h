@@ -29,6 +29,7 @@ public:
 	void initPixmap(QLabel* qlabel);
 	void err(string);
 	int get_display_root(QTreeWidget*);
+	QPainterPath qPainterPathMake(vector<vector<double>>& vPath);
 	void set_display_root(QTreeWidget*, int);
 
 	// TEMPLATES

@@ -118,6 +118,17 @@ void QTFUNC::initPixmap(QLabel* qlabel)
 	pm = QPixmap(width, height);
 	pm.fill();
 }
+QPainterPath QTFUNC::qPainterPathMake(vector<vector<double>>& vPath)
+{
+	QPainterPath path;
+	path.moveTo(vPath[0][0], vPath[0][1]);
+	for (int ii = 1; ii < vPath.size(); ii++)
+	{
+		path.lineTo(vPath[ii][0], vPath[ii][1]);
+	}
+	if (vPath[0] != vPath[vPath.size() - 1]) { path.lineTo(vPath[0][0], vPath[0][1]); }
+	return path;
+}
 void QTFUNC::set_display_root(QTreeWidget* name, int val)
 {
 	map_display_root.insert(name, val);
