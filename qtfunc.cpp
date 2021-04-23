@@ -91,6 +91,15 @@ void QTFUNC::displayBin(QLabel*& qlabel, string& pathBIN)
 	int width = pm.width();
 	int bbq = 1;
 }
+void QTFUNC::displayPainterPath(QLabel*& qlabel, QPainterPath& path)
+{
+	QPainter* painter = new QPainter(&pm);
+	QBrush brush = QBrush(Qt::black, Qt::SolidPattern);
+	QPen pen = QPen(brush, 4.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+	painter->setPen(pen);
+	painter->drawPath(path);
+	qlabel->setPixmap(pm);
+}
 void QTFUNC::displayText(QLabel* ql, string stext)
 {
 	const QString qtemp = QString::fromUtf8(stext);
@@ -117,17 +126,6 @@ void QTFUNC::initPixmap(QLabel* qlabel)
 	int height = qlabel->height();
 	pm = QPixmap(width, height);
 	pm.fill();
-}
-QPainterPath QTFUNC::qPainterPathMake(vector<vector<double>>& vPath)
-{
-	QPainterPath path;
-	path.moveTo(vPath[0][0], vPath[0][1]);
-	for (int ii = 1; ii < vPath.size(); ii++)
-	{
-		path.lineTo(vPath[ii][0], vPath[ii][1]);
-	}
-	if (vPath[0] != vPath[vPath.size() - 1]) { path.lineTo(vPath[0][0], vPath[0][1]); }
-	return path;
 }
 void QTFUNC::set_display_root(QTreeWidget* name, int val)
 {

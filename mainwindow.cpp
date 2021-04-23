@@ -1896,9 +1896,10 @@ void MainWindow::on_pB_test_clicked()
     string temp, pathPNG, pathBIN, dirPNG, dirBIN;
     vector<string> prompt, dirt, soap, slist;
     vector<vector<double>> pathBorder, pathBorderShared;
-    int error;
+    vector<double> mapShift;
+    int error, inum;
     bool frameDone = 0;
-    QPainterPath painterPathFrame, painterPathBorder;
+    QPainterPath painterPathBorder;
     thread::id myid = this_thread::get_id();
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
@@ -1907,7 +1908,7 @@ void MainWindow::on_pB_test_clicked()
     //dirPNG = sroot + "\\debug\\displayBIN";
     pathPNG = sroot + "\\debug\\displayBIN\\Alberta.png";
     pathBIN = sroot + "\\debug\\displayBIN\\Alberta.bin";
-
+    qf.initPixmap(ui->label_maps);
     switch (mode)
     {
     case 0:
@@ -1920,9 +1921,8 @@ void MainWindow::on_pB_test_clicked()
     }
     case 1:
     {
-        prompt.resize(2);
+        prompt.resize(3);  // Form [pathPNG, pathBIN, (w,h)].
         prompt[0] = pathPNG;
-
         if (pathPNG.size() < 1)
         {
             reset_bar(100, "No PNG path specified.");
@@ -1935,10 +1935,11 @@ void MainWindow::on_pB_test_clicked()
             soap = { "BIN", ".bin" };
             jf.clean(prompt[1], dirt, soap);       
         }
+
         error = sb.start_call(myid, cores, comm[0]);
         if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
         sb.set_prompt(myid, prompt);
-        std::thread dl(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorder));
+        std::thread dl(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorderShared));
         dl.detach();
         reset_bar(100, "Converting " + pathPNG);
         break;
@@ -1970,7 +1971,7 @@ void MainWindow::on_pB_test_clicked()
             error = sb.start_call(myid, cores, comm[0]);
             if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
             sb.set_prompt(myid, prompt);
-            std::thread dl(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorder));
+            std::thread dl(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorderShared));
             dl.detach();
             reset_bar(100, "Converting " + prompt[0]);
         }
@@ -1980,7 +1981,6 @@ void MainWindow::on_pB_test_clicked()
     }
     case 3:
     {
-        qf.initPixmap(ui->label_maps);
         qf.displayBin(ui->label_maps, pathBIN);
         return;
     }
@@ -1991,18 +1991,30 @@ void MainWindow::on_pB_test_clicked()
         Sleep(gui_sleep);
         error = sb.pull(myid, 0);
         if (error < 0) { err("sb.pull-MainWindow.on_pB_test"); }
-        pathBorderShared = pathBorder;
         if (!frameDone)
         {
-
-            pathBorder.clear();
+            comm = sb.update(myid, comm[0]);
+            while (comm[1][1] == 0)
+            {
+                Sleep(10);
+                comm = sb.update(myid, comm[0]);
+            }
+            mapShift.resize(3);
+            mapShift[0] = -1.0 * pathBorderShared[0][0];
+            mapShift[1] = -1.0 * pathBorderShared[0][1];
+            mapShift[2] = pathBorderShared[4][0];
+            pathBorderShared.clear();
             frameDone = 1;
+            continue;
         }
-
+        pathBorder = pathBorderShared;
         sb.done(myid);
+        painterPathBorder = qf.pathMake(pathBorder, mapShift);
+        qf.displayPainterPath(ui->label_maps, painterPathBorder);
         QCoreApplication::processEvents();
         if (comm[1][0] == 1 || comm[1][0] == -2)
         {
+            QCoreApplication::processEvents();
             error = sb.end_call(myid);
             if (error) { errnum("sb.end_call-on_pB_insert", error); }
             jobs_done = comm[0][2];

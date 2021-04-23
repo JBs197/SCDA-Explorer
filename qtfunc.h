@@ -23,13 +23,13 @@ public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
 	void displayBin(QLabel*& qlabel, string& pathBIN);
+	void displayPainterPath(QLabel*& qlabel, QPainterPath& path);
 	void displayText(QLabel*, string stext);
 	void display_subt(QTreeWidget*, QTreeWidgetItem*);
 	void drawFrame(QPixmap& pm, vector<vector<int>>& topleftBotright);
 	void initPixmap(QLabel* qlabel);
 	void err(string);
 	int get_display_root(QTreeWidget*);
-	QPainterPath qPainterPathMake(vector<vector<double>>& vPath);
 	void set_display_root(QTreeWidget*, int);
 
 	// TEMPLATES
@@ -156,7 +156,7 @@ public:
 		}
 	}
 
-	template<typename T> QPainterPath pathMake(T&)
+	template<typename ... Args> QPainterPath pathMake(Args& ... args)
 	{
 
 	}
@@ -180,6 +180,26 @@ public:
 			path.lineTo(coordList[ii][0], coordList[ii][1]);
 		}
 		path.closeSubpath();
+		return path;
+	}
+	template<> QPainterPath pathMake<vector<vector<double>>, vector<double>>(vector<vector<double>>& coordList, vector<double>& DxDyGa)
+	{
+		vector<vector<double>> coordListShifted(coordList.size(), vector<double>(2));
+		for (int ii = 0; ii < coordList.size(); ii++)
+		{
+			coordListShifted[ii][0] = (coordList[ii][0] + DxDyGa[0]) * DxDyGa[2];
+			coordListShifted[ii][1] = (coordList[ii][1] + DxDyGa[1]) * DxDyGa[2];
+		}
+		QPainterPath path;
+		path.moveTo(coordListShifted[0][0], coordListShifted[0][0]);
+		for (int ii = 1; ii < coordListShifted.size(); ii++)
+		{
+			path.lineTo(coordListShifted[ii][0], coordListShifted[ii][1]);
+		}
+		if (coordListShifted[0] != coordListShifted[coordListShifted.size() - 1])
+		{
+			path.lineTo(coordListShifted[0][0], coordListShifted[0][1]);
+		}
 		return path;
 	}
 

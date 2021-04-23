@@ -469,13 +469,28 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
     if (!mapIsInit()) { initMapColours(); }
     pngLoad(prompt[0]);
     vector<vector<double>> corners = frameCorners();
+    double widthLabel = ;
+    double heightBIN = corners[2][1] - corners[0][1];
+    if (widthBIN / (double)width > heightBIN / (double)height)
+    {
+        if (widthBIN / (double)width >= 1.0) { stretchFactor = (double)width / widthBIN; }
+        else { stretchFactor = widthBIN / (double)width; }
+    }
+    else
+    {
+        if (heightBIN / (double)height >= 1.0) { stretchFactor = (double)height / heightBIN; }
+        else { stretchFactor = heightBIN / (double)height; }
+    }
     success = sbgui.push(myid);
     if (success)
     {
         border = corners;
+        border.push_back({ stretchFactor });
         success = sbgui.done(myid);
         if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
         frameDone = 0;
+        mycomm[1] = 1;
+        sbgui.update(myid, mycomm);
     }
 
     vector<vector<int>> vBorderPath(1, vector<int>());
@@ -506,7 +521,7 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
             else if (border.size() == 0)
             {
                 frameDone = 1;
-                border = corners;
+                jf.toDouble(vBorderPath, border);
                 success = sbgui.done(myid);
                 if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
             }

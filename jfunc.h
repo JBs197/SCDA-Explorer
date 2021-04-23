@@ -324,7 +324,7 @@ public:
 
 	template<typename ... Args> void toDouble(Args& ... args)
 	{
-
+		int bbq = 1;
 	}
 	template<> void toDouble<vector<int>, vector<double>>(vector<int>& input, vector<double>& output)
 	{
@@ -332,6 +332,15 @@ public:
 		for (int ii = 0; ii < input.size(); ii++)
 		{
 			output[ii] = (double)input[ii];
+		}
+	}
+	template<> void toDouble<vector<vector<int>>, vector<vector<double>>>(vector<vector<int>>& input, vector<vector<double>>& output)
+	{
+		output.resize(input.size(), vector<double>(2));
+		for (int ii = 0; ii < input.size(); ii++)
+		{
+			output[ii][0] = (double)input[ii][0];
+			output[ii][1] = (double)input[ii][1];
 		}
 	}
 

@@ -21,6 +21,7 @@ class IMGFUNC
 	vector<unsigned char> Red = { 255, 0, 0 };
 	vector<int> pointOfOrigin;
 	int width, height, numComponents, recordVictor;
+    double stretchFactor;
 
 public:
 	explicit IMGFUNC() {}
