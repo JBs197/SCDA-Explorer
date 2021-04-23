@@ -1898,7 +1898,7 @@ void MainWindow::on_pB_test_clicked()
     vector<vector<double>> pathBorder, pathBorderShared;
     int error;
     bool frameDone = 0;
-    QPainterPath pathFrame, pathBorder;
+    QPainterPath painterPathFrame, painterPathBorder;
     thread::id myid = this_thread::get_id();
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].

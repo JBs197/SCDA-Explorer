@@ -190,7 +190,7 @@ public:
                 if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
             }
         }
-        vector<vector<int>> corners = frameCorners();
+        vector<vector<double>> corners = frameCorners();
 
         ofstream sPrinter(prompt[1].c_str(), ios::trunc);
         auto report = sPrinter.rdstate();
@@ -239,7 +239,7 @@ public:
                 if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
             }
         }
-        vector<vector<int>> corners = frameCorners();
+        vector<vector<double>> corners = frameCorners();
 
         ofstream sPrinter(prompt[1].c_str(), ios::trunc);
         auto report = sPrinter.rdstate();
