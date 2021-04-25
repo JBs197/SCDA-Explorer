@@ -21,19 +21,40 @@ vector<int> IMGFUNC::borderFindNext(vector<vector<int>> tracks)
     if (tracks.size() < 2) { return candidates[0]; }
     vector<int> originPast = tracks[tracks.size() - 2];
     vector<double> distances = coordDist(originPast, candidates);
-    double minDistance = distances[0];
-    int elimIndex = 0;
-    for (int ii = 1; ii < distances.size(); ii++)
+    double minDistance, dTemp;
+    int elimIndex;
+
+    do
     {
-        if (distances[ii] < minDistance)
+        minDistance = distances[0];
+        elimIndex = 0;
+        for (int ii = 1; ii < distances.size(); ii++)
         {
-            minDistance = distances[ii];
-            elimIndex = ii;
+            if (distances[ii] < minDistance)
+            {
+                minDistance = distances[ii];
+                elimIndex = ii;
+            }
         }
-    }
-    candidates.erase(candidates.begin() + elimIndex);
-    distances.erase(distances.begin() + elimIndex);
+        candidates.erase(candidates.begin() + elimIndex);
+        distances.erase(distances.begin() + elimIndex);
+    } while (candidates.size() > 2);
     if (candidates.size() == 1) { return candidates[0]; }
+
+    // There can only be two candidates remaining. If the 
+    // candidates' distance values are within the tolerance 
+    // percentage, count interior zone (white) pixels to decide. 
+    // Otherwise, choose the candidate with greater distance.
+    if (distances[0] > distances[1])
+    {
+        dTemp = (distances[0] - distances[1]) / distances[0];
+        if (dTemp > candidateDistanceTolerance) { return candidates[0]; }
+    }
+    else
+    {
+        dTemp = (distances[1] - distances[0]) / distances[1];
+        if (dTemp > candidateDistanceTolerance) { return candidates[1]; }
+    }
 
     sZone = "white";
     vector<int> rgbCount(candidates.size());
@@ -182,16 +203,6 @@ int IMGFUNC::coordRGB(vector<vector<int>> cPath, string sZone)
         if (szone == sZone) { count++; }
     }
     return count;
-}
-vector<vector<int>> IMGFUNC::coordShift(vector<vector<int>>& coordList, vector<int> DxDy)
-{
-    vector<vector<int>> coordListShifted(coordList.size(), vector<int>(2));
-    for (int ii = 0; ii < coordList.size(); ii++)
-    {
-        coordListShifted[ii][0] = coordList[ii][0] + DxDy[0];
-        coordListShifted[ii][1] = coordList[ii][1] + DxDy[1];
-    }
-    return coordListShifted;
 }
 vector<int> IMGFUNC::coordStoi(string& sCoords)
 {
@@ -469,17 +480,25 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
     if (!mapIsInit()) { initMapColours(); }
     pngLoad(prompt[0]);
     vector<vector<double>> corners = frameCorners();
-    double widthLabel = ;
-    double heightBIN = corners[2][1] - corners[0][1];
-    if (widthBIN / (double)width > heightBIN / (double)height)
+    size_t pos1 = prompt[2].find(',');
+    string temp = prompt[2].substr(0, pos1);
+    string temp2 = prompt[2].substr(pos1 + 1);
+    double widthLabel, heightLabel;
+    try
     {
-        if (widthBIN / (double)width >= 1.0) { stretchFactor = (double)width / widthBIN; }
-        else { stretchFactor = widthBIN / (double)width; }
+        widthLabel = stod(temp);
+        heightLabel = stod(temp2);
+    }
+    catch (invalid_argument& ia) { jf.err("stod-im.pngToBinLive"); }
+    double widthDemSup = (double)width / widthLabel;
+    double heightDemSup = (double)height / heightLabel;
+    if (widthDemSup > heightDemSup)
+    {
+        stretchFactor = 1.0 / widthDemSup;
     }
     else
     {
-        if (heightBIN / (double)height >= 1.0) { stretchFactor = (double)height / heightBIN; }
-        else { stretchFactor = heightBIN / (double)height; }
+        stretchFactor = 1.0 / heightDemSup;
     }
     success = sbgui.push(myid);
     if (success)
@@ -496,9 +515,10 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
     vector<vector<int>> vBorderPath(1, vector<int>());
     vBorderPath[0] = borderFindStart();
     vector<vector<int>> tracks;
+    int sizeVBP = 1;
     while (1)
     {
-        if (vBorderPath.size() > 3)
+        if (sizeVBP > 3)
         {
             tracks[0] = tracks[1];
             tracks[1] = tracks[2];
@@ -509,6 +529,7 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
             tracks = vBorderPath;
         }
         vBorderPath.push_back(borderFindNext(tracks));
+        sizeVBP++;
         success = sbgui.push(myid);
         if (success)
         {
@@ -526,7 +547,7 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
                 if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
             }
         }
-        if (vBorderPath.size() > 10)
+        if (sizeVBP > 10)
         {
             if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
         }

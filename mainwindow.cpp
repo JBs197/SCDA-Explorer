@@ -77,8 +77,10 @@ void MainWindow::initialize()
     ui->treeW_statscan->setVisible(0);
     ui->treeW_maps->setGeometry(0, 0, 921, 461);
     ui->treeW_maps->setVisible(0);
-    ui->label_maps->setGeometry(0, 0, 920, 450);
+    ui->label_maps->setGeometry(0, 0, 710, 450);
     ui->label_maps->setVisible(0);
+    ui->label_maps2->setGeometry(720, 0, 200, 450);
+    ui->label_maps2->setVisible(0);
     ui->pB_usc->setVisible(0);
     ui->pB_download->setVisible(0);
     ui->pB_download->setEnabled(0);
@@ -86,6 +88,8 @@ void MainWindow::initialize()
     ui->pte_webinput->setGeometry(370, 530, 241, 41);
     ui->pte_localinput->setVisible(1);
     ui->pte_localinput->setGeometry(810, 530, 81, 41);
+    ui->pB_localmaps->setVisible(0);
+    ui->pB_localmaps->setGeometry(720, 530, 81, 41);
 
     // Initialize the progress bar with blanks.
     reset_bar(100, " ");
@@ -279,11 +283,14 @@ void MainWindow::update_mode()
         ui->treeW_statscan->setVisible(0);
         ui->treeW_maps->setVisible(0);
         ui->label_maps->setVisible(0);
+        ui->label_maps2->setVisible(0);
         ui->pB_usc->setVisible(0);
         ui->pte_webinput->setVisible(0);
         ui->pte_localinput->setVisible(1);
         ui->pB_search->setVisible(1);
         ui->pB_download->setVisible(0);
+        ui->pB_viewtable->setVisible(1);
+        ui->pB_localmaps->setVisible(0);
         break;
     case 1:
         ui->tabW_results->setVisible(0);
@@ -294,11 +301,14 @@ void MainWindow::update_mode()
         ui->treeW_statscan->setVisible(1);
         ui->treeW_maps->setVisible(1);
         ui->label_maps->setVisible(1);
+        ui->label_maps2->setVisible(1);
         ui->pB_usc->setVisible(1);
         ui->pte_webinput->setVisible(1);
         ui->pte_localinput->setVisible(0);
         ui->pB_search->setVisible(0);
         ui->pB_download->setVisible(1);
+        ui->pB_viewtable->setVisible(0);
+        ui->pB_localmaps->setVisible(1);
         break;
     }
 }
@@ -1234,7 +1244,7 @@ void MainWindow::on_pB_usc_clicked()
         qtemp = QString::fromStdString(sname);
         qnode->setText(0, qtemp);
         ui->treeW_statscan->addTopLevelItem(qnode);
-        populateQtree(qnode, sname);
+        populateQtree(jt, qnode, sname);
         ui->treeW_statscan->expandAll();
         break;
     }
@@ -1247,7 +1257,7 @@ void MainWindow::on_pB_usc_clicked()
         slayer = jf.textParser(webpage, navSearch[1]);
         ilayer.assign(slayer.size(), -1);
         jt.addChildren(slayer, ilayer, syear);
-        populateQtree(qSelected[0], syear);
+        populateQtree(jt, qSelected[0], syear);
         qSelected[0]->sortChildren(0, Qt::SortOrder::AscendingOrder);
         break;
     }
@@ -1290,26 +1300,32 @@ void MainWindow::on_pB_usc_clicked()
         }
         jt.deleteChildren(sname);
         jt.addChildren(slayer, ilayer, sname);
-        populateQtree(qSelected[0], sname);
+        populateQtree(jt, qSelected[0], sname);
         qSelected[0]->setExpanded(1);
         break;
     }
     }
+    ui->tabW_online->setCurrentIndex(0);
     int bbq = 1;
 }
-void MainWindow::populateQtree(QTreeWidgetItem*& qparent, string sparent)
+void MainWindow::populateQtree(JTREE& jtx, QTreeWidgetItem*& qparent, string sparent)
 {
     bool twig = 0;
+    bool maps = 0;
     vector<int> ikids;
     vector<string> skids; 
-    jt.listChildren(sparent, skids);
+    jtx.listChildren(sparent, skids);
     if (skids.size() < 1) { return; }  // Leaf node.
     string temp = "CSV Data";
     if (skids[0] == temp)
     {
-        jt.listChildren(sparent, ikids);
+        jtx.listChildren(sparent, ikids);
         twig = 1;
     }
+    string rootName = jtx.getRootName();
+    temp = "Local Maps";
+    if (rootName == temp) { maps = 1; }
+
     QString qtemp;
     QTreeWidgetItem* qkid;
     QList<QTreeWidgetItem*> qkids;
@@ -1323,11 +1339,16 @@ void MainWindow::populateQtree(QTreeWidgetItem*& qparent, string sparent)
             qtemp.setNum(ikids[ii]);
             qkid->setText(1, qtemp);
         }
+        else if (maps)
+        {
+            qtemp = QString::number(0);
+            qkid->setText(1, qtemp);
+        }
         qkids.append(qkid);
     }
     for (int ii = 0; ii < skids.size(); ii++)
     {
-        populateQtree(qkids[ii], skids[ii]);
+        populateQtree(jtx, qkids[ii], skids[ii]);
     }
 }
 
@@ -1887,6 +1908,91 @@ void MainWindow::on_pB_search_clicked()
     }
 }
 
+// Search the database local drive for maps folders. Display the cumulative
+// results as a tree, with only the best map (BIN > PNG > PDF) shown. 
+void MainWindow::on_pB_localmaps_clicked()
+{
+    string pathFolder, search;
+    string nameRoot = "Local Maps";
+    QString qtemp;
+    vector<vector<int>> tree_st;
+    vector<int> tree_ipl;
+    vector<string> tree_pl;
+    QTreeWidgetItem* qnode = nullptr;
+    QList<QTreeWidgetItem*> qfolders;
+    unordered_map<QString, int> mapFolders;
+    int numRoots = ui->treeW_maps->topLevelItemCount();
+    if (numRoots == 0)
+    {
+        // Populate the QTree with the map folders/subfolders.
+        jtMaps.init(nameRoot);
+        pathFolder = sroot + "\\mapsPDF";
+        search = "*";
+        wf.make_tree_local(tree_st, tree_pl, 1, pathFolder, 5, search);
+        tree_ipl.assign(tree_st.size(), 0);  // All folders, so iname = 0.
+        jtMaps.inputTreeSTPL(tree_st, tree_pl, tree_ipl);
+        qnode = new QTreeWidgetItem();
+        qtemp = QString::fromUtf8(nameRoot);
+        qnode->setText(0, qtemp);
+        ui->treeW_maps->addTopLevelItem(qnode);
+        qfolders.append(qnode);
+        populateQtreeList(jtMaps, qnode, nameRoot, qfolders);
+        for (int ii = 0; ii < qfolders.size(); ii++)
+        {
+            mapFolders.emplace(qfolders[ii]->text(0), ii);
+        }
+
+        // Add the BIN map files to the QTree.
+        pathFolder = sroot + "\\mapsBIN\\*.bin";
+        int bbq = 1;
+
+    }
+}
+void MainWindow::populateQtreeList(JTREE& jtx, QTreeWidgetItem*& qparent, string sparent, QList<QTreeWidgetItem*>& qlist)
+{
+    bool twig = 0;
+    bool maps = 0;
+    vector<int> ikids;
+    vector<string> skids;
+    jtx.listChildren(sparent, skids);
+    if (skids.size() < 1) { return; }  // Leaf node.
+    string temp = "CSV Data";
+    if (skids[0] == temp)
+    {
+        jtx.listChildren(sparent, ikids);
+        twig = 1;
+    }
+    string rootName = jtx.getRootName();
+    temp = "Local Maps";
+    if (rootName == temp) { maps = 1; }
+
+    QString qtemp;
+    QTreeWidgetItem* qkid;
+    QList<QTreeWidgetItem*> qkids;
+    for (int ii = 0; ii < skids.size(); ii++)
+    {
+        qtemp = QString::fromUtf8(skids[ii]);
+        qkid = new QTreeWidgetItem(qparent);
+        qkid->setText(0, qtemp);
+        if (twig)
+        {
+            qtemp.setNum(ikids[ii]);
+            qkid->setText(1, qtemp);
+        }
+        else if (maps)
+        {
+            qtemp = QString::number(0);
+            qkid->setText(1, qtemp);
+        }
+        qkids.append(qkid);
+        qlist.append(qkid);
+    }
+    for (int ii = 0; ii < skids.size(); ii++)
+    {
+        populateQtreeList(jtx, qkids[ii], skids[ii], qlist);
+    }
+}
+
 // (Debug function) Perform a test function.
 // 0 = download given webpage
 // 1 = single file PNG->BIN,  2 = contents of folder PNG->BIN.
@@ -1895,9 +2001,9 @@ void MainWindow::on_pB_test_clicked()
 {
     string temp, pathPNG, pathBIN, dirPNG, dirBIN;
     vector<string> prompt, dirt, soap, slist;
-    vector<vector<double>> pathBorder, pathBorderShared;
+    vector<vector<double>> pathBorder, pathBorderShared, pathBorderSegment;
     vector<double> mapShift;
-    int error, inum;
+    int error, inum, coordX, coordY;
     bool frameDone = 0;
     QPainterPath painterPathBorder;
     thread::id myid = this_thread::get_id();
@@ -1905,9 +2011,10 @@ void MainWindow::on_pB_test_clicked()
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
 
     int mode = 1;
-    //dirPNG = sroot + "\\debug\\displayBIN";
-    pathPNG = sroot + "\\debug\\displayBIN\\Alberta.png";
-    pathBIN = sroot + "\\debug\\displayBIN\\Alberta.bin";
+    //dirPNG = sroot + "\\mapsPNG\\cmaca";
+    //dirBIN = sroot + "\\mapsBIN\\cmaca";
+    pathPNG = sroot + "\\mapsPNG\\province\\British Columbia or Colombie-Britannique.png";
+    pathBIN = sroot + "\\mapsBIN\\province\\British Columbia or Colombie-Britannique.bin";
     qf.initPixmap(ui->label_maps);
     switch (mode)
     {
@@ -1921,8 +2028,9 @@ void MainWindow::on_pB_test_clicked()
     }
     case 1:
     {
-        prompt.resize(3);  // Form [pathPNG, pathBIN, (w,h)].
+        prompt.resize(3);  // Form [pathPNG, pathBIN, "w,h"].
         prompt[0] = pathPNG;
+        prompt[1] = pathBIN;
         if (pathPNG.size() < 1)
         {
             reset_bar(100, "No PNG path specified.");
@@ -1935,7 +2043,10 @@ void MainWindow::on_pB_test_clicked()
             soap = { "BIN", ".bin" };
             jf.clean(prompt[1], dirt, soap);       
         }
-
+        inum = ui->label_maps->width();
+        prompt[2] = to_string(inum) + ",";
+        inum = ui->label_maps->height();
+        prompt[2] += to_string(inum);
         error = sb.start_call(myid, cores, comm[0]);
         if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
         sb.set_prompt(myid, prompt);
@@ -1946,7 +2057,7 @@ void MainWindow::on_pB_test_clicked()
     }
     case 2:
     {
-        prompt.resize(2);
+        prompt.resize(3);
         if (dirPNG.size() < 1)
         {
             reset_bar(100, "No PNG folder directory specified.");
@@ -1959,7 +2070,12 @@ void MainWindow::on_pB_test_clicked()
             soap = { "BIN", ".bin" };
             jf.clean(dirBIN, dirt, soap);
         }
-        
+        if (!wf.file_exist(dirPNG)) { wf.makeDir(dirPNG); }
+        if (!wf.file_exist(dirBIN)) { wf.makeDir(dirBIN); }
+        inum = ui->label_maps->width();
+        prompt[2] = to_string(inum) + ",";
+        inum = ui->label_maps->height();
+        prompt[2] += to_string(inum);
         slist = wf.get_file_list(dirPNG, "*.png");
         for (int ii = 0; ii < slist.size(); ii++)
         {
@@ -1986,6 +2102,10 @@ void MainWindow::on_pB_test_clicked()
     }
     }
 
+    string sMessage;
+    QString qMessage;
+    vector<int> dotColours = { 1, 3, 4, 5 };
+    vector<vector<int>> dots;
     while (1)
     {
         Sleep(gui_sleep);
@@ -1999,7 +2119,7 @@ void MainWindow::on_pB_test_clicked()
                 Sleep(10);
                 comm = sb.update(myid, comm[0]);
             }
-            mapShift.resize(3);
+            mapShift.resize(3);            // Form [Dx, Dy, stretchFactor].
             mapShift[0] = -1.0 * pathBorderShared[0][0];
             mapShift[1] = -1.0 * pathBorderShared[0][1];
             mapShift[2] = pathBorderShared[4][0];
@@ -2009,8 +2129,28 @@ void MainWindow::on_pB_test_clicked()
         }
         pathBorder = pathBorderShared;
         sb.done(myid);
-        painterPathBorder = qf.pathMake(pathBorder, mapShift);
-        qf.displayPainterPath(ui->label_maps, painterPathBorder);
+        im.coordShift(pathBorder, mapShift);
+        painterPathBorder = qf.pathMake(pathBorder);
+        if (pathBorder.size() >= 4)
+        {
+            pathBorderSegment.assign(pathBorder.begin() + pathBorder.size() - 4, pathBorder.begin() + pathBorder.size());
+        }
+        else
+        {
+            pathBorderSegment.assign(pathBorder.begin(), pathBorder.end());
+        }
+        dots = qf.dotsMake(pathBorderSegment, dotColours);
+        qf.displayPainterPathDots(ui->label_maps, painterPathBorder, dots);
+        sMessage = to_string(pathBorder.size()) + " border points shown.\n";
+        for (int ii = 0; ii < 4; ii++)
+        {
+            coordX = int(pathBorder[pathBorder.size() - 1 - ii][0]);
+            coordY = int(pathBorder[pathBorder.size() - 1 - ii][1]);
+            sMessage += "Last-" + to_string(ii) + ": (" + to_string(coordX);
+            sMessage += "," + to_string(coordY) + ")\n";
+        }
+        qMessage = QString::fromStdString(sMessage);
+        ui->label_maps2->setText(qMessage);
         QCoreApplication::processEvents();
         if (comm[1][0] == 1 || comm[1][0] == -2)
         {
@@ -2022,6 +2162,8 @@ void MainWindow::on_pB_test_clicked()
             break;           // Manager reports task finished/cancelled.
         }
     }
+
+
 
     //string dirPDF = sroot + "\\mapsPDF\\province\\cmaca";
     //gf.folderConvert(dirPDF);

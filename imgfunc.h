@@ -13,6 +13,7 @@ class IMGFUNC
 {
 	vector<vector<int>> borderRegion;  // Sequence of coords that represent the region's border.
 	int borderThickness = 6;
+    double candidateDistanceTolerance = 0.4;  // Final two candidates: colour count or distance! 
 	vector<unsigned char> dataPNG, debugDataPNG;
 	bool debug = 0;
     string pathActivePNG;
@@ -32,7 +33,6 @@ public:
 	vector<int> coordMid(vector<vector<int>>& vCoords);
     vector<vector<int>> coordPath(vector<vector<int>> startStop);
     int coordRGB(vector<vector<int>> startStop, string szone);
-    vector<vector<int>> coordShift(vector<vector<int>>& coordList, vector<int> DxDy);
     vector<int> coordStoi(string& sCoords);
 	void drawMarker(vector<unsigned char>& img, vector<int>& vCoord);
     vector<vector<double>> frameCorners();
@@ -125,139 +125,31 @@ public:
         return octoRGB;
     }
 
-    template<typename ... Args> void coordScale(vector<vector<int>>& coordList, double scaleFactor, Args& ... args)
+    template<typename ... Args> void coordShift(Args& ... args)
     {
-
+        jf.err("coordShift template-im");
     }
-    template<> void coordScale<vector<vector<int>>>(vector<vector<int>>& coordList, double scaleFactor, vector<vector<int>>& coordListScaled)
+    template<> void coordShift<vector<vector<double>>, vector<double>>(vector<vector<double>>& listCoord, vector<double>& mapShift)
     {
-        coordListScaled.resize(coordList.size(), vector<int>(2));
-        double dtemp0, dtemp1;
-        for (int ii = 0; ii < coordList.size(); ii++)
+        double coordX, coordY;
+        for (int ii = 0; ii < listCoord.size(); ii++)
         {
-            dtemp0 = (double)coordList[ii][0] * scaleFactor;
-            dtemp0 = round(dtemp0);
-            coordListScaled[ii][0] = int(dtemp0);
-            dtemp1 = (double)coordList[ii][1] * scaleFactor;
-            dtemp1 = round(dtemp1);
-            coordListScaled[ii][1] = int(dtemp1);
+            coordX = listCoord[ii][0];
+            coordY = listCoord[ii][1];
+            listCoord[ii][0] = (coordX + mapShift[0]) * mapShift[2];
+            listCoord[ii][1] = (coordY + mapShift[1]) * mapShift[2];
         }
     }
-    template<> void coordScale<vector<vector<double>>>(vector<vector<int>>& coordList, double scaleFactor, vector<vector<double>>& coordListScaled)
+    template<> void coordShift<vector<vector<int>>, vector<double>, vector<vector<double>>>(vector<vector<int>>& listCoord, vector<double>& mapShift, vector<vector<double>>& listShifted)
     {
-        coordListScaled.resize(coordList.size(), vector<double>(2));
-        double dtemp0, dtemp1;
-        for (int ii = 0; ii < coordList.size(); ii++)
+        listShifted.resize(listCoord.size(), vector<double>(2));
+        for (int ii = 0; ii < listCoord.size(); ii++)
         {
-            dtemp0 = (double)coordList[ii][0] * scaleFactor;
-            coordListScaled[ii][0] = round(dtemp0);
-            dtemp1 = (double)coordList[ii][1] * scaleFactor;
-            coordListScaled[ii][1] = round(dtemp1);
+            listShifted[ii][0] = ((double)listCoord[ii][0] + mapShift[0]) * mapShift[2];
+            listShifted[ii][1] = ((double)listCoord[ii][1] + mapShift[1]) * mapShift[2];
         }
     }
 
-    template<typename ... Args> void pngToBin(SWITCHBOARD& sbgui, Args& ... args)
-    {
-
-    }
-    template<> void pngToBin< >(SWITCHBOARD& sbgui)
-    {
-        vector<int> mycomm;
-        vector<vector<int>> comm_gui;
-        thread::id myid = this_thread::get_id();
-        sbgui.answer_call(myid, mycomm);
-        vector<string> prompt = sbgui.get_prompt();
-
-        if (!mapIsInit()) { initMapColours(); }
-        pngLoad(prompt[0]);
-        vector<vector<int>> vBorderPath(1, vector<int>());
-        vBorderPath[0] = borderFindStart();
-        vector<vector<int>> tracks;
-        while (1)
-        {
-            if (vBorderPath.size() > 3)
-            {
-                tracks[0] = tracks[1];
-                tracks[1] = tracks[2];
-                tracks[2] = vBorderPath[vBorderPath.size() - 1];
-            }
-            else
-            {
-                tracks = vBorderPath;
-            }
-            vBorderPath.push_back(borderFindNext(tracks));
-            if (vBorderPath.size() > 10)
-            {
-                if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
-            }
-        }
-        vector<vector<double>> corners = frameCorners();
-
-        ofstream sPrinter(prompt[1].c_str(), ios::trunc);
-        auto report = sPrinter.rdstate();
-        sPrinter << "//frame" << endl;
-        for (int ii = 0; ii < corners.size(); ii++)
-        {
-            sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
-        }
-        sPrinter << endl;
-
-        sPrinter << "//border" << endl;
-        for (int ii = 0; ii < vBorderPath.size(); ii++)
-        {
-            sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
-        }
-
-    }
-    template<> void pngToBin<vector<vector<int>>>(SWITCHBOARD& sbgui, vector<vector<int>>& border)
-    {
-        vector<int> mycomm;
-        vector<vector<int>> comm_gui;
-        thread::id myid = this_thread::get_id();
-        sbgui.answer_call(myid, mycomm);
-        vector<string> prompt = sbgui.get_prompt();
-
-        if (!mapIsInit()) { initMapColours(); }
-        pngLoad(prompt[0]);
-        vector<vector<int>> vBorderPath(1, vector<int>());
-        vBorderPath[0] = borderFindStart();
-        vector<vector<int>> tracks;
-        while (1)
-        {
-            if (vBorderPath.size() > 3)
-            {
-                tracks[0] = tracks[1];
-                tracks[1] = tracks[2];
-                tracks[2] = vBorderPath[vBorderPath.size() - 1];
-            }
-            else
-            {
-                tracks = vBorderPath;
-            }
-            vBorderPath.push_back(borderFindNext(tracks));
-            if (vBorderPath.size() > 10)
-            {
-                if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
-            }
-        }
-        vector<vector<double>> corners = frameCorners();
-
-        ofstream sPrinter(prompt[1].c_str(), ios::trunc);
-        auto report = sPrinter.rdstate();
-        sPrinter << "//frame" << endl;
-        for (int ii = 0; ii < corners.size(); ii++)
-        {
-            sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
-        }
-        sPrinter << endl;
-
-        sPrinter << "//border" << endl;
-        for (int ii = 0; ii < vBorderPath.size(); ii++)
-        {
-            sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
-        }
-
-    }
 
 };
 

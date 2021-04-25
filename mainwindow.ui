@@ -449,7 +449,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="tab">
      <attribute name="title">
@@ -501,12 +501,26 @@
         <height>451</height>
        </rect>
       </property>
+      <property name="columnCount">
+       <number>2</number>
+      </property>
       <attribute name="headerVisible">
        <bool>false</bool>
+      </attribute>
+      <attribute name="headerMinimumSectionSize">
+       <number>300</number>
+      </attribute>
+      <attribute name="headerDefaultSectionSize">
+       <number>300</number>
       </attribute>
       <column>
        <property name="text">
         <string notr="true">1</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string notr="true">2</string>
        </property>
       </column>
      </widget>
@@ -520,7 +534,20 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>231</width>
+        <width>151</width>
+        <height>451</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+     <widget class="QLabel" name="label_maps2">
+      <property name="geometry">
+       <rect>
+        <x>158</x>
+        <y>0</y>
+        <width>71</width>
         <height>451</height>
        </rect>
       </property>
@@ -590,6 +617,20 @@
      <string>Download</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pB_localmaps">
+    <property name="geometry">
+     <rect>
+      <x>600</x>
+      <y>530</y>
+      <width>21</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>View 
+ Local Maps</string>
+    </property>
+   </widget>
    <zorder>cB_drives</zorder>
    <zorder>pB_scan</zorder>
    <zorder>pB_insert</zorder>
@@ -611,6 +652,7 @@
    <zorder>pte_localinput</zorder>
    <zorder>pB_search</zorder>
    <zorder>pB_download</zorder>
+   <zorder>pB_localmaps</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

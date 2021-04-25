@@ -49,56 +49,46 @@ void QTFUNC::displayBin(QLabel*& qlabel, string& pathBIN)
 	}
 	
 	// Scale and shift the coordinates to fit the display window.
-	int widthPm = pm.width();
-	int heightPm = pm.height();
-	int widthFrame = frameCorners[2][0] - frameCorners[0][0];
-	int heightFrame = frameCorners[2][1] - frameCorners[0][1];
-	double ratioWidth = (double)widthFrame / (double)widthPm;
-	double ratioHeight = (double)heightFrame / (double)heightPm;
-	double scaleFactor;
-	if (ratioWidth >= 1.0 || ratioHeight >= 1.0)
+	if (pmCanvas.isNull()) { initPixmap(qlabel); }
+	vector<double> mapShift(3);
+	mapShift[0] = -1.0 * (double)frameCorners[0][0];
+	mapShift[1] = -1.0 * (double)frameCorners[0][1];
+	double widthPm = (double)pmCanvas.width();
+	double heightPm = (double)pmCanvas.height();
+	double widthFrame = (double)(frameCorners[2][0] - frameCorners[0][0]);
+	double heightFrame = (double)(frameCorners[2][1] - frameCorners[0][1]);
+	double ratioWidth = widthFrame / widthPm;
+	double ratioHeight = heightFrame / heightPm;
+	if (ratioHeight >= ratioWidth)
 	{
-		if (ratioHeight >= ratioWidth)
-		{
-			scaleFactor = 1.0 / ratioHeight;
-		}
-		else
-		{
-			scaleFactor = 1.0 / ratioWidth;
-		}
+		mapShift[2] = 1.0 / ratioHeight;
 	}
-	vector<int> DxDy(2);
-	DxDy[0] = -1 * frameCorners[0][0];
-	DxDy[1] = -1 * frameCorners[0][1];
-	vector<vector<int>> frameCornersShifted = im.coordShift(frameCorners, DxDy);
-	vector<vector<int>> frameCornersScaled;
-	im.coordScale(frameCornersShifted, scaleFactor, frameCornersScaled);
-	vector<vector<int>> borderShifted = im.coordShift(border, DxDy);
-	vector<vector<double>> borderScaled;
-	im.coordScale(borderShifted, scaleFactor, borderScaled);
+	else
+	{
+		mapShift[2] = 1.0 / ratioWidth;
+	}
+	vector<vector<double>> borderShifted;
+	im.coordShift(border, mapShift, borderShifted);
 
 	// Paint the coordinates onto the GUI window.
-	QRect frame = QRect(frameCornersScaled[0][0], frameCornersScaled[0][1], frameCornersScaled[2][0] - frameCornersScaled[0][0], frameCornersScaled[2][1] - frameCornersScaled[0][1]);
-	QPainter* painter = new QPainter(&pm);
-	QBrush brush = QBrush(Qt::black, Qt::SolidPattern);
-	QPen pen = QPen(brush, 4.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+	pmPainting = QPixmap(pmCanvas);
+	QPainter* painter = new QPainter(&pmPainting);
+	QPen pen = QPen(colourDefault, 3.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 	painter->setPen(pen);
-	painter->drawRect(frame);
-	QPainterPath path = pathMake(borderScaled);
+	QPainterPath path = pathMake(borderShifted);
 	painter->drawPath(path);
-	qlabel->setPixmap(pm);
-	int height = pm.height();
-	int width = pm.width();
+	qlabel->setPixmap(pmPainting);
 	int bbq = 1;
 }
 void QTFUNC::displayPainterPath(QLabel*& qlabel, QPainterPath& path)
 {
-	QPainter* painter = new QPainter(&pm);
-	QBrush brush = QBrush(Qt::black, Qt::SolidPattern);
-	QPen pen = QPen(brush, 4.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+	if (pmCanvas.isNull()) { initPixmap(qlabel); }
+	pmPainting = QPixmap(pmCanvas);
+	QPainter* painter = new QPainter(&pmPainting);
+	QPen pen = QPen(colourDefault, 3.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 	painter->setPen(pen);
 	painter->drawPath(path);
-	qlabel->setPixmap(pm);
+	qlabel->setPixmap(pmPainting);
 }
 void QTFUNC::displayText(QLabel* ql, string stext)
 {
@@ -124,8 +114,43 @@ void QTFUNC::initPixmap(QLabel* qlabel)
 {
 	int width = qlabel->width();
 	int height = qlabel->height();
-	pm = QPixmap(width, height);
-	pm.fill();
+	pmCanvas = QPixmap(width, height);
+	pmCanvas.fill();
+}
+QPainterPath QTFUNC::pathMakeCircle(vector<double> origin, double radius, int sides)
+{
+	double angleInc = 6.283185307 / (double)sides;
+	vector<vector<double>> vCoords(sides, vector<double>(2));
+	for (int ii = 0; ii < sides; ii++)
+	{
+		vCoords[ii][0] = origin[0] + (radius * cos((double)ii * angleInc));
+		vCoords[ii][1] = origin[1] + (radius * sin((double)ii * angleInc));
+	}
+	QPainterPath path;
+	path.moveTo(vCoords[0][0], vCoords[0][1]);
+	for (int ii = 1; ii < sides; ii++)
+	{
+		path.lineTo(vCoords[ii][0], vCoords[ii][1]);
+	}
+	path.closeSubpath();
+	return path;
+}
+void QTFUNC::pmPainterReset(QLabel*& qlabel)
+{
+	if (pmCanvas.isNull()) { initPixmap(qlabel); }
+	if (painter.isActive()) { painter.end(); }
+	pmPainting = QPixmap(pmCanvas);
+	painter.begin(&pmPainting);
+
+	pen.setColor(colourDefault);
+	pen.setWidth(3);
+	pen.setStyle(Qt::SolidLine);
+	pen.setCapStyle(Qt::RoundCap);
+	pen.setJoinStyle(Qt::RoundJoin);
+
+	brush.setColor(colourDefault);
+	brush.setStyle(Qt::SolidPattern);
+
 }
 void QTFUNC::set_display_root(QTreeWidget* name, int val)
 {

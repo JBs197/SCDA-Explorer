@@ -38,7 +38,7 @@ public:
     GSFUNC gf;
     IMGFUNC im;
     JFUNC jf;
-    JTREE jt;
+    JTREE jt, jtMaps;
     QTFUNC qf;
     SWITCHBOARD sb;
     SQLFUNC sf;
@@ -71,6 +71,7 @@ private slots:
     void on_pB_usc_clicked();
     void on_pB_search_clicked();
     void on_pB_download_clicked();
+    void on_pB_localmaps_clicked();
 
 private:
     Ui::MainWindow *ui;
@@ -117,7 +118,8 @@ private:
     void downloader(SWITCHBOARD&);
     void downloadMaps(SWITCHBOARD&);
     vector<string> extract_gids(string);
-    void populateQtree(QTreeWidgetItem*&, string);
+    void populateQtree(JTREE&, QTreeWidgetItem*&, string);
+    void populateQtreeList(JTREE&, QTreeWidgetItem*&, string, QList<QTreeWidgetItem*>&);
     vector<string> notDownloaded(string syear, string sname);
     vector<string> notInserted(string sCata);
     void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
