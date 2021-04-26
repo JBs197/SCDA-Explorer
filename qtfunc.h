@@ -23,15 +23,19 @@ class QTFUNC
 	QPainter painter;
 	QPen pen;
 	QPixmap pmCanvas, pmPainting;
+	QRectF rect;
 
 public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
 	void displayBin(QLabel*& qlabel, string& pathBIN);
+	void displayDebug(QLabel*& qlabel, string& pathPNG);
 	void displayPainterPath(QLabel*& qlabel, QPainterPath& path);
 	void displayText(QLabel*, string stext);
 	void display_subt(QTreeWidget*, QTreeWidgetItem*);
+	void drawDotsDebug(QPainter& qpaint, vector<vector<double>>& dots);
 	void drawFrame(QPixmap& pm, vector<vector<int>>& topleftBotright);
+	void drawLinesDebug(QPainter& qpaint, vector<vector<double>>& lines);
 	void initPixmap(QLabel* qlabel);
 	void err(string);
 	int get_display_root(QTreeWidget*);

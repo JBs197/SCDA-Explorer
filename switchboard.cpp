@@ -109,3 +109,13 @@ bool SWITCHBOARD::done(thread::id id)
 	//qDebug() << "SB did not release " << pindex;
 	return 1;
 }
+
+// Functions related to the transfer of binary data between callers.
+void SWITCHBOARD::getDoubleData(vector<vector<vector<double>>>& doubleData)
+{
+	doubleData = sbDoubleData;
+}
+void SWITCHBOARD::setDoubleData(vector<vector<vector<double>>>& doubleData)
+{
+	sbDoubleData = doubleData;
+}

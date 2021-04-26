@@ -19,6 +19,7 @@ class SWITCHBOARD                                           // comm protocol:
 	vector<string> sprompt;                   // Form [prompt0, prompt1, ...].	
 	int workers;
 	int manager_use;
+	vector<vector<vector<double>>> sbDoubleData;
 
 public:
 	explicit SWITCHBOARD() {}
@@ -26,9 +27,11 @@ public:
 	int start_call(thread::id, int, vector<int>&);  
 	int answer_call(thread::id, vector<int>&);
 	int end_call(thread::id);
-	vector<vector<int>> update(thread::id, vector<int>&);
-	void set_prompt(thread::id, vector<string>&);
+	void getDoubleData(vector<vector<vector<double>>>& doubleData);
 	vector<string> get_prompt();
+	vector<vector<int>> update(thread::id, vector<int>&);
+	void setDoubleData(vector<vector<vector<double>>>& doubleData);
+	void set_prompt(thread::id, vector<string>&);
 	bool done(thread::id);
 	bool push(thread::id);
 	int pull(thread::id, int);

@@ -94,9 +94,6 @@ void MainWindow::initialize()
     // Initialize the progress bar with blanks.
     reset_bar(100, " ");
 
-    // Initialize networking capabilities.
-    //qnam = new QNetworkAccessManager(this);
-
     // Reset the log file.
     wf.delete_file(sroot + "\\SCDA Process Log.txt");
     log("MainWindow initialized.");
@@ -2006,6 +2003,7 @@ void MainWindow::on_pB_test_clicked()
     int error, inum, coordX, coordY;
     bool frameDone = 0;
     QPainterPath painterPathBorder;
+    vector<std::thread> tapestry;
     thread::id myid = this_thread::get_id();
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
@@ -2100,21 +2098,71 @@ void MainWindow::on_pB_test_clicked()
         qf.displayBin(ui->label_maps, pathBIN);
         return;
     }
+    case 4:
+    {
+        prompt.resize(3);  // Form [pathPNG, pathBIN, "w,h"].
+        prompt[0] = pathPNG;
+        prompt[1] = pathBIN;
+        if (pathPNG.size() < 1)
+        {
+            reset_bar(100, "No PNG path specified.");
+            return;
+        }
+        else if (pathBIN.size() < 1)
+        {
+            prompt[1] = pathPNG;
+            dirt = { "PNG", ".png" };
+            soap = { "BIN", ".bin" };
+            jf.clean(prompt[1], dirt, soap);
+        }
+        inum = ui->label_maps->width();
+        prompt[2] = to_string(inum) + ",";
+        inum = ui->label_maps->height();
+        prompt[2] += to_string(inum);
+        error = sb.start_call(myid, cores, comm[0]);
+        if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
+        sb.set_prompt(myid, prompt);
+        std::thread dl(&IMGFUNC::pngToBinLiveDebug, ref(im), ref(sb), ref(pathBorderShared));
+        dl.detach();
+        reset_bar(100, "Converting " + pathPNG);
+        break;
+    }
     }
 
     string sMessage;
     QString qMessage;
     vector<int> dotColours = { 1, 3, 4, 5 };
     vector<vector<int>> dots;
+    vector<vector<vector<double>>> importDouble;
+    QPixmap pmDebug;
+    QImage imgDebug;
+    string pathImg = sroot + "\\debug\\tempDebug.png";
+    if (mode == 4)
+    {
+        while (1)  // Manager thread has binary data for GUI thread.
+        {
+            Sleep(50);
+            comm = sb.update(myid, comm[0]);
+            if (comm[1][0] == 3)
+            {
+                qf.displayDebug(ui->label_maps, pathImg);
+                QCoreApplication::processEvents();
+                int bbq = 1;
+            }
+
+        }
+    }
+    // RESUME HERE. Make a permanent launch/receive function for PNG->BIN.
     while (1)
     {
         Sleep(gui_sleep);
+        comm = sb.update(myid, comm[0]);
         error = sb.pull(myid, 0);
         if (error < 0) { err("sb.pull-MainWindow.on_pB_test"); }
         if (!frameDone)
         {
             comm = sb.update(myid, comm[0]);
-            while (comm[1][1] == 0)
+            while (comm[1][1] == 0 && comm[1][0] == 0)
             {
                 Sleep(10);
                 comm = sb.update(myid, comm[0]);

@@ -80,6 +80,28 @@ void QTFUNC::displayBin(QLabel*& qlabel, string& pathBIN)
 	qlabel->setPixmap(pmPainting);
 	int bbq = 1;
 }
+void QTFUNC::displayDebug(QLabel*& qlabel, string& pathPNG)
+{
+	int widthImg, heightImg, widthPM, heightPM;
+	QString qtemp = QString::fromUtf8(pathPNG);
+	QImage qimg = QImage(qtemp);
+	widthImg = qimg.width();
+	heightImg = qimg.height();
+	widthPM = qlabel->width();
+	heightPM = qlabel->height();
+	QImage qimgScaled;
+	if ((double)heightImg / (double)heightPM > (double)widthImg / (double)widthPM)
+	{
+		qimgScaled = qimg.scaledToHeight(heightPM);
+	}
+	else
+	{
+		qimgScaled = qimg.scaledToWidth(widthPM);
+	}
+	QPixmap qpm = QPixmap::fromImage(qimgScaled);
+	qlabel->setPixmap(qpm);
+	int bbq = 1;
+}
 void QTFUNC::displayPainterPath(QLabel*& qlabel, QPainterPath& path)
 {
 	if (pmCanvas.isNull()) { initPixmap(qlabel); }
@@ -100,6 +122,29 @@ void QTFUNC::display_subt(QTreeWidget* qview, QTreeWidgetItem* qparent)
 	qview->clear();
 	qview->addTopLevelItem(qparent);
 	qview->expandAll();
+}
+void QTFUNC::drawDotsDebug(QPainter& qpaint, vector<vector<double>>& dots)
+{
+	double topLeftX, topLeftY;
+	QRectF qRF;
+	QBrush qB = qpaint.brush();
+	for (int ii = 0; ii < dots.size(); ii++)
+	{
+		topLeftX = dots[ii][0] - (double)(diameterDefault / 2);
+		topLeftY = dots[ii][1] - (double)(diameterDefault / 2);
+		qRF = QRectF(topLeftX, topLeftY, (double)diameterDefault, (double)diameterDefault);
+		qpaint.fillRect(qRF, qB);
+	}
+}
+void QTFUNC::drawLinesDebug(QPainter& qpaint, vector<vector<double>>& lines)
+{
+	QPainterPath qPP;
+	qPP.moveTo(lines[0][0], lines[0][1]);
+	for (int ii = 1; ii < lines.size(); ii++)
+	{
+		qPP.lineTo(lines[ii][0], lines[ii][1]);
+	}
+	qpaint.drawPath(qPP);
 }
 void QTFUNC::err(string func)
 {

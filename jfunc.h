@@ -197,6 +197,135 @@ public:
 		return 0;
 	}
 
+	template<typename ... Args> int coordCircleClockwise(Args& ... args)
+	{
+		// Takes in three sets of point coordinates (originPast, origin, test).
+		// Define the baseline vector to be the line formed by starting from 
+		// originPast and passing through origin. Define the radius as the distance
+		// between the test point and the origin point. Define the examined circle 
+		// to be the set of points which have this (radius) distance between 
+		// themselves and the origin. Suppose we travel along the circle, starting
+		// from the point of intersection between the circle and the baseline 
+		// vector (NOT originPast). The test point is considered to be "clockwise"
+		// if a clockwise travel direction along the circle is shorter than a 
+		// counter-clockwise travel direction. Likewise, the test point is 
+		// "counter-clockwise" if that travel direction is shorter. Return values
+		// can be 1 = clockwise, 0 = counterclockwise, -1 = neither
+		err("coordCircleClockwise template");
+	}
+	template<> int coordCircleClockwise<vector<vector<double>>>(vector<vector<double>>& coords)
+	{
+		// NOTE: Image coordinates use a reversed y-axis (positive points down) !
+		double baseDx = coords[1][0] - coords[0][0];
+		double baseDy = coords[1][1] - coords[0][1];
+		double testDx = coords[2][0] - coords[1][0];
+		double testDy = coords[2][1] - coords[1][1];
+		int baseQuadrant, testQuadrant;  // [0,3]
+		if (baseDx > 0.0)
+		{
+			if (baseDy < 0.0) { baseQuadrant = 0; }
+			else { baseQuadrant = 3; }
+		}
+		else
+		{
+			if (baseDy < 0.0) { baseQuadrant = 1; }
+			else { baseQuadrant = 2; }
+		}
+		if (testDx > 0.0)
+		{
+			if (testDy < 0.0) { testQuadrant = 0; }
+			else { testQuadrant = 3; }
+		}
+		else
+		{
+			if (testDy < 0.0) { testQuadrant = 1; }
+			else { testQuadrant = 2; }
+		}
+
+		// Adjacent quadrants cases.
+		if (testQuadrant == (baseQuadrant + 1) % 4) { return 0; }
+		if (testQuadrant == (baseQuadrant - 1) % 4) { return 1; }
+
+		// Same/opposite quadrants cases.
+		double phi = atan(baseDy / baseDx);
+		double theta = atan(testDy / testDx);
+		if (baseQuadrant == 0 || baseQuadrant == 2)
+		{
+			if (theta > phi) { return 0; }
+			else { return 1; }
+		}
+		else
+		{
+			if (theta > phi) { return 1; }
+			else { return 0; }
+		}
+	
+		return -1;
+	}
+	template<> int coordCircleClockwise<vector<vector<int>>>(vector<vector<int>>& icoords)
+	{
+		vector<vector<double>> coords;
+		toDouble(icoords, coords);
+
+		double baseDx = coords[1][0] - coords[0][0];
+		double baseDy = coords[1][1] - coords[0][1];
+		double testDx = coords[2][0] - coords[1][0];
+		double testDy = coords[2][1] - coords[1][1];
+		int baseQuadrant, testQuadrant;  // [0,3]
+		if (baseDx > 0.0)
+		{
+			if (baseDy > 0.0) { baseQuadrant = 0; }
+			else { baseQuadrant = 3; }
+		}
+		else
+		{
+			if (baseDy > 0.0) { baseQuadrant = 1; }
+			else { baseQuadrant = 2; }
+		}
+		if (testDx > 0.0)
+		{
+			if (testDy > 0.0) { testQuadrant = 0; }
+			else { testQuadrant = 3; }
+		}
+		else
+		{
+			if (testDy > 0.0) { testQuadrant = 1; }
+			else { testQuadrant = 2; }
+		}
+
+		// Adjacent quadrants cases.
+		if (testQuadrant == (baseQuadrant + 1) % 4) { return 0; }
+		if (testQuadrant == (baseQuadrant - 1) % 4) { return 1; }
+
+		// Same/opposite quadrants cases.
+		double phi = atan(baseDy / baseDx);
+		double theta = atan(testDy / testDx);
+		if (baseQuadrant == 0 || baseQuadrant == 2)
+		{
+			if (theta > phi) { return 0; }
+			else { return 1; }
+		}
+		else
+		{
+			if (theta > phi) { return 1; }
+			else { return 0; }
+		}
+
+		return -1;
+	}
+
+	template<typename ... Args> double coordDist(Args& ... args)
+	{
+		err("coordDist template");
+	}
+	template<> double coordDist<vector<double>, vector<double>>(vector<double>& origin, vector<double>& test)
+	{
+		double xTemp = pow(test[0] - origin[0], 2.0);
+		double yTemp = pow(test[1] - origin[1], 2.0);
+		double radius = sqrt(xTemp + yTemp);
+		return radius;
+	}
+
 	template<typename ... Args> string decToHex(Args& ... args) {}
 	template<> string decToHex<int>(int& idec)
 	{
@@ -336,11 +465,13 @@ public:
 	}
 	template<> void toDouble<vector<vector<int>>, vector<vector<double>>>(vector<vector<int>>& input, vector<vector<double>>& output)
 	{
-		output.resize(input.size(), vector<double>(2));
+		output.resize(input.size(), vector<double>());
 		for (int ii = 0; ii < input.size(); ii++)
 		{
-			output[ii][0] = (double)input[ii][0];
-			output[ii][1] = (double)input[ii][1];
+			for (int jj = 0; jj < input[ii].size(); jj++)
+			{
+				output[ii].push_back((double)input[ii][jj]);
+			}
 		}
 	}
 
