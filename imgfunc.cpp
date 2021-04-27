@@ -1,6 +1,6 @@
 #include "imgfunc.h"
 
-vector<int> IMGFUNC::borderFindNext(vector<vector<int>> tracks)
+vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks)
 {
     vector<int> origin = tracks[tracks.size() - 1];
     int radius = 10 * borderThickness;
@@ -48,10 +48,10 @@ vector<int> IMGFUNC::borderFindNext(vector<vector<int>> tracks)
     vvTemp.resize(2);
     vvTemp[0] = tracks[tracks.size() - 1];
     vvTemp[1] = candidates[0];
-    vector<double> bearings0 = octogonBearing(vvTemp, sZone, radius / 4);
+    vector<double> bearings0 = octogonBearing(sbgui, vvTemp, sZone, radius / 4);
     interiorCounts[0] = bearings0.size();
     vvTemp[1] = candidates[1];
-    vector<double> bearings1 = octogonBearing(vvTemp, sZone, radius / 4);
+    vector<double> bearings1 = octogonBearing(sbgui, vvTemp, sZone, radius / 4);
     interiorCounts[1] = bearings1.size();
     vector<int> goClock(2, 0);
     if (interiorCounts[0] == 0 && interiorCounts[1] > 0)
@@ -68,7 +68,7 @@ vector<int> IMGFUNC::borderFindNext(vector<vector<int>> tracks)
         if (bearings1[0] >= 0.0 && bearings1[0] < 180.0) { goClock[1] = 1; }
         if (goClock[0] + goClock[1] == 1)
         {
-            double percentClock = clockwisePercentage(tracks, sZone);
+            double percentClock = clockwisePercentage(sbgui, tracks, sZone);
             if (percentClock > 0.5)
             {
                 if (goClock[0] == 1) { return candidates[0]; }
@@ -219,7 +219,7 @@ vector<vector<int>> IMGFUNC::checkBoundary(vector<int>& center, vector<int>& sou
     }
     return corners;
 }
-double IMGFUNC::clockwisePercentage(vector<vector<int>>& tracks, string sZone)
+double IMGFUNC::clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone)
 {
     // Returns a percentage [0.0, 1.0] representing how often the chosen
     // zone was clockwise along the given coordinate path. 
@@ -235,12 +235,12 @@ double IMGFUNC::clockwisePercentage(vector<vector<int>>& tracks, string sZone)
         pastPresent[1] = tracks[ii + 1];
         radius = radiusDefault;
         attemptRadius = 0;
-        bearings = octogonBearing(pastPresent, sZone, radius);
+        bearings = octogonBearing(sbgui, pastPresent, sZone, radius);
         while (bearings.size() != 1)
         {
             if (bearings.size() > 1) { radius--; }
             else if (bearings.size() < 1) { radius += 2; }
-            bearings = octogonBearing(pastPresent, sZone, radius);
+            bearings = octogonBearing(sbgui, pastPresent, sZone, radius);
             attemptRadius++;
             if (attemptRadius > 10) { jf.err("Cannot determine bearings-im.clockwisePercentage"); }
         }
@@ -673,7 +673,7 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
         {
             tracks = vBorderPath;
         }
-        vBorderPath.push_back(borderFindNext(tracks));
+        vBorderPath.push_back(borderFindNext(sbgui, tracks));
         sizeVBP++;
         success = sbgui.push(myid);
         if (success)
@@ -868,12 +868,17 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
     // center point's angular deviation from the previous direction of 
     // motion is calculated. The return value is this angle (in degrees)
     // given within the interval [0, 360), for every such zone found. 
+    vector<double> theta;
     vector<vector<int>> octoPath = octogonPath(tracks[tracks.size() - 1], radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
     vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath);
     vector<vector<int>> vvDebug;
     if (lightHouse.size() != 1)
     {
+        if (lightHouse.size() < 1)
+        {
+            return theta;
+        }
         vvDebug.resize(lightHouse.size() + 2, vector<int>(2));
         vvDebug[0] = tracks[tracks.size() - 2];
         vvDebug[1] = tracks[tracks.size() - 1];
@@ -890,7 +895,6 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
             this_thread::sleep_for(chrono::milliseconds(100));
             int bbq = 1;
         }
-
     }
 
     vector<vector<int>> vvTemp(1, vector<int>(2));
@@ -906,7 +910,6 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
 
     int numTri = triangleSides.size() - 2;
     int clockwise;
-    vector<double> theta;
     double phi, cosPhi;
     vector<vector<double>> pastPresentFuture(3, vector<double>(2));
     jf.toDouble(tracks[tracks.size() - 2], pastPresentFuture[0]);

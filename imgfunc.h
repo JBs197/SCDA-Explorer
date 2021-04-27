@@ -36,10 +36,10 @@ class IMGFUNC
 public:
 	explicit IMGFUNC() {}
 	~IMGFUNC() {}
-	vector<int> borderFindNext(vector<vector<int>> tracks);
+	vector<int> borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks);
 	vector<int> borderFindStart();
     vector<vector<int>> checkBoundary(vector<int>& center, vector<int>& sourceDim, vector<int>& extractDim);
-    double clockwisePercentage(vector<vector<int>>& tracks, string sZone);
+    double clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone);
 	vector<double> coordDist(vector<int> zeroZero, vector<vector<int>> coordList);
 	vector<int> coordMid(vector<vector<int>>& vCoords);
     vector<vector<int>> coordPath(vector<vector<int>> startStop);

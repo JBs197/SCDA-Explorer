@@ -1319,7 +1319,8 @@ void MainWindow::populateQtree(JTREE& jtx, QTreeWidgetItem*& qparent, string spa
         jtx.listChildren(sparent, ikids);
         twig = 1;
     }
-    string rootName = jtx.getRootName();
+    //string rootName = jtx.getRootName();
+    string rootName;
     temp = "Local Maps";
     if (rootName == temp) { maps = 1; }
 
@@ -1927,7 +1928,7 @@ void MainWindow::on_pB_localmaps_clicked()
         search = "*";
         wf.make_tree_local(tree_st, tree_pl, 1, pathFolder, 5, search);
         tree_ipl.assign(tree_st.size(), 0);  // All folders, so iname = 0.
-        jtMaps.inputTreeSTPL(tree_st, tree_pl, tree_ipl);
+        //jtMaps.inputTreeSTPL(tree_st, tree_pl, tree_ipl);
         qnode = new QTreeWidgetItem();
         qtemp = QString::fromUtf8(nameRoot);
         qnode->setText(0, qtemp);
@@ -1959,7 +1960,8 @@ void MainWindow::populateQtreeList(JTREE& jtx, QTreeWidgetItem*& qparent, string
         jtx.listChildren(sparent, ikids);
         twig = 1;
     }
-    string rootName = jtx.getRootName();
+    //string rootName = jtx.getRootName();
+    string rootName;
     temp = "Local Maps";
     if (rootName == temp) { maps = 1; }
 
@@ -2157,6 +2159,16 @@ void MainWindow::on_pB_test_clicked()
     {
         Sleep(gui_sleep);
         comm = sb.update(myid, comm[0]);
+        if (comm[1][0] == 3)
+        {
+            qf.displayDebug(ui->label_maps, pathImg);
+            while (1)
+            {
+                QCoreApplication::processEvents();
+                Sleep(50);
+                int bbq = 1;
+            }
+        }
         error = sb.pull(myid, 0);
         if (error < 0) { err("sb.pull-MainWindow.on_pB_test"); }
         if (!frameDone)
