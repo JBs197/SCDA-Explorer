@@ -4,11 +4,13 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
 {
     vector<int> origin = tracks[tracks.size() - 1];
     int radius = 10 * borderThickness;
+    vector<int> originRadius = origin;
+    originRadius.push_back(radius);
     vector<vector<int>> octoPath = octogonPath(origin, radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
     if (debug) { octogonPaint(origin, radius); }
     string sZone = "zoneBorder";
-    vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath);
+    vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath, originRadius);
     vector<vector<int>> vvTemp, cPath;
     while (candidates.size() < 2)
     {
@@ -16,11 +18,12 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         octoPath = octogonPath(origin, radius);
         octoRGB = octogonRGB(octoPath);
         if (debug) { octogonPaint(origin, radius); }
-        candidates = zoneSweep(sZone, octoRGB, octoPath);
+        candidates = zoneSweep(sZone, octoRGB, octoPath, originRadius);
     }
     if (tracks.size() < 2) { return candidates[0]; }
     vector<int> originPast = tracks[tracks.size() - 2];
-    vector<double> distances = coordDist(originPast, candidates);
+    vector<double> distances;
+    coordDist(originPast, candidates, distances);
     double minDistance, dTemp;
     int elimIndex;
 
@@ -249,25 +252,6 @@ double IMGFUNC::clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tra
     double percent = (double)numClockwise / ((double)tracks.size() - 1.0);
     return percent;
 }
-vector<double> IMGFUNC::coordDist(vector<int> origin, vector<vector<int>> cList)
-{
-    vector<double> listDist(cList.size());
-    int inumX, inumY;
-    for (int ii = 0; ii < listDist.size(); ii++)
-    {
-        inumX = (cList[ii][0] - origin[0]) * (cList[ii][0] - origin[0]);
-        inumY = (cList[ii][1] - origin[1]) * (cList[ii][1] - origin[1]);
-        listDist[ii] = sqrt(inumX + inumY);
-    }
-    return listDist;
-}
-vector<int> IMGFUNC::coordMid(vector<vector<int>>& vCoords)
-{
-    vector<int> vMid(2);
-    vMid[0] = (vCoords[0][0] + vCoords[1][0]) / 2;
-    vMid[1] = (vCoords[0][1] + vCoords[1][1]) / 2;
-    return vMid;
-}
 vector<vector<int>> IMGFUNC::coordPath(vector<vector<int>> startStop)
 {
     // Returns a list of coordinates connecting the start and 
@@ -480,7 +464,8 @@ bool IMGFUNC::jobsDone(vector<int> vCoord)
     double winCondition = 10.0 * (double)borderThickness;
     vector<vector<int>> vvTemp(1, vector<int>());
     vvTemp[0] = vCoord;
-    vector<double> dist = coordDist(pointOfOrigin, vvTemp);
+    vector<double> dist;
+    coordDist(pointOfOrigin, vvTemp, dist);
     if (dist[0] < winCondition) { return 1; }
     return 0;
 }
@@ -869,14 +854,25 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
     // motion is calculated. The return value is this angle (in degrees)
     // given within the interval [0, 360), for every such zone found. 
     vector<double> theta;
+    vector<int> originRadius = { tracks[tracks.size()][0], tracks[tracks.size()][1], radius };
     vector<vector<int>> octoPath = octogonPath(tracks[tracks.size() - 1], radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
-    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath);
+    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, originRadius);
     vector<vector<int>> vvDebug;
     if (lightHouse.size() != 1)
     {
         if (lightHouse.size() < 1)
         {
+            return theta;
+        }
+        else if (lightHouse.size() > 1 && radius > 0)
+        {
+            theta = octogonBearing(sbgui, tracks, sZone, radius - 2);
+            return theta;
+        }
+        else 
+        { 
+            theta = { -1.0 };
             return theta;
         }
         vvDebug.resize(lightHouse.size() + 2, vector<int>(2));
@@ -905,7 +901,8 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
     }
     vector<double> triangleSides(1);  // r, a, b, ...
     triangleSides[0] = (double)radius;
-    vector<double> vdTemp = coordDist(tracks[tracks.size() - 2], vvTemp);
+    vector<double> vdTemp;
+    coordDist(tracks[tracks.size() - 2], vvTemp, vdTemp);
     triangleSides.insert(triangleSides.end(), vdTemp.begin(), vdTemp.end());
 
     int numTri = triangleSides.size() - 2;
@@ -1025,58 +1022,9 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
     vBorder.resize(0);
     return vBorder;
 }
-vector<vector<int>> IMGFUNC::zoneSweep(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath)
+vector<vector<int>> IMGFUNC::zoneSweep(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<int>& originRadius)
 {
-    // For a given list of RGB values, return the middle pixel coordinates of every
-    // (desired) szone interval. Commonly used to scan the perimeter of a shape.
-    vector<vector<int>> goldilocks;
-    vector<int> zoneFreezer;
-    vector<vector<int>> startStop(2, vector<int>(2));
-    int index = 0;
-    bool zoneActive = 0;
-    string szone = pixelZone(Lrgb[index]);
-    if (szone == sZone)
-    {
-        while (szone == sZone)
-        {
-            index++;
-            szone = pixelZone(Lrgb[index]);
-        }
-        zoneFreezer = zonePath[index - 1];  // Keep for the end.
-    }
-    index++;
-    while (index < Lrgb.size())
-    {
-        szone = pixelZone(Lrgb[index]);
-        if (szone == sZone)
-        {
-            if (!zoneActive) 
-            {
-                zoneActive = 1; 
-                startStop[0] = zonePath[index];
-            }
-        }
-        else
-        {
-            if (zoneActive)
-            {
-                zoneActive = 0;
-                startStop[1] = zonePath[index];
-                goldilocks.push_back(coordMid(startStop));
-            }
-        }
-        index++;
-    }
-    if (zoneFreezer.size() > 0)
-    {
-        if (!zoneActive)
-        {
-            startStop[0] = zonePath[0];
-        }
-        startStop[1] = zoneFreezer;
-        goldilocks.push_back(coordMid(startStop));
-    }
-    return goldilocks;
+
 }
 void IMGFUNC::zoneSweepDebug(vector<vector<int>>& vCoord, int radius)
 {

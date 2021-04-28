@@ -40,8 +40,6 @@ public:
 	vector<int> borderFindStart();
     vector<vector<int>> checkBoundary(vector<int>& center, vector<int>& sourceDim, vector<int>& extractDim);
     double clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone);
-	vector<double> coordDist(vector<int> zeroZero, vector<vector<int>> coordList);
-	vector<int> coordMid(vector<vector<int>>& vCoords);
     vector<vector<int>> coordPath(vector<vector<int>> startStop);
     int coordRGB(vector<vector<int>> startStop, string szone);
     vector<int> coordStoi(string& sCoords);
@@ -65,10 +63,85 @@ public:
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinLiveDebug(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
-	vector<vector<int>> zoneSweep(string szone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath);
+	vector<vector<int>> zoneSweep(string szone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<int>& originRadius);
     void zoneSweepDebug(vector<vector<int>>& vCoord, int radius);
 
 	// TEMPLATES
+
+    template<typename ... Args> void coordDist(Args& ... args)
+    {
+        jf.err("coordDist.im");
+    }
+    template<> void coordDist<vector<int>, vector<vector<int>>, vector<double>>(vector<int>& origin, vector<vector<int>>& cList, vector<double>& distances)
+    {
+        distances.resize(cList.size());
+        int inumX, inumY;
+        for (int ii = 0; ii < cList.size(); ii++)
+        {
+            inumX = (cList[ii][0] - origin[0]) * (cList[ii][0] - origin[0]);
+            inumY = (cList[ii][1] - origin[1]) * (cList[ii][1] - origin[1]);
+            distances[ii] = sqrt(inumX + inumY);
+        }
+    }
+    template<> void coordDist<vector<vector<double>>, double>(vector<vector<double>>& vCoords, double& distance)
+    {
+        double inumX, inumY;
+        inumX = (vCoords[1][0] - vCoords[0][0]) * (vCoords[1][0] - vCoords[0][0]);
+        inumY = (vCoords[1][1] - vCoords[0][1]) * (vCoords[1][1] - vCoords[0][1]);
+        distance = sqrt(inumX + inumY);
+    }
+
+    template<typename ... Args> vector<int> coordMid(vector<vector<int>>& vCoords, Args& ... args)
+    {
+        // Returns the mid point between the two points specified in vCoords.
+        // If no additional parameter is given, the mid point is taken along
+        // the straight line between vCoords. Otherwise, the mid point is taken
+        // along a circle arc between vCoords. The second 2D vector gives the 
+        // origin point and the radius for the arc. 
+        jf.err("coordMid template.im");
+    }
+    template<> vector<int> coordMid< >(vector<vector<int>>& vCoords)
+    {
+        vector<int> vMid(2);
+        vMid[0] = (vCoords[0][0] + vCoords[1][0]) / 2;
+        vMid[1] = (vCoords[0][1] + vCoords[1][1]) / 2;
+        return vMid;
+    }
+    template<> vector<int> coordMid<vector<int>>(vector<vector<int>>& vCoords, vector<int>& originRadius)
+    {
+        // originRadius has form [xCoord, yCoord, radius].
+        vector<int> vMidArc(2);
+        vector<double> vMidTemp(2);
+        vMidTemp[0] = ((double)vCoords[0][0] + (double)vCoords[1][0]) / 2.0;
+        vMidTemp[1] = ((double)vCoords[0][1] + (double)vCoords[1][1]) / 2.0;
+        double Dx = vMidTemp[0] - originRadius[0];
+        double Dy = vMidTemp[1] - originRadius[1];
+        double theta = atan(Dy / Dx);
+        vector<vector<double>> radialCoords(2, vector<double>(2));
+        radialCoords[0] = { (double)originRadius[0], (double)originRadius[1] };
+        radialCoords[1] = vMidTemp;
+        double distance;
+        coordDist(radialCoords, distance);
+        bool pushOut;
+        double radius = (double)originRadius[2];
+        if (distance < radius) { pushOut = 1; }
+        else if (distance > radius) { pushOut = 0; }
+        else 
+        {
+            vMidArc[0] = int(vMidTemp[0]);
+            vMidArc[1] = int(vMidTemp[1]);
+            return vMidArc;
+        }
+        
+        double DxNew = radius * cos(theta);
+        double DyNew = radius * sin(theta);
+        if (Dx >= 0.0) { vMidArc[0] = int(DxNew); }
+        else { vMidArc[0] = -1 * int(round(DxNew)); }
+        if (Dy >= 0.0) { vMidArc[1] = int(DyNew); }
+        else { vMidArc[1] = -1 * int(round(DyNew)); }
+        
+        return vMidArc;
+    }
 
     template<typename ... Args> void coordShift(Args& ... args)
     {
@@ -300,6 +373,117 @@ public:
             pngExtract.insert(pngExtract.end(), source.begin() + offset, source.begin() + offset + bytesPerRow);
         }
         return pngExtract;
+    }
+
+    template<typename ... Args> vector<vector<int>> zoneSweep(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, Args& ... args)
+    {
+        jf.err("zoneSweep template.im");
+    }
+    template<> vector<vector<int>> zoneSweep< >(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath)
+    {
+        // For a given list of RGB values, return the middle pixel coordinates of every
+        // (desired) szone interval. Commonly used to scan the perimeter of a shape.
+        vector<vector<int>> goldilocks;
+        vector<int> zoneFreezer;
+        vector<vector<int>> startStop(2, vector<int>(2));
+        int index = 0;
+        bool zoneActive = 0;
+        string szone = pixelZone(Lrgb[index]);
+        if (szone == sZone)
+        {
+            while (szone == sZone)
+            {
+                index++;
+                szone = pixelZone(Lrgb[index]);
+            }
+            zoneFreezer = zonePath[index - 1];  // Keep for the end.
+        }
+        index++;
+        while (index < Lrgb.size())
+        {
+            szone = pixelZone(Lrgb[index]);
+            if (szone == sZone)
+            {
+                if (!zoneActive)
+                {
+                    zoneActive = 1;
+                    startStop[0] = zonePath[index];
+                }
+            }
+            else
+            {
+                if (zoneActive)
+                {
+                    zoneActive = 0;
+                    startStop[1] = zonePath[index];
+                    goldilocks.push_back(coordMid(startStop));
+                }
+            }
+            index++;
+        }
+        if (zoneFreezer.size() > 0)
+        {
+            if (!zoneActive)
+            {
+                startStop[0] = zonePath[0];
+            }
+            startStop[1] = zoneFreezer;
+            goldilocks.push_back(coordMid(startStop));
+        }
+        return goldilocks;
+    }
+    template<> vector<vector<int>> zoneSweep<vector<int>>(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<int>& originRadius)
+    {
+        // For a given list of RGB values, return the middle pixel coordinates of every
+        // (desired) szone interval. Commonly used to scan the perimeter of a shape.
+        vector<vector<int>> goldilocks;
+        vector<int> zoneFreezer;
+        vector<vector<int>> startStop(2, vector<int>(2));
+        int index = 0;
+        bool zoneActive = 0;
+        string szone = pixelZone(Lrgb[index]);
+        if (szone == sZone)
+        {
+            while (szone == sZone)
+            {
+                index++;
+                szone = pixelZone(Lrgb[index]);
+            }
+            zoneFreezer = zonePath[index - 1];  // Keep for the end.
+        }
+        index++;
+        while (index < Lrgb.size())
+        {
+            szone = pixelZone(Lrgb[index]);
+            if (szone == sZone)
+            {
+                if (!zoneActive)
+                {
+                    zoneActive = 1;
+                    startStop[0] = zonePath[index];
+                }
+            }
+            else
+            {
+                if (zoneActive)
+                {
+                    zoneActive = 0;
+                    startStop[1] = zonePath[index];
+                    goldilocks.push_back(coordMid(startStop, originRadius));
+                }
+            }
+            index++;
+        }
+        if (zoneFreezer.size() > 0)
+        {
+            if (!zoneActive)
+            {
+                startStop[0] = zonePath[0];
+            }
+            startStop[1] = zoneFreezer;
+            goldilocks.push_back(coordMid(startStop, originRadius));
+        }
+        return goldilocks;
     }
 
 };

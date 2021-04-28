@@ -2202,7 +2202,7 @@ void MainWindow::on_pB_test_clicked()
         dots = qf.dotsMake(pathBorderSegment, dotColours);
         qf.displayPainterPathDots(ui->label_maps, painterPathBorder, dots);
         sMessage = to_string(pathBorder.size()) + " border points shown.\n";
-        for (int ii = 0; ii < 4; ii++)
+        for (int ii = 0; ii < pathBorderSegment.size(); ii++)
         {
             coordX = int(pathBorder[pathBorder.size() - 1 - ii][0]);
             coordY = int(pathBorder[pathBorder.size() - 1 - ii][1]);

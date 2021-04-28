@@ -196,7 +196,7 @@ public:
 	}
 	template<> vector<vector<int>> dotsMake<vector<vector<double>>, vector<int>>(vector<vector<double>>& coords, vector<int>& colours)
 	{
-		if (coords.size() != colours.size()) { err("coord-colour mismatch-qf.dotsMake"); }
+		if (coords.size() > colours.size()) { err("coord-colour mismatch-qf.dotsMake"); }
 		vector<vector<int>> dots(coords.size(), vector<int>(3));
 		for (int ii = 0; ii < coords.size(); ii++)
 		{
