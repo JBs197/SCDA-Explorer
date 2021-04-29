@@ -216,48 +216,151 @@ public:
 	template<> int coordCircleClockwise<vector<vector<double>>>(vector<vector<double>>& coords)
 	{
 		// NOTE: Image coordinates use a reversed y-axis (positive points down) !
+		//       7
+		//     2 | 3
+		//   6---+---4      <--- Quadrant diagram.
+		//     1 | 0
+		//       5
 		double baseDx = coords[1][0] - coords[0][0];
 		double baseDy = coords[1][1] - coords[0][1];
 		double testDx = coords[2][0] - coords[1][0];
 		double testDy = coords[2][1] - coords[1][1];
+		if (baseDx == 0.0 && baseDy == 0.0) { err("same coordinate-jf.coordCircleClockwise"); }
+		if (testDx == 0.0 && testDy == 0.0) { err("same coordinate-jf.coordCircleClockwise"); }
 		int baseQuadrant, testQuadrant;  // [0,3]
 		if (baseDx > 0.0)
 		{
-			if (baseDy < 0.0) { baseQuadrant = 0; }
-			else { baseQuadrant = 3; }
+			if (baseDy > 0.0) { baseQuadrant = 0; }
+			else if (baseDy < 0.0) { baseQuadrant = 3; }
+			else { baseQuadrant = 4; }
+		}
+		else if (baseDx < 0.0)
+		{
+			if (baseDy > 0.0) { baseQuadrant = 1; }
+			else if (baseDy < 0.0) { baseQuadrant = 2; }
+			else { baseQuadrant = 6; }
 		}
 		else
 		{
-			if (baseDy < 0.0) { baseQuadrant = 1; }
-			else { baseQuadrant = 2; }
+			if (baseDy >= 0.0) { baseQuadrant = 5; }
+			else { baseQuadrant = 7; }
 		}
 		if (testDx > 0.0)
 		{
-			if (testDy < 0.0) { testQuadrant = 0; }
-			else { testQuadrant = 3; }
+			if (testDy > 0.0) { testQuadrant = 0; }
+			else if (testDy < 0.0) { testQuadrant = 3; }
+			else { testQuadrant = 4; }
+		}
+		else if (testDx < 0.0)
+		{
+			if (testDy > 0.0) { testQuadrant = 1; }
+			else if (testDy < 0.0) { testQuadrant = 2; }
+			else { testQuadrant = 6; }
 		}
 		else
 		{
-			if (testDy < 0.0) { testQuadrant = 1; }
-			else { testQuadrant = 2; }
+			if (testDy >= 0.0) { testQuadrant = 5; }
+			else { testQuadrant = 7; }
 		}
 
-		// Adjacent quadrants cases.
-		if (testQuadrant == (baseQuadrant + 1) % 4) { return 0; }
-		if (testQuadrant == (baseQuadrant - 1) % 4) { return 1; }
+		// Easy quadrants cases (no angle needed).
+		switch (baseQuadrant)
+		{
+		case 0:
+			if (testQuadrant == 5 || testQuadrant == 1 || testQuadrant == 6) { return 1; }
+			if (testQuadrant == 4 || testQuadrant == 3 || testQuadrant == 7) { return 0; }
+			break;
+		case 1:
+			if (testQuadrant == 6 || testQuadrant == 2 || testQuadrant == 7) { return 1; }
+			if (testQuadrant == 5 || testQuadrant == 0 || testQuadrant == 4) { return 0; }
+			break;
+		case 2:
+			if (testQuadrant == 7 || testQuadrant == 3 || testQuadrant == 4) { return 1; }
+			if (testQuadrant == 6 || testQuadrant == 1 || testQuadrant == 5) { return 0; }
+			break;
+		case 3:
+			if (testQuadrant == 4 || testQuadrant == 0 || testQuadrant == 5) { return 1; }
+			if (testQuadrant == 7 || testQuadrant == 2 || testQuadrant == 6) { return 0; }
+			break;
+		case 4:
+			if (testQuadrant == 0 || testQuadrant == 5 || testQuadrant == 1) { return 1; }
+			if (testQuadrant == 3 || testQuadrant == 7 || testQuadrant == 2) { return 0; }
+			err("base and test angles are parallel-jf.coordCircleClockwise");
+			break;
+		case 5:
+			if (testQuadrant == 1 || testQuadrant == 6 || testQuadrant == 2) { return 1; }
+			if (testQuadrant == 0 || testQuadrant == 4 || testQuadrant == 3) { return 0; }
+			err("base and test angles are parallel-jf.coordCircleClockwise");
+			break;
+		case 6:
+			if (testQuadrant == 2 || testQuadrant == 7 || testQuadrant == 3) { return 1; }
+			if (testQuadrant == 1 || testQuadrant == 5 || testQuadrant == 0) { return 0; }
+			err("base and test angles are parallel-jf.coordCircleClockwise");
+			break;
+		case 7:
+			if (testQuadrant == 3 || testQuadrant == 4 || testQuadrant == 0) { return 1; }
+			if (testQuadrant == 2 || testQuadrant == 6 || testQuadrant == 1) { return 0; }
+			err("base and test angles are parallel-jf.coordCircleClockwise");
+			break;
+		}
 
 		// Same/opposite quadrants cases.
-		double phi = atan(baseDy / baseDx);
-		double theta = atan(testDy / testDx);
-		if (baseQuadrant == 0 || baseQuadrant == 2)
+		double phi = abs(atan(baseDy / baseDx));
+		double theta = abs(atan(testDy / testDx));
+		switch (baseQuadrant)
 		{
-			if (theta > phi) { return 0; }
-			else { return 1; }
-		}
-		else
-		{
-			if (theta > phi) { return 1; }
-			else { return 0; }
+		case 0:
+			if (testQuadrant == 0)
+			{
+				if (theta > phi) { return 1; }
+				else { return 0; }
+			}
+			else if (testQuadrant == 2)
+			{
+				if (theta > phi) { return 0; }
+				else { return 1; }
+			}
+			else { err("wrong quadrants-jf.coordCircleClockwise"); }
+			break;
+		case 1:
+			if (testQuadrant == 1)
+			{
+				if (theta > phi) { return 0; }
+				else { return 1; }
+			}
+			else if (testQuadrant == 3)
+			{
+				if (theta > phi) { return 1; }
+				else { return 0; }
+			}
+			else { err("wrong quadrants-jf.coordCircleClockwise"); }
+			break;
+		case 2:
+			if (testQuadrant == 2)
+			{
+				if (theta > phi) { return 1; }
+				else { return 0; }
+			}
+			else if (testQuadrant == 0)
+			{
+				if (theta > phi) { return 0; }
+				else { return 1; }
+			}
+			else { err("wrong quadrants-jf.coordCircleClockwise"); }
+			break;
+		case 3:
+			if (testQuadrant == 3)
+			{
+				if (theta > phi) { return 0; }
+				else { return 1; }
+			}
+			else if (testQuadrant == 1)
+			{
+				if (theta > phi) { return 1; }
+				else { return 0; }
+			}
+			else { err("wrong quadrants-jf.coordCircleClockwise"); }
+			break;
 		}
 	
 		return -1;
@@ -453,7 +556,7 @@ public:
 
 	template<typename ... Args> void toDouble(Args& ... args)
 	{
-		int bbq = 1;
+		err("toDouble template");
 	}
 	template<> void toDouble<vector<int>, vector<double>>(vector<int>& input, vector<double>& output)
 	{
@@ -465,12 +568,44 @@ public:
 	}
 	template<> void toDouble<vector<vector<int>>, vector<vector<double>>>(vector<vector<int>>& input, vector<vector<double>>& output)
 	{
+		int length;
+		output.clear();
 		output.resize(input.size(), vector<double>());
 		for (int ii = 0; ii < input.size(); ii++)
 		{
-			for (int jj = 0; jj < input[ii].size(); jj++)
+			length = input[ii].size();
+			output[ii].resize(length);
+			for (int jj = 0; jj < length; jj++)
 			{
-				output[ii].push_back((double)input[ii][jj]);
+				output[ii][jj] = (double)input[ii][jj];
+			}
+		}
+	}
+
+	template<typename ... Args> void toInt(Args& ... args)
+	{
+		err("toInt template");
+	}
+	template<> void toInt<vector<double>, vector<int>>(vector<double>& input, vector<int>& output)
+	{
+		output.resize(input.size());
+		for (int ii = 0; ii < input.size(); ii++)
+		{
+			output[ii] = int(round(input[ii]));
+		}
+	}
+	template<> void toInt<vector<vector<double>>, vector<vector<int>>>(vector<vector<double>>& input, vector<vector<int>>& output)
+	{
+		int length;
+		output.clear();
+		output.resize(input.size(), vector<int>());
+		for (int ii = 0; ii < input.size(); ii++)
+		{
+			length = input[ii].size();
+			output[ii].resize(length);
+			for (int jj = 0; jj < length; jj++)
+			{
+				output[ii][jj] = int(round(input[ii][jj]));
 			}
 		}
 	}

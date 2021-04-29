@@ -27,11 +27,13 @@ class IMGFUNC
     double stretchFactor;
 
     vector<unsigned char> Blue = { 0, 0, 255 };
+    vector<unsigned char> Green = { 0, 255, 0 };
     vector<unsigned char> Orange = { 255, 155, 55 };
     vector<unsigned char> Pink = { 255, 0, 255 };
     vector<unsigned char> Purple = { 160, 50, 255 };
     vector<unsigned char> Red = { 255, 0, 0 };
     vector<unsigned char> Teal = { 0, 155, 255 };
+    vector<unsigned char> Yellow = { 255, 255, 0 };
 
 public:
 	explicit IMGFUNC() {}
@@ -63,7 +65,6 @@ public:
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinLiveDebug(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
-	vector<vector<int>> zoneSweep(string szone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<int>& originRadius);
     void zoneSweepDebug(vector<vector<int>>& vCoord, int radius);
 
 	// TEMPLATES
@@ -133,12 +134,12 @@ public:
             return vMidArc;
         }
         
-        double DxNew = radius * cos(theta);
-        double DyNew = radius * sin(theta);
-        if (Dx >= 0.0) { vMidArc[0] = int(DxNew); }
-        else { vMidArc[0] = -1 * int(round(DxNew)); }
-        if (Dy >= 0.0) { vMidArc[1] = int(DyNew); }
-        else { vMidArc[1] = -1 * int(round(DyNew)); }
+        double DxNew = radius * cos(abs(theta));
+        double DyNew = radius * sin(abs(theta));
+        if (Dx >= 0.0) { vMidArc[0] = originRadius[0] + int(DxNew); }
+        else { vMidArc[0] = originRadius[0] - int(round(DxNew)); }
+        if (Dy >= 0.0) { vMidArc[1] = originRadius[1] + int(DyNew); }
+        else { vMidArc[1] = originRadius[1] - int(round(DyNew)); }
         
         return vMidArc;
     }
@@ -238,6 +239,73 @@ public:
         }
     }
 
+    template<typename ... Args> void makeMapDebug(Args& ... args)
+    {
+        jf.err("makeMapDebug template-im");
+    }
+    template<> void makeMapDebug<vector<vector<int>>>(vector<vector<int>>& pastPresentFuture)
+    {
+        // Use with octogonBearing.
+        if (!mapIsInit()) { initMapColours(); }
+        int widthDot = 5;
+        int widthLine = 5;
+        vector<vector<int>> startStop(2, vector<int>());
+        startStop[0] = pastPresentFuture[0];
+        startStop[1] = pastPresentFuture[1];
+        linePaint(startStop, debugDataPNG, width, Teal, widthLine);
+        startStop[0] = pastPresentFuture[1];
+        startStop[1] = pastPresentFuture[2];
+        linePaint(startStop, debugDataPNG, width, Orange, widthLine);
+        dotPaint(pastPresentFuture[0], debugDataPNG, width, Green, widthDot);
+        dotPaint(pastPresentFuture[1], debugDataPNG, width, Yellow, widthDot);
+        dotPaint(pastPresentFuture[2], debugDataPNG, width, Red, widthDot);
+        vector<int> sourceDim = { width, height };
+        vector<unsigned char> cropped = pngExtractRect(pastPresentFuture[1], debugDataPNG, sourceDim, defaultExtractDim);
+        int imgSize = cropped.size();
+        int channels = 3;
+        auto bufferUC = new unsigned char[imgSize];
+        for (int ii = 0; ii < imgSize; ii++)
+        {
+            bufferUC[ii] = cropped[ii];
+        }
+        string pathImg = sroot + "\\debug\\tempDebug.png";
+        int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
+        delete[] bufferUC;
+        debugDataPNG = dataPNG;
+    }
+    template<> void makeMapDebug<vector<vector<double>>>(vector<vector<double>>& pPF)
+    {
+        // Use with octogonBearing.
+        if (!mapIsInit()) { initMapColours(); }
+        vector<vector<int>> pastPresentFuture;
+        jf.toInt(pPF, pastPresentFuture);
+        int widthDot = 5;
+        int widthLine = 5;
+        vector<vector<int>> startStop(2, vector<int>());
+        startStop[0] = pastPresentFuture[0];
+        startStop[1] = pastPresentFuture[1];
+        linePaint(startStop, debugDataPNG, width, Teal, widthLine);
+        startStop[0] = pastPresentFuture[1];
+        startStop[1] = pastPresentFuture[2];
+        linePaint(startStop, debugDataPNG, width, Orange, widthLine);
+        dotPaint(pastPresentFuture[0], debugDataPNG, width, Green, widthDot);
+        dotPaint(pastPresentFuture[1], debugDataPNG, width, Yellow, widthDot);
+        dotPaint(pastPresentFuture[2], debugDataPNG, width, Red, widthDot);
+        vector<int> sourceDim = { width, height };
+        vector<unsigned char> cropped = pngExtractRect(pastPresentFuture[1], debugDataPNG, sourceDim, defaultExtractDim);
+        int imgSize = cropped.size();
+        int channels = 3;
+        auto bufferUC = new unsigned char[imgSize];
+        for (int ii = 0; ii < imgSize; ii++)
+        {
+            bufferUC[ii] = cropped[ii];
+        }
+        string pathImg = sroot + "\\debug\\tempDebug.png";
+        int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
+        delete[] bufferUC;
+        debugDataPNG = dataPNG;
+    }
+
     template<typename ... Args> void octogonPaint(vector<int> origin, int radius, Args& ... args)
     {
         jf.err("octogonPaint template-im");
@@ -258,7 +326,6 @@ public:
             dotPaint(path[ii], img, widthImg, rgb, widthDot);
         }
     }
-
 
     template<typename ... Args> vector<vector<unsigned char>> octogonRGB(Args& ... args)
     {
@@ -483,7 +550,7 @@ public:
             startStop[1] = zoneFreezer;
             goldilocks.push_back(coordMid(startStop, originRadius));
         }
-        return goldilocks;
+        return goldilocks;  // RESUME HERE. radial push out wrong direction
     }
 
 };

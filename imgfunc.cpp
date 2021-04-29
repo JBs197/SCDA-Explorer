@@ -10,7 +10,7 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
     if (debug) { octogonPaint(origin, radius); }
     string sZone = "zoneBorder";
-    vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath, originRadius);
+    vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath);
     vector<vector<int>> vvTemp, cPath;
     while (candidates.size() < 2)
     {
@@ -854,7 +854,7 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
     // motion is calculated. The return value is this angle (in degrees)
     // given within the interval [0, 360), for every such zone found. 
     vector<double> theta;
-    vector<int> originRadius = { tracks[tracks.size()][0], tracks[tracks.size()][1], radius };
+    vector<int> originRadius = { tracks[tracks.size() - 1][0], tracks[tracks.size() - 1][1], radius };
     vector<vector<int>> octoPath = octogonPath(tracks[tracks.size() - 1], radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
     vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, originRadius);
@@ -933,8 +933,10 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
         }
         else { jf.err("Indeterminate clockwise-im.octogonBearing"); }
     }
-    if (theta.size() > 1)
+    if (theta.size() > 1 || theta[0] > 180.0)
     {
+        makeMapDebug(pastPresentFuture);
+        clockwise = jf.coordCircleClockwise(pastPresentFuture);
         int bbq = 1;
     }
     return theta;
@@ -1021,10 +1023,6 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
 
     vBorder.resize(0);
     return vBorder;
-}
-vector<vector<int>> IMGFUNC::zoneSweep(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<int>& originRadius)
-{
-
 }
 void IMGFUNC::zoneSweepDebug(vector<vector<int>>& vCoord, int radius)
 {
