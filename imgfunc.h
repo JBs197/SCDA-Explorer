@@ -305,6 +305,36 @@ public:
         delete[] bufferUC;
         debugDataPNG = dataPNG;
     }
+    template<> void makeMapDebug<vector<vector<int>>, int>(vector<vector<int>>& pastPresent, int& radius)
+    {
+        // Meant to be used if a bearing cannot be found. Show path in and radius.
+        if (!mapIsInit()) { initMapColours(); }
+        int widthDot = 5;
+        int widthLine = 5;
+        vector<vector<int>> startStop(2, vector<int>(2));
+        octogonPaint(pastPresent[pastPresent.size() - 1], radius, debugDataPNG, width, Orange, widthLine);
+        for (int ii = 0; ii < pastPresent.size() - 1; ii++)
+        {
+            startStop[0] = pastPresent[ii];
+            startStop[1] = pastPresent[ii + 1];
+            linePaint(startStop, debugDataPNG, width, Teal, widthLine);
+            dotPaint(pastPresent[ii], debugDataPNG, width, Green, widthDot);
+        }
+        dotPaint(pastPresent[pastPresent.size() - 1], debugDataPNG, width, Yellow, widthDot);
+        vector<int> sourceDim = { width, height };
+        vector<unsigned char> cropped = pngExtractRect(pastPresent[pastPresent.size() - 1], debugDataPNG, sourceDim, defaultExtractDim);
+        int imgSize = cropped.size();
+        int channels = 3;
+        auto bufferUC = new unsigned char[imgSize];
+        for (int ii = 0; ii < imgSize; ii++)
+        {
+            bufferUC[ii] = cropped[ii];
+        }
+        string pathImg = sroot + "\\debug\\tempDebug.png";
+        int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
+        delete[] bufferUC;
+        debugDataPNG = dataPNG;
+    }
 
     template<typename ... Args> void octogonPaint(vector<int> origin, int radius, Args& ... args)
     {
@@ -451,8 +481,10 @@ public:
         // For a given list of RGB values, return the middle pixel coordinates of every
         // (desired) szone interval. Commonly used to scan the perimeter of a shape.
         vector<vector<int>> goldilocks;
-        vector<int> zoneFreezer;
-        vector<vector<int>> startStop(2, vector<int>(2));
+        int zoneFreezer = -1;
+        vector<int> onOff(2);
+        int half, inum1, inum2;
+        //vector<vector<int>> startStop(2, vector<int>(2));
         int index = 0;
         bool zoneActive = 0;
         string szone = pixelZone(Lrgb[index]);
@@ -463,7 +495,7 @@ public:
                 index++;
                 szone = pixelZone(Lrgb[index]);
             }
-            zoneFreezer = zonePath[index - 1];  // Keep for the end.
+            zoneFreezer = index - 1;  // Keep for the end.
         }
         index++;
         while (index < Lrgb.size())
@@ -474,28 +506,36 @@ public:
                 if (!zoneActive)
                 {
                     zoneActive = 1;
-                    startStop[0] = zonePath[index];
+                    onOff[0] = index;
+                    //startStop[0] = zonePath[index];
                 }
             }
             else
             {
                 if (zoneActive)
                 {
+                    //startStop[1] = zonePath[index];
                     zoneActive = 0;
-                    startStop[1] = zonePath[index];
-                    goldilocks.push_back(coordMid(startStop));
+                    onOff[1] = index;
+                    half = (onOff[1] - onOff[0]) / 2;
+                    goldilocks.push_back(zonePath[onOff[0] + half]);
                 }
             }
             index++;
         }
-        if (zoneFreezer.size() > 0)
+        if (zoneFreezer >= 0)
         {
-            if (!zoneActive)
+            if (zoneActive)
             {
-                startStop[0] = zonePath[0];
+                inum1 = index - onOff[0];
+                half = (inum1 + zoneFreezer) / 2;
+                inum2 = onOff[0] + half;
+                if (inum2 >= zonePath.size())
+                {
+                    inum2 -= zonePath.size();
+                }
+                goldilocks.push_back(zonePath[inum2]);
             }
-            startStop[1] = zoneFreezer;
-            goldilocks.push_back(coordMid(startStop));
         }
         return goldilocks;
     }
@@ -504,8 +544,10 @@ public:
         // For a given list of RGB values, return the middle pixel coordinates of every
         // (desired) szone interval. Commonly used to scan the perimeter of a shape.
         vector<vector<int>> goldilocks;
-        vector<int> zoneFreezer;
-        vector<vector<int>> startStop(2, vector<int>(2));
+        int zoneFreezer = -1;
+        vector<int> onOff(2);
+        int half, inum1, inum2;
+        //vector<vector<int>> startStop(2, vector<int>(2));
         int index = 0;
         bool zoneActive = 0;
         string szone = pixelZone(Lrgb[index]);
@@ -516,7 +558,7 @@ public:
                 index++;
                 szone = pixelZone(Lrgb[index]);
             }
-            zoneFreezer = zonePath[index - 1];  // Keep for the end.
+            zoneFreezer = index - 1;  // Keep for the end.
         }
         index++;
         while (index < Lrgb.size())
@@ -527,30 +569,38 @@ public:
                 if (!zoneActive)
                 {
                     zoneActive = 1;
-                    startStop[0] = zonePath[index];
+                    onOff[0] = index;
+                    //startStop[0] = zonePath[index];
                 }
             }
             else
             {
                 if (zoneActive)
                 {
+                    //startStop[1] = zonePath[index];
                     zoneActive = 0;
-                    startStop[1] = zonePath[index];
-                    goldilocks.push_back(coordMid(startStop, originRadius));
+                    onOff[1] = index;                 
+                    half = (onOff[1] - onOff[0]) / 2;
+                    goldilocks.push_back(zonePath[onOff[0] + half]);
                 }
             }
             index++;
         }
-        if (zoneFreezer.size() > 0)
+        if (zoneFreezer >= 0)
         {
-            if (!zoneActive)
+            if (zoneActive)
             {
-                startStop[0] = zonePath[0];
+                inum1 = index - onOff[0];
+                half = (inum1 + zoneFreezer) / 2;
+                inum2 = onOff[0] + half;
+                if (inum2 >= zonePath.size())
+                {
+                    inum2 -= zonePath.size();
+                }
+                goldilocks.push_back(zonePath[inum2]);
             }
-            startStop[1] = zoneFreezer;
-            goldilocks.push_back(coordMid(startStop, originRadius));
         }
-        return goldilocks;  // RESUME HERE. radial push out wrong direction
+        return goldilocks; 
     }
 
 };

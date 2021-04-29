@@ -245,7 +245,12 @@ double IMGFUNC::clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tra
             else if (bearings.size() < 1) { radius += 2; }
             bearings = octogonBearing(sbgui, pastPresent, sZone, radius);
             attemptRadius++;
-            if (attemptRadius > 10) { jf.err("Cannot determine bearings-im.clockwisePercentage"); }
+            if (attemptRadius > 10) 
+            { 
+                makeMapDebug(tracks, radius);
+                bearings = octogonBearing(sbgui, pastPresent, sZone, radius);
+                jf.err("Cannot determine bearings-im.clockwisePercentage"); 
+            }
         }
         if (bearings[0] >= 0.0 && bearings[0] < 180.0) { numClockwise++; }
     }
@@ -859,7 +864,7 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
     vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, originRadius);
     vector<vector<int>> vvDebug;
-    if (lightHouse.size() != 1)
+    if (lightHouse.size() != 1)  // RESUME HERE. Better tests. White width?
     {
         if (lightHouse.size() < 1)
         {
