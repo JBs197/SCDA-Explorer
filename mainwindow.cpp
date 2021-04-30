@@ -2189,6 +2189,7 @@ void MainWindow::on_pB_test_clicked()
         }
         pathBorder = pathBorderShared;
         sb.done(myid);
+        if (pathBorder.size() < 1) { continue; }
         im.coordShift(pathBorder, mapShift);
         painterPathBorder = qf.pathMake(pathBorder);
         if (pathBorder.size() >= 4)

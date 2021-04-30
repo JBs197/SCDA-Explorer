@@ -8,7 +8,7 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     originRadius.push_back(radius);
     vector<vector<int>> octoPath = octogonPath(origin, radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
-    if (debug) { octogonPaint(origin, radius); }
+    //if (debug) { octogonPaint(origin, radius); }
     string sZone = "zoneBorder";
     vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath);
     vector<vector<int>> vvTemp, cPath;
@@ -17,7 +17,7 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         radius += (4 * borderThickness);
         octoPath = octogonPath(origin, radius);
         octoRGB = octogonRGB(octoPath);
-        if (debug) { octogonPaint(origin, radius); }
+        //if (debug) { octogonPaint(origin, radius); }
         candidates = zoneSweep(sZone, octoRGB, octoPath, originRadius);
     }
     if (tracks.size() < 2) { return candidates[0]; }
@@ -177,7 +177,7 @@ vector<int> IMGFUNC::borderFindStart()
         pointOfOrigin = vStart;
     }
 
-    if (debug) { drawMarker(debugDataPNG, vStart); }
+    //if (debug) { drawMarker(debugDataPNG, vStart); }
     return vStart;
 }
 vector<vector<int>> IMGFUNC::checkBoundary(vector<int>& center, vector<int>& sourceDim, vector<int>& extractDim)
@@ -247,8 +247,10 @@ double IMGFUNC::clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tra
             attemptRadius++;
             if (attemptRadius > 10) 
             { 
-                makeMapDebug(tracks, radius);
-                bearings = octogonBearing(sbgui, pastPresent, sZone, radius);
+                vector<vector<int>> tracksTemp;
+                tracksTemp.assign(tracks.begin(), tracks.begin() + ii + 2);
+                makeMapDebug(tracksTemp, radius);
+                clockwisePercentage(sbgui, tracks, sZone);
                 jf.err("Cannot determine bearings-im.clockwisePercentage"); 
             }
         }
@@ -582,7 +584,6 @@ void IMGFUNC::pngLoad(string& pathPNG)
 	dataPNG.resize(sizeTemp);
 	copy(dataTemp, dataTemp + sizeTemp, dataPNG.begin());
     pathActivePNG = pathPNG;
-    debugDataPNG = dataPNG;
 
 }
 void IMGFUNC::pngPrint()
@@ -859,23 +860,32 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
     // motion is calculated. The return value is this angle (in degrees)
     // given within the interval [0, 360), for every such zone found. 
     vector<double> theta;
-    vector<int> originRadius = { tracks[tracks.size() - 1][0], tracks[tracks.size() - 1][1], radius };
+    unordered_map<string, int> mapIndexCandidate;
     vector<vector<int>> octoPath = octogonPath(tracks[tracks.size() - 1], radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
-    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, originRadius);
+    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
     vector<vector<int>> vvDebug;
-    if (lightHouse.size() != 1)  // RESUME HERE. Better tests. White width?
+    vector<int> failsafe;
+    int numCandidates = lightHouse.size();
+    int lettersExist = 0;
+    if (numCandidates > 1)  
     {
-        if (lightHouse.size() < 1)
+        lettersExist = testTextHumanFeature(octoRGB);
+        if (lettersExist > 0)
         {
-            return theta;
+            numCandidates = testZoneSweepLetters(octoPath, octoRGB, lightHouse, mapIndexCandidate);
         }
-        else if (lightHouse.size() > 1 && radius > 0)
+        else if (failsafe.size() < 1)
         {
+            // RESUME HERE. Better tests. Return candidate with widest whitespace;
+        }
+        while (numCandidates > 1 && radius > 0)
+        {
+
             theta = octogonBearing(sbgui, tracks, sZone, radius - 2);
             return theta;
         }
-        else 
+        if (numCandidates > 1 && radius <= 0)
         { 
             theta = { -1.0 };
             return theta;
@@ -897,6 +907,11 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
             int bbq = 1;
         }
     }
+    else if (numCandidates < 1)
+    {
+        fdsa
+    }
+
 
     vector<vector<int>> vvTemp(1, vector<int>(2));
     vvTemp[0] = tracks[tracks.size() - 1];
@@ -945,6 +960,95 @@ vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& 
         int bbq = 1;
     }
     return theta;
+}
+int IMGFUNC::testTextHumanFeature(vector<vector<unsigned char>>& Lrgb)
+{
+    string test = "textHumanFeature";
+    string pixelColour;
+    for (int ii = 0; ii < Lrgb.size(); ii++)
+    {
+        pixelColour = pixelZone(Lrgb[ii]);
+        if (pixelColour == test) { return 1; }
+    }
+    return 0;
+}
+int IMGFUNC::testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate)
+{
+    // Candidates between two map letter colours (textHumanFeature) are removed.
+    // Returns the number of candidates remaining after the test is applied. 
+    vector<int> indexDeathRow;
+    int indexZone, indexCandidate;
+    bool crossOver, leftBound, letMeOut;
+    string sZone, sCandidate;
+    for (int ii = 0; ii < candidates.size(); ii++)
+    {
+        crossOver = 0;
+        leftBound = 0;
+        letMeOut = 0;
+        sCandidate = to_string(candidates[ii][0]) + "," + to_string(candidates[ii][1]);
+        try { indexCandidate = mapIndexCandidate.at(sCandidate); }
+        catch (out_of_range& oor) { jf.err("candidate map-im.testZoneSweepLetters"); }
+        sZone = pixelZone(Lrgb[indexCandidate]);
+        if (sZone != "white") { jf.err("invalid candidate pixel-im.testZoneSweepLetters"); }
+        indexZone = indexCandidate;
+        while (1)
+        {
+            indexZone -= 1;
+            if (indexZone < 0)
+            {
+                if (crossOver > 0) { jf.err("infinite loop-im.testZoneSweepLetters"); }
+                crossOver = 1;
+                indexZone += zonePath.size();
+            }
+            sZone = pixelZone(Lrgb[indexZone]);
+            if (sZone == "unknown") { continue; }
+            else if (sZone == "white") { continue; }
+            else if (sZone == "textHumanFeature")
+            {
+                leftBound = 1;
+                break;
+            }
+            else
+            {
+                letMeOut = 1;
+                break;
+            }
+        }
+        if (letMeOut) { continue; }
+        indexZone = indexCandidate;
+        crossOver = 0;
+        while (1)
+        {
+            indexZone += 1;
+            if (indexZone >= zonePath.size())
+            {
+                if (crossOver > 0) { jf.err("infinite loop-im.testZoneSweepLetters"); }
+                crossOver = 1;
+                indexZone -= zonePath.size();
+            }
+            sZone = pixelZone(Lrgb[indexZone]);
+            if (sZone == "unknown") { continue; }
+            else if (sZone == "white") { continue; }
+            else if (sZone == "textHumanFeature")
+            {
+                if (leftBound)
+                {
+                    indexDeathRow.push_back(ii);
+                    break;
+                }
+                else { jf.err("no left boundary-im.testTextHumanFeature"); }
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+    for (int ii = indexDeathRow.size() - 1; ii >= 0; ii--)
+    {
+        candidates.erase(candidates.begin() + indexDeathRow[ii]);
+    }
+    return (int)candidates.size();
 }
 vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec)
 {

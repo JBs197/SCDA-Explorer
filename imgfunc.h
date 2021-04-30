@@ -16,7 +16,7 @@ class IMGFUNC
 	int borderThickness = 6;
     double candidateDistanceTolerance = 0.4;  // Final two candidates: colour count or distance! 
 	vector<unsigned char> dataPNG, debugDataPNG;
-	bool debug = 0;
+	bool debug = 1;
     int defaultDotWidth = 5;
     vector<int> defaultExtractDim = { 400, 400 };
     string pathActivePNG;
@@ -26,6 +26,7 @@ class IMGFUNC
 	int width, height, numComponents, recordVictor;
     double stretchFactor;
 
+    vector<unsigned char> Black = { 0, 0, 0 };
     vector<unsigned char> Blue = { 0, 0, 255 };
     vector<unsigned char> Green = { 0, 255, 0 };
     vector<unsigned char> Orange = { 255, 155, 55 };
@@ -33,6 +34,7 @@ class IMGFUNC
     vector<unsigned char> Purple = { 160, 50, 255 };
     vector<unsigned char> Red = { 255, 0, 0 };
     vector<unsigned char> Teal = { 0, 155, 255 };
+    vector<unsigned char> White = { 255, 255, 255 };
     vector<unsigned char> Yellow = { 255, 255, 0 };
 
 public:
@@ -64,6 +66,8 @@ public:
     void pngPrint();
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinLiveDebug(SWITCHBOARD& sbgui, vector<vector<double>>& border);
+    int testTextHumanFeature(vector<vector<unsigned char>>& Lrgb);
+    int testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate);
     vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
     void zoneSweepDebug(vector<vector<int>>& vCoord, int radius);
 
@@ -247,6 +251,7 @@ public:
     {
         // Use with octogonBearing.
         if (!mapIsInit()) { initMapColours(); }
+        debugDataPNG = dataPNG;
         int widthDot = 5;
         int widthLine = 5;
         vector<vector<int>> startStop(2, vector<int>());
@@ -271,11 +276,11 @@ public:
         string pathImg = sroot + "\\debug\\tempDebug.png";
         int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
-        debugDataPNG = dataPNG;
     }
     template<> void makeMapDebug<vector<vector<double>>>(vector<vector<double>>& pPF)
     {
         // Use with octogonBearing.
+        debugDataPNG = dataPNG;
         if (!mapIsInit()) { initMapColours(); }
         vector<vector<int>> pastPresentFuture;
         jf.toInt(pPF, pastPresentFuture);
@@ -303,12 +308,12 @@ public:
         string pathImg = sroot + "\\debug\\tempDebug.png";
         int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
-        debugDataPNG = dataPNG;
     }
     template<> void makeMapDebug<vector<vector<int>>, int>(vector<vector<int>>& pastPresent, int& radius)
     {
         // Meant to be used if a bearing cannot be found. Show path in and radius.
         if (!mapIsInit()) { initMapColours(); }
+        debugDataPNG = dataPNG;
         int widthDot = 5;
         int widthLine = 5;
         vector<vector<int>> startStop(2, vector<int>(2));
@@ -333,7 +338,71 @@ public:
         string pathImg = sroot + "\\debug\\tempDebug.png";
         int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
+    }
+
+    template<typename ... Args> void makeMapZoneSweepDebug(vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<vector<int>>& goldilocks, Args& ... args)
+    {
+        jf.err("makeMapZoneSweepDebug template.im");
+    }
+    template<> void makeMapZoneSweepDebug< >(vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<vector<int>>& goldilocks)
+    {
+        if (!mapIsInit()) { initMapColours(); }
         debugDataPNG = dataPNG;
+        int left = zonePath[0][0];
+        int right = left;
+        int top = zonePath[0][1];
+        int bot = top;
+        for (int ii = 0; ii < zonePath.size(); ii++)
+        {
+            if (zonePath[ii][0] < 0) { jf.err("negative xCoord-im.makeMapZoneSweepDebug"); }
+            if (zonePath[ii][1] < 0) { jf.err("negative yCoord-im.makeMapZoneSweepDebug"); }
+            if (zonePath[ii][0] < left) { left = zonePath[ii][0]; }
+            if (zonePath[ii][0] > right) { right = zonePath[ii][0]; }
+            if (zonePath[ii][1] < top) { top = zonePath[ii][1]; }
+            if (zonePath[ii][1] > bot) { bot = zonePath[ii][1]; }
+        }
+        int widthTemp = right - left + 1;
+        int heightTemp = bot - top + 1;
+        vector<int> viTemp(2);
+        vector<int> centerTemp(2);
+        centerTemp[0] = left + (widthTemp / 2);
+        centerTemp[1] = top + (heightTemp / 2);
+        int leftCropped = max(0, left - 1);
+        int rightCropped = min(width - 1, right + 1);
+        int topCropped = max(0, top - 1);
+        int botCropped = min(height - 1, bot + 1);
+        vector<int> extractDim(2);
+        extractDim[0] = rightCropped - leftCropped + 1;
+        extractDim[1] = botCropped - topCropped + 1;
+        for (int ii = topCropped; ii <= botCropped; ii++)
+        {
+            viTemp[1] = ii;
+            for (int jj = leftCropped; jj <= rightCropped; jj++)
+            {
+                viTemp[0] = jj;
+                pixelPaint(debugDataPNG, width, Black, viTemp);
+            }
+        }
+        for (int ii = 0; ii < zonePath.size(); ii++)
+        {
+            pixelPaint(debugDataPNG, width, Lrgb[ii], zonePath[ii]);
+        }
+        for (int ii = 0; ii < goldilocks.size(); ii++)
+        {
+            pixelPaint(debugDataPNG, width, Red, goldilocks[ii]);
+        }
+        vector<int> sourceDim = { width, height };
+        vector<unsigned char> cropped = pngExtractRect(centerTemp, debugDataPNG, sourceDim, extractDim);
+        int imgSize = cropped.size();
+        int channels = 3;
+        auto bufferUC = new unsigned char[imgSize];
+        for (int ii = 0; ii < imgSize; ii++)
+        {
+            bufferUC[ii] = cropped[ii];
+        }
+        string pathImg = sroot + "\\debug\\ZoneSweepDebug.png";
+        int error = stbi_write_png(pathImg.c_str(), extractDim[0], extractDim[1], channels, bufferUC, 0);
+        delete[] bufferUC;
     }
 
     template<typename ... Args> void octogonPaint(vector<int> origin, int radius, Args& ... args)
@@ -472,15 +541,16 @@ public:
         return pngExtract;
     }
 
-    template<typename ... Args> vector<vector<int>> zoneSweep(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, Args& ... args)
+    template<typename ... Args> vector<vector<int>> zoneSweep(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, unordered_map<string, int>& mapIndexCandidate, Args& ... args)
     {
         jf.err("zoneSweep template.im");
     }
-    template<> vector<vector<int>> zoneSweep< >(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath)
+    template<> vector<vector<int>> zoneSweep< >(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, unordered_map<string, int>& mapIndexCandidate)
     {
         // For a given list of RGB values, return the middle pixel coordinates of every
         // (desired) szone interval. Commonly used to scan the perimeter of a shape.
         vector<vector<int>> goldilocks;
+        string sCandidate;
         int zoneFreezer = -1;
         vector<int> onOff(2);
         int half, inum1, inum2;
@@ -507,18 +577,19 @@ public:
                 {
                     zoneActive = 1;
                     onOff[0] = index;
-                    //startStop[0] = zonePath[index];
                 }
             }
             else
             {
                 if (zoneActive)
                 {
-                    //startStop[1] = zonePath[index];
                     zoneActive = 0;
                     onOff[1] = index;
                     half = (onOff[1] - onOff[0]) / 2;
-                    goldilocks.push_back(zonePath[onOff[0] + half]);
+                    inum1 = onOff[0] + half;
+                    goldilocks.push_back(zonePath[inum1]);
+                    sCandidate = to_string(zonePath[inum1][0]) + "," + to_string(zonePath[inum1][1]);
+                    mapIndexCandidate.emplace(sCandidate, inum1);
                 }
             }
             index++;
@@ -535,72 +606,12 @@ public:
                     inum2 -= zonePath.size();
                 }
                 goldilocks.push_back(zonePath[inum2]);
+                sCandidate = to_string(zonePath[inum2][0]) + "," + to_string(zonePath[inum2][1]);
+                mapIndexCandidate.emplace(sCandidate, inum2);
             }
         }
+        if (debug == 1 && goldilocks.size() != (size_t)1) { makeMapZoneSweepDebug(Lrgb, zonePath, goldilocks); }
         return goldilocks;
-    }
-    template<> vector<vector<int>> zoneSweep<vector<int>>(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<int>& originRadius)
-    {
-        // For a given list of RGB values, return the middle pixel coordinates of every
-        // (desired) szone interval. Commonly used to scan the perimeter of a shape.
-        vector<vector<int>> goldilocks;
-        int zoneFreezer = -1;
-        vector<int> onOff(2);
-        int half, inum1, inum2;
-        //vector<vector<int>> startStop(2, vector<int>(2));
-        int index = 0;
-        bool zoneActive = 0;
-        string szone = pixelZone(Lrgb[index]);
-        if (szone == sZone)
-        {
-            while (szone == sZone)
-            {
-                index++;
-                szone = pixelZone(Lrgb[index]);
-            }
-            zoneFreezer = index - 1;  // Keep for the end.
-        }
-        index++;
-        while (index < Lrgb.size())
-        {
-            szone = pixelZone(Lrgb[index]);
-            if (szone == sZone)
-            {
-                if (!zoneActive)
-                {
-                    zoneActive = 1;
-                    onOff[0] = index;
-                    //startStop[0] = zonePath[index];
-                }
-            }
-            else
-            {
-                if (zoneActive)
-                {
-                    //startStop[1] = zonePath[index];
-                    zoneActive = 0;
-                    onOff[1] = index;                 
-                    half = (onOff[1] - onOff[0]) / 2;
-                    goldilocks.push_back(zonePath[onOff[0] + half]);
-                }
-            }
-            index++;
-        }
-        if (zoneFreezer >= 0)
-        {
-            if (zoneActive)
-            {
-                inum1 = index - onOff[0];
-                half = (inum1 + zoneFreezer) / 2;
-                inum2 = onOff[0] + half;
-                if (inum2 >= zonePath.size())
-                {
-                    inum2 -= zonePath.size();
-                }
-                goldilocks.push_back(zonePath[inum2]);
-            }
-        }
-        return goldilocks; 
     }
 
 };
