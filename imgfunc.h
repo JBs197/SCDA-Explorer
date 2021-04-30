@@ -19,6 +19,7 @@ class IMGFUNC
 	bool debug = 1;
     int defaultDotWidth = 5;
     vector<int> defaultExtractDim = { 400, 400 };
+    int defaultSearchRadius = 15;
     string pathActivePNG;
 	JFUNC jf;
 	unordered_map<string, string> mapColour;
@@ -56,7 +57,6 @@ public:
 	vector<vector<int>> linePath(vector<vector<int>>& startStop);
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
 	bool mapIsInit();
-    vector<double> octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, int radius);
     vector<vector<int>> octogonPath(vector<int> origin, int radius);
     string pixelDecToHex(vector<unsigned char>& rgb);
 	void pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsigned char> rgb, vector<int> coord);
@@ -405,6 +405,93 @@ public:
         delete[] bufferUC;
     }
 
+    template<typename ... Args> void octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, Args& ... args)
+    {
+        // Uses the past [0] and present [1] coordinates to define an initial 
+        // vector. A ring of pixels around [1] are scanned for the given sZone. 
+        // New vectors are defined from [1] to the center of each such sZone found
+        // in the ring. The returned values are the angles in degrees [0, 360) 
+        // between the inital vector and the new vector. 
+        // 
+        // If only one angle is accepted as theta, then a series of tests are 
+        // performed to determine the best candidate. 
+        jf.err("octogonBearing template-im");
+    }
+    template<> void octogonBearing<double>(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, double& theta)
+    {
+        unordered_map<string, int> mapIndexCandidate;
+        vector<int> intervalSize;
+        vector<vector<int>> octoPath = octogonPath(pastPresent[1], radius);
+        vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
+        vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, intervalSize);
+        int numCandidates = lightHouse.size();
+        vector<int> failsafe;  // Form [xCoord, yCoord, interval relative size].
+        int lettersExist = 0;
+        if (numCandidates > 1)
+        {
+            lettersExist = testTextHumanFeature(octoRGB);
+            if (lettersExist > 0)
+            {
+                numCandidates = testZoneSweepLetters(octoPath, octoRGB, lightHouse, mapIndexCandidate);
+            }
+            else if (failsafe.size() < 1)
+            {
+                int sizeMax = 0;
+                int sizeSecond = 0;
+                for (int ii = 0; ii < numCandidates; ii++)
+                {
+                    if (intervalSize[ii] > sizeMax)
+                    {
+                        sizeSecond = sizeMax;
+                        sizeMax = intervalSize[ii];
+                        failsafe = lightHouse[ii];
+                    }
+                    else if (intervalSize[ii] > sizeSecond)
+                    {
+                        sizeSecond = intervalSize[ii];
+                    }
+                }
+                failsafe.push_back((100 * sizeSecond) / sizeMax);
+            }
+
+            if (numCandidates > 1 && radius > 0)
+            {
+                theta = octogonBearing(sbgui, tracks, sZone, radius - 2);
+            }
+            else if (numCandidates > 1 && radius <= 0)
+            {
+                theta = { -1.0 };
+            }
+        }
+        else if (numCandidates < 1)
+        {
+            if (radius < 4 * defaultSearchRadius)
+            {
+                theta = octogonBearing(sbgui, tracks, sZone, radius + 2);
+            }
+            else
+            {
+                theta = { -1.0 };
+            }
+        }
+    }
+    template<> void octogonBearing<vector<double>>(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, vector<double>& theta)
+    {
+        unordered_map<string, int> mapIndexCandidate;
+        vector<int> intervalSize;
+        vector<vector<int>> octoPath = octogonPath(pastPresent[1], radius);
+        vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
+        vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, intervalSize);
+        int numCandidates = lightHouse.size();
+        vector<vector<int>> pastPresentFuture = pastPresent;
+        pastPresentFuture.push_back(vector<int>());
+        for (int ii = 0; ii < numCandidates; ii++)
+        {
+            pastPresentFuture[2] = lightHouse[ii];
+            theta.push_back(jf.angleBetweenVectors(pastPresentFuture));
+        }
+    }
+
     template<typename ... Args> void octogonPaint(vector<int> origin, int radius, Args& ... args)
     {
         jf.err("octogonPaint template-im");
@@ -599,6 +686,76 @@ public:
             if (zoneActive)
             {
                 inum1 = index - onOff[0];
+                half = (inum1 + zoneFreezer) / 2;
+                inum2 = onOff[0] + half;
+                if (inum2 >= zonePath.size())
+                {
+                    inum2 -= zonePath.size();
+                }
+                goldilocks.push_back(zonePath[inum2]);
+                sCandidate = to_string(zonePath[inum2][0]) + "," + to_string(zonePath[inum2][1]);
+                mapIndexCandidate.emplace(sCandidate, inum2);
+            }
+        }
+        if (debug == 1 && goldilocks.size() != (size_t)1) { makeMapZoneSweepDebug(Lrgb, zonePath, goldilocks); }
+        return goldilocks;
+    }
+    template<> vector<vector<int>> zoneSweep<vector<int>>(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, unordered_map<string, int>& mapIndexCandidate, vector<int>& intervals)
+    {
+        // For a given list of RGB values, return the middle pixel coordinates of every
+        // (desired) szone interval. Commonly used to scan the perimeter of a shape.
+        vector<vector<int>> goldilocks;
+        string sCandidate;
+        int zoneFreezer = -1;
+        vector<int> onOff(2);
+        int half, inum1, inum2;
+        //vector<vector<int>> startStop(2, vector<int>(2));
+        int index = 0;
+        bool zoneActive = 0;
+        string szone = pixelZone(Lrgb[index]);
+        if (szone == sZone)
+        {
+            while (szone == sZone)
+            {
+                index++;
+                szone = pixelZone(Lrgb[index]);
+            }
+            zoneFreezer = index - 1;  // Keep for the end.
+        }
+        index++;
+        while (index < Lrgb.size())
+        {
+            szone = pixelZone(Lrgb[index]);
+            if (szone == sZone)
+            {
+                if (!zoneActive)
+                {
+                    zoneActive = 1;
+                    onOff[0] = index;
+                }
+            }
+            else
+            {
+                if (zoneActive)
+                {
+                    zoneActive = 0;
+                    onOff[1] = index;
+                    intervals.push_back(onOff[1] - onOff[0]);
+                    half = (onOff[1] - onOff[0]) / 2;
+                    inum1 = onOff[0] + half;
+                    goldilocks.push_back(zonePath[inum1]);
+                    sCandidate = to_string(zonePath[inum1][0]) + "," + to_string(zonePath[inum1][1]);
+                    mapIndexCandidate.emplace(sCandidate, inum1);
+                }
+            }
+            index++;
+        }
+        if (zoneFreezer >= 0)
+        {
+            if (zoneActive)
+            {
+                inum1 = index - onOff[0];
+                intervals.push_back(inum1 + zoneFreezer);
                 half = (inum1 + zoneFreezer) / 2;
                 inum2 = onOff[0] + half;
                 if (inum2 >= zonePath.size())

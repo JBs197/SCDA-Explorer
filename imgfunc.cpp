@@ -3,9 +3,7 @@
 vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks)
 {
     vector<int> origin = tracks[tracks.size() - 1];
-    int radius = 10 * borderThickness;
-    vector<int> originRadius = origin;
-    originRadius.push_back(radius);
+    int radius = 4 * defaultSearchRadius;
     vector<vector<int>> octoPath = octogonPath(origin, radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
     //if (debug) { octogonPaint(origin, radius); }
@@ -853,113 +851,18 @@ vector<vector<int>> IMGFUNC::octogonPath(vector<int> origin, int radius)
 }
 vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, int radius)
 {
-    // Scans a ring of pixels around the present point for a given zone.
-    // If the zone is not found, the returned value is negative. If the 
-    // zone is found, its center point is approximated, and then that  
-    // center point's angular deviation from the previous direction of 
-    // motion is calculated. The return value is this angle (in degrees)
-    // given within the interval [0, 360), for every such zone found. 
+
     vector<double> theta;
     unordered_map<string, int> mapIndexCandidate;
+    vector<int> intervalSize;
     vector<vector<int>> octoPath = octogonPath(tracks[tracks.size() - 1], radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
-    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
-    vector<vector<int>> vvDebug;
-    vector<int> failsafe;
-    int numCandidates = lightHouse.size();
-    int lettersExist = 0;
-    if (numCandidates > 1)  
-    {
-        lettersExist = testTextHumanFeature(octoRGB);
-        if (lettersExist > 0)
-        {
-            numCandidates = testZoneSweepLetters(octoPath, octoRGB, lightHouse, mapIndexCandidate);
-        }
-        else if (failsafe.size() < 1)
-        {
-            // RESUME HERE. Better tests. Return candidate with widest whitespace;
-        }
-        while (numCandidates > 1 && radius > 0)
-        {
-
-            theta = octogonBearing(sbgui, tracks, sZone, radius - 2);
-            return theta;
-        }
-        if (numCandidates > 1 && radius <= 0)
-        { 
-            theta = { -1.0 };
-            return theta;
-        }
-        vvDebug.resize(lightHouse.size() + 2, vector<int>(2));
-        vvDebug[0] = tracks[tracks.size() - 2];
-        vvDebug[1] = tracks[tracks.size() - 1];
-        for (int ii = 0; ii < lightHouse.size(); ii++)
-        {
-            vvDebug[ii + 2] = lightHouse[ii];
-        }
-        zoneSweepDebug(vvDebug, radius);
-        vector<int> mycomm = { 3, 0, 0, 0 };
-        thread::id myid = this_thread::get_id();
-        sbgui.update(myid, mycomm);
-        while (1)
-        {
-            this_thread::sleep_for(chrono::milliseconds(100));
-            int bbq = 1;
-        }
-    }
-    else if (numCandidates < 1)
-    {
-        fdsa
-    }
+    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, intervalSize);
 
 
-    vector<vector<int>> vvTemp(1, vector<int>(2));
-    vvTemp[0] = tracks[tracks.size() - 1];
-    for (int ii = 0; ii < lightHouse.size(); ii++)
-    {
-        vvTemp.push_back(lightHouse[ii]);
-    }
-    vector<double> triangleSides(1);  // r, a, b, ...
-    triangleSides[0] = (double)radius;
-    vector<double> vdTemp;
-    coordDist(tracks[tracks.size() - 2], vvTemp, vdTemp);
-    triangleSides.insert(triangleSides.end(), vdTemp.begin(), vdTemp.end());
 
-    int numTri = triangleSides.size() - 2;
-    int clockwise;
-    double phi, cosPhi;
-    vector<vector<double>> pastPresentFuture(3, vector<double>(2));
-    jf.toDouble(tracks[tracks.size() - 2], pastPresentFuture[0]);
-    jf.toDouble(tracks[tracks.size() - 1], pastPresentFuture[1]);
-    for (int ii = 2; ii < triangleSides.size(); ii++)
-    {
-        cosPhi = (pow(triangleSides[0], 2.0) + pow(triangleSides[1], 2.0) - pow(triangleSides[ii], 2.0)) / (2 * triangleSides[0] * triangleSides[1]);
-        if (abs(cosPhi) > 1.0 && abs(cosPhi) <= 1.1)
-        {
-            if (cosPhi > 0.0) { cosPhi = 0.9999; }
-            else { cosPhi = -0.9999; }
-        }
-        phi = 180.0 / 3.1415926535 * acos(cosPhi);
-        pastPresentFuture[2].clear();
-        jf.toDouble(lightHouse[ii - 2], pastPresentFuture[2]);
-        clockwise = jf.coordCircleClockwise(pastPresentFuture);
-        if (clockwise == 1)
-        {
-            theta.push_back(180.0 - phi);
-        }
-        else if (clockwise == 0)
-        {
-            theta.push_back(180.0 + phi);
-        }
-        else { jf.err("Indeterminate clockwise-im.octogonBearing"); }
-    }
-    if (theta.size() > 1 || theta[0] > 180.0)
-    {
-        makeMapDebug(pastPresentFuture);
-        clockwise = jf.coordCircleClockwise(pastPresentFuture);
-        int bbq = 1;
-    }
-    return theta;
+
+
 }
 int IMGFUNC::testTextHumanFeature(vector<vector<unsigned char>>& Lrgb)
 {
