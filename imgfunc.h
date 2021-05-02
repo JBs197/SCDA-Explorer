@@ -1,6 +1,7 @@
 #pragma once
 #include "stb_image.h"
 #include "stb_image_write.h"
+#include "stb_truetype.h"
 #include <assert.h>
 #include <string>
 #include <vector>
@@ -15,9 +16,14 @@ class IMGFUNC
 	vector<vector<int>> borderRegion;  // Sequence of coords that represent the region's border.
 	int borderThickness = 6;
     double candidateDistanceTolerance = 0.4;  // Final two candidates: colour count or distance! 
-	vector<unsigned char> dataPNG, debugDataPNG;
+    int candidateRelativeLengthMin = 50;
+    int candidateRelativeWidthMin = 50;
+    stbtt_fontinfo defaultFont;
+    vector<unsigned char> dataPNG, debugDataPNG;
 	bool debug = 1;
     int defaultDotWidth = 5;
+    int defaultLineWidth = 4;
+    int defaultOctogonWidth = 3;
     vector<int> defaultExtractDim = { 400, 400 };
     int defaultSearchRadius = 15;
     string pathActivePNG;
@@ -29,6 +35,7 @@ class IMGFUNC
 
     vector<unsigned char> Black = { 0, 0, 0 };
     vector<unsigned char> Blue = { 0, 0, 255 };
+    vector<unsigned char> Gold = { 255, 170, 0 };
     vector<unsigned char> Green = { 0, 255, 0 };
     vector<unsigned char> Orange = { 255, 155, 55 };
     vector<unsigned char> Pink = { 255, 0, 255 };
@@ -43,6 +50,7 @@ public:
 	~IMGFUNC() {}
 	vector<int> borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks);
 	vector<int> borderFindStart();
+    void buildFont(string filePath);
     vector<vector<int>> checkBoundary(vector<int>& center, vector<int>& sourceDim, vector<int>& extractDim);
     double clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone);
     vector<vector<int>> coordPath(vector<vector<int>> startStop);
@@ -55,18 +63,23 @@ public:
 	bool isInit();
     bool jobsDone(vector<int> vCoord);
 	vector<vector<int>> linePath(vector<vector<int>>& startStop);
+    vector<vector<int>> linePathToEdge(vector<vector<int>>& startMid);
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
+    vector<vector<unsigned char>> makeText(string text);
 	bool mapIsInit();
     vector<vector<int>> octogonPath(vector<int> origin, int radius);
     string pixelDecToHex(vector<unsigned char>& rgb);
 	void pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsigned char> rgb, vector<int> coord);
-	vector<unsigned char> pixelRGB(int x, int y);
+	vector<unsigned char> pixelRGB(vector<int>& coord);
 	string pixelZone(vector<unsigned char>& rgb);
 	void pngLoad(string& pathPNG);
-    void pngPrint();
+    void pngPrint(vector<vector<unsigned char>>& img);
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinLiveDebug(SWITCHBOARD& sbgui, vector<vector<double>>& border);
+    vector<vector<unsigned char>> scanColumn(int col);
+    int testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates);
     int testTextHumanFeature(vector<vector<unsigned char>>& Lrgb);
+    vector<int> testZoneLength(vector<vector<int>>& pastPresent, vector<vector<int>>& candidates, string sZone);
     int testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate);
     vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
     void zoneSweepDebug(vector<vector<int>>& vCoord, int radius);
@@ -173,13 +186,14 @@ public:
         }
     }
 
-    template<typename ... Args> void dotPaint(vector<int> coord, Args& ... args)
+    template<typename ... Args> void dotPaint(vector<int> coord, vector<unsigned char> rgb, Args& ... args)
     {
-        jf.err("drawDot template-im");
+        jf.err("dotPaint template-im");
     }
-    template<> void dotPaint< >(vector<int> coord)
+    template<> void dotPaint< >(vector<int> coord, vector<unsigned char> rgb)
     {
-        // Default values are 5x5 red dots on the dataPNG buffer.
+        // Uses defaultDotWidth and debugDataPNG.
+        if (debugDataPNG.size() < 1) { jf.err("debugDataPNG not prepared-im.dotPaint"); }
         vector<int> vTemp(2);
         for (int ii = 0; ii < defaultDotWidth; ii++)
         {
@@ -187,11 +201,11 @@ public:
             for (int jj = 0; jj < defaultDotWidth; jj++)
             {
                 vTemp[0] = coord[0] - (defaultDotWidth / 2) + jj;
-                pixelPaint(dataPNG, width, Red, vTemp);
+                pixelPaint(debugDataPNG, width, rgb, vTemp);
             }
         }
     }
-    template<> void dotPaint<vector<unsigned char>, int, vector<unsigned char>, int>(vector<int> coord, vector<unsigned char>& img, int& widthImg, vector<unsigned char>& rgb, int& widthDot)
+    template<> void dotPaint<vector<unsigned char>, int, int>(vector<int> coord, vector<unsigned char> rgb, vector<unsigned char>& img, int& widthImg, int& widthDot)
     {
         vector<int> vTemp(2);
         for (int ii = 0; ii < widthDot; ii++)
@@ -207,7 +221,7 @@ public:
 
     template<typename ... Args> int getOffset(vector<int>& vCoord, Args& ... args)
     {
-        jf.err("getOffset template");
+        jf.err("getOffset template-im");
     }
     template<> int getOffset< >(vector<int>& vCoord)
     {
@@ -222,19 +236,19 @@ public:
         return offRow + offCol;
     }
 
-    template<typename ... Args> void linePaint(vector<vector<int>> startStop, Args& ... args)
+    template<typename ... Args> void linePaint(vector<vector<int>> startStop, vector<unsigned char> rgb, Args& ... args)
     {
         jf.err("linePaint template-im");
     }
-    template<> void linePaint< >(vector<vector<int>> startStop)
+    template<> void linePaint< >(vector<vector<int>> startStop, vector<unsigned char> rgb)
     {
         vector<vector<int>> path = linePath(startStop);
         for (int ii = 0; ii < path.size(); ii++)
         {
-            dotPaint(path[ii]);
+            dotPaint(path[ii], rgb, debugDataPNG, width, defaultLineWidth);
         }
     }
-    template<> void linePaint<vector<unsigned char>, int, vector<unsigned char>, int>(vector<vector<int>> startStop, vector<unsigned char>& img, int& widthImg, vector<unsigned char>& rgb, int& widthDot)
+    template<> void linePaint<vector<unsigned char>, int, int>(vector<vector<int>> startStop, vector<unsigned char> rgb, vector<unsigned char>& img, int& widthImg, int& widthDot)
     {
         vector<vector<int>> path = linePath(startStop);
         for (int ii = 0; ii < path.size(); ii++)
@@ -243,13 +257,64 @@ public:
         }
     }
 
-    template<typename ... Args> void makeMapDebug(Args& ... args)
+    template<typename ... Args> void makeMapBorderFindNext(vector<vector<int>>& tracks, int radius, vector<vector<int>> candidates, Args& ... args)
     {
+        // Debug map maker for the 'borderFindNext' function. 
+        jf.err("makeMapBorderFindNext template-im");
+    }
+    template<> void makeMapBorderFindNext< >(vector<vector<int>>& tracks, int radius, vector<vector<int>> candidates)
+    {
+        if (tracks.size() < 1) { jf.err("No tracks-im.makeMapBorderFindNext"); }
+        if (!mapIsInit()) { initMapColours(); }
+        debugDataPNG = dataPNG;
+        //int widthDot = 5;
+        //int widthLine = 5;
+        if (radius > 0) { octogonPaint(tracks[tracks.size() - 1], radius, Orange); }        
+        octogonPaint(tracks[tracks.size() - 1], defaultSearchRadius, Gold);
+
+        vector<vector<int>> startStop(2, vector<int>());
+        for (int ii = 0; ii < tracks.size() - 1; ii++)
+        {
+            startStop[0] = tracks[ii];
+            startStop[1] = tracks[ii + 1];
+            linePaint(startStop, Teal);
+        }
+
+        for (int ii = 0; ii < tracks.size() - 1; ii++)
+        {
+            dotPaint(tracks[ii], Green);
+        }
+        dotPaint(tracks[tracks.size() - 1], Yellow);
+        
+        for (int ii = 0; ii < candidates.size(); ii++)
+        {
+            dotPaint(candidates[ii], Red);
+        }
+
+        vector<int> sourceDim = { width, height };
+        vector<unsigned char> cropped = pngExtractRect(tracks[tracks.size() - 1], debugDataPNG, sourceDim, defaultExtractDim);
+        int imgSize = cropped.size();
+        int channels = 3;
+        auto bufferUC = new unsigned char[imgSize];
+        for (int ii = 0; ii < imgSize; ii++)
+        {
+            bufferUC[ii] = cropped[ii];
+        }
+        string pathImg = sroot + "\\debug\\borderFindNextDebug.png";
+        int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
+        delete[] bufferUC;
+    }
+
+    template<typename ... Args> void makeMapOctogonBearing(Args& ... args)
+    {
+        // Given two (past, present) points, as well as a minimum of one 
+        // candidate point, make a debug PNG showing the search octogon, 
+        // the pastPresent input vector, all the candidate vectors, and
+        // all the input points as dots. 
         jf.err("makeMapDebug template-im");
     }
-    template<> void makeMapDebug<vector<vector<int>>>(vector<vector<int>>& pastPresentFuture)
+    template<> void makeMapOctogonBearing<vector<vector<int>>>(vector<vector<int>>& pastPresentFuture)
     {
-        // Use with octogonBearing.
         if (!mapIsInit()) { initMapColours(); }
         debugDataPNG = dataPNG;
         int widthDot = 5;
@@ -277,67 +342,11 @@ public:
         int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
     }
-    template<> void makeMapDebug<vector<vector<double>>>(vector<vector<double>>& pPF)
+    template<> void makeMapOctogonBearing<vector<vector<double>>>(vector<vector<double>>& pPF)
     {
-        // Use with octogonBearing.
-        debugDataPNG = dataPNG;
-        if (!mapIsInit()) { initMapColours(); }
         vector<vector<int>> pastPresentFuture;
         jf.toInt(pPF, pastPresentFuture);
-        int widthDot = 5;
-        int widthLine = 5;
-        vector<vector<int>> startStop(2, vector<int>());
-        startStop[0] = pastPresentFuture[0];
-        startStop[1] = pastPresentFuture[1];
-        linePaint(startStop, debugDataPNG, width, Teal, widthLine);
-        startStop[0] = pastPresentFuture[1];
-        startStop[1] = pastPresentFuture[2];
-        linePaint(startStop, debugDataPNG, width, Orange, widthLine);
-        dotPaint(pastPresentFuture[0], debugDataPNG, width, Green, widthDot);
-        dotPaint(pastPresentFuture[1], debugDataPNG, width, Yellow, widthDot);
-        dotPaint(pastPresentFuture[2], debugDataPNG, width, Red, widthDot);
-        vector<int> sourceDim = { width, height };
-        vector<unsigned char> cropped = pngExtractRect(pastPresentFuture[1], debugDataPNG, sourceDim, defaultExtractDim);
-        int imgSize = cropped.size();
-        int channels = 3;
-        auto bufferUC = new unsigned char[imgSize];
-        for (int ii = 0; ii < imgSize; ii++)
-        {
-            bufferUC[ii] = cropped[ii];
-        }
-        string pathImg = sroot + "\\debug\\tempDebug.png";
-        int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
-        delete[] bufferUC;
-    }
-    template<> void makeMapDebug<vector<vector<int>>, int>(vector<vector<int>>& pastPresent, int& radius)
-    {
-        // Meant to be used if a bearing cannot be found. Show path in and radius.
-        if (!mapIsInit()) { initMapColours(); }
-        debugDataPNG = dataPNG;
-        int widthDot = 5;
-        int widthLine = 5;
-        vector<vector<int>> startStop(2, vector<int>(2));
-        octogonPaint(pastPresent[pastPresent.size() - 1], radius, debugDataPNG, width, Orange, widthLine);
-        for (int ii = 0; ii < pastPresent.size() - 1; ii++)
-        {
-            startStop[0] = pastPresent[ii];
-            startStop[1] = pastPresent[ii + 1];
-            linePaint(startStop, debugDataPNG, width, Teal, widthLine);
-            dotPaint(pastPresent[ii], debugDataPNG, width, Green, widthDot);
-        }
-        dotPaint(pastPresent[pastPresent.size() - 1], debugDataPNG, width, Yellow, widthDot);
-        vector<int> sourceDim = { width, height };
-        vector<unsigned char> cropped = pngExtractRect(pastPresent[pastPresent.size() - 1], debugDataPNG, sourceDim, defaultExtractDim);
-        int imgSize = cropped.size();
-        int channels = 3;
-        auto bufferUC = new unsigned char[imgSize];
-        for (int ii = 0; ii < imgSize; ii++)
-        {
-            bufferUC[ii] = cropped[ii];
-        }
-        string pathImg = sroot + "\\debug\\tempDebug.png";
-        int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
-        delete[] bufferUC;
+        makeMapOctogonBearing(pastPresentFuture);
     }
 
     template<typename ... Args> void makeMapZoneSweepDebug(vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<vector<int>>& goldilocks, Args& ... args)
@@ -423,56 +432,118 @@ public:
         vector<int> intervalSize;
         vector<vector<int>> octoPath = octogonPath(pastPresent[1], radius);
         vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
-        vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, intervalSize);
-        int numCandidates = lightHouse.size();
-        vector<int> failsafe;  // Form [xCoord, yCoord, interval relative size].
+        vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, intervalSize);
+        int numCandidates = candidates.size();
         int lettersExist = 0;
+        vector<vector<int>> pastPresentFuture = pastPresent;
+        
+        // Test for letter zone sandwiches.
         if (numCandidates > 1)
         {
             lettersExist = testTextHumanFeature(octoRGB);
             if (lettersExist > 0)
             {
-                numCandidates = testZoneSweepLetters(octoPath, octoRGB, lightHouse, mapIndexCandidate);
+                numCandidates = testZoneSweepLetters(octoPath, octoRGB, candidates, mapIndexCandidate);
             }
-            else if (failsafe.size() < 1)
-            {
-                int sizeMax = 0;
-                int sizeSecond = 0;
-                for (int ii = 0; ii < numCandidates; ii++)
-                {
-                    if (intervalSize[ii] > sizeMax)
-                    {
-                        sizeSecond = sizeMax;
-                        sizeMax = intervalSize[ii];
-                        failsafe = lightHouse[ii];
-                    }
-                    else if (intervalSize[ii] > sizeSecond)
-                    {
-                        sizeSecond = intervalSize[ii];
-                    }
-                }
-                failsafe.push_back((100 * sizeSecond) / sizeMax);
-            }
+        }
 
-            if (numCandidates > 1 && radius > 0)
+        // Relaunch octogonBearing with a larger or smaller search radius. If 
+        // the search radius passes outside the interval (2, 4*default), then 
+        // indicate failure by changing theta to -2.0 from -1.0 (default).
+        if (numCandidates > 1)
+        {
+            if (radius > 2)
             {
-                theta = octogonBearing(sbgui, tracks, sZone, radius - 2);
+                octogonBearing(sbgui, pastPresent, sZone, radius - 2, theta);
+                if (radius != defaultSearchRadius) { return; }
             }
-            else if (numCandidates > 1 && radius <= 0)
+            else if (radius <= 2)
             {
-                theta = { -1.0 };
+                theta = -2.0;
+                return;
             }
         }
         else if (numCandidates < 1)
         {
             if (radius < 4 * defaultSearchRadius)
             {
-                theta = octogonBearing(sbgui, tracks, sZone, radius + 2);
+                octogonBearing(sbgui, pastPresent, sZone, radius + 2, theta);
+                if (radius != defaultSearchRadius) { return; }
             }
             else
             {
-                theta = { -1.0 };
+                theta = -2.0;
+                return;
             }
+        }
+
+        // Apply the zone width and zone length tests. If neither of them yields
+        // sufficiently strong results, then make a debug PNG and admit defeat.
+        if (numCandidates != 1 && theta < 0.0)
+        {
+            // Zone width test.
+            vector<int> candidateWide;  // Form [xCoord, yCoord, runnerup's relative width (percent)]
+            int sizeMax = 0;
+            int sizeSecond = 0;
+            for (int ii = 0; ii < numCandidates; ii++)
+            {
+                if (intervalSize[ii] > sizeMax)
+                {
+                    sizeSecond = sizeMax;
+                    sizeMax = intervalSize[ii];
+                    candidateWide = candidates[ii];
+                }
+                else if (intervalSize[ii] > sizeSecond)
+                {
+                    sizeSecond = intervalSize[ii];
+                }
+            }
+            candidateWide.push_back((100 * sizeSecond) / sizeMax);
+
+            // Zone length test.
+            vector<int> candidateLong = testZoneLength(pastPresent, candidates, sZone);
+
+            // Last chance.
+            if (candidateLong[2] >= candidateWide[2])
+            {
+                if (candidateLong[2] >= candidateRelativeLengthMin)
+                {
+                    pastPresentFuture.push_back({ candidateLong[0], candidateLong[1] });
+                    theta = jf.angleBetweenVectors(pastPresentFuture);
+                    return;
+                }
+                else if (candidateWide[2] >= candidateRelativeWidthMin)
+                {
+                    pastPresentFuture.push_back({ candidateWide[0], candidateWide[1] });
+                    theta = jf.angleBetweenVectors(pastPresentFuture);
+                    return;
+                }
+            }
+            else
+            {
+                if (candidateWide[2] >= candidateRelativeWidthMin)
+                {
+                    pastPresentFuture.push_back({ candidateWide[0], candidateWide[1] });
+                    theta = jf.angleBetweenVectors(pastPresentFuture);
+                    return;
+                }
+                else if (candidateLong[2] >= candidateRelativeLengthMin)
+                {
+                    pastPresentFuture.push_back({ candidateLong[0], candidateLong[1] });
+                    theta = jf.angleBetweenVectors(pastPresentFuture);
+                    return;
+                }
+            }
+
+            // Defeat.
+            return;
+        }
+
+        if (numCandidates == 1)
+        {
+            pastPresentFuture.push_back(candidates[0]);
+            theta = jf.angleBetweenVectors(pastPresentFuture);
+            return;
         }
     }
     template<> void octogonBearing<vector<double>>(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, vector<double>& theta)
@@ -492,19 +563,20 @@ public:
         }
     }
 
-    template<typename ... Args> void octogonPaint(vector<int> origin, int radius, Args& ... args)
+    template<typename ... Args> void octogonPaint(vector<int> origin, int radius, vector<unsigned char> rgb, Args& ... args)
     {
         jf.err("octogonPaint template-im");
     }
-    template<> void octogonPaint< >(vector<int> origin, int radius)
+    template<> void octogonPaint< >(vector<int> origin, int radius, vector<unsigned char> rgb)
     {
+        if (debugDataPNG.size() < 1) { jf.err("debugDataPNG not initialized-im.octogonPaint"); }
         vector<vector<int>> path = octogonPath(origin, radius);
         for (int ii = 0; ii < path.size(); ii++)
         {
-            dotPaint(path[ii]);
+            dotPaint(path[ii], rgb, debugDataPNG, width, defaultOctogonWidth);
         }
     }
-    template<> void octogonPaint<vector<unsigned char>, int, vector<unsigned char>, int>(vector<int> origin, int radius, vector<unsigned char>& img, int& widthImg, vector<unsigned char>& rgb, int& widthDot)
+    template<> void octogonPaint<vector<unsigned char>, int, int>(vector<int> origin, int radius, vector<unsigned char> rgb, vector<unsigned char>& img, int& widthImg, int& widthDot)
     {
         vector<vector<int>> path = octogonPath(origin, radius);
         for (int ii = 0; ii < path.size(); ii++)
@@ -532,9 +604,11 @@ public:
             lenPerp = radius - 1;
             lenDiag = (radius / 2) + 1;
         }
+        vector<int> viTemp = origin;
+        viTemp[1] = origin[1] - radius;
         vector<vector<unsigned char>> octoRGB(1, vector<unsigned char>(3));
-        octoRGB[0] = pixelRGB(origin[0], origin[1] - radius);
-        vector<vector<int>> vVictor = { {origin[0], origin[1] - radius}, {1, 0} };
+        octoRGB[0] = pixelRGB(viTemp);
+        vector<vector<int>> vVictor = { viTemp, {1, 0} };
         vector<vector<unsigned char>> vvTemp = lineRGB(vVictor, radius / 2);
         octoRGB.insert(octoRGB.end(), vvTemp.begin(), vvTemp.end());
 
@@ -574,7 +648,7 @@ public:
         vector<vector<unsigned char>> octoRGB(octoPath.size(), vector<unsigned char>(3));
         for (int ii = 0; ii < octoRGB.size(); ii++)
         {
-            octoRGB[ii] = pixelRGB(octoPath[ii][0], octoPath[ii][1]);
+            octoRGB[ii] = pixelRGB(octoPath[ii]);
         }
         return octoRGB;
     }

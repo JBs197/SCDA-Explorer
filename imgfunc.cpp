@@ -4,11 +4,12 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
 {
     vector<int> origin = tracks[tracks.size() - 1];
     int radius = 4 * defaultSearchRadius;
+    unordered_map<string, int> mapIndexCandidate;
     vector<vector<int>> octoPath = octogonPath(origin, radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
     //if (debug) { octogonPaint(origin, radius); }
     string sZone = "zoneBorder";
-    vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath);
+    vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
     vector<vector<int>> vvTemp, cPath;
     while (candidates.size() < 2)
     {
@@ -16,12 +17,13 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         octoPath = octogonPath(origin, radius);
         octoRGB = octogonRGB(octoPath);
         //if (debug) { octogonPaint(origin, radius); }
-        candidates = zoneSweep(sZone, octoRGB, octoPath, originRadius);
+        mapIndexCandidate.clear();
+        candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
     }
-    if (tracks.size() < 2) { return candidates[0]; }
-    vector<int> originPast = tracks[tracks.size() - 2];
-    vector<double> distances;
-    coordDist(originPast, candidates, distances);
+    if (tracks.size() < 2) { return candidates[0]; }     // We arbitrarily choose the path
+    vector<int> originPast = tracks[tracks.size() - 2];  // of direction "earliest time" 
+    vector<double> distances;                            // on an analog clock, for the 
+    coordDist(originPast, candidates, distances);        // first step.
     double minDistance, dTemp;
     int elimIndex;
 
@@ -44,46 +46,13 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
 
     // There can only be two candidates remaining.  
     // Perform a series of tests to determine the right path.
-    vector<int> interiorCounts(2);
-    sZone = "white";
-    vvTemp.resize(2);
-    vvTemp[0] = tracks[tracks.size() - 1];
-    vvTemp[1] = candidates[0];
-    vector<double> bearings0 = octogonBearing(sbgui, vvTemp, sZone, radius / 4);
-    interiorCounts[0] = bearings0.size();
-    vvTemp[1] = candidates[1];
-    vector<double> bearings1 = octogonBearing(sbgui, vvTemp, sZone, radius / 4);
-    interiorCounts[1] = bearings1.size();
-    vector<int> goClock(2, 0);
-    if (interiorCounts[0] == 0 && interiorCounts[1] > 0)
-    {
-        return candidates[1];
-    }
-    else if (interiorCounts[1] == 0 && interiorCounts[0] > 0)
-    {
-        return candidates[0];
-    }
-    else if (interiorCounts[0] > 0 && interiorCounts[1] > 0)
-    {
-        if (bearings0[0] >= 0.0 && bearings0[0] < 180.0) { goClock[0] = 1; }
-        if (bearings1[0] >= 0.0 && bearings1[0] < 180.0) { goClock[1] = 1; }
-        if (goClock[0] + goClock[1] == 1)
-        {
-            double percentClock = clockwisePercentage(sbgui, tracks, sZone);
-            if (percentClock > 0.5)
-            {
-                if (goClock[0] == 1) { return candidates[0]; }
-                else if (goClock[1] == 1) { return candidates[1]; }
-            }
-            else
-            {
-                if (goClock[0] == 1) { return candidates[1]; }
-                else if (goClock[1] == 1) { return candidates[0]; }
-            }
-        }
-    }
 
-    // Plan B...
+    // Test for access to the interior (white) zone.
+    sZone = "white";
+    int numCandidates = testCandidatesInteriorZone(sbgui, tracks, sZone, candidates);
+    if (numCandidates == 1) { return candidates[0]; }
+
+    // Test for greater distance from previous border point. 
     if (distances[0] > distances[1])
     {
         dTemp = (distances[0] - distances[1]) / distances[0];
@@ -95,52 +64,11 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         if (dTemp > candidateDistanceTolerance) { return candidates[1]; }
     }
 
-    // Plan C...
-    vector<int> rgbCount(candidates.size());
-    vvTemp.resize(2);
-    vvTemp[0] = origin;
-    for (int ii = 0; ii < candidates.size(); ii++)
-    {
-        vvTemp[1] = candidates[ii];
-        cPath = coordPath(vvTemp);
-        rgbCount[ii] = coordRGB(cPath, sZone);
-    }
-    bool rgbDiff = 0;
-    for (int ii = 1; ii < rgbCount.size(); ii++)
-    {
-        if (rgbCount[ii] != rgbCount[0])
-        {
-            rgbDiff = 1;
-            break;
-        }
-    }
-    int winner = 0;
-    if (rgbDiff)
-    {
-        int bestCount = rgbCount[0];
-        for (int ii = 1; ii < rgbCount.size(); ii++)
-        {
-            if (rgbCount[ii] > bestCount)
-            {
-                bestCount = rgbCount[ii];
-                winner = ii;
-            }
-        }
-    }
-    else
-    {
-        double maxDist = distances[0];
-        for (int ii = 0; ii < distances.size(); ii++)
-        {
-            if (distances[ii] > maxDist)
-            {
-                maxDist = distances[ii];
-                winner = ii;
-            }
-        }
-    }
-
-    return candidates[winner];
+    // Defeat. Make a debug map.
+    makeMapBorderFindNext(tracks, radius, candidates);
+    jf.err("Failed to determine next border point-im.borderFindNext");
+    vector<int> failure = { -1, -1 };
+    return failure;
 }
 vector<int> IMGFUNC::borderFindStart()
 {
@@ -177,6 +105,47 @@ vector<int> IMGFUNC::borderFindStart()
 
     //if (debug) { drawMarker(debugDataPNG, vStart); }
     return vStart;
+}
+void IMGFUNC::buildFont(string filePath)
+{
+    // Many assumptions are made for the sake of expediency. 
+    // Assume the bitmap font is 512x512, starting from ASCII 32, 
+    // each row having a height of 32 pixels, with 16 glyphs per
+    // row. Also assume zero antialiasing, with glyphs as black on white.
+    pngLoad(filePath);
+    vector<vector<unsigned char>> column;
+    vector<unsigned char> white = { 255, 255, 255 };
+    vector<int> columnSpaces;
+    int start, stop, middle;
+    bool spaceStart = 0;
+    for (int ii = 2; ii < 512; ii++)
+    {
+        column = scanColumn(ii);
+        for (int jj = 0; jj < column.size(); jj++)
+        {
+            if (column[jj] != white) 
+            {
+                if (spaceStart)
+                {
+                    spaceStart = 0;
+                    stop = ii - 1;
+                    middle = start + ((stop - start) / 2);
+                    columnSpaces.push_back(middle);
+                }
+                break; 
+            }
+            else if (jj == column.size() - 1)
+            {
+                if (!spaceStart) 
+                {
+                    spaceStart = 1; 
+                    start = ii;
+                }
+            }
+        }
+    }
+
+    // RESUME HERE. Dice the glyphs, trim them, save them.
 }
 vector<vector<int>> IMGFUNC::checkBoundary(vector<int>& center, vector<int>& sourceDim, vector<int>& extractDim)
 {
@@ -227,32 +196,20 @@ double IMGFUNC::clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tra
     if (tracks.size() < 2) { jf.err("Not enough coordinates-im.clockwisePercentage"); }
     int numClockwise = 0;
     vector<vector<int>> pastPresent(2, vector<int>(2));
-    vector<double> bearings;
-    int radiusDefault = 2 * borderThickness;
-    int radius, attemptRadius;
-    for (int ii = 0; ii < tracks.size() - 1; ii++)
+    int numBearings = tracks.size() - 1;
+    vector<double> bearings(numBearings, -1.0);
+    int attemptRadius;
+    for (int ii = 0; ii < numBearings; ii++)
     {
         pastPresent[0] = tracks[ii];
         pastPresent[1] = tracks[ii + 1];
-        radius = radiusDefault;
         attemptRadius = 0;
-        bearings = octogonBearing(sbgui, pastPresent, sZone, radius);
-        while (bearings.size() != 1)
+        octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearings[ii]);
+        if (bearings[ii] >= 0.0 && bearings[0] < 180.0) { numClockwise++; }
+        else if (bearings[ii] < 0.0)
         {
-            if (bearings.size() > 1) { radius--; }
-            else if (bearings.size() < 1) { radius += 2; }
-            bearings = octogonBearing(sbgui, pastPresent, sZone, radius);
-            attemptRadius++;
-            if (attemptRadius > 10) 
-            { 
-                vector<vector<int>> tracksTemp;
-                tracksTemp.assign(tracks.begin(), tracks.begin() + ii + 2);
-                makeMapDebug(tracksTemp, radius);
-                clockwisePercentage(sbgui, tracks, sZone);
-                jf.err("Cannot determine bearings-im.clockwisePercentage"); 
-            }
+            // RESUMER
         }
-        if (bearings[0] >= 0.0 && bearings[0] < 180.0) { numClockwise++; }
     }
     double percent = (double)numClockwise / ((double)tracks.size() - 1.0);
     return percent;
@@ -297,7 +254,7 @@ int IMGFUNC::coordRGB(vector<vector<int>> cPath, string sZone)
     string szone;
     for (int ii = 0; ii < cPath.size(); ii++)
     {
-        rgb = pixelRGB(cPath[ii][0], cPath[ii][1]);
+        rgb = pixelRGB(cPath[ii]);
         szone = pixelZone(rgb);
         if (szone == sZone) { count++; }
     }
@@ -515,20 +472,77 @@ vector<vector<int>> IMGFUNC::linePath(vector<vector<int>>& startStop)
     }
     return path;
 }
+vector<vector<int>> IMGFUNC::linePathToEdge(vector<vector<int>>& startMid)
+{
+    // Will use IMGFUNC's width and height derived from dataPNG.
+    vector<vector<int>> path;
+    vector<int> viTemp;
+    double Dx = (double)(startMid[1][0] - startMid[0][0]);
+    double Dy = (double)(startMid[1][1] - startMid[0][1]);
+    double dx, dy, xCoord, yCoord;
+    int ix, iy;
+    int indexPath = -1;
+    bool offTheEdge = 0;
+    if (abs(Dx) > abs(Dy))
+    {
+        dy = Dy / abs(Dx);
+        if (Dx > 0) { ix = 1; }
+        else if (Dx < 0) { ix = -1; }
+        else { ix = 0; }
+        viTemp = startMid[0];
+        yCoord = (double)startMid[0][1];
+        while (!offTheEdge)
+        {
+            path.push_back(viTemp);
+            indexPath++;
+            yCoord += dy;
+            viTemp[0] = path[indexPath][0] + ix;
+            viTemp[1] = int(round(yCoord));
+            if (viTemp[0] < 0 || viTemp[0] >= width) { offTheEdge = 1; }
+            if (viTemp[1] < 0 || viTemp[1] >= height) { offTheEdge = 1; }
+        }
+    }
+    else
+    {
+        dx = Dx / abs(Dy);
+        if (Dy > 0) { iy = 1; }
+        else if (Dy < 0) { iy = -1; }
+        else { iy = 0; }
+        viTemp = startMid[0];
+        xCoord = (double)startMid[0][0];
+        while (!offTheEdge)
+        {
+            path.push_back(viTemp); 
+            indexPath++;
+            xCoord += dx;
+            viTemp[0] = int(round(xCoord));
+            viTemp[1] = path[indexPath][1] + iy;
+            if (viTemp[0] < 0 || viTemp[0] >= width) { offTheEdge = 1; }
+            if (viTemp[1] < 0 || viTemp[1] >= height) { offTheEdge = 1; }
+        }
+    }
+    return path;
+}
 vector<vector<unsigned char>> IMGFUNC::lineRGB(vector<vector<int>>& vVictor, int length)
 {
     vector<vector<unsigned char>> Lrgb(length, vector<unsigned char>(3));
-    int coordX = vVictor[0][0];
-    int coordY = vVictor[0][1];
+    vector<int> viTemp = vVictor[0];
     for (int ii = 0; ii < length; ii++)
     {
-        coordX += vVictor[1][0];
-        coordY += vVictor[1][1];
-        Lrgb[ii] = pixelRGB(coordX, coordY);
+        viTemp[0] += vVictor[1][0];
+        viTemp[1] += vVictor[1][1];
+        Lrgb[ii] = pixelRGB(viTemp);
     }
-    vVictor[0][0] = coordX;
-    vVictor[0][1] = coordY;
+    vVictor[0][0] = viTemp[0];
+    vVictor[0][1] = viTemp[1];
     return Lrgb;
+}
+vector<vector<unsigned char>> IMGFUNC::makeText(string text)
+{
+    vector<vector<unsigned char>> output(20, vector<unsigned char>(100));
+    
+
+    return output;
 }
 string IMGFUNC::pixelDecToHex(vector<unsigned char>& rgb)
 {
@@ -547,24 +561,16 @@ void IMGFUNC::pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsign
     img[offset + 1] = rgb[1];
     img[offset + 2] = rgb[2];
 }
-vector<unsigned char> IMGFUNC::pixelRGB(int x, int y)
+vector<unsigned char> IMGFUNC::pixelRGB(vector<int>& coord)
 {
 	if (dataPNG.size() < 1) { jf.err("No loaded image-im.pixelRGB"); } 
-	vector<unsigned char> rgb(3);
-	if (x >= width || y >= height)
-	{
-		rgb.resize(0);  // Indicates range error.
-		return rgb;
-	}
-    vector<int> vCoord = { x, y };
-    int offset = getOffset(vCoord);
+	if (coord[0] < 0 || coord[0] >= width) { jf.err("xCoord out of bounds-im.pixelRGB"); }
+    if (coord[1] < 0 || coord[1] >= height) { jf.err("yCoord out of bounds-im.pixelRGB"); }
+    vector<unsigned char> rgb(3);
+    int offset = getOffset(coord);
 	rgb[0] = dataPNG[offset + 0];
 	rgb[1] = dataPNG[offset + 1];
 	rgb[2] = dataPNG[offset + 2];
-    if (rgb[0] == 255 && rgb[1] == 0)
-    {
-        int bbq = 1;
-    }
 	return rgb;
 }
 string IMGFUNC::pixelZone(vector<unsigned char>& rgb)
@@ -583,18 +589,27 @@ void IMGFUNC::pngLoad(string& pathPNG)
 	copy(dataTemp, dataTemp + sizeTemp, dataPNG.begin());
     pathActivePNG = pathPNG;
 
+    int bbq = 0;
 }
-void IMGFUNC::pngPrint()
+void IMGFUNC::pngPrint(vector<vector<unsigned char>>& img)
 {
-    int imgSize = debugDataPNG.size();
+    if (img[0].size() != img[img.size() - 1].size()) { jf.err("Width mismatch-im.pngPrint"); }
+    string output = sroot + "\\debug\\pngPrintOutput.png";
+    int widthImg = img[0].size();
+    int heightImg = img.size();
+    int sizeImg = widthImg * heightImg;
     int channels = 3;
-    auto bufferUC = new unsigned char[imgSize + 1];
-    for (int ii = 0; ii < imgSize; ii++)
+    auto bufferUC = new unsigned char[sizeImg];
+    int pos = 0;
+    for (int ii = 0; ii < heightImg; ii++)
     {
-        bufferUC[ii] = debugDataPNG[ii];
+        for (int jj = 0; jj < widthImg; jj++)
+        {
+            bufferUC[pos] = img[ii][jj];
+            pos++;
+        }
     }
-    int error = stbi_write_png("F:\\debug\\testing.png", width, height, channels, bufferUC, 0);
-
+    int error = stbi_write_png(output.c_str(), widthImg, heightImg, channels, bufferUC, 0);
     delete[] bufferUC;
     int barbecue = 1;
 }
@@ -727,7 +742,7 @@ void IMGFUNC::pngToBinLiveDebug(SWITCHBOARD& sbgui, vector<vector<double>>& bord
     {
         viTemp[0] += 30;
         viTemp[1] -= 20;
-        dotPaint(viTemp);
+        dotPaint(viTemp, Red);
     }
     vector<vector<int>> vviTemp(2, vector<int>());
     vviTemp[0] = { 2630, 2545 };
@@ -849,20 +864,83 @@ vector<vector<int>> IMGFUNC::octogonPath(vector<int> origin, int radius)
     }
     return path;
 }
-vector<double> IMGFUNC::octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, int radius)
+vector<vector<unsigned char>> IMGFUNC::scanColumn(int col)
 {
-
-    vector<double> theta;
-    unordered_map<string, int> mapIndexCandidate;
-    vector<int> intervalSize;
-    vector<vector<int>> octoPath = octogonPath(tracks[tracks.size() - 1], radius);
-    vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
-    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, intervalSize);
-
-
-
-
-
+    if (!isInit()) { jf.err("No PNG loaded-im.scanColumn"); }
+    if (col >= width) { jf.err("Column beyond width-im.scanColumn"); }
+    vector<vector<unsigned char>> column(height, vector<unsigned char>(3));
+    vector<int> coord(2);
+    coord[0] = col;
+    int offset;
+    for (int ii = 0; ii < height; ii++)
+    {
+        coord[1] = ii;
+        offset = getOffset(coord);
+        column[ii][0] = dataPNG[offset + 0];
+        column[ii][1] = dataPNG[offset + 1];
+        column[ii][2] = dataPNG[offset + 2];
+    }
+    return column;
+}
+int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates)
+{
+    // Test two candidates for their access to a desired sZone. Attempts to 
+    // eliminate one candidate. Return value is number of candidates remaining.
+    if (candidates.size() != 2) { jf.err("Not given two candidates-im.testCandidatesInteriorZone"); }
+    vector<double> bearingsInterior(2, -1.0);
+    vector<vector<int>> pastPresent(2, vector<int>(2));
+    pastPresent[0] = tracks[tracks.size() - 1];
+    pastPresent[1] = candidates[0];
+    octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearingsInterior[0]);
+    pastPresent[1] = candidates[1];
+    octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearingsInterior[1]);
+    vector<int> goClock(2, 0);
+    if (bearingsInterior[0] >= 0.0 && bearingsInterior[1] < 0.0)
+    {
+        candidates.erase(candidates.begin() + 1);
+        return 1;
+    }
+    else if (bearingsInterior[1] >= 0.0 && bearingsInterior[0] < 0.0)
+    {
+        candidates.erase(candidates.begin() + 0);
+        return 1;
+    }
+    else if (bearingsInterior[0] >= 0.0 && bearingsInterior[1] >= 0.0)
+    {
+        if (bearingsInterior[0] >= 0.0 && bearingsInterior[0] < 180.0) { goClock[0] = 1; }
+        if (bearingsInterior[1] >= 0.0 && bearingsInterior[1] < 180.0) { goClock[1] = 1; }
+        if (goClock[0] + goClock[1] == 1)  // If exactly one candidate goes clockwise and
+        {                                  // the other goes counterclockwise...
+            double percentClock = clockwisePercentage(sbgui, tracks, sZone);
+            if (percentClock > 0.5)
+            {
+                if (goClock[0] == 1) 
+                {
+                    candidates.erase(candidates.begin() + 1);
+                    return 1;
+                }
+                else if (goClock[1] == 1) 
+                {
+                    candidates.erase(candidates.begin() + 0);
+                    return 1;
+                }
+            }
+            else
+            {
+                if (goClock[0] == 0) 
+                {
+                    candidates.erase(candidates.begin() + 1);
+                    return 1;
+                }
+                else if (goClock[1] == 0) 
+                {
+                    candidates.erase(candidates.begin() + 0);
+                    return 1;
+                }
+            }
+        }
+    }
+    return 2;
 }
 int IMGFUNC::testTextHumanFeature(vector<vector<unsigned char>>& Lrgb)
 {
@@ -874,6 +952,79 @@ int IMGFUNC::testTextHumanFeature(vector<vector<unsigned char>>& Lrgb)
         if (pixelColour == test) { return 1; }
     }
     return 0;
+}
+vector<int> IMGFUNC::testZoneLength(vector<vector<int>>& pastPresent, vector<vector<int>>& candidates, string sZone)
+{
+    // Returns the candidate with the most sZone pixels along its vector from the origin.
+    // The length of every vector scanned is given by the shortest candidate vector length,
+    // if they were all permitted to travel to the edge of the PNG. Returned candidate is 
+    // of the form [xCoord, yCoord, runnerup's relative length (percent)].
+    int numCandidates = candidates.size();
+    vector<vector<vector<int>>> candidatePaths(numCandidates, vector<vector<int>>());
+    vector<int> lengthToEdge(numCandidates);
+    vector<int> shortestToEdge(2, -1);  // Form [index, length].
+    shortestToEdge[1] = int(jf.hypoteneuse(width, height));
+    vector<vector<int>> vviTemp(2, vector<int>(2));
+    vviTemp[0] = pastPresent[1];
+
+    // Obtain every candidate path to its respective edge. 
+    for (int ii = 0; ii < numCandidates; ii++)
+    {
+        vviTemp[1] = candidates[ii];
+        candidatePaths[ii] = linePathToEdge(vviTemp);
+        lengthToEdge[ii] = candidatePaths[ii].size();
+        if (lengthToEdge[ii] < shortestToEdge[1])
+        {
+            shortestToEdge[0] = ii;
+            shortestToEdge[1] = lengthToEdge[ii];
+        }
+    }
+    
+    // Standardize all paths to the same (shortest) length.
+    for (int ii = 0; ii < numCandidates; ii++)
+    {
+        if (lengthToEdge[ii] > shortestToEdge[1])
+        {
+            candidatePaths[ii].erase(candidatePaths[ii].begin() + shortestToEdge[1], candidatePaths[ii].end());
+        }
+    }
+
+    // Obtain the number of sZone pixels along each path.
+    vector<int> sZonesNum(numCandidates, 0);
+    vector<unsigned char> rgb;
+    string sz;
+    for (int ii = 0; ii < numCandidates; ii++)
+    {
+        for (int jj = 0; jj < candidatePaths[ii].size(); jj++)
+        {
+            rgb = pixelRGB(candidatePaths[ii][jj]);
+            sz = pixelZone(rgb);
+            if (sz == sZone) { sZonesNum[ii]++; }
+        }
+    }
+
+    // Crown a candidate.
+    vector<int> winner(3);
+    int frontrunner = -1;
+    int winnerLen = -1;
+    int runnerupLen = -1;
+    for (int ii = 0; ii < numCandidates; ii++)
+    {
+        if (sZonesNum[ii] > winnerLen)
+        {
+            runnerupLen = winnerLen;
+            winnerLen = sZonesNum[ii];
+            frontrunner = ii;
+        }
+        else if (sZonesNum[ii] > runnerupLen)
+        {
+            runnerupLen = sZonesNum[ii];
+        }
+    }
+    winner[0] = candidates[frontrunner][0];
+    winner[1] = candidates[frontrunner][1];
+    winner[2] = (100 * runnerupLen) / winnerLen;
+    return winner;
 }
 int IMGFUNC::testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate)
 {
@@ -970,11 +1121,11 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
     vector<int> coordB(2);
     vector<int> coordOld = ivec[0];
     string temp, zoneOld, zoneNew;
-    vector<unsigned char> rgb = pixelRGB(coordA[0], coordA[1]);
+    vector<unsigned char> rgb = pixelRGB(coordA);
     zoneNew = pixelZone(rgb);
     coordB[0] = coordA[0] + dx;
     coordB[1] = coordA[1] + dy;
-    rgb = pixelRGB(coordB[0], coordB[1]);
+    rgb = pixelRGB(coordB);
     while (rgb.size() == 3)
     {
         // We ignore the nonconformant colours produced by antialiasing.
@@ -997,7 +1148,7 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
                     vBorder[1] = coordA;
                 }
                 return vBorder;
-            }  // RESUME HERE. Handle multiple border paths.
+            } 
         }
 
         // Same zone as before, or the new zone is not the goal. Record the coords, 
@@ -1020,14 +1171,14 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
             coordA[0] = coordB[0] + dx;
             coordA[1] = coordB[1] + dy;
             coord = 0;
-            rgb = pixelRGB(coordA[0], coordA[1]);
+            rgb = pixelRGB(coordA);
         }
         else
         {
             coordB[0] = coordA[0] + dx;
             coordB[1] = coordA[1] + dy;
             coord = 1;
-            rgb = pixelRGB(coordB[0], coordB[1]);
+            rgb = pixelRGB(coordB);
         }
     }
 

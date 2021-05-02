@@ -70,53 +70,32 @@ public:
 
 	template<typename ... Args> double angleBetweenVectors(Args& ... args)
 	{
-		jf.err("angleBetweenVectors template-jf");
+		err("angleBetweenVectors template-jf");
 	}
 	template<> double angleBetweenVectors<vector<vector<int>>>(vector<vector<int>>& vCoords)
 	{
 		// Input has form [point][xCoord, yCoord].
 		vector<vector<double>> pastPresentFuture;
 		toDouble(vCoords, pastPresentFuture);
-		vector<double> triangleSides(3);  // 01, 12, 02
-		triangleSides[0] = coordDist(pastPresentFuture[0], pastPresentFuture[1]);
-		triangleSides[1] = coordDist(pastPresentFuture[1], pastPresentFuture[2]);
-		triangleSides[2] = coordDist(pastPresentFuture[0], pastPresentFuture[2]);
-		double cosPhi = (pow(triangleSides[0], 2.0) + pow(triangleSides[1], 2.0) - pow(triangleSides[2], 2.0)) / (2.0 * triangleSides[0] * triangleSides[1]);
-		if (abs(cosPhi) > 1.0 && abs(cosPhi) <= 1.1)
-		{
-			if (cosPhi > 0.0) { cosPhi = 0.9999; }
-			else { cosPhi = -0.9999; }
-		}
-		double phi = 180.0 / 3.1415926535 * acos(cosPhi);
-		int clockwise = coordCircleClockwise(pastPresentFuture);
-		double theta;
-		if (clockwise == 1)
-		{
-			theta = 180.0 - phi;
-		}
-		else if (clockwise == 0)
-		{
-			theta = 180.0 + phi;
-		}
-		else { err("Indeterminate clockwise-jf.angleBetweenVectors"); }
+		double theta = angleBetweenVectors(pastPresentFuture);
 		return theta;
 	}
 	template<> double angleBetweenVectors<vector<vector<double>>>(vector<vector<double>>& pastPresentFuture)
 	{
-		// Input has form [point][xCoord, yCoord].
+		// Input has form [point 0, point 1, point 2][xCoord, yCoord].
 		vector<double> triangleSides(3);  // 01, 12, 02
 		triangleSides[0] = coordDist(pastPresentFuture[0], pastPresentFuture[1]);
 		triangleSides[1] = coordDist(pastPresentFuture[1], pastPresentFuture[2]);
 		triangleSides[2] = coordDist(pastPresentFuture[0], pastPresentFuture[2]);
 		double cosPhi = (pow(triangleSides[0], 2.0) + pow(triangleSides[1], 2.0) - pow(triangleSides[2], 2.0)) / (2.0 * triangleSides[0] * triangleSides[1]);
-		if (abs(cosPhi) > 1.0 && abs(cosPhi) <= 1.1)
+		if (abs(cosPhi) > 1.0 && abs(cosPhi) <= 1.1)  // 10% error tolerance is arbitrary.
 		{
-			if (cosPhi > 0.0) { cosPhi = 0.9999; }
+			if (cosPhi > 0.0) { cosPhi = 0.9999; }  // Four significant digits is arbitrary.
 			else { cosPhi = -0.9999; }
 		}
 		double phi = 180.0 / 3.1415926535 * acos(cosPhi);
 		int clockwise = coordCircleClockwise(pastPresentFuture);
-		double theta;
+		double theta;  // Range [0.0, 360.0)
 		if (clockwise == 1)
 		{
 			theta = 180.0 - phi;
@@ -540,6 +519,23 @@ public:
 			}
 		}
 		return shex;
+	}
+
+	template<typename ... Args> double hypoteneuse(Args& ... args)
+	{
+		err("hypoteneuse template-jf");
+	}
+	template<> double hypoteneuse<double, double>(double& Dx, double& Dy)
+	{
+		double hypo = sqrt(pow(Dx, 2.0) + pow(Dy, 2.0));
+		return hypo;
+	}
+	template<> double hypoteneuse<int, int>(int& Ix, int& Iy)
+	{
+		double Dx = (double)Ix;
+		double Dy = (double)Iy;
+		double hypo = sqrt(pow(Dx, 2.0) + pow(Dy, 2.0));
+		return hypo;
 	}
 
 	template<typename ... Args> int maxNumCol(Args& ... args) {}
