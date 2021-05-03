@@ -3,7 +3,7 @@
 vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks)
 {
     vector<int> origin = tracks[tracks.size() - 1];
-    int radius = 4 * defaultSearchRadius;
+    int radius = defaultSearchRadius + searchRadiusIncrease;
     unordered_map<string, int> mapIndexCandidate;
     vector<vector<int>> octoPath = octogonPath(origin, radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
@@ -62,6 +62,14 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     {
         dTemp = (distances[1] - distances[0]) / distances[1];
         if (dTemp > candidateDistanceTolerance) { return candidates[1]; }
+    }
+
+    // Try again, larger radius.
+    rabbitHole++;
+    if (rabbitHole > 0 && rabbitHole < 10)
+    {
+        searchRadiusIncrease += 2;
+        return borderFindNext(sbgui, tracks);
     }
 
     // Defeat. Make a debug map.
@@ -714,7 +722,13 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
             tracks = vBorderPath;
         }
         vBorderPath.push_back(borderFindNext(sbgui, tracks));
+        if (vBorderPath[vBorderPath.size() - 1][0] < 0 || vBorderPath[vBorderPath.size() - 1][1] < 0)
+        {
+            jf.err("vBorderPath error-im.pngToBinLive");
+        }
         sizeVBP++;
+        searchRadiusIncrease = 0;
+        rabbitHole = 0;
         success = sbgui.push(myid);
         if (success)
         {
