@@ -36,6 +36,8 @@ class IMGFUNC
 	vector<int> pointOfOrigin, revisedExtractDim;
     vector<vector<unsigned char>> pngTextColourBuffer;
 	int width, height, numComponents, recordVictor;
+    int rabbitHole = 0;
+    int searchRadiusIncrease = 0;
     double stretchFactor;
 
     vector<unsigned char> Black = { 0, 0, 0 };
