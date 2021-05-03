@@ -118,6 +118,7 @@ private:
     void downloader(SWITCHBOARD&);
     void downloadMaps(SWITCHBOARD&);
     vector<string> extract_gids(string);
+    void initImgFont(string fontName);
     void populateQtree(JTREE&, QTreeWidgetItem*&, string);
     void populateQtreeList(JTREE&, QTreeWidgetItem*&, string, QList<QTreeWidgetItem*>&);
     vector<string> notDownloaded(string syear, string sname);

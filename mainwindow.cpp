@@ -58,6 +58,9 @@ void MainWindow::initialize()
     create_cata_index_table();  
     create_damaged_table();
     
+    // Load a font into the IMGFUNC object.
+    initImgFont("Sylfaen");
+
     // Load hidden initial values into the GUI widgets.
     qf.set_display_root(ui->treeW_gid, 1);
     qf.set_display_root(ui->treeW_csvtree, 1);
@@ -97,6 +100,19 @@ void MainWindow::initialize()
     // Reset the log file.
     wf.delete_file(sroot + "\\SCDA Process Log.txt");
     log("MainWindow initialized.");
+}
+void MainWindow::initImgFont(string fontName)
+{
+    string fontDir = sroot + "\\font\\" + fontName;
+    string filePath;
+    for (int ii = 32; ii <= 256; ii++)
+    {
+        filePath = fontDir + "\\" + to_string(ii) + ".png";
+        if (wf.file_exist(filePath))
+        {
+            im.initGlyph(filePath, ii);
+        }
+    }
 }
 
 // Progress bar related functions.
@@ -2229,7 +2245,7 @@ void MainWindow::on_pB_test_clicked()
     //string dirPDF = sroot + "\\mapsPDF\\province\\cmaca";
     //gf.folderConvert(dirPDF);
 
-    int bbq = 1;
+    //int bbq = 1;
 }
 
 // Choose a local drive to examine for spreadsheets.

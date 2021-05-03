@@ -18,18 +18,23 @@ class IMGFUNC
     double candidateDistanceTolerance = 0.4;  // Final two candidates: colour count or distance! 
     int candidateRelativeLengthMin = 50;
     int candidateRelativeWidthMin = 50;
-    stbtt_fontinfo defaultFont;
     vector<unsigned char> dataPNG, debugDataPNG;
 	bool debug = 1;
+    int defaultCharSpace = 1;
     int defaultDotWidth = 5;
+    string defaultFont = "Sylfaen";
     int defaultLineWidth = 4;
     int defaultOctogonWidth = 3;
     vector<int> defaultExtractDim = { 400, 400 };
     int defaultSearchRadius = 15;
+    vector<vector<unsigned char>> font;  // Index is ascii minus 32.
+    int fontHeight = 32;  // Pixels.
     string pathActivePNG;
 	JFUNC jf;
 	unordered_map<string, string> mapColour;
+    unordered_map<int, int> mapFontWidth;  // Input ascii, output glyph width (pixels).  
 	vector<int> pointOfOrigin, revisedExtractDim;
+    vector<vector<unsigned char>> pngTextColourBuffer;
 	int width, height, numComponents, recordVictor;
     double stretchFactor;
 
@@ -59,24 +64,24 @@ public:
 	void drawMarker(vector<unsigned char>& img, vector<int>& vCoord);
     vector<vector<double>> frameCorners();
     double getStretchFactor(string& widthHeight);
+    void initGlyph(string& filePath, int ascii);
 	void initMapColours();
 	bool isInit();
     bool jobsDone(vector<int> vCoord);
 	vector<vector<int>> linePath(vector<vector<int>>& startStop);
     vector<vector<int>> linePathToEdge(vector<vector<int>>& startMid);
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
-    vector<vector<unsigned char>> makeText(string text);
 	bool mapIsInit();
     vector<vector<int>> octogonPath(vector<int> origin, int radius);
     string pixelDecToHex(vector<unsigned char>& rgb);
 	void pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsigned char> rgb, vector<int> coord);
 	vector<unsigned char> pixelRGB(vector<int>& coord);
 	string pixelZone(vector<unsigned char>& rgb);
+    vector<unsigned char> pngBlankCanvas(vector<int>& dim);
+    vector<unsigned char> pngExtractRow(int row, vector<unsigned char>& img, vector<int>& sourceDim);
 	void pngLoad(string& pathPNG);
-    void pngPrint(vector<vector<unsigned char>>& img);
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinLiveDebug(SWITCHBOARD& sbgui, vector<vector<double>>& border);
-    vector<vector<unsigned char>> scanColumn(int col);
     int testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates);
     int testTextHumanFeature(vector<vector<unsigned char>>& Lrgb);
     vector<int> testZoneLength(vector<vector<int>>& pastPresent, vector<vector<int>>& candidates, string sZone);
@@ -186,6 +191,25 @@ public:
         }
     }
 
+    template<typename ... Args> void deleteColumn(int col, Args& ... args)
+    {
+        jf.err("deleteColumn template-im");
+    }
+    template<> void deleteColumn<vector<unsigned char>, vector<int>>(int col, vector<unsigned char>& img, vector<int>& sourceDim)
+    {
+        if (col >= sourceDim[0]) { jf.err("Column out of bounds-im.deleteColumn"); }
+        int offset;
+        vector<int> coord(2);
+        coord[0] = col;
+        for (int ii = sourceDim[1] - 1; ii >= 0; ii--)
+        {
+            coord[1] = ii;
+            offset = getOffset(coord, sourceDim[0]);
+            img.erase(img.begin() + offset, img.begin() + offset + 3);
+        }
+        sourceDim[0] -= 1;
+    }
+
     template<typename ... Args> void dotPaint(vector<int> coord, vector<unsigned char> rgb, Args& ... args)
     {
         jf.err("dotPaint template-im");
@@ -253,7 +277,7 @@ public:
         vector<vector<int>> path = linePath(startStop);
         for (int ii = 0; ii < path.size(); ii++)
         {
-            dotPaint(path[ii], img, widthImg, rgb, widthDot);
+            dotPaint(path[ii], rgb, img, widthImg, widthDot);
         }
     }
 
@@ -267,8 +291,8 @@ public:
         if (tracks.size() < 1) { jf.err("No tracks-im.makeMapBorderFindNext"); }
         if (!mapIsInit()) { initMapColours(); }
         debugDataPNG = dataPNG;
-        //int widthDot = 5;
-        //int widthLine = 5;
+        string dotLegend;
+        pngTextColourBuffer.clear();
         if (radius > 0) { octogonPaint(tracks[tracks.size() - 1], radius, Orange); }        
         octogonPaint(tracks[tracks.size() - 1], defaultSearchRadius, Gold);
 
@@ -283,16 +307,35 @@ public:
         for (int ii = 0; ii < tracks.size() - 1; ii++)
         {
             dotPaint(tracks[ii], Green);
+            pngAppendText(dotLegend, tracks[ii]);
+            pngTextColourBuffer.push_back(Green);
         }
         dotPaint(tracks[tracks.size() - 1], Yellow);
+        pngAppendText(dotLegend, tracks[tracks.size() - 1]);
+        pngTextColourBuffer.push_back(Yellow);
         
         for (int ii = 0; ii < candidates.size(); ii++)
         {
             dotPaint(candidates[ii], Red);
+            pngAppendText(dotLegend, candidates[ii]);
+            pngTextColourBuffer.push_back(Red);
         }
+
+        vector<int> legendDim;
+        vector<unsigned char> legendImg;
+        //string legendPath = "F:\\debug\\Legend Test.png";
+        makeText(dotLegend, legendImg, legendDim, pngTextColourBuffer);
+        //pngPrint(legendImg, legendDim, legendPath);
 
         vector<int> sourceDim = { width, height };
         vector<unsigned char> cropped = pngExtractRect(tracks[tracks.size() - 1], debugDataPNG, sourceDim, defaultExtractDim);
+        int newHeight = max(defaultExtractDim[1], legendDim[1]);
+        vector<int> oldNew = { defaultExtractDim[0], defaultExtractDim[1], defaultExtractDim[0] + legendDim[0], newHeight };
+        pngExtend(cropped, oldNew);
+        sourceDim = { oldNew[2], oldNew[3] };
+        vector<int> coordPaste = { oldNew[0], 0 };
+        pngPaste(cropped, sourceDim, legendImg, legendDim, coordPaste);
+
         int imgSize = cropped.size();
         int channels = 3;
         auto bufferUC = new unsigned char[imgSize];
@@ -301,7 +344,7 @@ public:
             bufferUC[ii] = cropped[ii];
         }
         string pathImg = sroot + "\\debug\\borderFindNextDebug.png";
-        int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
+        int error = stbi_write_png(pathImg.c_str(), oldNew[2], oldNew[3], channels, bufferUC, 0);
         delete[] bufferUC;
     }
 
@@ -412,6 +455,194 @@ public:
         string pathImg = sroot + "\\debug\\ZoneSweepDebug.png";
         int error = stbi_write_png(pathImg.c_str(), extractDim[0], extractDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
+    }
+
+    template<typename ... Args> void makeText(string text, Args& ... args)
+    {
+        // If a 1D uchar vector is provided, then the produced image will be written 
+        // in standard PNG rgb data buffer format (dimensions returned as well). 
+        // However, if a 2D uchar vector is provided, then the image will be written
+        // per-row such that the first index specifies the image row.
+        jf.err("makeText template-im");
+    }
+    template<> void makeText<vector<unsigned char>, vector<int>>(string text, vector<unsigned char>& img, vector<int>& imgDim)
+    {
+        // Break the text into a vector of strings, corresponding to output lines.
+        vector<string> vText;
+        string temp;
+        size_t pos1 = 0;
+        size_t pos2 = text.find('\n');
+        while (pos2 < text.size())
+        {
+            temp = text.substr(pos1, pos2 - pos1);
+            vText.push_back(temp);
+            pos1 = pos2 + 1;
+            pos2 = text.find('\n', pos1);
+        }
+        temp = text.substr(pos1);
+        vText.push_back(temp);
+
+        // Determine the width (in pixels) needed by each line. 
+        int charSpace = defaultCharSpace;
+        vector<int> lineWidth(vText.size(), 0);
+        vector<int> widest(2, -1);  // Form [index, width].
+        int charWidth, ascii;
+        for (int ii = 0; ii < lineWidth.size(); ii++)
+        {
+            lineWidth[ii] += charSpace;
+            for (int jj = 0; jj < vText[ii].size(); jj++)
+            {
+                try { charWidth = mapFontWidth.at(vText[ii][jj]); }
+                catch (out_of_range& oor) { jf.err("mapFontWidth-im.makeText"); }
+                lineWidth[ii] += charWidth + charSpace;
+            }
+            if (lineWidth[ii] > widest[1])
+            {
+                widest[0] = ii;
+                widest[1] = lineWidth[ii];
+            }
+        }
+        imgDim.resize(2);
+        imgDim[0] = widest[1];
+        imgDim[1] = fontHeight * vText.size();
+
+        // Build the image by appending lines.
+        vector<unsigned char> imgLine;
+        for (int ii = 0; ii < vText.size(); ii++)
+        {
+            imgLine = makeTextLine(vText[ii], imgDim[0]);
+            img.insert(img.end(), imgLine.begin(), imgLine.end());
+        }
+    }
+    template<> void makeText<vector<unsigned char>, vector<int>, vector<vector<unsigned char>>>(string text, vector<unsigned char>& img, vector<int>& imgDim, vector<vector<unsigned char>>& listColour)
+    {
+        // Break the text into a vector of strings, corresponding to output lines.
+        vector<string> vText;
+        string temp;
+        size_t pos1 = 0;
+        size_t pos2 = text.find('\n');
+        while (pos2 < text.size())
+        {
+            temp = text.substr(pos1, pos2 - pos1);
+            vText.push_back(temp);
+            pos1 = pos2 + 1;
+            pos2 = text.find('\n', pos1);
+        }
+        temp = text.substr(pos1);
+        vText.push_back(temp);
+
+        // Determine the width (in pixels) needed by each line. 
+        int charSpace = defaultCharSpace;
+        vector<int> lineWidth(vText.size(), 0);
+        vector<int> widest(2, -1);  // Form [index, width].
+        int charWidth, ascii;
+        for (int ii = 0; ii < lineWidth.size(); ii++)
+        {
+            lineWidth[ii] += charSpace;
+            for (int jj = 0; jj < vText[ii].size(); jj++)
+            {
+                try { charWidth = mapFontWidth.at(vText[ii][jj]); }
+                catch (out_of_range& oor) { jf.err("mapFontWidth-im.makeText"); }
+                lineWidth[ii] += charWidth + charSpace;
+            }
+            if (lineWidth[ii] > widest[1])
+            {
+                widest[0] = ii;
+                widest[1] = lineWidth[ii];
+            }
+        }
+        imgDim.resize(2);
+        imgDim[0] = widest[1] + fontHeight;  // For the square colour box.
+        imgDim[1] = fontHeight * vText.size();
+
+        // Make the legend colour box.
+        img = pngBlankCanvas(imgDim);
+        vector<int> topLeft = { 8, 8 };
+        vector<int> boxDim = { 16, 16 };
+        int thickness = 3;
+        for (int ii = 0; ii < vText.size(); ii++)
+        {
+            rectanglePaint(topLeft, boxDim, Black, img, imgDim, thickness, listColour[ii]);
+            topLeft[1] += fontHeight;
+        }
+
+        // Build the image by pasting lines.
+        vector<unsigned char> imgLine;
+        vector<int> imgLineDim = { widest[1], fontHeight };
+        vector<int> pasteTopLeft = { fontHeight, 0 };
+        for (int ii = 0; ii < vText.size(); ii++)
+        {
+            imgLine = makeTextLine(vText[ii], widest[1]);
+            pngPaste(img, imgDim, imgLine, imgLineDim, pasteTopLeft);
+            pasteTopLeft[1] += fontHeight;
+        }
+    }
+
+    template<typename ... Args> vector<unsigned char> makeTextLine(string textLine, Args& ... args)
+    {
+        jf.err("makeTextLine template-im");
+    }
+    template<> vector<unsigned char> makeTextLine< >(string textLine)
+    {
+        vector<unsigned char> imgLine, imgRow;
+        vector<vector<unsigned char>> imgTemp(textLine.size(), vector<unsigned char>());
+        vector<vector<int>> glyphDim(textLine.size(), vector<int>(2, fontHeight));
+        int ascii;
+        for (int ii = 0; ii < imgTemp.size(); ii++)
+        {
+            ascii = textLine[ii];
+            imgTemp[ii] = font[ascii - 32];
+            try { glyphDim[ii][0] = mapFontWidth.at(ascii); }
+            catch (out_of_range& oor) { jf.err("mapFontWidth-im.makeTextLine"); }
+        }
+        int charSpace = defaultCharSpace;
+        for (int ii = 0; ii < fontHeight; ii++)
+        {
+            for (int cs = 0; cs < charSpace; cs++) { imgLine.insert(imgLine.end(), White.begin(), White.end()); }
+            for (int jj = 0; jj < imgTemp.size(); jj++)
+            {
+                imgRow = pngExtractRow(ii, imgTemp[jj], glyphDim[jj]);
+                imgLine.insert(imgLine.end(), imgRow.begin(), imgRow.end());
+                for (int cs = 0; cs < charSpace; cs++) { imgLine.insert(imgLine.end(), White.begin(), White.end()); }
+            }
+        }
+        return imgLine;
+    }
+    template<> vector<unsigned char> makeTextLine<int>(string textLine, int& imgWidth)
+    {
+        // This version fills extra spaces at the end with white pixels.
+        vector<unsigned char> imgLine, imgRow;
+        vector<vector<unsigned char>> imgTemp(textLine.size(), vector<unsigned char>());
+        vector<vector<int>> glyphDim(textLine.size(), vector<int>(2, fontHeight));
+        int ascii, numPixels, gap;
+        for (int ii = 0; ii < imgTemp.size(); ii++)
+        {
+            ascii = textLine[ii];
+            imgTemp[ii] = font[ascii - 32];
+            try { glyphDim[ii][0] = mapFontWidth.at(ascii); }
+            catch (out_of_range& oor) { jf.err("mapFontWidth-im.makeTextLine"); }
+        }
+        int charSpace = defaultCharSpace;
+        for (int ii = 0; ii < fontHeight; ii++)
+        {
+            for (int cs = 0; cs < charSpace; cs++) { imgLine.insert(imgLine.end(), White.begin(), White.end()); }
+            numPixels = 1;
+            for (int jj = 0; jj < imgTemp.size(); jj++)
+            {
+                imgRow = pngExtractRow(ii, imgTemp[jj], glyphDim[jj]);
+                imgLine.insert(imgLine.end(), imgRow.begin(), imgRow.end());
+                numPixels += (imgRow.size() / 3);
+                for (int cs = 0; cs < charSpace; cs++) { imgLine.insert(imgLine.end(), White.begin(), White.end()); }
+                numPixels++;
+            }
+            gap = imgWidth - numPixels;
+            if (gap < 0) { jf.err("imgWidth-im.makeTextLine"); }
+            for (int jj = 0; jj < gap; jj++)
+            {
+                for (int cs = 0; cs < charSpace; cs++) { imgLine.insert(imgLine.end(), White.begin(), White.end()); }
+            }
+        }
+        return imgLine;
     }
 
     template<typename ... Args> void octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, Args& ... args)
@@ -653,6 +884,55 @@ public:
         return octoRGB;
     }
 
+    template<typename ... Args> void pngAppendText(string& text, Args& ... args)
+    {
+        jf.err("pngAppendText-im");
+    }
+    template<> void pngAppendText<vector<int>>(string& text, vector<int>& coord)
+    {
+        string temp;
+        if (text.size() < 1)
+        {
+            temp = "(" + to_string(coord[0]) + ", " + to_string(coord[1]) + ")";
+        }
+        else
+        {
+            temp = "\n(" + to_string(coord[0]) + ", " + to_string(coord[1]) + ")";
+        }
+        text.append(temp);
+    }
+
+    template<typename ... Args> void pngExtend(Args& ... args)
+    {
+        jf.err("pngExtend-im");
+    }
+    template<> void pngExtend<vector<unsigned char>, vector<int>>(vector<unsigned char>& img, vector<int>& oldNew)
+    {
+        // oldNew has form [oldWidth, oldHeight, newWidth, newHeight].
+        if (oldNew.size() != 4) { jf.err("Improper dimensions-im.pngExtend"); }
+        if (oldNew[2] < oldNew[0] || oldNew[3] < oldNew[1]) { jf.err("New dimensions smaller than original-im.pngExtend"); }
+
+        int newSpace, offset;
+        vector<int> coord(2);
+        if (oldNew[2] > oldNew[0])  // Extend horizontally.
+        {
+            newSpace = oldNew[2] - oldNew[0];
+            coord[0] = oldNew[0] - 1;
+            for (int ii = oldNew[1] - 1; ii >= 0; ii--)
+            {
+                coord[1] = ii;
+                offset = getOffset(coord, oldNew[0]);
+                for (int cs = 0; cs < newSpace; cs++) { img.insert(img.begin() + offset, White.begin(), White.end()); }
+            }
+        }
+        if (oldNew[3] > oldNew[1])  // Extend vertically.
+        {
+            newSpace = oldNew[3] - oldNew[1];
+            newSpace *= oldNew[2];
+            for (int cs = 0; cs < newSpace; cs++) { img.insert(img.end(), White.begin(), White.end()); }
+        }
+    }
+
     template<typename ... Args> vector<unsigned char> pngExtractRect(vector<int>& center, Args& ... args)
     {
         jf.err("pngExtractRect template");
@@ -700,6 +980,235 @@ public:
             pngExtract.insert(pngExtract.end(), source.begin() + offset, source.begin() + offset + bytesPerRow);
         }
         return pngExtract;
+    }
+
+    template<typename ... Args> vector<unsigned char> pngExtractRectTopLeft(vector<int>& topLeft, Args& ... args)
+    {
+        jf.err("pngExtractRect template");
+    }
+    template<> vector<unsigned char> pngExtractRectTopLeft< >(vector<int>& topLeft)
+    {
+        // Dimension vectors have form [width, height]. Also, assume 3 components (RGB).
+        vector<unsigned char> pngExtract;
+        vector<int> sourceDim = { width, height };
+        vector<int> extractDim = defaultExtractDim;
+        if (topLeft[0] < 0 || topLeft[0] + extractDim[0] >= width) { jf.err("xCoord out of bounds-im.pngExtractRectTopLeft"); }
+        if (topLeft[1] < 0 || topLeft[1] + extractDim[1] >= height) { jf.err("yCoord out of bounds-im.pngExtractRectTopLeft"); }
+        int bytesPerRow, offsetStart, offset;
+        bytesPerRow = extractDim[0] * numComponents;
+        offsetStart = getOffset(topLeft, sourceDim[0]);
+        for (int ii = 0; ii < defaultExtractDim[1]; ii++)  // For every row in the extracted image...
+        {
+            offset = offsetStart + (ii * width * numComponents);
+            pngExtract.insert(pngExtract.end(), dataPNG.begin() + offset, dataPNG.begin() + offset + bytesPerRow);
+        }
+        return pngExtract;
+    }
+    template<> vector<unsigned char> pngExtractRectTopLeft<vector<unsigned char>, vector<int>, vector<int>>(vector<int>& topLeft, vector<unsigned char>& source, vector<int>& sourceDim, vector<int>& extractDim)
+    {
+        // Dimension vectors have form [width, height]. Also, assume 3 components (RGB).
+        vector<unsigned char> pngExtract;
+        int bytesPerRow, offsetStart, offset;
+        if (topLeft[0] < 0 || topLeft[0] + extractDim[0] >= sourceDim[0]) 
+        {
+            jf.err("xCoord out of bounds-im.pngExtractRectTopLeft");        
+        }
+        if (topLeft[1] < 0 || topLeft[1] + extractDim[1] >= sourceDim[1]) { jf.err("yCoord out of bounds-im.pngExtractRectTopLeft"); }
+        bytesPerRow = extractDim[0] * numComponents;
+        offsetStart = getOffset(topLeft, sourceDim[0]);
+        for (int ii = 0; ii < extractDim[1]; ii++)  // For every row in the extracted image...
+        {
+            offset = offsetStart + (ii * sourceDim[0] * numComponents);
+            pngExtract.insert(pngExtract.end(), source.begin() + offset, source.begin() + offset + bytesPerRow);
+        }
+        return pngExtract;
+    }
+
+    template<typename ... Args> void pngPaste(Args& ... args)
+    {
+        jf.err("pngPaste template-im");
+    }
+    template<> void pngPaste<vector<unsigned char>, vector<int>, vector<unsigned char>, vector<int>, vector<int>>(vector<unsigned char>& sourceImg, vector<int>& sourceDim, vector<unsigned char>& pasteImg, vector<int>& pasteDim, vector<int>& coord)
+    {
+        // Note: coord refers to the top-left corner of the pasted image.
+        if (coord[0] < 0 || coord[0] + pasteDim[0] > sourceDim[0])
+        {
+            jf.err("xCoord out of bounds-im.pngPaste");
+        }
+        if (coord[1] < 0 || coord[1] + pasteDim[1] > sourceDim[1])
+        {
+            jf.err("yCoord out of bounds-im.pngPaste");
+        }
+        
+        vector<unsigned char> newRow;
+        vector<int> offsetCoord(2);
+        offsetCoord[0] = coord[0];
+        int offset;
+        for (int ii = 0; ii < pasteDim[1]; ii++)
+        {
+            offsetCoord[1] = coord[1] + ii;
+            offset = getOffset(offsetCoord, sourceDim[0]);
+            newRow = pngExtractRow(ii, pasteImg, pasteDim);
+            for (int jj = 0; jj < newRow.size(); jj++)
+            {
+                sourceImg[offset + jj] = newRow[jj];
+            }
+        }
+    }
+
+    template<typename ... Args> void pngPrint(Args& ... args)
+    {
+        jf.err("pngPrint template-im");
+    }
+    template<> void pngPrint<vector<vector<unsigned char>>>(vector<vector<unsigned char>>& img)
+    {
+        if (img[0].size() != img[img.size() - 1].size()) { jf.err("Width mismatch-im.pngPrint"); }
+        string output = sroot + "\\debug\\pngPrintOutput.png";
+        int widthImg = img[0].size();
+        int heightImg = img.size();
+        int sizeImg = widthImg * heightImg;
+        int channels = 3;
+        auto bufferUC = new unsigned char[sizeImg];
+        int pos = 0;
+        for (int ii = 0; ii < heightImg; ii++)
+        {
+            for (int jj = 0; jj < widthImg; jj++)
+            {
+                bufferUC[pos] = img[ii][jj];
+                pos++;
+            }
+        }
+        int error = stbi_write_png(output.c_str(), widthImg, heightImg, channels, bufferUC, 0);
+        delete[] bufferUC;
+        int barbecue = 1;
+    }
+    template<> void pngPrint<vector<unsigned char>, vector<int>, string>(vector<unsigned char>& img, vector<int>& sourceDim, string& filePath)
+    {
+        int sizeImg = sourceDim[0] * sourceDim[1] * 3;
+        int channels = 3;
+        auto bufferUC = new unsigned char[sizeImg];
+        for (int ii = 0; ii < sizeImg; ii++)
+        {
+            bufferUC[ii] = img[ii];
+        }
+        int error = stbi_write_png(filePath.c_str(), sourceDim[0], sourceDim[1], channels, bufferUC, 0);
+        delete[] bufferUC;
+        int barbecue = 1;
+    }
+
+    template<typename ... Args> void rectanglePaint(vector<int> topLeft, vector<int> dim, vector<unsigned char> rgb, Args& ... args)
+    {
+        jf.err("rectanglePaint template-im");
+    }
+    template<> void rectanglePaint<vector<unsigned char>, vector<int>, int>(vector<int> topLeft, vector<int> dim, vector<unsigned char> rgb, vector<unsigned char>& img, vector<int>& imgDim, int& thickness)
+    {
+        vector<vector<int>> startStop(2, vector<int>(2));
+        startStop[0] = topLeft;
+        startStop[1] = { topLeft[0] + dim[0], topLeft[1] };
+        linePaint(startStop, rgb, img, imgDim[0], thickness);
+        startStop[0] = startStop[1];
+        startStop[1] = { topLeft[0] + dim[0], topLeft[1] + dim[1] };
+        linePaint(startStop, rgb, img, imgDim[0], thickness);
+        startStop[0] = startStop[1];
+        startStop[1] = { topLeft[0], topLeft[1] + dim[1] };
+        linePaint(startStop, rgb, img, imgDim[0], thickness);
+        startStop[0] = startStop[1];
+        startStop[1] = topLeft;
+        linePaint(startStop, rgb, img, imgDim[0], thickness);
+    }
+    template<> void rectanglePaint<vector<unsigned char>, vector<int>, int, vector<unsigned char>>(vector<int> topLeft, vector<int> dim, vector<unsigned char> rgb, vector<unsigned char>& img, vector<int>& imgDim, int& thickness, vector<unsigned char>& rgbFill)
+    {
+        vector<vector<int>> startStop(2, vector<int>(2));
+        startStop[0] = topLeft;
+        startStop[1] = { topLeft[0] + dim[0], topLeft[1] };
+        linePaint(startStop, rgb, img, imgDim[0], thickness);
+        startStop[0] = startStop[1];
+        startStop[1] = { topLeft[0] + dim[0], topLeft[1] + dim[1] };
+        linePaint(startStop, rgb, img, imgDim[0], thickness);
+        startStop[0] = startStop[1];
+        startStop[1] = { topLeft[0], topLeft[1] + dim[1] };
+        linePaint(startStop, rgb, img, imgDim[0], thickness);
+        startStop[0] = startStop[1];
+        startStop[1] = topLeft;
+        linePaint(startStop, rgb, img, imgDim[0], thickness);
+
+        vector<int> pixelFillTL = { topLeft[0] + (thickness / 2) + 1, topLeft[1] + (thickness / 2) + 1 };
+        vector<int> pixelFill(2);
+        int widthFill = dim[0] - (thickness / 2) - (thickness % 2) - 1;
+        int heightFill = dim[1] - (thickness / 2) - (thickness % 2) - 1;
+        for (int ii = 0; ii < widthFill; ii++)
+        {
+            pixelFill[0] = pixelFillTL[0] + ii;
+            for (int jj = 0; jj < heightFill; jj++)
+            {
+                pixelFill[1] = pixelFillTL[1] + jj;
+                pixelPaint(img, imgDim[0], rgbFill, pixelFill);
+            }
+        }
+    }
+
+    template<typename ... Args> vector<vector<unsigned char>> scanColumn(int col, Args& ... args)
+    {
+        jf.err("scanColumn template-im");
+    }
+    template<> vector<vector<unsigned char>> scanColumn< >(int col)
+    {
+        if (!isInit()) { jf.err("No PNG loaded-im.scanColumn"); }
+        if (col >= width) { jf.err("Column beyond width-im.scanColumn"); }
+        vector<vector<unsigned char>> column(height, vector<unsigned char>(3));
+        vector<int> coord(2);
+        coord[0] = col;
+        int offset;
+        for (int ii = 0; ii < height; ii++)
+        {
+            coord[1] = ii;
+            offset = getOffset(coord);
+            column[ii][0] = dataPNG[offset + 0];
+            column[ii][1] = dataPNG[offset + 1];
+            column[ii][2] = dataPNG[offset + 2];
+        }
+        return column;
+    }
+    template<> vector<vector<unsigned char>> scanColumn<vector<unsigned char>, vector<int>>(int col, vector<unsigned char>& img, vector<int>& sourceDim)
+    {
+        // sourceDim has form [imgWidth, imgHeight].
+        if (col >= sourceDim[0]) { jf.err("Column beyond width-im.scanColumn"); }
+        vector<vector<unsigned char>> column(sourceDim[1], vector<unsigned char>(3));
+        vector<int> coord(2);
+        coord[0] = col;
+        int offset;
+        for (int ii = 0; ii < sourceDim[1]; ii++)
+        {
+            coord[1] = ii;
+            offset = getOffset(coord, sourceDim[0]);
+            column[ii][0] = img[offset + 0];
+            column[ii][1] = img[offset + 1];
+            column[ii][2] = img[offset + 2];
+        }
+        return column;
+    }
+
+    template<typename ... Args> void trimWidth(vector<unsigned char>& img, vector<int>& sourceDim, Args& ... args)
+    {
+        jf.err("trimWidth template-im");
+    }
+    template<> void trimWidth<vector<unsigned char>>(vector<unsigned char>& img, vector<int>& sourceDim, vector<unsigned char>& rgb)
+    {
+        int BBQ = 0;
+        string nameBBQ;
+        vector<vector<unsigned char>> column;
+        for (int ii = sourceDim[0] - 1; ii >= 0; ii--)
+        {
+            column = scanColumn(ii, img, sourceDim);
+            for (int jj = 0; jj < column.size(); jj++)
+            {
+                if (column[jj] != rgb) { break; }
+                else if (jj == column.size() - 1)
+                {
+                    deleteColumn(ii, img, sourceDim);
+                }
+            }
+        }
     }
 
     template<typename ... Args> vector<vector<int>> zoneSweep(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, unordered_map<string, int>& mapIndexCandidate, Args& ... args)

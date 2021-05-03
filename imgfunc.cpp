@@ -113,12 +113,18 @@ void IMGFUNC::buildFont(string filePath)
     // each row having a height of 32 pixels, with 16 glyphs per
     // row. Also assume zero antialiasing, with glyphs as black on white.
     pngLoad(filePath);
+    size_t pos2 = filePath.rfind(".png");
+    size_t pos1 = filePath.rfind('\\', pos2) + 1;
+    string temp = filePath.substr(pos1, pos2 - pos1);
+    string fontDir = sroot + "\\font\\" + temp;
+
     vector<vector<unsigned char>> column;
+    vector<int> sourceDim = { width, height };
     vector<unsigned char> white = { 255, 255, 255 };
-    vector<int> columnSpaces;
+    vector<int> columnSpaces = { 0 };
     int start, stop, middle;
     bool spaceStart = 0;
-    for (int ii = 2; ii < 512; ii++)
+    for (int ii = 2; ii < width; ii++)
     {
         column = scanColumn(ii);
         for (int jj = 0; jj < column.size(); jj++)
@@ -144,8 +150,40 @@ void IMGFUNC::buildFont(string filePath)
             }
         }
     }
-
-    // RESUME HERE. Dice the glyphs, trim them, save them.
+    
+    vector<unsigned char> glyph;
+    vector<int> extractDim(2);
+    extractDim[1] = 32;
+    vector<int> topLeft(2);
+    int ascii = 32;
+    string glyphPath;
+    for (int ii = 0; ii < 14; ii++)
+    {
+        topLeft[1] = 32 * ii;
+        for (int jj = 0; jj < columnSpaces.size(); jj++)
+        {
+            if (jj < columnSpaces.size() - 1)
+            {
+                topLeft[0] = columnSpaces[jj];
+                extractDim[0] = columnSpaces[jj + 1] - columnSpaces[jj];
+                glyph = pngExtractRectTopLeft(topLeft, dataPNG, sourceDim, extractDim);
+                if (ii != 0 || jj != 0) { trimWidth(glyph, extractDim, white); }
+                glyphPath = fontDir + "\\" + to_string(ascii) + ".png";
+                if (extractDim[0] > 0) { pngPrint(glyph, extractDim, glyphPath); }
+                ascii++;
+            }
+            else
+            {
+                topLeft[0] = columnSpaces[jj];
+                extractDim[0] = width - columnSpaces[jj] - 1;
+                glyph = pngExtractRectTopLeft(topLeft, dataPNG, sourceDim, extractDim);
+                trimWidth(glyph, extractDim, white);
+                glyphPath = fontDir + "\\" + to_string(ascii) + ".png";
+                if (extractDim[0] > 0) { pngPrint(glyph, extractDim, glyphPath); }
+                ascii++;
+            }
+        }
+    }
 }
 vector<vector<int>> IMGFUNC::checkBoundary(vector<int>& center, vector<int>& sourceDim, vector<int>& extractDim)
 {
@@ -345,6 +383,12 @@ double IMGFUNC::getStretchFactor(string& widthHeight)
     }
     return stretchFactor;
 }
+void IMGFUNC::initGlyph(string& filePath, int ascii)
+{
+    pngLoad(filePath);
+    font.push_back(dataPNG);
+    mapFontWidth.emplace(ascii, width);
+}
 void IMGFUNC::initMapColours()
 {
     if (!mapColour.empty()) { return; }
@@ -537,13 +581,6 @@ vector<vector<unsigned char>> IMGFUNC::lineRGB(vector<vector<int>>& vVictor, int
     vVictor[0][1] = viTemp[1];
     return Lrgb;
 }
-vector<vector<unsigned char>> IMGFUNC::makeText(string text)
-{
-    vector<vector<unsigned char>> output(20, vector<unsigned char>(100));
-    
-
-    return output;
-}
 string IMGFUNC::pixelDecToHex(vector<unsigned char>& rgb)
 {
     string shex, temp;
@@ -556,7 +593,9 @@ string IMGFUNC::pixelDecToHex(vector<unsigned char>& rgb)
 }
 void IMGFUNC::pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsigned char> rgb, vector<int> coord)
 {
+    if (coord[0] < 0 || coord[1] < 0 || coord[0] >= widthImg) { return; }
     int offset = getOffset(coord, widthImg);
+    if (offset + 2 >= img.size()) { return; }
     img[offset + 0] = rgb[0];
     img[offset + 1] = rgb[1];
     img[offset + 2] = rgb[2];
@@ -581,6 +620,25 @@ string IMGFUNC::pixelZone(vector<unsigned char>& rgb)
     catch (out_of_range& oor) { return "unknown"; }
     return szone;
 }
+vector<unsigned char> IMGFUNC::pngBlankCanvas(vector<int>& dim)
+{
+    int size = dim[0] * dim[1] * 3;
+    vector<unsigned char> canvas(size, 255);
+    return canvas;
+}
+vector<unsigned char> IMGFUNC::pngExtractRow(int row, vector<unsigned char>& img, vector<int>& sourceDim)
+{
+    if (row >= sourceDim[1] || row < 0) { jf.err("Row outside boundaries-im.pngExtractRow"); }
+    vector<unsigned char> vRow(3 * sourceDim[0]);
+    vector<int> viTemp(2, 0);
+    viTemp[1] = row;
+    int offset = getOffset(viTemp, sourceDim[0]);
+    for (int ii = 0; ii < vRow.size(); ii++)
+    {
+        vRow[ii] = img[offset + ii];
+    }
+    return vRow;
+}
 void IMGFUNC::pngLoad(string& pathPNG)
 {
 	unsigned char* dataTemp = stbi_load(pathPNG.c_str(), &width, &height, &numComponents, 0);
@@ -590,28 +648,6 @@ void IMGFUNC::pngLoad(string& pathPNG)
     pathActivePNG = pathPNG;
 
     int bbq = 0;
-}
-void IMGFUNC::pngPrint(vector<vector<unsigned char>>& img)
-{
-    if (img[0].size() != img[img.size() - 1].size()) { jf.err("Width mismatch-im.pngPrint"); }
-    string output = sroot + "\\debug\\pngPrintOutput.png";
-    int widthImg = img[0].size();
-    int heightImg = img.size();
-    int sizeImg = widthImg * heightImg;
-    int channels = 3;
-    auto bufferUC = new unsigned char[sizeImg];
-    int pos = 0;
-    for (int ii = 0; ii < heightImg; ii++)
-    {
-        for (int jj = 0; jj < widthImg; jj++)
-        {
-            bufferUC[pos] = img[ii][jj];
-            pos++;
-        }
-    }
-    int error = stbi_write_png(output.c_str(), widthImg, heightImg, channels, bufferUC, 0);
-    delete[] bufferUC;
-    int barbecue = 1;
 }
 void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
 {
@@ -863,24 +899,6 @@ vector<vector<int>> IMGFUNC::octogonPath(vector<int> origin, int radius)
         path[index][1] = path[index - 1][1] + dV[1];
     }
     return path;
-}
-vector<vector<unsigned char>> IMGFUNC::scanColumn(int col)
-{
-    if (!isInit()) { jf.err("No PNG loaded-im.scanColumn"); }
-    if (col >= width) { jf.err("Column beyond width-im.scanColumn"); }
-    vector<vector<unsigned char>> column(height, vector<unsigned char>(3));
-    vector<int> coord(2);
-    coord[0] = col;
-    int offset;
-    for (int ii = 0; ii < height; ii++)
-    {
-        coord[1] = ii;
-        offset = getOffset(coord);
-        column[ii][0] = dataPNG[offset + 0];
-        column[ii][1] = dataPNG[offset + 1];
-        column[ii][2] = dataPNG[offset + 2];
-    }
-    return column;
 }
 int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates)
 {
