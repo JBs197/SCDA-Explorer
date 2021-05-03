@@ -27,6 +27,7 @@ class IMGFUNC
     int defaultOctogonWidth = 3;
     vector<int> defaultExtractDim = { 400, 400 };
     int defaultSearchRadius = 15;
+    double defaultWidthTestRatio = 3.0;
     vector<vector<unsigned char>> font;  // Index is ascii minus 32.
     int fontHeight = 32;  // Pixels.
     string pathActivePNG;
@@ -349,6 +350,66 @@ public:
         int error = stbi_write_png(pathImg.c_str(), oldNew[2], oldNew[3], channels, bufferUC, 0);
         delete[] bufferUC;
     }
+    template<> void makeMapBorderFindNext<string>(vector<vector<int>>& tracks, int radius, vector<vector<int>> candidates, string& pathImg)
+    {
+        if (tracks.size() < 1) { jf.err("No tracks-im.makeMapBorderFindNext"); }
+        if (!mapIsInit()) { initMapColours(); }
+        debugDataPNG = dataPNG;
+        string dotLegend;
+        pngTextColourBuffer.clear();
+        if (radius > 0) { octogonPaint(tracks[tracks.size() - 1], radius, Orange); }
+        octogonPaint(tracks[tracks.size() - 1], defaultSearchRadius, Gold);
+
+        vector<vector<int>> startStop(2, vector<int>());
+        for (int ii = 0; ii < tracks.size() - 1; ii++)
+        {
+            startStop[0] = tracks[ii];
+            startStop[1] = tracks[ii + 1];
+            linePaint(startStop, Teal);
+        }
+
+        for (int ii = 0; ii < tracks.size() - 1; ii++)
+        {
+            dotPaint(tracks[ii], Green);
+            pngAppendText(dotLegend, tracks[ii]);
+            pngTextColourBuffer.push_back(Green);
+        }
+        dotPaint(tracks[tracks.size() - 1], Yellow);
+        pngAppendText(dotLegend, tracks[tracks.size() - 1]);
+        pngTextColourBuffer.push_back(Yellow);
+
+        for (int ii = 0; ii < candidates.size(); ii++)
+        {
+            dotPaint(candidates[ii], Red);
+            pngAppendText(dotLegend, candidates[ii]);
+            pngTextColourBuffer.push_back(Red);
+        }
+
+        vector<int> legendDim;
+        vector<unsigned char> legendImg;
+        //string legendPath = "F:\\debug\\Legend Test.png";
+        makeText(dotLegend, legendImg, legendDim, pngTextColourBuffer);
+        //pngPrint(legendImg, legendDim, legendPath);
+
+        vector<int> sourceDim = { width, height };
+        vector<unsigned char> cropped = pngExtractRect(tracks[tracks.size() - 1], debugDataPNG, sourceDim, defaultExtractDim);
+        int newHeight = max(defaultExtractDim[1], legendDim[1]);
+        vector<int> oldNew = { defaultExtractDim[0], defaultExtractDim[1], defaultExtractDim[0] + legendDim[0], newHeight };
+        pngExtend(cropped, oldNew);
+        sourceDim = { oldNew[2], oldNew[3] };
+        vector<int> coordPaste = { oldNew[0], 0 };
+        pngPaste(cropped, sourceDim, legendImg, legendDim, coordPaste);
+
+        int imgSize = cropped.size();
+        int channels = 3;
+        auto bufferUC = new unsigned char[imgSize];
+        for (int ii = 0; ii < imgSize; ii++)
+        {
+            bufferUC[ii] = cropped[ii];
+        }
+        int error = stbi_write_png(pathImg.c_str(), oldNew[2], oldNew[3], channels, bufferUC, 0);
+        delete[] bufferUC;
+    }
 
     template<typename ... Args> void makeMapOctogonBearing(Args& ... args)
     {
@@ -659,16 +720,18 @@ public:
         // performed to determine the best candidate. 
         jf.err("octogonBearing template-im");
     }
-    template<> void octogonBearing<double>(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, double& theta)
+    template<> void octogonBearing<double, int>(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, double& theta, int& widthZone)
     {
         unordered_map<string, int> mapIndexCandidate;
-        vector<int> intervalSize;
+        unordered_map<string, int> mapWidth;
         vector<vector<int>> octoPath = octogonPath(pastPresent[1], radius);
         vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
-        vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, intervalSize);
+        vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, mapWidth);
         int numCandidates = candidates.size();
         int lettersExist = 0;
         vector<vector<int>> pastPresentFuture = pastPresent;
+        string sCandidate;
+        int iWidth;
         
         // Test for letter zone sandwiches.
         if (numCandidates > 1)
@@ -687,7 +750,7 @@ public:
         {
             if (radius > 2)
             {
-                octogonBearing(sbgui, pastPresent, sZone, radius - 2, theta);
+                octogonBearing(sbgui, pastPresent, sZone, radius - 2, theta, widthZone);
                 if (radius != defaultSearchRadius) { return; }
             }
             else if (radius <= 2)
@@ -700,7 +763,7 @@ public:
         {
             if (radius < 4 * defaultSearchRadius)
             {
-                octogonBearing(sbgui, pastPresent, sZone, radius + 2, theta);
+                octogonBearing(sbgui, pastPresent, sZone, radius + 2, theta, widthZone);
                 if (radius != defaultSearchRadius) { return; }
             }
             else
@@ -720,15 +783,18 @@ public:
             int sizeSecond = 0;
             for (int ii = 0; ii < numCandidates; ii++)
             {
-                if (intervalSize[ii] > sizeMax)
+                sCandidate = to_string(candidates[ii][0]) + "," + to_string(candidates[ii][1]);
+                try { iWidth = mapWidth.at(sCandidate); }
+                catch (out_of_range& oor) { jf.err("mapWidth-im.octogonBearing"); }
+                if (iWidth > sizeMax)
                 {
                     sizeSecond = sizeMax;
-                    sizeMax = intervalSize[ii];
+                    sizeMax = iWidth;
                     candidateWide = candidates[ii];
                 }
-                else if (intervalSize[ii] > sizeSecond)
+                else if (iWidth > sizeSecond)
                 {
-                    sizeSecond = intervalSize[ii];
+                    sizeSecond = iWidth;
                 }
             }
             candidateWide.push_back((100 * sizeSecond) / sizeMax);
@@ -776,6 +842,10 @@ public:
         {
             pastPresentFuture.push_back(candidates[0]);
             theta = jf.angleBetweenVectors(pastPresentFuture);
+            sCandidate = to_string(candidates[0][0]) + "," + to_string(candidates[0][1]);
+            try { iWidth = mapWidth.at(sCandidate); }
+            catch (out_of_range& oor) { jf.err("mapWidth-im.octogonBearing"); }
+            widthZone = iWidth;
             return;
         }
     }
@@ -947,7 +1017,7 @@ public:
         vector<int> extractDim = defaultExtractDim;
         int bytesPerRow, offsetStart, offset;
         vector<vector<int>> corners = checkBoundary(center, sourceDim, extractDim);
-        center = corners[0];
+        //center = corners[0];
         if (corners.size() > 1)
         {
             extractDim[0] = corners[1][0] - corners[0][0];
@@ -968,7 +1038,7 @@ public:
         vector<unsigned char> pngExtract;
         int bytesPerRow, offsetStart, offset;
         vector<vector<int>> corners = checkBoundary(center, sourceDim, extractDim);
-        center = corners[0];
+        //center = corners[0];
         if (corners.size() > 1)
         {
             extractDim[0] = corners[1][0] - corners[0][0];
@@ -1285,7 +1355,7 @@ public:
         if (debug == 1 && goldilocks.size() != (size_t)1) { makeMapZoneSweepDebug(Lrgb, zonePath, goldilocks); }
         return goldilocks;
     }
-    template<> vector<vector<int>> zoneSweep<vector<int>>(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, unordered_map<string, int>& mapIndexCandidate, vector<int>& intervals)
+    template<> vector<vector<int>> zoneSweep<unordered_map<string, int>>(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, unordered_map<string, int>& mapIndexCandidate, unordered_map<string, int>& mapWidth)
     {
         // For a given list of RGB values, return the middle pixel coordinates of every
         // (desired) szone interval. Commonly used to scan the perimeter of a shape.
@@ -1325,12 +1395,12 @@ public:
                 {
                     zoneActive = 0;
                     onOff[1] = index;
-                    intervals.push_back(onOff[1] - onOff[0]);
                     half = (onOff[1] - onOff[0]) / 2;
                     inum1 = onOff[0] + half;
                     goldilocks.push_back(zonePath[inum1]);
                     sCandidate = to_string(zonePath[inum1][0]) + "," + to_string(zonePath[inum1][1]);
                     mapIndexCandidate.emplace(sCandidate, inum1);
+                    mapWidth.emplace(sCandidate, onOff[1] - onOff[0]);
                 }
             }
             index++;
@@ -1340,7 +1410,6 @@ public:
             if (zoneActive)
             {
                 inum1 = index - onOff[0];
-                intervals.push_back(inum1 + zoneFreezer);
                 half = (inum1 + zoneFreezer) / 2;
                 inum2 = onOff[0] + half;
                 if (inum2 >= zonePath.size())
@@ -1350,6 +1419,7 @@ public:
                 goldilocks.push_back(zonePath[inum2]);
                 sCandidate = to_string(zonePath[inum2][0]) + "," + to_string(zonePath[inum2][1]);
                 mapIndexCandidate.emplace(sCandidate, inum2);
+                mapWidth.emplace(sCandidate, inum1 + zoneFreezer);
             }
         }
         if (debug == 1 && goldilocks.size() != (size_t)1) { makeMapZoneSweepDebug(Lrgb, zonePath, goldilocks); }

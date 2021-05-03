@@ -64,9 +64,16 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         if (dTemp > candidateDistanceTolerance) { return candidates[1]; }
     }
 
+    string pathMap;
+    if (rabbitHole > 0 && debug == 1)
+    {
+        pathMap = sroot + "\\debug\\borderFND(radius" + to_string(radius) + ").png";
+        makeMapBorderFindNext(tracks, radius, candidates, pathMap);
+    }
+
     // Try again, larger radius.
     rabbitHole++;
-    if (rabbitHole > 0 && rabbitHole < 10)
+    if (rabbitHole > 0 && rabbitHole < 16)
     {
         searchRadiusIncrease += 2;
         return borderFindNext(sbgui, tracks);
@@ -244,13 +251,14 @@ double IMGFUNC::clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tra
     vector<vector<int>> pastPresent(2, vector<int>(2));
     int numBearings = tracks.size() - 1;
     vector<double> bearings(numBearings, -1.0);
+    vector<int> widthZone(numBearings);
     int attemptRadius;
     for (int ii = 0; ii < numBearings; ii++)
     {
         pastPresent[0] = tracks[ii];
         pastPresent[1] = tracks[ii + 1];
         attemptRadius = 0;
-        octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearings[ii]);
+        octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearings[ii], widthZone[ii]);
         if (bearings[ii] >= 0.0 && bearings[0] < 180.0) { numClockwise++; }
         else if (bearings[ii] < 0.0)
         {
@@ -920,12 +928,14 @@ int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>&
     // eliminate one candidate. Return value is number of candidates remaining.
     if (candidates.size() != 2) { jf.err("Not given two candidates-im.testCandidatesInteriorZone"); }
     vector<double> bearingsInterior(2, -1.0);
+    vector<int> widthZone(2);
+    double widthRatio;
     vector<vector<int>> pastPresent(2, vector<int>(2));
     pastPresent[0] = tracks[tracks.size() - 1];
     pastPresent[1] = candidates[0];
-    octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearingsInterior[0]);
+    octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearingsInterior[0], widthZone[0]);
     pastPresent[1] = candidates[1];
-    octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearingsInterior[1]);
+    octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearingsInterior[1], widthZone[1]);
     vector<int> goClock(2, 0);
     if (bearingsInterior[0] >= 0.0 && bearingsInterior[1] < 0.0)
     {
@@ -939,8 +949,14 @@ int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>&
     }
     else if (bearingsInterior[0] >= 0.0 && bearingsInterior[1] >= 0.0)
     {
+        widthRatio = (double)widthZone[0] / (double)widthZone[1];
+        if (widthRatio < 1.0)
+        {
+            widthRatio = 1.0 / widthRatio;
+        }
         if (bearingsInterior[0] >= 0.0 && bearingsInterior[0] < 180.0) { goClock[0] = 1; }
         if (bearingsInterior[1] >= 0.0 && bearingsInterior[1] < 180.0) { goClock[1] = 1; }
+        
         if (goClock[0] + goClock[1] == 1)  // If exactly one candidate goes clockwise and
         {                                  // the other goes counterclockwise...
             double percentClock = clockwisePercentage(sbgui, tracks, sZone);
@@ -969,6 +985,19 @@ int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>&
                     candidates.erase(candidates.begin() + 0);
                     return 1;
                 }
+            }
+        }
+        else if (widthRatio > defaultWidthTestRatio)
+        {
+            if (widthZone[0] > widthZone[1]) 
+            {
+                candidates.erase(candidates.begin() + 1);
+                return 1;
+            }
+            else
+            {
+                candidates.erase(candidates.begin() + 0);
+                return 1;
             }
         }
     }
