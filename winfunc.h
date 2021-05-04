@@ -42,6 +42,8 @@ public:
     int get_file_path_number(string, string);
     vector<string> get_folder_list(string, string);
     void makeDir(string);
+	int makeTreeLocal(vector<vector<int>>& treeST, vector<string>& treePL, vector<int>& treeiPL, string rootDir, string search);
+	int makeTreeLocalHelper(vector<vector<int>>& treeST, vector<string>& treePL, vector<int>& treeiPL, string search, int myIndex);
     void make_tree_local(vector<vector<int>>&, vector<string>&, int, string, int, string);
     void make_tree_local_helper1(vector<vector<int>>&, vector<string>&, vector<int>, string, int, int, int, string);
 	void set_error_path(string);

@@ -319,9 +319,14 @@ vector<string> WINFUNC::get_file_list(string folder_path, string search)
 	vector<string> file_list;
 	string folder_search = folder_path + "\\" + search;
 	WIN32_FIND_DATAA info;
-	DWORD attributes;
+	DWORD attributes, GLE;
 	HANDLE hfile = FindFirstFileA(folder_search.c_str(), &info);
-	if (hfile == INVALID_HANDLE_VALUE) { winerr("FindFirstFile-get_file_list"); }
+	if (hfile == INVALID_HANDLE_VALUE) 
+	{
+		GLE = GetLastError();
+		if (GLE == 2) { return file_list; }
+		else { winerr("FindFirstFile-get_file_list"); }		 
+	}
 	do
 	{
 		attributes = info.dwFileAttributes;
@@ -407,6 +412,121 @@ void WINFUNC::makeDir(string dirPath)
 			if (gle != ERROR_ALREADY_EXISTS) { winerr("CreateDirectory-wf.makeDir"); }
 		}
 	}
+}
+int WINFUNC::makeTreeLocal(vector<vector<int>>& treeST, vector<string>& treePL, vector<int>& treeiPL, string rootDir, string search)
+{
+	// Populate the given tree structure and payload, by searching a local drive.
+	// Returns the total number of tree leaves. iPL is 0 for folder, 1 for file. 
+
+	// Add the root directory to the tree.
+	treePL.resize(1);
+	treePL[0] = rootDir;
+	treeST.clear();
+	treeST.push_back({ 0 });
+	treeiPL.clear();
+	treeiPL.push_back(0);
+
+	// Recursively search a given tree element for leaves (files matching search criteria) 
+	// and for branches (subfolders). For every branch, repeat. 
+	int countLeaf = makeTreeLocalHelper(treeST, treePL, treeiPL, search, 0);
+
+	return countLeaf;
+}
+int WINFUNC::makeTreeLocalHelper(vector<vector<int>>& treeST, vector<string>& treePL, vector<int>& treeiPL, string search, int myIndex)
+{
+	// Get the pivot.
+	int countLeaf = 0;
+	int inum = -1;
+	int pivot;
+	for (int ii = 0; ii < treeST[myIndex].size(); ii++)
+	{
+		if (treeST[myIndex][ii] < 0)
+		{
+			pivot = ii;
+			break;
+		}
+		else if (treeST[myIndex][ii] == 0)
+		{
+			inum = ii;
+		}
+
+		if (ii == treeST[myIndex].size() - 1) 
+		{
+			if (inum >= 0) { pivot = inum; }
+			else { err("Cannot determine pivot-wf.makeTreeLocalHelper"); }
+		}
+	}
+
+	// Get the local directory.
+	vector<int> iGenealogy;
+	for (int ii = 0; ii <= pivot; ii++)
+	{
+		iGenealogy.push_back(abs(treeST[myIndex][ii]));
+	}
+	string myDir;
+	for (int ii = 0; ii < iGenealogy.size(); ii++)
+	{
+		myDir += treePL[iGenealogy[ii]] + "\\";
+	}
+	string searchFolder = myDir + "*";
+	myDir.pop_back();
+
+	// Add this directory's subfolders to the tree.
+	WIN32_FIND_DATAA info;
+	DWORD attributes;
+	string temp1;
+	vector<int> subfolders, viTemp;
+	int indexPL;
+	HANDLE hfind = FindFirstFileA(searchFolder.c_str(), &info);
+	if (hfind == INVALID_HANDLE_VALUE) { err("FindFirstFile-wf.makeTreeLocalHelper"); }
+	do
+	{
+		attributes = info.dwFileAttributes;
+		if (attributes == FILE_ATTRIBUTE_DIRECTORY)
+		{
+			temp1 = info.cFileName;
+			if (temp1 == "." || temp1 == "..") { continue; }
+			indexPL = treePL.size();
+			treePL.push_back(temp1);
+			subfolders.push_back(indexPL);
+			viTemp = iGenealogy;
+			viTemp.push_back(-1 * indexPL);
+			treeST.push_back(viTemp);
+			treeiPL.push_back(0);  // Folder.
+			treeST[myIndex].push_back(indexPL);  // Add subfolder to this node's list of kids.
+		}
+	} while (FindNextFileA(hfind, &info));
+
+	// Add this directory's files (matching search criteria) to the tree.
+	searchFolder = myDir + "\\" + search;
+	hfind = FindFirstFileA(searchFolder.c_str(), &info);
+	if (hfind == INVALID_HANDLE_VALUE) 
+	{
+		attributes = GetLastError();
+		if (attributes == 2) { goto FTL1; }
+		else { err("FindFirstFile-wf.makeTreeLocalHelper"); }
+	}
+	do
+	{
+		attributes = info.dwFileAttributes;
+		if (attributes == FILE_ATTRIBUTE_ARCHIVE || attributes == FILE_ATTRIBUTE_NORMAL)
+		{
+			temp1 = info.cFileName;
+			indexPL = treePL.size();
+			treePL.push_back(temp1);
+			viTemp = iGenealogy;
+			viTemp.push_back(-1 * indexPL);
+			treeST.push_back(viTemp);
+			treeiPL.push_back(1);  // File.
+			treeST[myIndex].push_back(indexPL);  // Add file to this node's list of kids.
+			countLeaf++;
+		}
+	} while (FindNextFileA(hfind, &info));
+
+FTL1:
+	// RESUME HERE. For every subfolder, recurse.
+
+	return countLeaf;
 }
 void WINFUNC::make_tree_local(vector<vector<int>>& tree_st, vector<string>& tree_pl, int mode, string root_dir, int depth, string search)
 {

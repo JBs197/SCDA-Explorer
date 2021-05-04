@@ -36,9 +36,10 @@ public:
 	void drawDotsDebug(QPainter& qpaint, vector<vector<double>>& dots);
 	void drawFrame(QPixmap& pm, vector<vector<int>>& topleftBotright);
 	void drawLinesDebug(QPainter& qpaint, vector<vector<double>>& lines);
-	void initPixmap(QLabel* qlabel);
 	void err(string);
+	string getBranchPath(QTreeWidgetItem*& qBranch, string rootDir);
 	int get_display_root(QTreeWidget*);
+	void initPixmap(QLabel* qlabel);
 	QPainterPath pathMakeCircle(vector<double> origin, double radius, int sides);
 	void pmPainterReset(QLabel*& qlabel);
 	void set_display_root(QTreeWidget*, int);

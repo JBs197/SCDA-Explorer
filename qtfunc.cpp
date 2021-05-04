@@ -150,6 +150,27 @@ void QTFUNC::err(string func)
 {
 	jfqf.err(func);
 }
+string QTFUNC::getBranchPath(QTreeWidgetItem*& qBranch, string rootDir)
+{
+	QList<QTreeWidgetItem*> qGenealogy;  // In reverse (present->parent->ancestors).
+	qGenealogy.append(qBranch);
+	QTreeWidgetItem* qnode = qBranch->parent();
+	while (qnode != nullptr)
+	{
+		qGenealogy.append(qnode);
+		qnode = qGenealogy[qGenealogy.size() - 1]->parent();
+	}
+	string sPath = rootDir;
+	string temp;
+	QString qtemp;
+	for (int ii = qGenealogy.size() - 2; ii >= 0; ii--)
+	{
+		qtemp = qGenealogy[ii]->text(0);
+		temp = qtemp.toUtf8();
+		sPath += "\\" + temp;
+	}
+	return sPath;
+}
 int QTFUNC::get_display_root(QTreeWidget* name)
 {
 	int index = map_display_root.value(name, -1);

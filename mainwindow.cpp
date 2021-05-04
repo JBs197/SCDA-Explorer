@@ -1249,7 +1249,8 @@ void MainWindow::on_pB_usc_clicked()
         slayer = jf.textParser(webpage, navSearch[0]);
         jf.isort_slist(slayer);
         sname = "Statistics Canada Census Data";
-        jt.init(sname);
+        temp = sroot;
+        jt.init(sname, temp);
         ilayer = jf.svectorToIvector(slayer);
         jt.addChildren(slayer, ilayer, iroot);
         ui->treeW_statscan->clear();
@@ -1926,28 +1927,31 @@ void MainWindow::on_pB_search_clicked()
 // results as a tree, with only the best map (BIN > PNG > PDF) shown. 
 void MainWindow::on_pB_localmaps_clicked()
 {
-    string pathFolder, search;
+    string pathFolder, search, nameLeaf, temp;
     string nameRoot = "Local Maps";
+    string pathRoot = sroot + "\\mapsBIN";
     QString qtemp;
     vector<vector<int>> tree_st;
     vector<int> tree_ipl;
     vector<string> tree_pl;
     QTreeWidgetItem* qnode = nullptr;
-    QList<QTreeWidgetItem*> qfolders;
+    QList<QTreeWidgetItem*> qfolders, qGenealogy;
     unordered_map<QString, int> mapFolders;
+    size_t pos1;
     int numRoots = ui->treeW_maps->topLevelItemCount();
     if (numRoots == 0)
     {
         // Populate the QTree with the map folders/subfolders.
-        jtMaps.init(nameRoot);
+        jtMaps.init(nameRoot, pathRoot);
         pathFolder = sroot + "\\mapsPDF";
         search = "*";
         wf.make_tree_local(tree_st, tree_pl, 1, pathFolder, 5, search);
         tree_ipl.assign(tree_st.size(), 0);  // All folders, so iname = 0.
-        //jtMaps.inputTreeSTPL(tree_st, tree_pl, tree_ipl);
+        jtMaps.inputTreeSTPL(tree_st, tree_pl, tree_ipl);
         qnode = new QTreeWidgetItem();
         qtemp = QString::fromUtf8(nameRoot);
         qnode->setText(0, qtemp);
+        qnode->setText(1, "0");
         ui->treeW_maps->addTopLevelItem(qnode);
         qfolders.append(qnode);
         populateQtreeList(jtMaps, qnode, nameRoot, qfolders);
@@ -1957,10 +1961,30 @@ void MainWindow::on_pB_localmaps_clicked()
         }
 
         // Add the BIN map files to the QTree.
-        pathFolder = sroot + "\\mapsBIN\\*.bin";
+        vector<string> listNameBIN;
+        search = "*.bin";
+        for (int ii = 0; ii < qfolders.size(); ii++)
+        {
+            pathFolder = qf.getBranchPath(qfolders[ii], pathRoot);
+            wf.makeDir(pathFolder);
+            listNameBIN = wf.get_file_list(pathFolder, search);
+            for (int jj = 0; jj < listNameBIN.size(); jj++)
+            {
+                pos1 = listNameBIN[jj].rfind(".bin");
+                nameLeaf = listNameBIN[jj].substr(0, pos1);
+                qtemp = QString::fromUtf8(nameLeaf);
+                qnode = new QTreeWidgetItem(qfolders[ii]);
+                qnode->setText(0, qtemp);
+                qnode->setText(1, "1");
+            }
+        }
+
         int bbq = 1;
 
     }
+    ui->tabW_online->setCurrentIndex(1);
+    qnode = ui->treeW_maps->topLevelItem(0);
+    qnode->setExpanded(1);
 }
 void MainWindow::populateQtreeList(JTREE& jtx, QTreeWidgetItem*& qparent, string sparent, QList<QTreeWidgetItem*>& qlist)
 {
@@ -2008,6 +2032,7 @@ void MainWindow::populateQtreeList(JTREE& jtx, QTreeWidgetItem*& qparent, string
     }
 }
 
+
 // (Debug function) Perform a test function.
 // 0 = download given webpage
 // 1 = single file PNG->BIN,  2 = contents of folder PNG->BIN.
@@ -2029,8 +2054,8 @@ void MainWindow::on_pB_test_clicked()
     int mode = 1;
     //dirPNG = sroot + "\\mapsPNG\\cmaca";
     //dirBIN = sroot + "\\mapsBIN\\cmaca";
-    pathPNG = sroot + "\\mapsPNG\\province\\British Columbia or Colombie-Britannique.png";
-    pathBIN = sroot + "\\mapsBIN\\province\\British Columbia or Colombie-Britannique.bin";
+    pathPNG = sroot + "\\mapsPNG\\province\\Alberta.png";
+    pathBIN = sroot + "\\mapsBIN\\province\\Alberta.bin";
     qf.initPixmap(ui->label_maps);
     switch (mode)
     {
@@ -2206,7 +2231,15 @@ void MainWindow::on_pB_test_clicked()
         pathBorder = pathBorderShared;
         sb.done(myid);
         if (pathBorder.size() < 1) { continue; }
+        if (pathBorder.size() != pathBorderShared.size())
+        {
+            err("pathBorder size mismatch-MainWindow.on_pB_Test");
+        }
         im.coordShift(pathBorder, mapShift);
+        if (pathBorder.size() != pathBorderShared.size())
+        {
+            err("pathBorder size mismatch-MainWindow.on_pB_Test");
+        }
         painterPathBorder = qf.pathMake(pathBorder);
         if (pathBorder.size() >= 4)
         {
