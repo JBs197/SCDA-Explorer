@@ -9,6 +9,7 @@ typedef struct {
 	HINTERNET hresource;
 	char szMemo[512];
 } REQUEST_CONTEXT;
+
 void WINFUNC::call(HINTERNET hint, DWORD_PTR dw_context, DWORD dwInternetStatus, LPVOID status_info, DWORD status_info_length)
 {
 	REQUEST_CONTEXT* cpContext;
@@ -90,7 +91,6 @@ void WINFUNC::call(HINTERNET hint, DWORD_PTR dw_context, DWORD dwInternetStatus,
 	}
 
 }
-
 string WINFUNC::browse(string url)
 {
 	string server_name, object_name, sPage;
@@ -430,6 +430,39 @@ int WINFUNC::makeTreeLocal(vector<vector<int>>& treeST, vector<string>& treePL, 
 	// and for branches (subfolders). For every branch, repeat. 
 	int countLeaf = makeTreeLocalHelper(treeST, treePL, treeiPL, search, 0);
 
+	// Eliminate subfolders that do not contain leaves matching the search.
+	int pivot, inum;
+	for (int ii = treeST.size() - 1; ii >= 0; ii--)
+	{
+		if (treeiPL[ii] == 0)  // If this element is a subfolder...
+		{
+			inum = -1;
+			for (int jj = treeST[ii].size() - 1; jj >= 0; jj--)
+			{
+				if (treeST[ii][jj] < 0)
+				{
+					pivot = jj;
+					break;
+				}
+				else if (treeST[ii][jj] == 0)
+				{
+					inum = jj;
+				}
+
+				if (jj == 0 && inum >= 0)
+				{
+					pivot = inum;
+				}
+			}
+			if (pivot == treeST[ii].size() - 1)  // If this folder
+			{                                    // has no kids...
+				inum = ii;
+				treeiPL.erase(treeiPL.begin() + inum);
+				treePL.erase(treePL.begin() + inum);
+				treeST.erase(treeST.begin() + inum);
+			}
+		}
+	}
 	return countLeaf;
 }
 int WINFUNC::makeTreeLocalHelper(vector<vector<int>>& treeST, vector<string>& treePL, vector<int>& treeiPL, string search, int myIndex)
@@ -524,7 +557,12 @@ int WINFUNC::makeTreeLocalHelper(vector<vector<int>>& treeST, vector<string>& tr
 	} while (FindNextFileA(hfind, &info));
 
 FTL1:
-	// RESUME HERE. For every subfolder, recurse.
+
+	for (int ii = 0; ii < subfolders.size(); ii++)
+	{
+		inum = makeTreeLocalHelper(treeST, treePL, treeiPL, search, subfolders[ii]);
+		countLeaf += inum;
+	}
 
 	return countLeaf;
 }

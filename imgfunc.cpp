@@ -633,7 +633,7 @@ string IMGFUNC::pixelZone(vector<unsigned char>& rgb)
     string szone;
     string shex = pixelDecToHex(rgb);
     try { szone = mapColour.at(shex); }
-    catch (out_of_range& oor) { return "unknown"; }
+    catch (out_of_range& oor) { szone = "unknown"; }
     return szone;
 }
 vector<unsigned char> IMGFUNC::pngBlankCanvas(vector<int>& dim)

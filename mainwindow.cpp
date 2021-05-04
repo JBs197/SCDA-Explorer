@@ -93,6 +93,9 @@ void MainWindow::initialize()
     ui->pte_localinput->setGeometry(810, 530, 81, 41);
     ui->pB_localmaps->setVisible(0);
     ui->pB_localmaps->setGeometry(720, 530, 81, 41);
+    ui->pB_search->setGeometry(990, 530, 81, 41);
+    ui->pB_convert->setVisible(0);
+    ui->pB_convert->setGeometry(990, 530, 81, 41);
 
     // Initialize the progress bar with blanks.
     reset_bar(100, " ");
@@ -304,6 +307,7 @@ void MainWindow::update_mode()
         ui->pB_download->setVisible(0);
         ui->pB_viewtable->setVisible(1);
         ui->pB_localmaps->setVisible(0);
+        ui->pB_convert->setVisible(0);
         break;
     case 1:
         ui->tabW_results->setVisible(0);
@@ -322,6 +326,7 @@ void MainWindow::update_mode()
         ui->pB_download->setVisible(1);
         ui->pB_viewtable->setVisible(0);
         ui->pB_localmaps->setVisible(1);
+        ui->pB_convert->setVisible(1);
         break;
     }
 }
@@ -1931,9 +1936,9 @@ void MainWindow::on_pB_localmaps_clicked()
     string nameRoot = "Local Maps";
     string pathRoot = sroot + "\\mapsBIN";
     QString qtemp;
-    vector<vector<int>> tree_st;
-    vector<int> tree_ipl;
-    vector<string> tree_pl;
+    vector<vector<int>> treeST;
+    vector<int> treeiPL;
+    vector<string> treePL;
     QTreeWidgetItem* qnode = nullptr;
     QList<QTreeWidgetItem*> qfolders, qGenealogy;
     unordered_map<QString, int> mapFolders;
@@ -1943,11 +1948,10 @@ void MainWindow::on_pB_localmaps_clicked()
     {
         // Populate the QTree with the map folders/subfolders.
         jtMaps.init(nameRoot, pathRoot);
-        pathFolder = sroot + "\\mapsPDF";
-        search = "*";
-        wf.make_tree_local(tree_st, tree_pl, 1, pathFolder, 5, search);
-        tree_ipl.assign(tree_st.size(), 0);  // All folders, so iname = 0.
-        jtMaps.inputTreeSTPL(tree_st, tree_pl, tree_ipl);
+        pathFolder = sroot + "\\mapsBIN";
+        search = "*.bin";
+        wf.makeTreeLocal(treeST, treePL, treeiPL, pathFolder, search);
+        jtMaps.inputTreeSTPL(treeST, treePL, treeiPL);
         qnode = new QTreeWidgetItem();
         qtemp = QString::fromUtf8(nameRoot);
         qnode->setText(0, qtemp);
@@ -1960,27 +1964,7 @@ void MainWindow::on_pB_localmaps_clicked()
             mapFolders.emplace(qfolders[ii]->text(0), ii);
         }
 
-        // Add the BIN map files to the QTree.
-        vector<string> listNameBIN;
-        search = "*.bin";
-        for (int ii = 0; ii < qfolders.size(); ii++)
-        {
-            pathFolder = qf.getBranchPath(qfolders[ii], pathRoot);
-            wf.makeDir(pathFolder);
-            listNameBIN = wf.get_file_list(pathFolder, search);
-            for (int jj = 0; jj < listNameBIN.size(); jj++)
-            {
-                pos1 = listNameBIN[jj].rfind(".bin");
-                nameLeaf = listNameBIN[jj].substr(0, pos1);
-                qtemp = QString::fromUtf8(nameLeaf);
-                qnode = new QTreeWidgetItem(qfolders[ii]);
-                qnode->setText(0, qtemp);
-                qnode->setText(1, "1");
-            }
-        }
-
         int bbq = 1;
-
     }
     ui->tabW_online->setCurrentIndex(1);
     qnode = ui->treeW_maps->topLevelItem(0);
@@ -2032,6 +2016,109 @@ void MainWindow::populateQtreeList(JTREE& jtx, QTreeWidgetItem*& qparent, string
     }
 }
 
+// Convert a downloaded PDF map into a BIN map.
+void MainWindow::on_pB_convert_clicked()
+{
+    string pathPNG = sroot + "\\mapsPNG\\province\\Alberta.png";
+    string pathBIN = sroot + "\\mapsBIN\\province\\Alberta.bin";
+    string pathImg = sroot + "\\debug\\tempDebug.png";
+    qf.initPixmap(ui->label_maps);
+    thread::id myid = this_thread::get_id();
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
+    vector<vector<double>> pathBorder, pathBorderBuffer;
+    vector<double> mapShift;
+    QPainterPath painterPathBorder;
+    vector<string> prompt(3);  // Form [pathInput, pathOutput, "w,h"].
+    prompt[0] = pathPNG;
+    prompt[1] = pathBIN;
+
+    /*
+    if (pathPNG.size() < 1)
+    {
+        reset_bar(100, "No PNG path specified.");
+        return;
+    }
+    else if (pathBIN.size() < 1)
+    {
+        prompt[1] = pathPNG;
+        dirt = { "PNG", ".png" };
+        soap = { "BIN", ".bin" };
+        jf.clean(prompt[1], dirt, soap);
+    }
+    */
+
+    // Launch the worker threads.
+    int inum = ui->label_maps->width();
+    prompt[2] = to_string(inum) + ",";
+    inum = ui->label_maps->height();
+    prompt[2] += to_string(inum);
+    int error = sb.start_call(myid, 1, comm[0]);
+    if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
+    sb.set_prompt(myid, prompt);
+    std::thread thr(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorderBuffer));
+    thr.detach();
+    reset_bar(100, "Converting " + pathPNG);
+
+    // Build the mapShift filter.
+    comm = sb.update(myid, comm[0]);
+    while (comm.size() < 2)
+    {
+        Sleep(10);
+        comm = sb.update(myid, comm[0]);
+    }
+    while (comm[1][1] == 0 && comm[1][0] == 0)
+    {
+        Sleep(10);
+        comm = sb.update(myid, comm[0]);
+    }
+    sb.pull(myid, 0);
+    pathBorder = pathBorderBuffer;
+    pathBorderBuffer.clear();
+    sb.done(myid);
+    mapShift.resize(3);          // Form [Dx, Dy, stretchFactor].
+    mapShift[0] = -1.0 * pathBorder[0][0];
+    mapShift[1] = -1.0 * pathBorder[0][1];
+    mapShift[2] = pathBorder[4][0];
+    pathBorder.clear();
+
+    // Receive and display path data. 
+    while (1)
+    {
+        Sleep(gui_sleep);
+        comm = sb.update(myid, comm[0]);
+        if (comm[1][0] == 3)
+        {
+            qf.displayDebug(ui->label_maps, pathImg);
+            while (1)
+            {
+                QCoreApplication::processEvents();
+                Sleep(50);
+                int bbq = 1;
+            }
+        }
+        error = sb.pull(myid, 0);
+        if (error < 0) { err("sb.pull-MainWindow.on_pB_test"); }
+        pathBorder.insert(pathBorder.end(), pathBorderBuffer.begin(), pathBorderBuffer.end());
+        pathBorderBuffer.clear();
+        sb.done(myid);
+        if (pathBorder.size() < 1) { continue; }
+        im.coordShift(pathBorder, mapShift);
+        painterPathBorder = qf.pathMake(pathBorder);
+        qf.displayPainterPath(ui->label_maps, painterPathBorder);
+        QCoreApplication::processEvents();
+        if (comm[1][0] == 1 || comm[1][0] == -2)
+        {
+            QCoreApplication::processEvents();
+            error = sb.end_call(myid);
+            if (error) { errnum("sb.end_call-on_pB_insert", error); }
+            jobs_done = comm[0][2];
+            update_bar();
+            break;           // Manager reports task finished/cancelled.
+        }
+    }
+
+}
 
 // (Debug function) Perform a test function.
 // 0 = download given webpage

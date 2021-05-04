@@ -72,6 +72,7 @@ private slots:
     void on_pB_search_clicked();
     void on_pB_download_clicked();
     void on_pB_localmaps_clicked();
+    void on_pB_convert_clicked();
 
 private:
     Ui::MainWindow *ui;

@@ -28,6 +28,7 @@ class IMGFUNC
     vector<int> defaultExtractDim = { 400, 400 };
     int defaultSearchRadius = 15;
     double defaultWidthTestRatio = 3.0;
+    int deltaRadius = 0;
     vector<vector<unsigned char>> font;  // Index is ascii minus 32.
     int fontHeight = 32;  // Pixels.
     string pathActivePNG;
@@ -178,6 +179,10 @@ public:
         double coordX, coordY;
         for (int ii = 0; ii < listCoord.size(); ii++)
         {
+            if (listCoord[ii].size() != 2)
+            {
+                jf.err("Not 2 coordinates-jf.coordShift");
+            }
             coordX = listCoord[ii][0];
             coordY = listCoord[ii][1];
             listCoord[ii][0] = (coordX + mapShift[0]) * mapShift[2];
@@ -193,6 +198,7 @@ public:
             listShifted[ii][1] = ((double)listCoord[ii][1] + mapShift[1]) * mapShift[2];
         }
     }
+
 
     template<typename ... Args> void deleteColumn(int col, Args& ... args)
     {
@@ -750,6 +756,15 @@ public:
         {
             if (radius > 2)
             {
+                if (radius == defaultSearchRadius)
+                {
+                    deltaRadius = -2;
+                }
+                else if (deltaRadius > 0)
+                {
+                    theta = -2.0;
+                    return;
+                }
                 octogonBearing(sbgui, pastPresent, sZone, radius - 2, theta, widthZone);
                 if (radius != defaultSearchRadius) { return; }
             }
@@ -763,6 +778,15 @@ public:
         {
             if (radius < 4 * defaultSearchRadius)
             {
+                if (radius == defaultSearchRadius)
+                {
+                    deltaRadius = 2;
+                }
+                else if (deltaRadius < 0)
+                {
+                    theta = -2.0;
+                    return;
+                }
                 octogonBearing(sbgui, pastPresent, sZone, radius + 2, theta, widthZone);
                 if (radius != defaultSearchRadius) { return; }
             }

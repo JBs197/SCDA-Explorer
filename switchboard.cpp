@@ -105,6 +105,7 @@ bool SWITCHBOARD::done(thread::id id)
 	else if (pindex == 0)
 	{
 		m_calls[manager_use].unlock();
+		manager_use = -1;
 	}
 	//qDebug() << "SB did not release " << pindex;
 	return 1;
