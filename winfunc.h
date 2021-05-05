@@ -306,13 +306,106 @@ public:
 			} while (FindNextFileA(hfile, &info));
 		}
 		
-		// Remove all leafless folders from the tree.
+		// Remove all leafless folders from the tree's child lists.
+		int pivot, iParent;
+		int count = 1;
+		while (count > 0)
+		{
+			count = 0;
+			for (int ii = 0; ii < numFolder; ii++)
+			{
+				pivot = jfwf.getPivot(treeST[ii]);
+				if (pivot >= treeST[ii].size() - 1)
+				{
+					if (pivot == 0) { err("Root has no children-wf.getTreeFile"); }
+					iParent = treeST[ii][pivot - 1];
+					for (int jj = treeST[iParent].size() - 1; jj >= 0; jj--)
+					{
+						if (treeST[iParent][jj] == ii)
+						{
+							treeST[iParent].erase(treeST[iParent].begin() + jj);
+							count++;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+	}
+	template<> void getTreeFile<string, int>(string rootPath, vector<vector<int>>& treeST, vector<string>& treePL, string& search, int& numFolder)
+	{
+		// Add all the folders to the tree.
+		treeST.clear();
+		treePL.clear();
+		treeST.push_back({ 0 });
+		treePL.push_back(rootPath);
+		getTreeFolder(0, treeST, treePL);
+		numFolder = treeST.size();
+
+		// Add all the searched-for files to the tree. 
+		WIN32_FIND_DATAA info;
+		DWORD attributes;
+		HANDLE hfile = INVALID_HANDLE_VALUE;
+		string folderSearch, name, temp;
+		vector<int> iGenealogy;
+		int kidIndex;
 		for (int ii = 0; ii < numFolder; ii++)
 		{
-			// RESUME HERE. 
+			folderSearch = treePL[ii] + "\\" + search;
+			hfile = FindFirstFileA(folderSearch.c_str(), &info);
+			if (hfile == INVALID_HANDLE_VALUE)
+			{
+				attributes = GetLastError();
+				if (attributes == 2) { continue; }
+				else { winerr("FindFirstFile-getTreeFolder"); }
+			}
+			iGenealogy = treeST[ii];
+			iGenealogy[iGenealogy.size() - 1] = abs(iGenealogy[iGenealogy.size() - 1]);
+			do
+			{
+				attributes = info.dwFileAttributes;
+				if (attributes == FILE_ATTRIBUTE_NORMAL || attributes == FILE_ATTRIBUTE_ARCHIVE)
+				{
+					kidIndex = treeST.size();
+					temp = info.cFileName;
+					name = treePL[ii] + "\\" + temp;
+					treePL.push_back(name);
+					iGenealogy.push_back(-1 * kidIndex);
+					treeST.push_back(iGenealogy);
+					iGenealogy.pop_back();
+					treeST[ii].push_back(kidIndex);
+				}
+			} while (FindNextFileA(hfile, &info));
 		}
-	}
 
+		// Remove all leafless folders from the tree's child lists.
+		int pivot, iParent;
+		int count = 1;
+		while (count > 0)
+		{
+			count = 0;
+			for (int ii = 0; ii < numFolder; ii++)
+			{
+				pivot = jfwf.getPivot(treeST[ii]);
+				if (pivot >= treeST[ii].size() - 1)
+				{
+					if (pivot == 0) { err("Root has no children-wf.getTreeFile"); }
+					iParent = treeST[ii][pivot - 1];
+					for (int jj = treeST[iParent].size() - 1; jj >= 0; jj--)
+					{
+						if (treeST[iParent][jj] == ii)
+						{
+							treeST[iParent].erase(treeST[iParent].begin() + jj);
+							count++;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+	}
 
 	template<typename ... Args> void getTreeFolder(int myIndex, vector<vector<int>>& treeST, vector<string>& treePL, Args& ... args)
 	{

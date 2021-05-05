@@ -550,6 +550,27 @@ public:
 		return count;
 	}
 
+	template<typename ... Args> void pathToNameExt(Args& ... args)
+	{
+		// Returns the file/folder name (including extension) from a directory.
+		err("pathToNameExt template-jf");
+	}
+	template<> void pathToNameExt<vector<string>>(vector<string>& listPath)
+	{
+		string temp;
+		size_t pos1;
+		for (int ii = 0; ii < listPath.size(); ii++)
+		{
+			while (listPath[ii][listPath[ii].size() - 1] == '\\' || listPath[ii][listPath[ii].size() - 1] == '/')
+			{
+				listPath[ii].pop_back();
+			}
+			pos1 = listPath[ii].rfind('\\') + 1;
+			temp = listPath[ii].substr(pos1);
+			listPath[ii] = temp;
+		}
+	}
+
 	template<typename ... Args> void printer(string path, Args& ... args)
 	{
 		// For a given file name and (string/wstring) content, write to file in UTF-8.

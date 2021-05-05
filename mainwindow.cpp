@@ -1941,17 +1941,48 @@ void MainWindow::on_pB_localmaps_clicked()
     vector<string> treePL;
     QTreeWidgetItem* qnode = nullptr;
     QList<QTreeWidgetItem*> qfolders, qGenealogy;
-    unordered_map<QString, int> mapFolders;
     size_t pos1;
+    int numFolder;
     int numRoots = ui->treeW_maps->topLevelItemCount();
     if (numRoots == 0)
     {
-        // Populate the QTree with the map folders/subfolders.
+        // Populate the QTree with the PDFs.
         jtMaps.init(nameRoot, pathRoot);
+        pathFolder = sroot + "\\mapsPDF";
+        search = "*.pdf";
+        wf.getTreeFile(pathFolder, treeST, treePL, search, numFolder);
+        treeiPL.assign(treeST.size(), 1);
+        for (int ii = 0; ii < numFolder; ii++)
+        {
+            treeiPL[ii] = 0;
+        }
+        jf.pathToNameExt(treePL);
+        jtMaps.inputTreeSTPL(treeST, treePL, treeiPL);
+
+        // Add the PNG maps.
+        pathFolder = sroot + "\\mapsPNG";
+        search = "*.png";
+        wf.getTreeFile(pathFolder, treeST, treePL, search, numFolder);
+        treeiPL.assign(treeST.size(), 1);
+        for (int ii = 0; ii < numFolder; ii++)
+        {
+            treeiPL[ii] = 0;
+        }
+        jf.pathToNameExt(treePL);
+        jtMaps.inputTreeSTPL(treeST, treePL, treeiPL);
+
+        // Add the BIN maps.
         pathFolder = sroot + "\\mapsBIN";
         search = "*.bin";
-        wf.makeTreeLocal(treeST, treePL, treeiPL, pathFolder, search);
+        wf.getTreeFile(pathFolder, treeST, treePL, search, numFolder);
+        treeiPL.assign(treeST.size(), 1);
+        for (int ii = 0; ii < numFolder; ii++)
+        {
+            treeiPL[ii] = 0;
+        }
+        jf.pathToNameExt(treePL);
         jtMaps.inputTreeSTPL(treeST, treePL, treeiPL);
+
         qnode = new QTreeWidgetItem();
         qtemp = QString::fromUtf8(nameRoot);
         qnode->setText(0, qtemp);
@@ -1959,10 +1990,6 @@ void MainWindow::on_pB_localmaps_clicked()
         ui->treeW_maps->addTopLevelItem(qnode);
         qfolders.append(qnode);
         populateQtreeList(jtMaps, qnode, nameRoot, qfolders);
-        for (int ii = 0; ii < qfolders.size(); ii++)
-        {
-            mapFolders.emplace(qfolders[ii]->text(0), ii);
-        }
 
         int bbq = 1;
     }
@@ -1974,6 +2001,7 @@ void MainWindow::populateQtreeList(JTREE& jtx, QTreeWidgetItem*& qparent, string
 {
     bool twig = 0;
     bool maps = 0;
+    wstring wtemp;
     vector<int> ikids;
     vector<string> skids;
     jtx.listChildren(sparent, skids);
@@ -1994,7 +2022,8 @@ void MainWindow::populateQtreeList(JTREE& jtx, QTreeWidgetItem*& qparent, string
     QList<QTreeWidgetItem*> qkids;
     for (int ii = 0; ii < skids.size(); ii++)
     {
-        qtemp = QString::fromUtf8(skids[ii]);
+        wtemp = jf.utf8to16(skids[ii]);
+        qtemp = QString::fromStdWString(wtemp);
         qkid = new QTreeWidgetItem(qparent);
         qkid->setText(0, qtemp);
         if (twig)
@@ -2019,9 +2048,59 @@ void MainWindow::populateQtreeList(JTREE& jtx, QTreeWidgetItem*& qparent, string
 // Convert a downloaded PDF map into a BIN map.
 void MainWindow::on_pB_convert_clicked()
 {
-    string pathPNG = sroot + "\\mapsPNG\\province\\Manitoba.png";
-    string pathBIN = sroot + "\\mapsBIN\\province\\Manitoba.bin";
     string pathImg = sroot + "\\debug\\tempDebug.png";
+    QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
+    QTreeWidgetItem* qitem = nullptr;
+    if (qlist.size() < 1) { return; }
+    int numKids = qlist[0]->childCount();
+    int numKidsTemp;
+    size_t pos1;
+    QString qtemp;
+    string temp, filePath;
+    vector<string> taskList, dirt, soap;
+    if (numKids > 0)  // If a folder was selected...
+    {
+        dirt = { "Local Maps" };
+        for (int ii = 0; ii < numKids; ii++)
+        {
+            numKidsTemp = qlist[0]->child(ii)->childCount();
+            if (numKidsTemp > 0) { continue; }
+            qtemp = qlist[0]->text(0);
+            filePath = qtemp.toUtf8();
+            qtemp = qlist[0]->child(ii)->text(0);
+            temp = qtemp.toUtf8();
+            temp = filePath + "\\" + temp;
+            qitem = qlist[0]->parent();
+            while (qitem != nullptr)
+            {
+                qtemp = qitem->text(0);
+                filePath = qtemp.toUtf8();
+                filePath += "\\" + temp;
+                temp = filePath;
+                qitem = qitem->parent();
+            }
+            taskList.push_back("");
+            taskList[taskList.size() - 1] = sroot + "\\" + filePath;            
+            pos1 = filePath.rfind('.');
+            temp = filePath.substr(pos1);
+            if (temp == ".pdf")
+            {
+                soap = { "mapsPDF" };
+            }
+            else if (temp == ".png")
+            {
+                soap = { "mapsPNG" };
+            }
+            else if (temp == ".bin")
+            {
+                soap = { "mapsBIN" };
+            }
+            else { jf.err("extension clean-MainWindow.on_pB_convert"); }
+            jf.clean(taskList[taskList.size() - 1], dirt, soap);
+            // RESUME HERE.
+        }
+    }
+
     qf.initPixmap(ui->label_maps);
     thread::id myid = this_thread::get_id();
     vector<vector<int>> comm(1, vector<int>());
@@ -2033,8 +2112,8 @@ void MainWindow::on_pB_convert_clicked()
     vector<vector<int>> dots;
     int sizePath;
     vector<string> prompt(3);  // Form [pathInput, pathOutput, "w,h"].
-    prompt[0] = pathPNG;
-    prompt[1] = pathBIN;
+    //prompt[0] = pathPNG;
+    //prompt[1] = pathBIN;
 
     /*
     if (pathPNG.size() < 1)
@@ -2061,7 +2140,7 @@ void MainWindow::on_pB_convert_clicked()
     sb.set_prompt(myid, prompt);
     std::thread thr(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorderBuffer));
     thr.detach();
-    reset_bar(100, "Converting " + pathPNG);
+    //reset_bar(100, "Converting " + pathPNG);
 
     // Build the mapShift filter.
     comm = sb.update(myid, comm[0]);
