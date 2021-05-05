@@ -204,7 +204,7 @@ QPainterPath QTFUNC::pathMakeCircle(vector<double> origin, double radius, int si
 void QTFUNC::pmPainterReset(QLabel*& qlabel)
 {
 	if (pmCanvas.isNull()) { initPixmap(qlabel); }
-	if (painter.isActive()) { painter.end(); }
+	if (painter.isActive()) { painter.end(); }	
 	pmPainting = QPixmap(pmCanvas);
 	painter.begin(&pmPainting);
 

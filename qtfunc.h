@@ -25,6 +25,7 @@ class QTFUNC
 	QPixmap pmCanvas, pmPainting;
 	QRectF rect;
 
+
 public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
@@ -193,16 +194,19 @@ public:
 
 	template<typename ... Args> vector<vector<int>> dotsMake(Args& ... args)
 	{
+		// For the given colours, make that many dots (coords + colour), starting 
+		// with the most recent point and reaching back as far as necessary.
 		err("dotsMake template-qf");
 	}
 	template<> vector<vector<int>> dotsMake<vector<vector<double>>, vector<int>>(vector<vector<double>>& coords, vector<int>& colours)
 	{
-		if (coords.size() > colours.size()) { err("coord-colour mismatch-qf.dotsMake"); }
-		vector<vector<int>> dots(coords.size(), vector<int>(3));
-		for (int ii = 0; ii < coords.size(); ii++)
+		if (coords.size() < colours.size()) { err("coord-colour mismatch-qf.dotsMake"); }
+		int offset = coords.size() - colours.size();
+		vector<vector<int>> dots(colours.size(), vector<int>(3));
+		for (int ii = 0; ii < colours.size(); ii++)
 		{
-			dots[ii][0] = int(coords[ii][0]);
-			dots[ii][1] = int(coords[ii][1]);
+			dots[ii][0] = int(coords[offset + ii][0]);
+			dots[ii][1] = int(coords[offset + ii][1]);
 			dots[ii][2] = colours[ii];
 		}
 		return dots;
@@ -220,28 +224,28 @@ public:
 		switch (icolour)
 		{
 		case 0:
-			qcolour = QColor(255, 255, 255);
+			qcolour = QColor(255, 255, 255);  // White
 			break;
 		case 1:
-			qcolour = QColor(255, 0, 0);
+			qcolour = QColor(255, 0, 0);      // Red
 			break;
 		case 2:
-			qcolour = QColor(255, 255, 0);
+			qcolour = QColor(255, 255, 0);    // Yellow
 			break;
 		case 3:
-			qcolour = QColor(0, 255, 0);
+			qcolour = QColor(0, 255, 0);      // Green
 			break;
 		case 4:
-			qcolour = QColor(0, 255, 255);
+			qcolour = QColor(0, 255, 255);    // Teal
 			break;
 		case 5:
-			qcolour = QColor(0, 0, 255);
+			qcolour = QColor(0, 0, 255);      // Blue
 			break;
 		case 6:
-			qcolour = QColor(255, 0, 255);
+			qcolour = QColor(255, 0, 255);    // Pink
 			break;
 		case 7:
-			qcolour = QColor(0, 0, 0);
+			qcolour = QColor(0, 0, 0);        // Black
 			break;
 		}
 		return qcolour;
@@ -256,15 +260,11 @@ public:
 	{
 		err("pathMake template-qf");
 	}
-	template<> QPainterPath pathMake<vector<vector<int>>>(vector<vector<int>>& coordList)
+	template<> QPainterPath pathMake<vector<vector<int>>>(vector<vector<int>>& iCoordList)
 	{
-		QPainterPath path;
-		path.moveTo((double)coordList[0][0], (double)coordList[0][0]);
-		for (int ii = 1; ii < coordList.size(); ii++)
-		{
-			path.lineTo((double)coordList[ii][0], (double)coordList[ii][1]);
-		}
-		path.closeSubpath();
+		vector<vector<double>> coordList;
+		jfqf.toDouble(iCoordList, coordList);
+		QPainterPath path = pathMake(coordList);
 		return path;
 	}
 	template<> QPainterPath pathMake<vector<vector<double>>>(vector<vector<double>>& coordList)
@@ -275,7 +275,6 @@ public:
 		{
 			path.lineTo(coordList[ii][0], coordList[ii][1]);
 		}
-		path.closeSubpath();
 		return path;
 	}
 	template<> QPainterPath pathMake<vector<vector<double>>, vector<double>>(vector<vector<double>>& coordList, vector<double>& DxDyGa)
@@ -291,10 +290,6 @@ public:
 		for (int ii = 1; ii < coordListShifted.size(); ii++)
 		{
 			path.lineTo(coordListShifted[ii][0], coordListShifted[ii][1]);
-		}
-		if (coordListShifted[0] != coordListShifted[coordListShifted.size() - 1])
-		{
-			path.lineTo(coordListShifted[0][0], coordListShifted[0][1]);
 		}
 		return path;
 	}

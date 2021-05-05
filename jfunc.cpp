@@ -52,6 +52,23 @@ string JFUNC::get_error_path()
 {
 	return error_path;
 }
+int JFUNC::getPivot(vector<int>& treeSTrow)
+{
+	int pivot; 
+	int iroot = -1;
+	for (int ii = 0; ii < treeSTrow.size(); ii++)
+	{
+		if (treeSTrow[ii] < 0)
+		{
+			pivot = ii;
+			return pivot;
+		}
+		else if (treeSTrow[ii] == 0) { iroot = ii; }
+		
+		if (ii == treeSTrow.size() - 1 && iroot >= 0) { return iroot; }
+	}
+	return -1;
+}
 vector<int> JFUNC::get_roots(vector<vector<int>>& tree_st)
 {
 	vector<int> roots;

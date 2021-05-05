@@ -2019,8 +2019,8 @@ void MainWindow::populateQtreeList(JTREE& jtx, QTreeWidgetItem*& qparent, string
 // Convert a downloaded PDF map into a BIN map.
 void MainWindow::on_pB_convert_clicked()
 {
-    string pathPNG = sroot + "\\mapsPNG\\province\\Alberta.png";
-    string pathBIN = sroot + "\\mapsBIN\\province\\Alberta.bin";
+    string pathPNG = sroot + "\\mapsPNG\\province\\Manitoba.png";
+    string pathBIN = sroot + "\\mapsBIN\\province\\Manitoba.bin";
     string pathImg = sroot + "\\debug\\tempDebug.png";
     qf.initPixmap(ui->label_maps);
     thread::id myid = this_thread::get_id();
@@ -2029,6 +2029,9 @@ void MainWindow::on_pB_convert_clicked()
     vector<vector<double>> pathBorder, pathBorderBuffer;
     vector<double> mapShift;
     QPainterPath painterPathBorder;
+    vector<int> colourDots = { 3, 2, 1 };  // Green, Yellow, Red.
+    vector<vector<int>> dots;
+    int sizePath;
     vector<string> prompt(3);  // Form [pathInput, pathOutput, "w,h"].
     prompt[0] = pathPNG;
     prompt[1] = pathBIN;
@@ -2099,14 +2102,16 @@ void MainWindow::on_pB_convert_clicked()
         }
         error = sb.pull(myid, 0);
         if (error < 0) { err("sb.pull-MainWindow.on_pB_test"); }
+        im.coordShift(pathBorderBuffer, mapShift);
         pathBorder.insert(pathBorder.end(), pathBorderBuffer.begin(), pathBorderBuffer.end());
         pathBorderBuffer.clear();
         sb.done(myid);
         if (pathBorder.size() < 1) { continue; }
-        im.coordShift(pathBorder, mapShift);
         painterPathBorder = qf.pathMake(pathBorder);
-        qf.displayPainterPath(ui->label_maps, painterPathBorder);
+        dots = qf.dotsMake(pathBorder, colourDots);
+        qf.displayPainterPathDots(ui->label_maps, painterPathBorder, dots);
         QCoreApplication::processEvents();
+        sizePath = pathBorder.size();
         if (comm[1][0] == 1 || comm[1][0] == -2)
         {
             QCoreApplication::processEvents();

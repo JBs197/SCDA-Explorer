@@ -42,8 +42,6 @@ public:
     int get_file_path_number(string, string);
     vector<string> get_folder_list(string, string);
     void makeDir(string);
-	int makeTreeLocal(vector<vector<int>>& treeST, vector<string>& treePL, vector<int>& treeiPL, string rootDir, string search);
-	int makeTreeLocalHelper(vector<vector<int>>& treeST, vector<string>& treePL, vector<int>& treeiPL, string search, int myIndex);
     void make_tree_local(vector<vector<int>>&, vector<string>&, int, string, int, string);
     void make_tree_local_helper1(vector<vector<int>>&, vector<string>&, vector<int>, string, int, int, int, string);
 	void set_error_path(string);
@@ -255,6 +253,102 @@ public:
 		if (fileA == "") { winerr("blank return-wf.browse"); }
 		return fileA;
 	}
+
+	template<typename ... Args> void getTreeFile(string rootPath, vector<vector<int>>& treeST, vector<string>& treePL, Args& ... args)
+	{
+		// Recursive function that makes an STPL tree of folder/file paths, starting 
+		// from a given root directory. Excludes system return folders and nonfile folders. 
+		err("getTreeFile template-wf");
+	}
+	template<> void getTreeFile<string>(string rootPath, vector<vector<int>>& treeST, vector<string>& treePL, string& search)
+	{
+		// Add all the folders to the tree.
+		treeST.clear();
+		treePL.clear();
+		treeST.push_back({ 0 });
+		treePL.push_back(rootPath);
+		getTreeFolder(0, treeST, treePL);
+		int numFolder = treeST.size();
+
+		// Add all the searched-for files to the tree. 
+		WIN32_FIND_DATAA info;
+		DWORD attributes;
+		HANDLE hfile = INVALID_HANDLE_VALUE;
+		string folderSearch, name, temp; 
+		vector<int> iGenealogy;
+		int kidIndex;
+		for (int ii = 0; ii < numFolder; ii++)
+		{
+			folderSearch = treePL[ii] + "\\" + search;
+			hfile = FindFirstFileA(folderSearch.c_str(), &info);
+			if (hfile == INVALID_HANDLE_VALUE) 
+			{
+				attributes = GetLastError();
+				if (attributes == 2) { continue; }
+				else { winerr("FindFirstFile-getTreeFolder"); }
+			}
+			iGenealogy = treeST[ii];
+			iGenealogy[iGenealogy.size() - 1] = abs(iGenealogy[iGenealogy.size() - 1]);
+			do
+			{
+				attributes = info.dwFileAttributes;
+				if (attributes == FILE_ATTRIBUTE_NORMAL || attributes == FILE_ATTRIBUTE_ARCHIVE)
+				{
+					kidIndex = treeST.size();
+					temp = info.cFileName;
+					name = treePL[ii] + "\\" + temp;
+					treePL.push_back(name);
+					iGenealogy.push_back(-1 * kidIndex);
+					treeST.push_back(iGenealogy);
+					iGenealogy.pop_back();
+					treeST[ii].push_back(kidIndex);
+				}
+			} while (FindNextFileA(hfile, &info));
+		}
+		
+		// Remove all leafless folders from the tree.
+		for (int ii = 0; ii < numFolder; ii++)
+		{
+			// RESUME HERE. 
+		}
+	}
+
+
+	template<typename ... Args> void getTreeFolder(int myIndex, vector<vector<int>>& treeST, vector<string>& treePL, Args& ... args)
+	{
+		// Recursive function that makes an STPL tree of folder paths, starting 
+		// from a given root directory. Excludes system return folders. 
+		err("getTreeFolder template-wf");
+	}
+	template<> void getTreeFolder< >(int myIndex, vector<vector<int>>& treeST, vector<string>& treePL)
+	{
+		int kidIndex, pivot;
+		vector<int> iGenealogy = treeST[myIndex];
+		iGenealogy[iGenealogy.size() - 1] = abs(iGenealogy[iGenealogy.size() - 1]);
+		WIN32_FIND_DATAA info;
+		DWORD attributes;
+		string folderSearch = treePL[myIndex] + "\\*";
+		string temp, nameFolder;
+		HANDLE hfile = FindFirstFileA(folderSearch.c_str(), &info);
+		if (hfile == INVALID_HANDLE_VALUE) { winerr("FindFirstFile-getTreeFolder"); }
+		do
+		{
+			attributes = info.dwFileAttributes;
+			if (attributes == FILE_ATTRIBUTE_DIRECTORY)
+			{
+				nameFolder = info.cFileName;
+				if (nameFolder == "." || nameFolder == "..") { continue; }
+				kidIndex = treeST.size();
+				temp = treePL[myIndex] + "\\" + nameFolder;
+				treePL.push_back(temp);
+				iGenealogy.push_back(-1 * kidIndex);
+				treeST.push_back(iGenealogy);
+				iGenealogy.pop_back();
+				treeST[myIndex].push_back(kidIndex);
+			}
+		} while (FindNextFileA(hfile, &info));
+	}
+
 
 };
 
