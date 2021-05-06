@@ -665,6 +665,61 @@ void IMGFUNC::pngLoad(string& pathPNG)
 
     int bbq = 0;
 }
+void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
+{
+    // Returns the border path generated, for easy display/human review.
+    if (!mapIsInit()) { initMapColours(); }
+    pngLoad(pathPNG);
+    vector<vector<double>> corners = frameCorners();
+    vector<vector<int>> vBorderPath(1, vector<int>());
+    vBorderPath[0] = borderFindStart();
+    vector<vector<int>> tracks;
+    int sizeVBP = 1;
+    while (1)
+    {
+        if (sizeVBP > 6)
+        {
+            tracks[0] = tracks[1];
+            tracks[1] = tracks[2];
+            tracks[2] = tracks[3];
+            tracks[3] = tracks[4];
+            tracks[4] = tracks[5];
+            tracks[5] = vBorderPath[vBorderPath.size() - 1];
+        }
+        else
+        {
+            tracks = vBorderPath;
+        }
+        vBorderPath.push_back(borderFindNext(sbgui, tracks));
+        if (vBorderPath[vBorderPath.size() - 1][0] < 0 || vBorderPath[vBorderPath.size() - 1][1] < 0)
+        {
+            jf.err("vBorderPath error-im.pngToBin");
+        }
+        sizeVBP++;
+        searchRadiusIncrease = 0;
+        rabbitHole = 0;
+        if (sizeVBP > 10)
+        {
+            if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
+        }
+    }
+
+    ofstream sPrinter(pathBIN.c_str(), ios::trunc);
+    auto report = sPrinter.rdstate();
+    sPrinter << "//frame" << endl;
+    for (int ii = 0; ii < corners.size(); ii++)
+    {
+        sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
+    }
+    sPrinter << endl;
+
+    sPrinter << "//border" << endl;
+    for (int ii = 0; ii < vBorderPath.size(); ii++)
+    {
+        sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
+    }
+    sPrinter.close();
+}
 void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
 {
     jf.timerStart();

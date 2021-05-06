@@ -52,6 +52,13 @@ string JFUNC::get_error_path()
 {
 	return error_path;
 }
+string JFUNC::getExtension(string& spath)
+{
+	size_t pos1 = spath.rfind('.');
+	if (pos1 >= spath.size()) { err("No dot found-jf.getExtension"); }
+	string ext = spath.substr(pos1);
+	return ext;
+}
 int JFUNC::getPivot(vector<int>& treeSTrow)
 {
 	int pivot; 

@@ -154,6 +154,12 @@ void MainWindow::reset_bar(int max, string status)
     ui->progressBar->setValue(0);
     ui->QL_bar->setText(qstatus);
 }
+void MainWindow::barMessage(string message)
+{
+    QString qmessage = QString::fromStdString(message);
+    lock_guard<mutex> lock(m_bar);
+    ui->QL_bar->setText(qmessage);
+}
 
 // Given a catalogue folder path, return a list of GIDs present in that folder.
 vector<string> MainWindow::extract_gids(string cata_path)
@@ -1959,6 +1965,7 @@ void MainWindow::on_pB_localmaps_clicked()
         jf.pathToNameExt(treePL);
         jtMaps.inputTreeSTPL(treeST, treePL, treeiPL);
 
+
         // Add the PNG maps.
         pathFolder = sroot + "\\mapsPNG";
         search = "*.png";
@@ -2057,7 +2064,8 @@ void MainWindow::on_pB_convert_clicked()
     size_t pos1;
     QString qtemp;
     string temp, filePath;
-    vector<string> taskList, dirt, soap;
+    vector<string> dirt, soap;  
+    vector<string> prompt = { "" };  // Form [pathInput1, pathInput2, ...].
     if (numKids > 0)  // If a folder was selected...
     {
         dirt = { "Local Maps" };
@@ -2079,8 +2087,8 @@ void MainWindow::on_pB_convert_clicked()
                 temp = filePath;
                 qitem = qitem->parent();
             }
-            taskList.push_back("");
-            taskList[taskList.size() - 1] = sroot + "\\" + filePath;            
+            prompt.push_back("");
+            prompt[prompt.size() - 1] = sroot + "\\" + filePath;
             pos1 = filePath.rfind('.');
             temp = filePath.substr(pos1);
             if (temp == ".pdf")
@@ -2096,8 +2104,7 @@ void MainWindow::on_pB_convert_clicked()
                 soap = { "mapsBIN" };
             }
             else { jf.err("extension clean-MainWindow.on_pB_convert"); }
-            jf.clean(taskList[taskList.size() - 1], dirt, soap);
-            // RESUME HERE.
+            jf.clean(prompt[prompt.size() - 1], dirt, soap);
         }
     }
 
@@ -2107,62 +2114,22 @@ void MainWindow::on_pB_convert_clicked()
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
     vector<vector<double>> pathBorder, pathBorderBuffer;
     vector<double> mapShift;
-    QPainterPath painterPathBorder;
+    QPainterPath painterPathBorder, myPPB;
     vector<int> colourDots = { 3, 2, 1 };  // Green, Yellow, Red.
     vector<vector<int>> dots;
-    int sizePath;
-    vector<string> prompt(3);  // Form [pathInput, pathOutput, "w,h"].
-    //prompt[0] = pathPNG;
-    //prompt[1] = pathBIN;
-
-    /*
-    if (pathPNG.size() < 1)
-    {
-        reset_bar(100, "No PNG path specified.");
-        return;
-    }
-    else if (pathBIN.size() < 1)
-    {
-        prompt[1] = pathPNG;
-        dirt = { "PNG", ".png" };
-        soap = { "BIN", ".bin" };
-        jf.clean(prompt[1], dirt, soap);
-    }
-    */
 
     // Launch the worker threads.
     int inum = ui->label_maps->width();
-    prompt[2] = to_string(inum) + ",";
+    prompt[0] = to_string(inum) + ",";
     inum = ui->label_maps->height();
-    prompt[2] += to_string(inum);
+    prompt[0] += to_string(inum);
     int error = sb.start_call(myid, 1, comm[0]);
-    if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
+    if (error) { errnum("start_call-MainWindow.on_pB_convert", error); }
     sb.set_prompt(myid, prompt);
-    std::thread thr(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorderBuffer));
+    std::thread thr(&MainWindow::convertGuide, this, ref(sb), ref(painterPathBorder));
     thr.detach();
+    ui->tabW_online->setCurrentIndex(2);
     //reset_bar(100, "Converting " + pathPNG);
-
-    // Build the mapShift filter.
-    comm = sb.update(myid, comm[0]);
-    while (comm.size() < 2)
-    {
-        Sleep(10);
-        comm = sb.update(myid, comm[0]);
-    }
-    while (comm[1][1] == 0 && comm[1][0] == 0)
-    {
-        Sleep(10);
-        comm = sb.update(myid, comm[0]);
-    }
-    sb.pull(myid, 0);
-    pathBorder = pathBorderBuffer;
-    pathBorderBuffer.clear();
-    sb.done(myid);
-    mapShift.resize(3);          // Form [Dx, Dy, stretchFactor].
-    mapShift[0] = -1.0 * pathBorder[0][0];
-    mapShift[1] = -1.0 * pathBorder[0][1];
-    mapShift[2] = pathBorder[4][0];
-    pathBorder.clear();
 
     // Receive and display path data. 
     while (1)
@@ -2179,18 +2146,16 @@ void MainWindow::on_pB_convert_clicked()
                 int bbq = 1;
             }
         }
-        error = sb.pull(myid, 0);
-        if (error < 0) { err("sb.pull-MainWindow.on_pB_test"); }
-        im.coordShift(pathBorderBuffer, mapShift);
-        pathBorder.insert(pathBorder.end(), pathBorderBuffer.begin(), pathBorderBuffer.end());
-        pathBorderBuffer.clear();
-        sb.done(myid);
-        if (pathBorder.size() < 1) { continue; }
-        painterPathBorder = qf.pathMake(pathBorder);
-        dots = qf.dotsMake(pathBorder, colourDots);
-        qf.displayPainterPathDots(ui->label_maps, painterPathBorder, dots);
+        if (comm[1][1] > comm[0][1])  // New BIN map available to display.
+        {
+            error = sb.pull(myid, 0);
+            if (error < 0) { err("sb.pull-MainWindow.on_pB_test"); }
+            myPPB = painterPathBorder;
+            sb.done(myid);
+            comm[0][1] = comm[1][1];
+            qf.displayBin(ui->label_maps, myPPB);
+        }
         QCoreApplication::processEvents();
-        sizePath = pathBorder.size();
         if (comm[1][0] == 1 || comm[1][0] == -2)
         {
             QCoreApplication::processEvents();
@@ -2199,6 +2164,80 @@ void MainWindow::on_pB_convert_clicked()
             jobs_done = comm[0][2];
             update_bar();
             break;           // Manager reports task finished/cancelled.
+        }
+    }
+    barMessage("Map conversions completed.");
+}
+void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorder)
+{
+    vector<int> mycomm;
+    vector<vector<int>> comm_gui;
+    thread::id myid = this_thread::get_id();
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form ["w,h", pathInput1, pathInput2, ...].
+    vector<double> DxDyGa;
+    vector<string> dirt0 = { "mapsPDF", ".pdf" };
+    vector<string> dirt1 = { "mapsPNG", ".png" };
+    vector<string> dirt2 = { "mapsBIN", ".bin" };
+    QPainterPath pPB;
+    vector<vector<double>> borderPathBIN, borderFrameBIN;
+    string extension, pathInput, pathOutput, temp;
+    bool success;
+    int rank, inum;
+
+    vector<int> windowDim(2);
+    size_t pos1 = prompt[0].find(',');
+    temp = prompt[0].substr(0, pos1);
+    try { inum = stoi(temp); }
+    catch (invalid_argument& ia) { jf.err("stoi-MainWindow.convertGuide"); }
+    windowDim[0] = -1 * inum;
+    temp = prompt[0].substr(pos1 + 1);
+    try { inum = stoi(temp); }
+    catch (invalid_argument& ia) { jf.err("stoi-MainWindow.convertGuide"); }
+    windowDim[1] = -1 * inum;
+
+    for (int ii = 1; ii < prompt.size(); ii++)
+    {
+        extension = jf.getExtension(prompt[ii]);
+        rank = jtMaps.getHierarchy(extension);
+        if (rank < 0) { jf.err("Extension not found in hierarchy-MainWindow.convertGuide"); }
+        while (rank < 2)
+        {
+            switch (rank)
+            {
+            case 0:
+            {
+                pathInput = prompt[ii];
+                pathOutput = pathInput;
+                jf.clean(pathOutput, dirt0, dirt1);
+                gf.pdfToPng(pathInput, pathOutput);
+                pathInput = pathOutput;
+                rank++;
+                break;
+            }
+            case 1:
+            {
+                if (pathInput.size() < 1) { pathInput = prompt[ii]; }
+                pathOutput = pathInput;
+                jf.clean(pathOutput, dirt1, dirt2);
+                im.pngToBin(sbgui, pathInput, pathOutput);
+                im.mapBinLoad(pathOutput, borderFrameBIN, borderPathBIN);
+                im.makeMapshift(windowDim, borderFrameBIN, DxDyGa);
+                pPB = qf.pathMake(borderPathBIN, DxDyGa);
+                success = 0;
+                while (!success)
+                {
+                    success = sbgui.push(myid);
+                    Sleep(7);
+                }
+                painterPathBorder = pPB;
+                success = sbgui.done(myid);
+                mycomm[1]++;
+                sbgui.update(myid, mycomm);
+                rank++;
+                break;
+            }
+            }
         }
     }
 

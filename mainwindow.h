@@ -110,7 +110,9 @@ private:
     void insert_csvs(vector<vector<vector<string>>>&, SWITCHBOARD&, STATSCAN&);
     static int sql_callback(void*, int, char**, char**);
     void auto_expand(QTreeWidget*&, int);
+    void barMessage(string message);
     void bind(string&, vector<string>&);
+    void convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorder);
     void delete_cata(SWITCHBOARD&, SQLFUNC&);
     void display_catalogue(SQLFUNC&, SWITCHBOARD&, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
     void display_table(string);

@@ -42,6 +42,7 @@ public:
 	string get_error_path();
 	void isort_slist(vector<string>&);
 	int is_numeric(string&);
+	string getExtension(string& spath);
 	int getPivot(vector<int>& treeSTrow);
 	vector<int> get_roots(vector<vector<int>>&);
 	vector<string> ivectorToSvector(vector<int>&);

@@ -29,7 +29,6 @@ class QTFUNC
 public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
-	void displayBin(QLabel*& qlabel, string& pathBIN);
 	void displayDebug(QLabel*& qlabel, string& pathPNG);
 	void displayPainterPath(QLabel*& qlabel, QPainterPath& path);
 	void displayText(QLabel*, string stext);
@@ -168,6 +167,100 @@ public:
 		{
 			qview->expandAll();
 		}
+	}
+
+	template<typename ... Args> void displayBin(QLabel*& qlabel, Args& ... args)
+	{
+		jfqf.err("displayBin template-qf");
+	}
+	template<> void displayBin<string>(QLabel*& qlabel, string& pathBIN)
+	{
+		// Load all coordinates into memory from the bin file.
+		string sfile = jfqf.load(pathBIN);
+		if (sfile.size() < 1) { err("load-qf.displayBin"); }
+		size_t pos1, pos2, posStart, posStop;
+		vector<vector<int>> frameCorners, border;
+		string temp;
+		int row;
+		posStart = sfile.find("//frame");
+		posStop = sfile.find("//", posStart + 7);
+		if (posStop > sfile.size()) { posStop = sfile.size(); }
+		pos1 = sfile.find(',', posStart);
+		while (pos1 < posStop)
+		{
+			row = frameCorners.size();
+			frameCorners.push_back(vector<int>(2));
+			pos2 = sfile.find_last_not_of("1234567890", pos1 - 1) + 1;
+			temp = sfile.substr(pos2, pos1 - pos2);
+			try { frameCorners[row][0] = stoi(temp); }
+			catch (invalid_argument& ia) { err("stoi-qf.displayBin"); }
+			pos2 = sfile.find_first_not_of("1234567890", pos1 + 1);
+			temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
+			try { frameCorners[row][1] = stoi(temp); }
+			catch (invalid_argument& ia) { err("stoi-qf.displayBin"); }
+			pos1 = sfile.find(',', pos1 + 1);
+		}
+		posStart = sfile.find("//border");
+		posStop = sfile.find("//", posStart + 8);
+		if (posStop > sfile.size()) { posStop = sfile.size(); }
+		pos1 = sfile.find(',', posStart);
+		while (pos1 < posStop)
+		{
+			row = border.size();
+			border.push_back(vector<int>(2));
+			pos2 = sfile.find_last_not_of("1234567890", pos1 - 1) + 1;
+			temp = sfile.substr(pos2, pos1 - pos2);
+			try { border[row][0] = stoi(temp); }
+			catch (invalid_argument& ia) { err("stoi-qf.displayBin"); }
+			pos2 = sfile.find_first_not_of("1234567890", pos1 + 1);
+			temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
+			try { border[row][1] = stoi(temp); }
+			catch (invalid_argument& ia) { err("stoi-qf.displayBin"); }
+			pos1 = sfile.find(',', pos1 + 1);
+		}
+
+		// Scale and shift the coordinates to fit the display window.
+		if (pmCanvas.isNull()) { initPixmap(qlabel); }
+		vector<double> mapShift(3);
+		mapShift[0] = -1.0 * (double)frameCorners[0][0];
+		mapShift[1] = -1.0 * (double)frameCorners[0][1];
+		double widthPm = (double)pmCanvas.width();
+		double heightPm = (double)pmCanvas.height();
+		double widthFrame = (double)(frameCorners[2][0] - frameCorners[0][0]);
+		double heightFrame = (double)(frameCorners[2][1] - frameCorners[0][1]);
+		double ratioWidth = widthFrame / widthPm;
+		double ratioHeight = heightFrame / heightPm;
+		if (ratioHeight >= ratioWidth)
+		{
+			mapShift[2] = 1.0 / ratioHeight;
+		}
+		else
+		{
+			mapShift[2] = 1.0 / ratioWidth;
+		}
+		vector<vector<double>> borderShifted;
+		im.coordShift(border, mapShift, borderShifted);
+
+		// Paint the coordinates onto the GUI window.
+		pmPainting = QPixmap(pmCanvas);
+		QPainter* painter = new QPainter(&pmPainting);
+		QPen pen = QPen(colourDefault, 3.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+		painter->setPen(pen);
+		QPainterPath path = pathMake(borderShifted);
+		painter->drawPath(path);
+		qlabel->setPixmap(pmPainting);
+		int bbq = 1;
+	}
+	template<> void displayBin<QPainterPath>(QLabel*& qlabel, QPainterPath& painterPathBorder)
+	{
+		// Paint the coordinates onto the GUI window.
+		pmPainting = QPixmap(pmCanvas);
+		QPainter* painter = new QPainter(&pmPainting);
+		QPen pen = QPen(colourDefault, 3.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+		painter->setPen(pen);
+		painter->drawPath(painterPathBorder);
+		qlabel->setPixmap(pmPainting);
+		int bbq = 1;
 	}
 
 	template<typename ... Args> void displayPainterPathDots(QLabel*& qlabel, QPainterPath& path, Args& ... args)

@@ -84,6 +84,7 @@ public:
     vector<unsigned char> pngBlankCanvas(vector<int>& dim);
     vector<unsigned char> pngExtractRow(int row, vector<unsigned char>& img, vector<int>& sourceDim);
 	void pngLoad(string& pathPNG);
+    void pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN);
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinLiveDebug(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     int testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates);
@@ -198,7 +199,6 @@ public:
             listShifted[ii][1] = ((double)listCoord[ii][1] + mapShift[1]) * mapShift[2];
         }
     }
-
 
     template<typename ... Args> void deleteColumn(int col, Args& ... args)
     {
@@ -461,6 +461,50 @@ public:
         makeMapOctogonBearing(pastPresentFuture);
     }
 
+    template<typename ... Args> void makeMapshift(vector<int> windowDim, Args& ... args)
+    {
+        jf.err("makeMapshift template-im");
+    }
+    template<> void makeMapshift<vector<vector<double>>, vector<double>>(vector<int> windowDim, vector<vector<double>>& frame, vector<double>& DxDyGa)
+    {
+        DxDyGa.resize(3);
+        DxDyGa[0] = -1.0 * frame[0][0];
+        DxDyGa[1] = -1.0 * frame[0][1];
+
+        double widthWindow = (double)windowDim[0];
+        double heightWindow = (double)windowDim[1];
+        double widthImg, heightImg;
+        if (frame.size() == 2)
+        {
+            widthImg = frame[1][0] - frame[0][0];
+            heightImg = frame[1][1] - frame[0][1];
+        }
+        else if (frame.size() == 4)
+        {
+            widthImg = frame[2][0] - frame[0][0];
+            heightImg = frame[2][1] - frame[0][1];
+        }
+        else { jf.err("frame input-im.makeMapshift"); }
+
+        if (widthImg < widthWindow || heightImg < heightWindow)
+        {
+            DxDyGa[2] = 1.0;
+            return;
+        }
+
+        double xRatio = widthWindow / widthImg;
+        double yRatio = heightWindow / heightImg;
+        if (xRatio > yRatio)
+        {
+            DxDyGa[2] = 1.0 / xRatio;
+        }
+        else
+        {
+            DxDyGa[2] = 1.0 / yRatio;
+        }
+        return;
+    }
+
     template<typename ... Args> void makeMapZoneSweepDebug(vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<vector<int>>& goldilocks, Args& ... args)
     {
         jf.err("makeMapZoneSweepDebug template.im");
@@ -482,9 +526,27 @@ public:
             if (zonePath[ii][1] < top) { top = zonePath[ii][1]; }
             if (zonePath[ii][1] > bot) { bot = zonePath[ii][1]; }
         }
+        int leftSecure = max(0, left - 1);
+        int rightSecure = min(width - 1, right + 1);
+        int topSecure = max(0, top - 1);
+        int botSecure = min(height - 1, bot + 1);
+        vector<int> outerPixel, innerPixel;
+        vector<vector<int>> rings;
+        innerPixel = zonePath[0];
+        innerPixel[1]++;
+        outerPixel = zonePath[0];
+        if (topSecure < top) { outerPixel[1]++; }
+        else { outerPixel = { -1, -1 }; }
+        int zpIndex = 0;
+        while (zonePath[zpIndex + 1][0] > zonePath[zpIndex][0])
+        {
+            rings.push_back(innerPixel);
+            rings.push_back(outerPixel);
+        }
+
+        // RESUME HERE. Make black double rings around ZS path, save whole PNG.
         int widthTemp = right - left + 1;
         int heightTemp = bot - top + 1;
-        vector<int> viTemp(2);
         vector<int> centerTemp(2);
         centerTemp[0] = left + (widthTemp / 2);
         centerTemp[1] = top + (heightTemp / 2);
@@ -714,6 +776,65 @@ public:
         return imgLine;
     }
 
+    template<typename ... Args> void mapBinLoad(string& pathBIN, Args& ... args)
+    {
+        jf.err("mapBinLoad template-im");
+    }
+    template<> void mapBinLoad<vector<vector<int>>, vector<vector<int>>>(string& pathBIN, vector<vector<int>>& frame, vector<vector<int>>& border)
+    {
+        // Load all coordinates into memory from the bin file.
+        frame.clear();
+        border.clear();
+        string sfile = jf.load(pathBIN);
+        if (sfile.size() < 1) { jf.err("load-im.mapBinLoad"); }
+        size_t pos1, pos2, posStart, posStop;
+        string temp;
+        int row;
+        posStart = sfile.find("//frame");
+        posStop = sfile.find("//", posStart + 7);
+        if (posStop > sfile.size()) { posStop = sfile.size(); }
+        pos1 = sfile.find(',', posStart);
+        while (pos1 < posStop)
+        {
+            row = frame.size();
+            frame.push_back(vector<int>(2));
+            pos2 = sfile.find_last_not_of("1234567890", pos1 - 1) + 1;
+            temp = sfile.substr(pos2, pos1 - pos2);
+            try { frame[row][0] = stoi(temp); }
+            catch (invalid_argument& ia) { jf.err("stoi-im.mapBinLoad"); }
+            pos2 = sfile.find_first_not_of("1234567890", pos1 + 1);
+            temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
+            try { frame[row][1] = stoi(temp); }
+            catch (invalid_argument& ia) { jf.err("stoi-im.mapBinLoad"); }
+            pos1 = sfile.find(',', pos1 + 1);
+        }
+        posStart = sfile.find("//border");
+        posStop = sfile.find("//", posStart + 8);
+        if (posStop > sfile.size()) { posStop = sfile.size(); }
+        pos1 = sfile.find(',', posStart);
+        while (pos1 < posStop)
+        {
+            row = border.size();
+            border.push_back(vector<int>(2));
+            pos2 = sfile.find_last_not_of("1234567890", pos1 - 1) + 1;
+            temp = sfile.substr(pos2, pos1 - pos2);
+            try { border[row][0] = stoi(temp); }
+            catch (invalid_argument& ia) { jf.err("stoi-im.mapBinLoad"); }
+            pos2 = sfile.find_first_not_of("1234567890", pos1 + 1);
+            temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
+            try { border[row][1] = stoi(temp); }
+            catch (invalid_argument& ia) { jf.err("stoi-im.mapBinLoad"); }
+            pos1 = sfile.find(',', pos1 + 1);
+        }
+    }
+    template<> void mapBinLoad<vector<vector<double>>, vector<vector<double>>>(string& pathBIN, vector<vector<double>>& frame, vector<vector<double>>& border)
+    {
+        vector<vector<int>> iFrame, iBorder;
+        mapBinLoad(pathBIN, iFrame, iBorder);
+        jf.toDouble(iFrame, frame);
+        jf.toDouble(iBorder, border);
+    }
+
     template<typename ... Args> void octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, Args& ... args)
     {
         // Uses the past [0] and present [1] coordinates to define an initial 
@@ -801,6 +922,12 @@ public:
         // sufficiently strong results, then make a debug PNG and admit defeat.
         if (numCandidates != 1 && theta < 0.0)
         {
+            if (numCandidates < 1)
+            {
+                makeMapZoneSweepDebug(octoRGB, octoPath, candidates);
+                int bbq = 1;
+            }
+
             // Zone width test.
             vector<int> candidateWide;  // Form [xCoord, yCoord, runnerup's relative width (percent)]
             int sizeMax = 0;
