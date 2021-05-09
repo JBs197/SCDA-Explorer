@@ -2,23 +2,26 @@
 
 vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks)
 {
+    string pathImg = sroot + "\\debug\\borderFindNextDebug.png";
     vector<int> origin = tracks[tracks.size() - 1];
     int radius = defaultSearchRadius + searchRadiusIncrease;
     unordered_map<string, int> mapIndexCandidate;
     vector<vector<int>> octoPath = octogonPath(origin, radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
-    //if (debug) { octogonPaint(origin, radius); }
     string sZone = "zoneBorder";
     vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
     vector<vector<int>> vvTemp, cPath;
+    int numIncreases = 0;
+    vector<int> sourceDim = { width, height };
     while (candidates.size() < 2)
     {
-        radius += (4 * borderThickness);
+        radius += (3 * borderThickness);
         octoPath = octogonPath(origin, radius);
+        octogonCheckBoundary(octoPath, sourceDim, 0);
         octoRGB = octogonRGB(octoPath);
-        //if (debug) { octogonPaint(origin, radius); }
         mapIndexCandidate.clear();
         candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
+        numIncreases++;
     }
     if (tracks.size() < 2) { return candidates[0]; }     // We arbitrarily choose the path
     vector<int> originPast = tracks[tracks.size() - 2];  // of direction "earliest time" 
@@ -26,6 +29,13 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     coordDist(originPast, candidates, distances);        // first step.
     double minDistance, dTemp;
     int elimIndex;
+
+    if (numIncreases > 2)
+    {
+        makeMapBorderFindNext(tracks, radius, candidates, pathImg);
+        waitMapDebug(sbgui, pathImg, tracks);
+        int bbq = 1;
+    }
 
     do
     {
@@ -47,7 +57,7 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     // There can only be two candidates remaining.  
     // Perform a series of tests to determine the right path.
 
-    // Test for access to the interior (white) zone.
+    // Test for access to the interior (white) zone, if on land.
     sZone = "white";
     int numCandidates = testCandidatesInteriorZone(sbgui, tracks, sZone, candidates);
     if (numCandidates == 1) { return candidates[0]; }
@@ -375,6 +385,22 @@ vector<vector<double>> IMGFUNC::frameCorners()
     corners[3][1] = (double)vvTemp[0][1];
     return corners;
 }
+vector<unsigned char> IMGFUNC::getColour(string sColour)
+{
+    if (sColour == "Black") { return Black; }
+    else if (sColour == "Blue") { return Blue; }
+    else if (sColour == "Gold") { return Gold; }
+    else if (sColour == "Green") { return Green; }
+    else if (sColour == "Orange") { return Orange; }
+    else if (sColour == "Pink") { return Pink; }
+    else if (sColour == "Purple") { return Purple; }
+    else if (sColour == "Red") { return Red; }
+    else if (sColour == "Teal") { return Teal; }
+    else if (sColour == "White") { return White; }
+    else if (sColour == "Yellow") { return Yellow; }
+    vector<unsigned char> failure;
+    return failure;
+}
 double IMGFUNC::getStretchFactor(string& widthHeight)
 {
     size_t pos1 = widthHeight.find(',');
@@ -451,7 +477,7 @@ void IMGFUNC::initMapColours()
     rgb[1] = 217;
     rgb[2] = 247;
     shex = pixelDecToHex(rgb);
-    sval = "river";
+    sval = "water";
     mapColour.emplace(shex, sval);
     rgb[0] = 0;
     rgb[1] = 0;
@@ -700,7 +726,16 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
         rabbitHole = 0;
         if (sizeVBP > 10)
         {
-            if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
+            if (jobsDone(vBorderPath[vBorderPath.size() - 1])) 
+            {
+                vBorderPath.push_back(vBorderPath[0]);
+                break; 
+            }
+        }
+        if (sizeVBP == pathLengthImageDebug)
+        {
+            makeMapPngToBin(vBorderPath);
+            int bbq = 1;
         }
     }
 
@@ -835,63 +870,80 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
     long long timer = jf.timerStop();
     jf.logTime("Converted " + prompt[0] + " to BIN coordinates", timer);
 }
-void IMGFUNC::pngToBinLiveDebug(SWITCHBOARD& sbgui, vector<vector<double>>& border)
-{
-    vector<int> mycomm;
-    vector<vector<int>> comm_gui;
-    thread::id myid = this_thread::get_id();
-    sbgui.answer_call(myid, mycomm);
-    vector<string> prompt = sbgui.get_prompt();
-    bool success, frameDone;
-    if (!mapIsInit()) { initMapColours(); }
-    pngLoad(prompt[0]);
-
-    //vector<int> sourceDim = { width, height };
-    vector<int> center = { 2545, 2630 };  
-    vector<int> topLeft = center;            // Changes to top-left after pngER.
-    //vector<int> extractDim = { 200, 200 };
-    vector<int> viTemp = center;
-    for (int ii = 0; ii < 4; ii++)
-    {
-        viTemp[0] += 30;
-        viTemp[1] -= 20;
-        dotPaint(viTemp, Red);
-    }
-    vector<vector<int>> vviTemp(2, vector<int>());
-    vviTemp[0] = { 2630, 2545 };
-    vviTemp[1] = viTemp;
-    vector<unsigned char> pink = { 255, 0, 255 };
-    int widthLine = 5;
-    linePaint(vviTemp, dataPNG, width, pink, widthLine);
-    vector<unsigned char> mystery = { 255, 155, 55 };
-    vviTemp[0][0] = center[0] + 177;
-    vviTemp[0][1] = center[1] + 177;
-    vviTemp[1][0] = center[0] - 100;
-    vviTemp[1][1] = center[1] - 50;
-    octogonPaint(vviTemp[0], 40, dataPNG, width, mystery, widthLine);
-    octogonPaint(vviTemp[1], 30, dataPNG, width, mystery, widthLine);
-
-    vector<unsigned char> cropped = pngExtractRect(topLeft);        
-    int imgSize = cropped.size();
-    int channels = 3;
-    auto bufferUC = new unsigned char[imgSize + 1];
-    for (int ii = 0; ii < imgSize; ii++)
-    {
-        bufferUC[ii] = cropped[ii];
-    }
-    string pathImg = sroot + "\\debug\\tempDebug.png";
-    int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
-    delete[] bufferUC;
-
-    mycomm[0] = 3;   
-    sbgui.update(myid, mycomm);
-    int bbq = 1;
-}
 bool IMGFUNC::mapIsInit()
 {
     size_t size = mapColour.size();
     if (size > 0) { return 1; }
     return 0;
+}
+void IMGFUNC::octogonCheckBoundary(vector<vector<int>>& octoPath, vector<int>& sourceDim, int pathSpace)
+{
+    // If a proposed octogon path (plus pathSpace) would go past the source image
+    // dimensions, then modify octoPath such that the boundaries are respected.
+    vector<int> infractions = { 0, 0, 0, 0 };  // Top, bot, left, right.
+    for (int ii = 0; ii < octoPath.size(); ii++)
+    {
+        if (octoPath[ii][0] - pathSpace < 0) { infractions[2] = 1; }
+        else if (octoPath[ii][0] + pathSpace >= sourceDim[0]) { infractions[3] = 1; }
+        if (octoPath[ii][1] - pathSpace < 0) { infractions[0] = 1; }
+        else if (octoPath[ii][1] + pathSpace >= sourceDim[1]) { infractions[1] = 1; }
+    }
+    if (infractions[0] + infractions[1] + infractions[2] + infractions[3] == 0) { return; }
+
+    for (int ii = 0; ii < 4; ii++)
+    {
+        if (infractions[ii] > 0)
+        {
+            switch (ii)
+            {
+            case 0:
+            {
+                for (int jj = 0; jj < octoPath.size(); jj++)
+                {
+                    if (octoPath[jj][1] - pathSpace < 0)
+                    {
+                        octoPath[jj][1] = pathSpace;
+                    }
+                }
+                break;
+            }
+            case 1:
+            {
+                for (int jj = 0; jj < octoPath.size(); jj++)
+                {
+                    if (octoPath[jj][1] + pathSpace >= sourceDim[1])
+                    {
+                        octoPath[jj][1] = sourceDim[1] - 1 - pathSpace;
+                    }
+                }
+                break;
+            }
+            case 2:
+            {
+                for (int jj = 0; jj < octoPath.size(); jj++)
+                {
+                    if (octoPath[jj][0] - pathSpace < 0)
+                    {
+                        octoPath[jj][0] = pathSpace;
+                    }
+                }
+                break;
+            }
+            case 3:
+            {
+                for (int jj = 0; jj < octoPath.size(); jj++)
+                {
+                    if (octoPath[jj][0] + pathSpace >= sourceDim[0])
+                    {
+                        octoPath[jj][0] = sourceDim[0] - 1 - pathSpace;
+                    }
+                }
+                break;
+            }
+            }
+        }
+    }
+
 }
 vector<vector<int>> IMGFUNC::octogonPath(vector<int> origin, int radius)
 {
@@ -977,6 +1029,11 @@ vector<vector<int>> IMGFUNC::octogonPath(vector<int> origin, int radius)
     }
     return path;
 }
+void IMGFUNC::setPathLengthImageDebug(int iLen)
+{
+    if (iLen > 0) { pathLengthImageDebug = iLen; }
+    else { pathLengthImageDebug = defaultPathLengthImageDebug; }
+}
 int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates)
 {
     // Test two candidates for their access to a desired sZone. Attempts to 
@@ -1057,6 +1114,23 @@ int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>&
         }
     }
     return 2;
+}
+int IMGFUNC::testOverWater(vector<vector<int>>& tracks)
+{
+    // Test returns TRUE if it detects a minimum of two water zones, 
+    // as well as having a high percentage of water pixels in the ring.
+    string sZone = "water";
+    unordered_map<string, int> mapIndexCandidate;
+    unordered_map<string, int> mapWidth;
+    vector<int> intervalSize;
+    vector<vector<int>> octoPath = octogonPath(tracks[tracks.size() - 1], defaultSearchRadius);
+    vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
+    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, intervalSize, mapWidth);
+    
+    if (lightHouse.size() > 1)
+    {
+
+    }
 }
 int IMGFUNC::testTextHumanFeature(vector<vector<unsigned char>>& Lrgb)
 {
@@ -1303,39 +1377,4 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
     vBorder.resize(0);
     return vBorder;
 }
-void IMGFUNC::zoneSweepDebug(vector<vector<int>>& vCoord, int radius)
-{
-    vector<int> topLeft = vCoord[1];    // Changes to top-left after pngER.
-    int widthLine = 3;
-    int widthDot = 5;
-    octogonPaint(vCoord[1], radius, dataPNG, width, Orange, widthLine);
-    vector<vector<int>> vviTemp(2, vector<int>(2));
-    vviTemp[0] = vCoord[0];
-    vviTemp[1] = vCoord[1];
-    linePaint(vviTemp, dataPNG, width, Purple, widthLine);
-    vviTemp[0] = vCoord[1];
-    for (int ii = 2; ii < vCoord.size(); ii++)
-    {
-        vviTemp[1] = vCoord[ii];
-        linePaint(vviTemp, dataPNG, width, Pink, widthLine);
-    }
-    dotPaint(vCoord[0], dataPNG, width, Teal, widthDot);
-    dotPaint(vCoord[1], dataPNG, width, Blue, widthDot);
-    for (int ii = 2; ii < vCoord.size(); ii++)
-    {
-        dotPaint(vCoord[ii], dataPNG, width, Red, widthDot);
-    }
 
-    vector<unsigned char> cropped = pngExtractRect(topLeft);
-    int imgSize = cropped.size();
-    int channels = 3;
-    auto bufferUC = new unsigned char[imgSize];
-    for (int ii = 0; ii < imgSize; ii++)
-    {
-        bufferUC[ii] = cropped[ii];
-    }
-    string pathImg = sroot + "\\debug\\tempDebug.png";
-    int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
-    delete[] bufferUC;
-    int bbq = 1;
-}

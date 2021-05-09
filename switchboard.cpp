@@ -54,16 +54,19 @@ vector<vector<int>> SWITCHBOARD::update(thread::id id, vector<int>& comm)
 	phone_lines[phone_index] = comm;
 	return phone_lines;
 }
-
-// Functions related to the switchboard buffers shared between threads. 
-void SWITCHBOARD::set_prompt(thread::id id, vector<string>& prompt)
+vector<int> SWITCHBOARD::getMyComm(thread::id id)
 {
 	lock_guard<mutex> addrem(m_sb);
 	int phone_index = map_phone.at(id);
-	if (phone_index == 0)
-	{
-		sprompt = prompt;
-	}
+	vector<int> yourComm = phone_lines[phone_index];
+	return yourComm;
+}
+
+// Functions related to the switchboard buffers shared between threads. 
+void SWITCHBOARD::set_prompt(vector<string>& prompt)
+{
+	lock_guard<mutex> addrem(m_sb);
+	sprompt = prompt;
 }
 vector<string> SWITCHBOARD::get_prompt()
 {

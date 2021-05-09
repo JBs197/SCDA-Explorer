@@ -16,6 +16,7 @@ class QTFUNC
 {
 	QBrush brush;
 	QColor colourDefault = Qt::black;
+	double defaultMapZoom = 3.0;
 	int diameterDefault = 5;
 	IMGFUNC im;
 	JFUNC jfqf;
@@ -29,7 +30,7 @@ class QTFUNC
 public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
-	void displayDebug(QLabel*& qlabel, string& pathPNG);
+	void displayDebug(QLabel*& qlabel, vector<string>& pathPNG);
 	void displayPainterPath(QLabel*& qlabel, QPainterPath& path);
 	void displayText(QLabel*, string stext);
 	void display_subt(QTreeWidget*, QTreeWidgetItem*);
@@ -260,6 +261,7 @@ public:
 		painter->setPen(pen);
 		painter->drawPath(painterPathBorder);
 		qlabel->setPixmap(pmPainting);
+		QCoreApplication::processEvents();
 		int bbq = 1;
 	}
 

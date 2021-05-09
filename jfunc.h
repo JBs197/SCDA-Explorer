@@ -38,6 +38,7 @@ public:
 	atomic_int stopwatch_control = 0;
 
 	string bind(string&, vector<string>&);
+	vector<int> destringifyCoord(string& sCoord);
 	void err(string);
 	string get_error_path();
 	void isort_slist(vector<string>&);
@@ -56,6 +57,7 @@ public:
 	void pngRead(string& pathPNG);
 	void quicksort(vector<int>&, int, int);
 	void set_navigator_asset_path(string&);
+	string stringifyCoord(vector<int>& coord);
 	vector<int> svectorToIvector(vector<string>&);
 	void tclean(string&, char, string);
 	vector<string> textParser(string&, vector<string>&);

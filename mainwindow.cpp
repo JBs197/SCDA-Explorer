@@ -82,8 +82,10 @@ void MainWindow::initialize()
     ui->treeW_maps->setVisible(0);
     ui->label_maps->setGeometry(0, 0, 710, 450);
     ui->label_maps->setVisible(0);
-    ui->label_maps2->setGeometry(720, 0, 200, 450);
+    ui->label_maps2->setGeometry(720, 0, 200, 400);
     ui->label_maps2->setVisible(0);
+    ui->pB_resume->setGeometry(1100, 405, 81, 41);
+    ui->pB_resume->setVisible(0);
     ui->pB_usc->setVisible(0);
     ui->pB_download->setVisible(0);
     ui->pB_download->setEnabled(0);
@@ -306,6 +308,7 @@ void MainWindow::update_mode()
         ui->treeW_maps->setVisible(0);
         ui->label_maps->setVisible(0);
         ui->label_maps2->setVisible(0);
+        ui->pB_resume->setVisible(0);
         ui->pB_usc->setVisible(0);
         ui->pte_webinput->setVisible(0);
         ui->pte_localinput->setVisible(1);
@@ -325,6 +328,8 @@ void MainWindow::update_mode()
         ui->treeW_maps->setVisible(1);
         ui->label_maps->setVisible(1);
         ui->label_maps2->setVisible(1);
+        ui->pB_resume->setVisible(1);
+        ui->pB_resume->setEnabled(0);
         ui->pB_usc->setVisible(1);
         ui->pte_webinput->setVisible(1);
         ui->pte_localinput->setVisible(0);
@@ -355,7 +360,7 @@ void MainWindow::on_pB_scan_clicked()
     vector<string> prompt = { sdrive };
     int error = sb.start_call(myid, 1, comm[0]);
     if (error) { errnum("start_call-pB_scan_clicked", error); }
-    sb.set_prompt(myid, prompt);
+    sb.set_prompt(prompt);
     std::thread scan(&MainWindow::scan_drive, this, ref(sb), ref(wf), ref(qsroots));
     while (1)
     {
@@ -504,7 +509,7 @@ void MainWindow::on_pB_insert_clicked()
             error = sb.start_call(myid, cores, comm[0]);
             if (error) { errnum("start_call1-pB_insert_clicked", error); }
             prompt[2] = to_string(mode);
-            sb.set_prompt(myid, prompt);
+            sb.set_prompt(prompt);
             std::thread judi(&MainWindow::judicator, this, ref(sf), ref(sb), ref(wf));
             judi.detach();
             break;
@@ -648,7 +653,7 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
         }
         error = sbjudi.start_call(myid, cores, mycomm);
         if (error) { errnum("start_call-judicator", error); }
-        sbjudi.set_prompt(myid, prompt_csv);
+        sbjudi.set_prompt(prompt_csv);
         for (int ii = 0; ii < cores; ii++)
         {
             std::thread incsv(&MainWindow::insert_csvs, this, ref(all_queue), ref(sbjudi), ref(scjudi));
@@ -904,7 +909,7 @@ void MainWindow::on_pB_viewcata_clicked()
     vector<string> prompt = { syear, sname };
     int error = sb.start_call(myid, 1, comm[0]);
     if (error) { errnum("start_call-pB_viewcata_clicked", error); }
-    sb.set_prompt(myid, prompt);
+    sb.set_prompt(prompt);
     std::thread dispcata(&MainWindow::display_catalogue, this, ref(sf), ref(sb), ref(qlistviews), ref(tree_st2), ref(tree_pl2));
     while (1)
     {
@@ -1018,7 +1023,7 @@ void MainWindow::on_pB_removecata_clicked()
     log("Beginning removal of catalogue " + prompt[1] + " from the database.");
     int error = sb.start_call(myid, 1, comm[0]);
     if (error) { errnum("start_call-pB_removecata_clicked", error); }
-    sb.set_prompt(myid, prompt);
+    sb.set_prompt(prompt);
     std::thread remcata(&MainWindow::delete_cata, this, ref(sb), ref(sf));
     remcata.detach();
     while (1)
@@ -1453,7 +1458,7 @@ void MainWindow::on_pB_download_clicked()
                 return;
             }
             else { prompt[2] = to_string(iStatusCata); }
-            sb.set_prompt(myid, prompt);
+            sb.set_prompt(prompt);
             std::thread dl(&MainWindow::downloader, this, ref(sb));
             dl.detach();
         }
@@ -1471,7 +1476,7 @@ void MainWindow::on_pB_download_clicked()
                 else { prompt[2] = to_string(iStatusCata); }
                 error = sb.start_call(myid, 1, comm[0]);
                 if (error) { errnum("start_call-pB_download_clicked", error); }
-                sb.set_prompt(myid, prompt);
+                sb.set_prompt(prompt);
                 std::thread dl(&MainWindow::downloader, this, ref(sb));
                 dl.detach();
                 while (1)
@@ -1539,7 +1544,7 @@ void MainWindow::on_pB_download_clicked()
         if (error) { errnum("start_call-pB_download_clicked", error); }
         prompt.resize(1);  // Form [syear].
         prompt[0] = { "2016" };
-        sb.set_prompt(myid, prompt);
+        sb.set_prompt(prompt);
         std::thread dl(&MainWindow::downloadMaps, this, ref(sb));
         dl.detach();
         break;
@@ -2060,12 +2065,21 @@ void MainWindow::on_pB_convert_clicked()
     QTreeWidgetItem* qitem = nullptr;
     if (qlist.size() < 1) { return; }
     int numKids = qlist[0]->childCount();
-    int numKidsTemp;
+    int numKidsTemp, inum;
     size_t pos1;
-    QString qtemp;
-    string temp, filePath;
+    QString qtemp = ui->pte_webinput->toPlainText();
+    string temp = qtemp.toStdString();
+    string filePath;
     vector<string> dirt, soap;  
-    vector<string> prompt = { "" };  // Form [pathInput1, pathInput2, ...].
+    if (temp != "")
+    {
+        dirt = { " " };
+        jf.clean(temp, dirt);
+        try { inum = stoi(temp); }
+        catch (invalid_argument& ia) { inum = -1; }
+    }
+    else { inum = -1; }
+    vector<string> prompt = { to_string(inum) };  // Form [utility ints, pathInput1, pathInput2, ...].
     if (numKids > 0)  // If a folder was selected...
     {
         dirt = { "Local Maps" };
@@ -2119,17 +2133,18 @@ void MainWindow::on_pB_convert_clicked()
     vector<vector<int>> dots;
 
     // Launch the worker threads.
-    int inum = ui->label_maps->width();
-    prompt[0] = to_string(inum) + ",";
+    inum = ui->label_maps->width();
+    prompt[0] += "," + to_string(inum) + ",";
     inum = ui->label_maps->height();
     prompt[0] += to_string(inum);
     int error = sb.start_call(myid, 1, comm[0]);
     if (error) { errnum("start_call-MainWindow.on_pB_convert", error); }
-    sb.set_prompt(myid, prompt);
+    sb.set_prompt(prompt);
     std::thread thr(&MainWindow::convertGuide, this, ref(sb), ref(painterPathBorder));
     thr.detach();
     ui->tabW_online->setCurrentIndex(2);
-    //reset_bar(100, "Converting " + pathPNG);
+    comm[0][2] = prompt.size() - 1;
+    reset_bar(comm[0][2], "Converting maps...");
 
     // Receive and display path data. 
     while (1)
@@ -2138,14 +2153,24 @@ void MainWindow::on_pB_convert_clicked()
         comm = sb.update(myid, comm[0]);
         if (comm[1][0] == 3)
         {
-            qf.displayDebug(ui->label_maps, pathImg);
+            vector<string> debugPath = sb.get_prompt();
+            qf.displayDebug(ui->label_maps, debugPath);
+            ui->pB_resume->setEnabled(1);
             while (1)
             {
                 QCoreApplication::processEvents();
+                if (remote_controller == 2)
+                {
+                    remote_controller = 0;
+                    ui->pB_resume->setEnabled(0);
+                    comm[0][0] = 3;
+                    sb.update(myid, comm[0]);
+                    break;
+                }
                 Sleep(50);
-                int bbq = 1;
             }
         }
+        if (comm[0][0] == 3 && comm[1][0] == 0) { comm[0][0] = 0; }
         if (comm[1][1] > comm[0][1])  // New BIN map available to display.
         {
             error = sb.pull(myid, 0);
@@ -2153,6 +2178,8 @@ void MainWindow::on_pB_convert_clicked()
             myPPB = painterPathBorder;
             sb.done(myid);
             comm[0][1] = comm[1][1];
+            jobs_done = comm[0][1];
+            update_bar();
             qf.displayBin(ui->label_maps, myPPB);
         }
         QCoreApplication::processEvents();
@@ -2190,14 +2217,19 @@ void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorde
     temp = prompt[0].substr(0, pos1);
     try { inum = stoi(temp); }
     catch (invalid_argument& ia) { jf.err("stoi-MainWindow.convertGuide"); }
-    windowDim[0] = -1 * inum;
-    temp = prompt[0].substr(pos1 + 1);
-    try { inum = stoi(temp); }
+    im.setPathLengthImageDebug(inum);
+    pos1++;
+    size_t pos2 = prompt[0].find(',', pos1);
+    temp = prompt[0].substr(pos1, pos2 - pos1);
+    try { windowDim[0] = stoi(temp); }
     catch (invalid_argument& ia) { jf.err("stoi-MainWindow.convertGuide"); }
-    windowDim[1] = -1 * inum;
+    temp = prompt[0].substr(pos2 + 1);
+    try { windowDim[1] = stoi(temp); }
+    catch (invalid_argument& ia) { jf.err("stoi-MainWindow.convertGuide"); }
 
     for (int ii = 1; ii < prompt.size(); ii++)
     {
+        pathInput.clear();
         extension = jf.getExtension(prompt[ii]);
         rank = jtMaps.getHierarchy(extension);
         if (rank < 0) { jf.err("Extension not found in hierarchy-MainWindow.convertGuide"); }
@@ -2232,15 +2264,19 @@ void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorde
                 }
                 painterPathBorder = pPB;
                 success = sbgui.done(myid);
-                mycomm[1]++;
-                sbgui.update(myid, mycomm);
                 rank++;
                 break;
             }
             }
         }
+        mycomm[1]++;
+        sbgui.update(myid, mycomm);
     }
 
+}
+void MainWindow::on_pB_resume_clicked()
+{
+    remote_controller = 2;
 }
 
 // (Debug function) Perform a test function.
@@ -2300,7 +2336,7 @@ void MainWindow::on_pB_test_clicked()
         prompt[2] += to_string(inum);
         error = sb.start_call(myid, cores, comm[0]);
         if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
-        sb.set_prompt(myid, prompt);
+        sb.set_prompt(prompt);
         std::thread dl(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorderShared));
         dl.detach();
         reset_bar(100, "Converting " + pathPNG);
@@ -2337,7 +2373,7 @@ void MainWindow::on_pB_test_clicked()
             jf.clean(prompt[1], dirt, soap);
             error = sb.start_call(myid, cores, comm[0]);
             if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
-            sb.set_prompt(myid, prompt);
+            sb.set_prompt(prompt);
             std::thread dl(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorderShared));
             dl.detach();
             reset_bar(100, "Converting " + prompt[0]);
@@ -2351,35 +2387,6 @@ void MainWindow::on_pB_test_clicked()
         qf.displayBin(ui->label_maps, pathBIN);
         return;
     }
-    case 4:
-    {
-        prompt.resize(3);  // Form [pathPNG, pathBIN, "w,h"].
-        prompt[0] = pathPNG;
-        prompt[1] = pathBIN;
-        if (pathPNG.size() < 1)
-        {
-            reset_bar(100, "No PNG path specified.");
-            return;
-        }
-        else if (pathBIN.size() < 1)
-        {
-            prompt[1] = pathPNG;
-            dirt = { "PNG", ".png" };
-            soap = { "BIN", ".bin" };
-            jf.clean(prompt[1], dirt, soap);
-        }
-        inum = ui->label_maps->width();
-        prompt[2] = to_string(inum) + ",";
-        inum = ui->label_maps->height();
-        prompt[2] += to_string(inum);
-        error = sb.start_call(myid, cores, comm[0]);
-        if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
-        sb.set_prompt(myid, prompt);
-        std::thread dl(&IMGFUNC::pngToBinLiveDebug, ref(im), ref(sb), ref(pathBorderShared));
-        dl.detach();
-        reset_bar(100, "Converting " + pathPNG);
-        break;
-    }
     }
 
     string sMessage;
@@ -2389,23 +2396,7 @@ void MainWindow::on_pB_test_clicked()
     vector<vector<vector<double>>> importDouble;
     QPixmap pmDebug;
     QImage imgDebug;
-    string pathImg = sroot + "\\debug\\tempDebug.png";
-    if (mode == 4)
-    {
-        while (1)  // Manager thread has binary data for GUI thread.
-        {
-            Sleep(50);
-            comm = sb.update(myid, comm[0]);
-            if (comm[1][0] == 3)
-            {
-                qf.displayDebug(ui->label_maps, pathImg);
-                QCoreApplication::processEvents();
-                int bbq = 1;
-            }
-
-        }
-    }
-    // RESUME HERE. Make a permanent launch/receive function for PNG->BIN.
+    vector<string> pathImg = { sroot + "\\debug\\tempDebug.png" };
     while (1)
     {
         Sleep(gui_sleep);

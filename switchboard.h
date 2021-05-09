@@ -29,9 +29,10 @@ public:
 	int end_call(thread::id);
 	void getDoubleData(vector<vector<vector<double>>>& doubleData);
 	vector<string> get_prompt();
+	vector<int> getMyComm(thread::id);
 	vector<vector<int>> update(thread::id, vector<int>&);
 	void setDoubleData(vector<vector<vector<double>>>& doubleData);
-	void set_prompt(thread::id, vector<string>&);
+	void set_prompt(vector<string>&);
 	bool done(thread::id);
 	bool push(thread::id);
 	int pull(thread::id, int);

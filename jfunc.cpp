@@ -39,6 +39,20 @@ string JFUNC::bind(string& stmt0, vector<string>& params)
 
 	return stmt0;
 }
+vector<int> JFUNC::destringifyCoord(string& sCoord)
+{
+	vector<int> coord(2);
+	size_t pos1 = sCoord.find(',');
+	string tempX = sCoord.substr(0, pos1);
+	string tempY = sCoord.substr(pos1 + 1);
+	try
+	{
+		coord[0] = stoi(tempX);
+		coord[1] = stoi(tempY);
+	}
+	catch (invalid_argument& ia) { err("stoi-jf.destringifyCoord"); }
+	return coord;
+}
 void JFUNC::err(string func)
 {
 	lock_guard<mutex> lock(m_err);
@@ -449,6 +463,12 @@ void JFUNC::stopWatch(atomic_int& control, atomic_ullong& timer)
 	diff = t2 - t1;
 	duration<unsigned long long> d2 = duration_cast<duration<unsigned long long>>(diff);
 	timer = d2.count();
+}
+string JFUNC::stringifyCoord(vector<int>& coord)
+{
+	if (coord.size() != 2) { err("coord format-jf.stringifyCoord"); }
+	string sCoord = to_string(coord[0]) + "," + to_string(coord[1]);
+	return sCoord;
 }
 vector<int> JFUNC::svectorToIvector(vector<string>& svec)
 {

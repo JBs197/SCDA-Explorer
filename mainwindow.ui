@@ -644,6 +644,19 @@
      <string>Convert</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pB_resume">
+    <property name="geometry">
+     <rect>
+      <x>1050</x>
+      <y>530</y>
+      <width>21</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Resume?</string>
+    </property>
+   </widget>
    <zorder>cB_drives</zorder>
    <zorder>pB_scan</zorder>
    <zorder>pB_insert</zorder>
@@ -667,6 +680,7 @@
    <zorder>pB_download</zorder>
    <zorder>pB_localmaps</zorder>
    <zorder>pB_convert</zorder>
+   <zorder>pB_resume</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

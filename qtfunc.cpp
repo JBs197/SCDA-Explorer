@@ -2,15 +2,32 @@
 
 using namespace std;
 
-void QTFUNC::displayDebug(QLabel*& qlabel, string& pathPNG)
+void QTFUNC::displayDebug(QLabel*& qlabel, vector<string>& pathPNG)
 {
 	int widthImg, heightImg, widthPM, heightPM;
-	QString qtemp = QString::fromUtf8(pathPNG);
+	QString qtemp = QString::fromUtf8(pathPNG[0]);
+	vector<int> origin;
+	if (pathPNG.size() > 1)
+	{
+		origin = jfqf.destringifyCoord(pathPNG[1]);
+	}
 	QImage qimg = QImage(qtemp);
 	widthImg = qimg.width();
 	heightImg = qimg.height();
 	widthPM = qlabel->width();
 	heightPM = qlabel->height();
+	if (origin.size() > 0)
+	{
+		int xTL = int(round((double)origin[0] - (double)origin[0] / defaultMapZoom));
+		int yTL = int(round((double)origin[1] - (double)origin[1] / defaultMapZoom));		
+		int xBR = int(round(((double)(widthImg - origin[0]) / defaultMapZoom) + (double)origin[0]));
+		int yBR = int(round(((double)(heightImg - origin[1]) / defaultMapZoom) + (double)origin[1]));		
+		QRect qrCrop = QRect(xTL, yTL, xBR - xTL, yBR - yTL);
+		QImage qimgTemp = qimg;
+		qimg = qimgTemp.copy(qrCrop);
+		widthImg = qimg.width();
+		heightImg = qimg.height();
+	}
 	QImage qimgScaled;
 	if ((double)heightImg / (double)heightPM > (double)widthImg / (double)widthPM)
 	{

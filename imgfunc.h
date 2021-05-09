@@ -22,20 +22,25 @@ class IMGFUNC
 	bool debug = 1;
     int defaultCharSpace = 1;
     int defaultDotWidth = 5;
+    vector<int> defaultExtractDim = { 400, 400 };
     string defaultFont = "Sylfaen";
     int defaultLineWidth = 4;
     int defaultOctogonWidth = 3;
-    vector<int> defaultExtractDim = { 400, 400 };
+    int defaultPathLengthImageDebug = 1000;
     int defaultSearchRadius = 15;
+    int defaultTextSeparatorWidth = 2;
+    double defaultWaterPercentage = 0.5;
     double defaultWidthTestRatio = 3.0;
     int deltaRadius = 0;
     vector<vector<unsigned char>> font;  // Index is ascii minus 32.
     int fontHeight = 32;  // Pixels.
     string pathActivePNG;
 	JFUNC jf;
+    vector<unsigned char> legendColourBox;
 	unordered_map<string, string> mapColour;
     unordered_map<int, int> mapFontWidth;  // Input ascii, output glyph width (pixels).  
-	vector<int> pointOfOrigin, revisedExtractDim;
+    int pathLengthImageDebug;
+    vector<int> pointOfOrigin, revisedExtractDim;
     vector<vector<unsigned char>> pngTextColourBuffer;
 	int width, height, numComponents, recordVictor;
     int rabbitHole = 0;
@@ -67,6 +72,7 @@ public:
     vector<int> coordStoi(string& sCoords);
 	void drawMarker(vector<unsigned char>& img, vector<int>& vCoord);
     vector<vector<double>> frameCorners();
+    vector<unsigned char> getColour(string sColour);
     double getStretchFactor(string& widthHeight);
     void initGlyph(string& filePath, int ascii);
 	void initMapColours();
@@ -76,6 +82,7 @@ public:
     vector<vector<int>> linePathToEdge(vector<vector<int>>& startMid);
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
 	bool mapIsInit();
+    void octogonCheckBoundary(vector<vector<int>>& octoPath, vector<int>& sourceDim, int pathSpace);
     vector<vector<int>> octogonPath(vector<int> origin, int radius);
     string pixelDecToHex(vector<unsigned char>& rgb);
 	void pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsigned char> rgb, vector<int> coord);
@@ -86,13 +93,13 @@ public:
 	void pngLoad(string& pathPNG);
     void pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN);
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
-    void pngToBinLiveDebug(SWITCHBOARD& sbgui, vector<vector<double>>& border);
+    void setPathLengthImageDebug(int iLen);
     int testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates);
+    int testOverWater(vector<vector<int>>& tracks);
     int testTextHumanFeature(vector<vector<unsigned char>>& Lrgb);
     vector<int> testZoneLength(vector<vector<int>>& pastPresent, vector<vector<int>>& candidates, string sZone);
     int testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate);
     vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
-    void zoneSweepDebug(vector<vector<int>>& vCoord, int radius);
 
 	// TEMPLATES
 
@@ -252,6 +259,159 @@ public:
         }
     }
 
+    template<typename ... Args> vector<vector<unsigned char>> getColourSpectrum(int numColours, Args& ... args)
+    {
+        // Returns a list of RGB values representing the EM spectrum (Red->Violet).
+        
+        // When a base colour is specified, avoid it by printing in black instead.
+        jf.err("getColourSpectrum template-im");
+    }
+    template<> vector<vector<unsigned char>> getColourSpectrum< >(int numColours)
+    {
+        vector<vector<unsigned char>> colours(numColours, vector<unsigned char>(3));
+        int sizeBand = numColours / 5;  // Red->Yellow->Green->Teal->Blue->Violet.
+        colours[0] = { 255, 0, 0 };
+        for (int ii = 1; ii < sizeBand; ii++)
+        {
+            colours[ii] = colours[ii - 1];
+            colours[ii][1] += 255 / sizeBand;
+        }
+        colours[1 * sizeBand] = { 255, 255, 0 };
+        for (int ii = sizeBand + 1; ii < 2 * sizeBand; ii++)
+        {
+            colours[ii] = colours[ii - 1];
+            colours[ii][0] -= 255 / sizeBand;
+        }
+        colours[2 * sizeBand] = { 0, 255, 0 };
+        for (int ii = (2 * sizeBand) + 1; ii < 3 * sizeBand; ii++)
+        {
+            colours[ii] = colours[ii - 1];
+            colours[ii][2] += 255 / sizeBand;
+        }
+        colours[3 * sizeBand] = { 0, 255, 255 };
+        for (int ii = (3 * sizeBand) + 1; ii < 4 * sizeBand; ii++)
+        {
+            colours[ii] = colours[ii - 1];
+            colours[ii][1] -= 255 / sizeBand;
+        }
+        colours[4 * sizeBand] = { 0, 0, 255 };
+        for (int ii = (4 * sizeBand) + 1; ii < 5 * sizeBand; ii++)
+        {
+            colours[ii] = colours[ii - 1];
+            colours[ii][0] += 255 / sizeBand;
+        }
+        colours[numColours - 1] = { 255, 0, 255 };
+        return colours;
+    }
+    template<> vector<vector<unsigned char>> getColourSpectrum<string>(int numColours, string& sColour)
+    {
+        vector<string> keyColours = { "Red", "Yellow", "Green", "Teal", "Blue", "Pink" };
+        for (int ii = 0; ii < keyColours.size(); ii++)
+        {
+            if (keyColours[ii] == sColour)
+            {
+                keyColours[ii] = "Black";
+                break;
+            }
+            else if (ii == keyColours.size() - 1) { jf.err("unknown colour to avoid-im.getColourSpectrum"); }
+        }
+        double deltaR, deltaG, deltaB, dR, dG, dB;
+        int offset;
+        int sizeBand = numColours / 5;  // ->Green->Teal->Blue->Violet.
+        double dSB = (double)sizeBand;
+        vector<unsigned char> startColour, stopColour;
+        vector<vector<unsigned char>> colours(numColours, vector<unsigned char>(3));
+
+        for (int ii = 0; ii < 5; ii++)
+        {
+            offset = sizeBand * ii;
+            startColour = getColour(keyColours[ii]);
+            dR = (double)startColour[0];
+            dG = (double)startColour[1];
+            dB = (double)startColour[2];
+            stopColour = getColour(keyColours[ii + 1]);
+            deltaR = ((double)stopColour[0] - dR) / dSB;
+            deltaG = ((double)stopColour[1] - dG) / dSB;
+            deltaB = ((double)stopColour[2] - dB) / dSB;
+            colours[offset] = startColour;
+            for (int jj = offset + 1; jj < offset + sizeBand; jj++)
+            {
+                dR += deltaR;
+                dG += deltaG;
+                dB += deltaB;
+                colours[jj] = { (unsigned char)round(dR), (unsigned char)round(dG), (unsigned char)round(dB) };
+            }
+        }
+
+        /*
+        // Red -> Yellow
+        if (goBlack[0])
+        {
+            colours[0] = { 0, 0, 0 };
+            for (int ii = 1; ii < sizeBand; ii++)
+            {
+                colours[ii] = colours[ii - 1];
+                colours[ii][1] += 255 / sizeBand;
+                colours[ii][0] += 255 / sizeBand;
+            }
+        }
+        else
+        {
+            colours[0] = { 255, 0, 0 };
+            for (int ii = 1; ii < sizeBand; ii++)
+            {
+                colours[ii] = colours[ii - 1];
+                colours[ii][1] += 255 / sizeBand;
+            }
+        }
+
+        // Yellow -> Green
+        if (goBlack[1])
+        {
+            colours[1 * sizeBand] = { 255, 255, 0 };
+            for (int ii = sizeBand + 1; ii < 2 * sizeBand; ii++)
+            {
+                colours[ii] = colours[ii - 1];
+                colours[ii][0] -= 255 / sizeBand;
+            }
+        }
+        else
+        {
+            colours[1 * sizeBand] = { 255, 255, 0 };
+            for (int ii = sizeBand + 1; ii < 2 * sizeBand; ii++)
+            {
+                colours[ii] = colours[ii - 1];
+                colours[ii][0] -= 255 / sizeBand;
+            }
+        }
+
+
+        colours[2 * sizeBand] = { 0, 255, 0 };
+        for (int ii = (2 * sizeBand) + 1; ii < 3 * sizeBand; ii++)
+        {
+            colours[ii] = colours[ii - 1];
+            colours[ii][2] += 255 / sizeBand;
+        }
+
+        colours[3 * sizeBand] = { 0, 255, 255 };
+        for (int ii = (3 * sizeBand) + 1; ii < 4 * sizeBand; ii++)
+        {
+            colours[ii] = colours[ii - 1];
+            colours[ii][1] -= 255 / sizeBand;
+        }
+
+        colours[4 * sizeBand] = { 0, 0, 255 };
+        for (int ii = (4 * sizeBand) + 1; ii < 5 * sizeBand; ii++)
+        {
+            colours[ii] = colours[ii - 1];
+            colours[ii][0] += 255 / sizeBand;
+        }
+        colours[numColours - 1] = { 255, 0, 255 };
+        */
+
+        return colours;
+    }
+
     template<typename ... Args> int getOffset(vector<int>& vCoord, Args& ... args)
     {
         jf.err("getOffset template-im");
@@ -297,64 +457,8 @@ public:
     }
     template<> void makeMapBorderFindNext< >(vector<vector<int>>& tracks, int radius, vector<vector<int>> candidates)
     {
-        if (tracks.size() < 1) { jf.err("No tracks-im.makeMapBorderFindNext"); }
-        if (!mapIsInit()) { initMapColours(); }
-        debugDataPNG = dataPNG;
-        string dotLegend;
-        pngTextColourBuffer.clear();
-        if (radius > 0) { octogonPaint(tracks[tracks.size() - 1], radius, Orange); }        
-        octogonPaint(tracks[tracks.size() - 1], defaultSearchRadius, Gold);
-
-        vector<vector<int>> startStop(2, vector<int>());
-        for (int ii = 0; ii < tracks.size() - 1; ii++)
-        {
-            startStop[0] = tracks[ii];
-            startStop[1] = tracks[ii + 1];
-            linePaint(startStop, Teal);
-        }
-
-        for (int ii = 0; ii < tracks.size() - 1; ii++)
-        {
-            dotPaint(tracks[ii], Green);
-            pngAppendText(dotLegend, tracks[ii]);
-            pngTextColourBuffer.push_back(Green);
-        }
-        dotPaint(tracks[tracks.size() - 1], Yellow);
-        pngAppendText(dotLegend, tracks[tracks.size() - 1]);
-        pngTextColourBuffer.push_back(Yellow);
-        
-        for (int ii = 0; ii < candidates.size(); ii++)
-        {
-            dotPaint(candidates[ii], Red);
-            pngAppendText(dotLegend, candidates[ii]);
-            pngTextColourBuffer.push_back(Red);
-        }
-
-        vector<int> legendDim;
-        vector<unsigned char> legendImg;
-        //string legendPath = "F:\\debug\\Legend Test.png";
-        makeText(dotLegend, legendImg, legendDim, pngTextColourBuffer);
-        //pngPrint(legendImg, legendDim, legendPath);
-
-        vector<int> sourceDim = { width, height };
-        vector<unsigned char> cropped = pngExtractRect(tracks[tracks.size() - 1], debugDataPNG, sourceDim, defaultExtractDim);
-        int newHeight = max(defaultExtractDim[1], legendDim[1]);
-        vector<int> oldNew = { defaultExtractDim[0], defaultExtractDim[1], defaultExtractDim[0] + legendDim[0], newHeight };
-        pngExtend(cropped, oldNew);
-        sourceDim = { oldNew[2], oldNew[3] };
-        vector<int> coordPaste = { oldNew[0], 0 };
-        pngPaste(cropped, sourceDim, legendImg, legendDim, coordPaste);
-
-        int imgSize = cropped.size();
-        int channels = 3;
-        auto bufferUC = new unsigned char[imgSize];
-        for (int ii = 0; ii < imgSize; ii++)
-        {
-            bufferUC[ii] = cropped[ii];
-        }
         string pathImg = sroot + "\\debug\\borderFindNextDebug.png";
-        int error = stbi_write_png(pathImg.c_str(), oldNew[2], oldNew[3], channels, bufferUC, 0);
-        delete[] bufferUC;
+        makeMapBorderFindNext(tracks, radius, candidates, pathImg);
     }
     template<> void makeMapBorderFindNext<string>(vector<vector<int>>& tracks, int radius, vector<vector<int>> candidates, string& pathImg)
     {
@@ -363,8 +467,8 @@ public:
         debugDataPNG = dataPNG;
         string dotLegend;
         pngTextColourBuffer.clear();
-        if (radius > 0) { octogonPaint(tracks[tracks.size() - 1], radius, Orange); }
-        octogonPaint(tracks[tracks.size() - 1], defaultSearchRadius, Gold);
+        if (radius > 0) { octogonPaint(Orange, tracks[tracks.size() - 1], radius); }
+        octogonPaint(Gold, tracks[tracks.size() - 1], defaultSearchRadius);
 
         vector<vector<int>> startStop(2, vector<int>());
         for (int ii = 0; ii < tracks.size() - 1; ii++)
@@ -391,27 +495,23 @@ public:
             pngTextColourBuffer.push_back(Red);
         }
 
-        vector<int> legendDim;
+        vector<int> legendDim = { width, fontHeight };
         vector<unsigned char> legendImg;
-        //string legendPath = "F:\\debug\\Legend Test.png";
         makeText(dotLegend, legendImg, legendDim, pngTextColourBuffer);
-        //pngPrint(legendImg, legendDim, legendPath);
 
         vector<int> sourceDim = { width, height };
-        vector<unsigned char> cropped = pngExtractRect(tracks[tracks.size() - 1], debugDataPNG, sourceDim, defaultExtractDim);
-        int newHeight = max(defaultExtractDim[1], legendDim[1]);
-        vector<int> oldNew = { defaultExtractDim[0], defaultExtractDim[1], defaultExtractDim[0] + legendDim[0], newHeight };
-        pngExtend(cropped, oldNew);
+        vector<int> oldNew = { width, height, width, height + legendDim[1] };
+        pngExtend(debugDataPNG, oldNew);
         sourceDim = { oldNew[2], oldNew[3] };
-        vector<int> coordPaste = { oldNew[0], 0 };
-        pngPaste(cropped, sourceDim, legendImg, legendDim, coordPaste);
+        vector<int> coordPaste = { 0, height };
+        pngPaste(debugDataPNG, sourceDim, legendImg, legendDim, coordPaste);
 
-        int imgSize = cropped.size();
+        int imgSize = debugDataPNG.size();
         int channels = 3;
         auto bufferUC = new unsigned char[imgSize];
         for (int ii = 0; ii < imgSize; ii++)
         {
-            bufferUC[ii] = cropped[ii];
+            bufferUC[ii] = debugDataPNG[ii];
         }
         int error = stbi_write_png(pathImg.c_str(), oldNew[2], oldNew[3], channels, bufferUC, 0);
         delete[] bufferUC;
@@ -461,6 +561,26 @@ public:
         makeMapOctogonBearing(pastPresentFuture);
     }
 
+    template<typename ... Args> void makeMapPngToBin(vector<vector<int>>& vBorderPath, Args& ... args)
+    {
+        jf.err("makeMapPngToBin template-im");
+    }
+    template<> void makeMapPngToBin< >(vector<vector<int>>& vBorderPath)
+    {
+        debugDataPNG = dataPNG;  // Note that the bands are Red->Yellow->Green,
+        int widthDot = 5;        // Green->Teal->Blue->Violet
+        int numDots = vBorderPath.size();
+        vector<int> sourceDim = { width, height };
+        string outputPath = sroot + "\\debug\\pngToBin Debug.png";
+        string avoidColour = "Blue";
+        vector<vector<unsigned char>> colours = getColourSpectrum(numDots, avoidColour);
+        for (int ii = 0; ii < numDots; ii++)
+        {
+            dotPaint(vBorderPath[ii], colours[ii], debugDataPNG, sourceDim[0], widthDot);
+        }
+        pngPrint(debugDataPNG, sourceDim, outputPath);
+    }
+
     template<typename ... Args> void makeMapshift(vector<int> windowDim, Args& ... args)
     {
         jf.err("makeMapshift template-im");
@@ -496,95 +616,38 @@ public:
         double yRatio = heightWindow / heightImg;
         if (xRatio > yRatio)
         {
-            DxDyGa[2] = 1.0 / xRatio;
+            DxDyGa[2] = yRatio;
         }
         else
         {
-            DxDyGa[2] = 1.0 / yRatio;
+            DxDyGa[2] = xRatio;
         }
         return;
     }
 
-    template<typename ... Args> void makeMapZoneSweepDebug(vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<vector<int>>& goldilocks, Args& ... args)
+    template<typename ... Args> void makeMapZoneSweep(vector<vector<int>>& zonePath, Args& ... args)
     {
         jf.err("makeMapZoneSweepDebug template.im");
     }
-    template<> void makeMapZoneSweepDebug< >(vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, vector<vector<int>>& goldilocks)
+    template<> void makeMapZoneSweep< >(vector<vector<int>>& zonePath)
     {
         if (!mapIsInit()) { initMapColours(); }
         debugDataPNG = dataPNG;
-        int left = zonePath[0][0];
-        int right = left;
-        int top = zonePath[0][1];
-        int bot = top;
-        for (int ii = 0; ii < zonePath.size(); ii++)
-        {
-            if (zonePath[ii][0] < 0) { jf.err("negative xCoord-im.makeMapZoneSweepDebug"); }
-            if (zonePath[ii][1] < 0) { jf.err("negative yCoord-im.makeMapZoneSweepDebug"); }
-            if (zonePath[ii][0] < left) { left = zonePath[ii][0]; }
-            if (zonePath[ii][0] > right) { right = zonePath[ii][0]; }
-            if (zonePath[ii][1] < top) { top = zonePath[ii][1]; }
-            if (zonePath[ii][1] > bot) { bot = zonePath[ii][1]; }
-        }
-        int leftSecure = max(0, left - 1);
-        int rightSecure = min(width - 1, right + 1);
-        int topSecure = max(0, top - 1);
-        int botSecure = min(height - 1, bot + 1);
-        vector<int> outerPixel, innerPixel;
-        vector<vector<int>> rings;
-        innerPixel = zonePath[0];
-        innerPixel[1]++;
-        outerPixel = zonePath[0];
-        if (topSecure < top) { outerPixel[1]++; }
-        else { outerPixel = { -1, -1 }; }
-        int zpIndex = 0;
-        while (zonePath[zpIndex + 1][0] > zonePath[zpIndex][0])
-        {
-            rings.push_back(innerPixel);
-            rings.push_back(outerPixel);
-        }
-
-        // RESUME HERE. Make black double rings around ZS path, save whole PNG.
-        int widthTemp = right - left + 1;
-        int heightTemp = bot - top + 1;
-        vector<int> centerTemp(2);
-        centerTemp[0] = left + (widthTemp / 2);
-        centerTemp[1] = top + (heightTemp / 2);
-        int leftCropped = max(0, left - 1);
-        int rightCropped = min(width - 1, right + 1);
-        int topCropped = max(0, top - 1);
-        int botCropped = min(height - 1, bot + 1);
-        vector<int> extractDim(2);
-        extractDim[0] = rightCropped - leftCropped + 1;
-        extractDim[1] = botCropped - topCropped + 1;
-        for (int ii = topCropped; ii <= botCropped; ii++)
-        {
-            viTemp[1] = ii;
-            for (int jj = leftCropped; jj <= rightCropped; jj++)
-            {
-                viTemp[0] = jj;
-                pixelPaint(debugDataPNG, width, Black, viTemp);
-            }
-        }
-        for (int ii = 0; ii < zonePath.size(); ii++)
-        {
-            pixelPaint(debugDataPNG, width, Lrgb[ii], zonePath[ii]);
-        }
-        for (int ii = 0; ii < goldilocks.size(); ii++)
-        {
-            pixelPaint(debugDataPNG, width, Red, goldilocks[ii]);
-        }
+        vector<vector<int>> ringOuter, ringInner;
         vector<int> sourceDim = { width, height };
-        vector<unsigned char> cropped = pngExtractRect(centerTemp, debugDataPNG, sourceDim, extractDim);
-        int imgSize = cropped.size();
+        int widthDot = 1, pathSpace = 1;
+        octogonPaint(Black, debugDataPNG, sourceDim, widthDot, zonePath, pathSpace);
+        pathSpace = -1;
+        octogonPaint(Black, debugDataPNG, sourceDim, widthDot, zonePath, pathSpace);
+        int imgSize = debugDataPNG.size();
         int channels = 3;
         auto bufferUC = new unsigned char[imgSize];
         for (int ii = 0; ii < imgSize; ii++)
         {
-            bufferUC[ii] = cropped[ii];
+            bufferUC[ii] = debugDataPNG[ii];
         }
         string pathImg = sroot + "\\debug\\ZoneSweepDebug.png";
-        int error = stbi_write_png(pathImg.c_str(), extractDim[0], extractDim[1], channels, bufferUC, 0);
+        int error = stbi_write_png(pathImg.c_str(), sourceDim[0], sourceDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
     }
 
@@ -647,7 +710,7 @@ public:
     }
     template<> void makeText<vector<unsigned char>, vector<int>, vector<vector<unsigned char>>>(string text, vector<unsigned char>& img, vector<int>& imgDim, vector<vector<unsigned char>>& listColour)
     {
-        // Break the text into a vector of strings, corresponding to output lines.
+        // Break the text into a vector of strings, corresponding to output blocks.
         vector<string> vText;
         string temp;
         size_t pos1 = 0;
@@ -662,50 +725,93 @@ public:
         temp = text.substr(pos1);
         vText.push_back(temp);
 
-        // Determine the width (in pixels) needed by each line. 
+        // Determine the width (in pixels) needed by each block, and how many lines will be needed. 
+        bool colourBox = 0;
+        if (listColour.size() > 0) { colourBox = 1; }
         int charSpace = defaultCharSpace;
-        vector<int> lineWidth(vText.size(), 0);
-        vector<int> widest(2, -1);  // Form [index, width].
-        int charWidth, ascii;
-        for (int ii = 0; ii < lineWidth.size(); ii++)
+        int textSeparatorWidth = defaultTextSeparatorWidth;
+        int numLines = 1;
+        int charWidth, ascii, maxWidth;
+        vector<int> blockWidth(vText.size(), 0);
+        vector<int> textWidth(vText.size(), 0);
+        vector<int> lineWidth = { 0 };  // Form [width of first line, width of second line, ...]. 
+        vector<int> blocksPerLine = { 0 };
+        imgDim.resize(2);
+        if (imgDim[0] > 0) { maxWidth = imgDim[0]; }  // If more width is needed past this, text wrap to new line.
+        else { maxWidth = 2147483647; }
+        for (int ii = 0; ii < blockWidth.size(); ii++)  // For each block...
         {
-            lineWidth[ii] += charSpace;
+            blockWidth[ii] += textSeparatorWidth;
+            if (colourBox)
+            {
+                blockWidth[ii] += fontHeight;
+            }
+            textWidth[ii] += charSpace;
             for (int jj = 0; jj < vText[ii].size(); jj++)
             {
                 try { charWidth = mapFontWidth.at(vText[ii][jj]); }
                 catch (out_of_range& oor) { jf.err("mapFontWidth-im.makeText"); }
-                lineWidth[ii] += charWidth + charSpace;
+                textWidth[ii] += charWidth + charSpace;
             }
-            if (lineWidth[ii] > widest[1])
+            blockWidth[ii] += textWidth[ii];
+            blockWidth[ii] += textSeparatorWidth;
+
+            if (blockWidth[ii] > maxWidth) { jf.err("Single block wider than line-im.makeText"); }
+            if (blockWidth[ii] + lineWidth[numLines - 1] < maxWidth)
             {
-                widest[0] = ii;
-                widest[1] = lineWidth[ii];
+                lineWidth[numLines - 1] += blockWidth[ii];
+                blocksPerLine[numLines - 1]++;
+            }
+            else
+            {
+                numLines++;
+                lineWidth.push_back(blockWidth[ii]);
+                blocksPerLine.push_back(1);
             }
         }
-        imgDim.resize(2);
-        imgDim[0] = widest[1] + fontHeight;  // For the square colour box.
-        imgDim[1] = fontHeight * vText.size();
+        if (imgDim[0] < 1) { imgDim[0] = lineWidth[0]; }
+        imgDim[1] = fontHeight * numLines;
 
-        // Make the legend colour box.
-        img = pngBlankCanvas(imgDim);
-        vector<int> topLeft = { 8, 8 };
-        vector<int> boxDim = { 16, 16 };
+        // Build the image by pasting blocks.
+        vector<unsigned char> imgText;
+        vector<vector<int>> startStop(2, vector<int>(2, 0));
+        vector<int> topLeft, boxDim, pasteDim;
+        pasteDim.assign(2, fontHeight);
+        int blockIndex = 0;
         int thickness = 3;
-        for (int ii = 0; ii < vText.size(); ii++)
+        img = pngBlankCanvas(imgDim);
+        for (int ii = 0; ii < numLines; ii++)
         {
-            rectanglePaint(topLeft, boxDim, Black, img, imgDim, thickness, listColour[ii]);
-            topLeft[1] += fontHeight;
-        }
-
-        // Build the image by pasting lines.
-        vector<unsigned char> imgLine;
-        vector<int> imgLineDim = { widest[1], fontHeight };
-        vector<int> pasteTopLeft = { fontHeight, 0 };
-        for (int ii = 0; ii < vText.size(); ii++)
-        {
-            imgLine = makeTextLine(vText[ii], widest[1]);
-            pngPaste(img, imgDim, imgLine, imgLineDim, pasteTopLeft);
-            pasteTopLeft[1] += fontHeight;
+            startStop[0][0] += textSeparatorWidth / 2;
+            startStop[1][0] += textSeparatorWidth / 2;
+            startStop[1][1] += fontHeight;
+            for (int jj = 0; jj < blocksPerLine[ii]; jj++)
+            {
+                linePaint(startStop, Black, img, imgDim[0], textSeparatorWidth);
+                topLeft = { startStop[0][0] + (textSeparatorWidth / 2), startStop[0][1] };
+                if (colourBox)
+                {
+                    topLeft[0] += 8;
+                    topLeft[1] += 8; 
+                    boxDim = { 16, 16 };
+                    rectanglePaint(topLeft, boxDim, Black, img, imgDim, thickness, listColour[jj]);
+                    topLeft[0] += fontHeight - 8;
+                    topLeft[1] -= 8;
+                }
+                imgText = makeTextLine(vText[blockIndex]);
+                pasteDim[0] = textWidth[blockIndex];
+                pngPaste(img, imgDim, imgText, pasteDim, topLeft);
+                startStop[0][0] = topLeft[0] + pasteDim[0] + 8;
+                startStop[1][0] = startStop[0][0];
+                linePaint(startStop, Black, img, imgDim[0], textSeparatorWidth);
+                startStop[0][0] += textSeparatorWidth;
+                startStop[1][0] += textSeparatorWidth;
+                blockIndex++;
+            }
+            startStop[0][0] = 0;
+            startStop[0][1] += fontHeight;
+            startStop[1][0] = 0;
+            startStop[1][1] += fontHeight;
         }
     }
 
@@ -798,11 +904,11 @@ public:
         {
             row = frame.size();
             frame.push_back(vector<int>(2));
-            pos2 = sfile.find_last_not_of("1234567890", pos1 - 1) + 1;
+            pos2 = sfile.find_last_not_of("1234567890.", pos1 - 1) + 1;
             temp = sfile.substr(pos2, pos1 - pos2);
             try { frame[row][0] = stoi(temp); }
             catch (invalid_argument& ia) { jf.err("stoi-im.mapBinLoad"); }
-            pos2 = sfile.find_first_not_of("1234567890", pos1 + 1);
+            pos2 = sfile.find_first_not_of("1234567890.", pos1 + 1);
             temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
             try { frame[row][1] = stoi(temp); }
             catch (invalid_argument& ia) { jf.err("stoi-im.mapBinLoad"); }
@@ -924,8 +1030,8 @@ public:
         {
             if (numCandidates < 1)
             {
-                makeMapZoneSweepDebug(octoRGB, octoPath, candidates);
-                int bbq = 1;
+                //makeMapZoneSweep(octoPath);
+                return;
             }
 
             // Zone width test.
@@ -1017,11 +1123,11 @@ public:
         }
     }
 
-    template<typename ... Args> void octogonPaint(vector<int> origin, int radius, vector<unsigned char> rgb, Args& ... args)
+    template<typename ... Args> void octogonPaint(vector<unsigned char> rgb, Args& ... args)
     {
         jf.err("octogonPaint template-im");
     }
-    template<> void octogonPaint< >(vector<int> origin, int radius, vector<unsigned char> rgb)
+    template<> void octogonPaint<vector<int>, int>(vector<unsigned char> rgb, vector<int>& origin, int& radius)
     {
         if (debugDataPNG.size() < 1) { jf.err("debugDataPNG not initialized-im.octogonPaint"); }
         vector<vector<int>> path = octogonPath(origin, radius);
@@ -1030,12 +1136,186 @@ public:
             dotPaint(path[ii], rgb, debugDataPNG, width, defaultOctogonWidth);
         }
     }
-    template<> void octogonPaint<vector<unsigned char>, int, int>(vector<int> origin, int radius, vector<unsigned char> rgb, vector<unsigned char>& img, int& widthImg, int& widthDot)
+    template<> void octogonPaint<vector<int>, int, vector<unsigned char>, vector<int>, int>(vector<unsigned char> rgb, vector<int>& origin, int& radius, vector<unsigned char>& img, vector<int>& sourceDim, int& widthDot)
     {
         vector<vector<int>> path = octogonPath(origin, radius);
+
         for (int ii = 0; ii < path.size(); ii++)
         {
-            dotPaint(path[ii], img, widthImg, rgb, widthDot);
+            dotPaint(path[ii], img, sourceDim[0], rgb, widthDot);
+        }
+    }
+    template<> void octogonPaint<vector<unsigned char>, vector<int>, int, vector<vector<int>>, int>(vector<unsigned char> rgb, vector<unsigned char>& img, vector<int>& sourceDim, int& widthDot, vector<vector<int>>& octoPath, int& pathSpace)
+    {
+        // The pathSpace variable defines whether to paint the octogonal path which is 
+        // outside the given octogon (pathSpace positive) or inside the given octogon (pS neg).
+        vector<vector<int>> path = octoPath;
+        int inum = min(0, pathSpace);
+        octogonCheckBoundary(path, sourceDim, inum);
+        vector<vector<int>> ring;
+        vector<int> coord(2);
+        int pathIndex = 0;
+        if (pathSpace > 0)
+        {
+            coord[0] = path[0][0];
+            coord[1] = path[0][1] - pathSpace;
+            while (path[pathIndex + 1][0] > path[pathIndex][0])
+            {
+
+                ring.push_back(coord);
+                coord[0] += 1;
+                coord[1] += 1;
+                pathIndex++;
+            }
+            while (coord[1] < path[pathIndex][1])
+            {
+                ring.push_back(coord);
+                coord[0] += 1;
+                coord[1] += 1;
+            }
+            while (path[pathIndex + 1][0] == path[pathIndex][0])
+            {
+                ring.push_back(coord);
+                coord[1] += 1;
+                pathIndex++;
+            }
+            while (path[pathIndex + 1][1] > path[pathIndex][1])
+            {
+                ring.push_back(coord);
+                coord[0] -= 1;
+                coord[1] += 1;
+                pathIndex++;
+            }
+            while (coord[1] < path[pathIndex][1] + pathSpace)
+            {
+                ring.push_back(coord);
+                coord[0] -= 1;
+                coord[1] += 1;
+            }
+            while (path[pathIndex + 1][1] == path[pathIndex][1])
+            {
+                ring.push_back(coord);
+                coord[0] -= 1;
+                pathIndex++;
+            }
+            while (path[pathIndex + 1][0] < path[pathIndex][0])
+            {
+                ring.push_back(coord);
+                coord[0] -= 1;
+                coord[1] -= 1;
+                pathIndex++;
+            }
+            while (coord[1] > path[pathIndex][1])
+            {
+                ring.push_back(coord);
+                coord[0] -= 1;
+                coord[1] -= 1;
+            }
+            while (path[pathIndex + 1][0] == path[pathIndex][0])
+            {
+                ring.push_back(coord);
+                coord[1] -= 1;
+                pathIndex++;
+            }
+            while (path[pathIndex + 1][1] < path[pathIndex][1])
+            {
+                ring.push_back(coord);
+                coord[0] += 1;
+                coord[1] -= 1;
+                pathIndex++;
+            }
+            while (coord[0] < path[pathIndex][0])
+            {
+                ring.push_back(coord);
+                coord[0] += 1;
+                coord[1] -= 1;
+            }
+            while (pathIndex < path.size())
+            {
+                ring.push_back(coord);
+                coord[0] += 1;
+                pathIndex++;
+            }
+            if (ring[ring.size() - 1] != ring[0]) { jf.err("Octogon path incomplete-im.octogonPaint"); }
+        }
+        else if (pathSpace < 0)
+        {
+            coord[0] = path[0][0];
+            coord[1] = path[0][1] - pathSpace;
+            while (path[pathIndex][1] < coord[1]) { pathIndex++; }
+            while (path[pathIndex + 1][0] > path[pathIndex][0])
+            {
+
+                ring.push_back(coord);
+                coord[0] += 1;
+                coord[1] += 1;
+                pathIndex++;
+            }
+            while (path[pathIndex + 1][0] == path[pathIndex][0])
+            {
+                ring.push_back(coord);
+                coord[1] += 1;
+                pathIndex++;
+            }
+            while (path[pathIndex][0] > coord[0]) { pathIndex++; }
+            while (path[pathIndex + 1][1] > path[pathIndex][1])
+            {
+
+                ring.push_back(coord);
+                coord[0] -= 1;
+                coord[1] += 1;
+                pathIndex++;
+            }
+            while (path[pathIndex + 1][1] == path[pathIndex][1])
+            {
+                ring.push_back(coord);
+                coord[0] -= 1;
+                pathIndex++;
+            }
+            while (path[pathIndex][1] > coord[1]) { pathIndex++; }
+            while (path[pathIndex + 1][0] < path[pathIndex][0])
+            {
+                ring.push_back(coord);
+                coord[0] -= 1;
+                coord[1] -= 1;
+                pathIndex++;
+            }
+            while (path[pathIndex + 1][0] == path[pathIndex][0])
+            {
+                ring.push_back(coord);
+                coord[1] -= 1;
+                pathIndex++;
+            }
+            while (path[pathIndex][0] < coord[0]) { pathIndex++; }
+            while (path[pathIndex + 1][1] < path[pathIndex][1])
+            {
+                ring.push_back(coord);
+                coord[0] += 1;
+                coord[1] -= 1;
+                pathIndex++;
+            }
+            while (pathIndex < path.size())
+            {
+                ring.push_back(coord);
+                coord[0] += 1;
+                pathIndex++;
+            }
+
+            if (ring[ring.size() - 1] != ring[0]) 
+            {
+                string sDebug = sroot + "\\debug\\Octogon Paint Debug.png";
+                vector<unsigned char> canvas = pngBlankCanvas(sourceDim);
+                pathPaintDebug(Red, canvas, sourceDim, path);
+                pathPaintDebug(Black, canvas, sourceDim, ring);
+                pngPrint(canvas, sourceDim, sDebug);
+                jf.err("Octogon path incomplete-im.octogonPaint"); 
+            }
+        }
+        else { ring = path; }
+
+        for (int ii = 0; ii < ring.size(); ii++)
+        {
+            dotPaint(ring[ii], rgb, img, sourceDim[0], widthDot);
         }
     }
 
@@ -1105,6 +1385,19 @@ public:
             octoRGB[ii] = pixelRGB(octoPath[ii]);
         }
         return octoRGB;
+    }
+
+    template<typename ... Args> void pathPaintDebug(vector<unsigned char> rgb, Args& ... args)
+    {
+        jf.err("pathPaint template-im");
+    }
+    template<> void pathPaintDebug<vector<unsigned char>, vector<int>, vector<vector<int>>>(vector<unsigned char> rgb, vector<unsigned char>& img, vector<int>& sourceDim, vector<vector<int>>& path)
+    {
+        int widthPixel = 1;
+        for (int ii = 0; ii < path.size(); ii++)
+        {
+            dotPaint(path[ii], rgb, img, sourceDim[0], widthPixel);
+        }
     }
 
     template<typename ... Args> void pngAppendText(string& text, Args& ... args)
@@ -1434,6 +1727,52 @@ public:
         }
     }
 
+    template<typename ... Args> void waitMapDebug(SWITCHBOARD& sbgui, Args& ... args)
+    {
+        jf.err("waitMapDebug template-im");
+    }
+    template<> void waitMapDebug<string>(SWITCHBOARD& sbgui, string& mapPath)
+    {
+        vector<string> newPrompt = { mapPath };
+        sbgui.set_prompt(newPrompt);
+        thread::id myid = this_thread::get_id();
+        vector<int> myComm = sbgui.getMyComm(myid);
+        myComm[0] = 3;
+        vector<vector<int>> comm = sbgui.update(myid, myComm);
+        while (1)
+        {
+            this_thread::sleep_for(40ms);
+            comm = sbgui.update(myid, myComm);
+            if (comm[0][0] == 3)
+            {
+                myComm[0] = 1;
+                sbgui.update(myid, myComm);
+                break;
+            }
+        }
+    }
+    template<> void waitMapDebug<string, vector<vector<int>>>(SWITCHBOARD& sbgui, string& mapPath, vector<vector<int>>& tracks)
+    {
+        string sCoord = jf.stringifyCoord(tracks[tracks.size() - 1]);
+        vector<string> newPrompt = { mapPath, sCoord };
+        sbgui.set_prompt(newPrompt);
+        thread::id myid = this_thread::get_id();
+        vector<int> myComm = sbgui.getMyComm(myid);
+        myComm[0] = 3;
+        vector<vector<int>> comm = sbgui.update(myid, myComm);
+        while (1)
+        {
+            this_thread::sleep_for(40ms);
+            comm = sbgui.update(myid, myComm);
+            if (comm[0][0] == 3)
+            {
+                myComm[0] = 0;
+                sbgui.update(myid, myComm);
+                break;
+            }
+        }
+    }
+
     template<typename ... Args> vector<vector<int>> zoneSweep(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, unordered_map<string, int>& mapIndexCandidate, Args& ... args)
     {
         jf.err("zoneSweep template.im");
@@ -1447,7 +1786,6 @@ public:
         int zoneFreezer = -1;
         vector<int> onOff(2);
         int half, inum1, inum2;
-        //vector<vector<int>> startStop(2, vector<int>(2));
         int index = 0;
         bool zoneActive = 0;
         string szone = pixelZone(Lrgb[index]);
@@ -1503,7 +1841,7 @@ public:
                 mapIndexCandidate.emplace(sCandidate, inum2);
             }
         }
-        if (debug == 1 && goldilocks.size() != (size_t)1) { makeMapZoneSweepDebug(Lrgb, zonePath, goldilocks); }
+        
         return goldilocks;
     }
     template<> vector<vector<int>> zoneSweep<unordered_map<string, int>>(string sZone, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& zonePath, unordered_map<string, int>& mapIndexCandidate, unordered_map<string, int>& mapWidth)
@@ -1515,7 +1853,6 @@ public:
         int zoneFreezer = -1;
         vector<int> onOff(2);
         int half, inum1, inum2;
-        //vector<vector<int>> startStop(2, vector<int>(2));
         int index = 0;
         bool zoneActive = 0;
         string szone = pixelZone(Lrgb[index]);
@@ -1573,7 +1910,6 @@ public:
                 mapWidth.emplace(sCandidate, inum1 + zoneFreezer);
             }
         }
-        if (debug == 1 && goldilocks.size() != (size_t)1) { makeMapZoneSweepDebug(Lrgb, zonePath, goldilocks); }
         return goldilocks;
     }
 
