@@ -108,6 +108,14 @@ public:
 		{
 			theta = 180.0 + phi;
 		}
+		else if (clockwise == 2)
+		{
+			theta = 0.0;
+		}
+		else if (clockwise == 3)
+		{
+			theta = 180.0;
+		}
 		else { err("Indeterminate clockwise-jf.angleBetweenVectors"); }
 		return theta;
 	}
@@ -254,7 +262,8 @@ public:
 		// if a clockwise travel direction along the circle is shorter than a 
 		// counter-clockwise travel direction. Likewise, the test point is 
 		// "counter-clockwise" if that travel direction is shorter. Return values
-		// can be 1 = clockwise, 0 = counterclockwise, -1 = neither
+		// can be 1 = clockwise, 0 = counterclockwise, 
+		// 2 = identical vectors, 3 = opposite vectors
 		err("coordCircleClockwise template");
 	}
 	template<> int coordCircleClockwise<vector<vector<double>>>(vector<vector<double>>& coords)
@@ -271,7 +280,7 @@ public:
 		double testDy = coords[2][1] - coords[1][1];
 		if (baseDx == 0.0 && baseDy == 0.0) { err("same coordinate-jf.coordCircleClockwise"); }
 		if (testDx == 0.0 && testDy == 0.0) { err("same coordinate-jf.coordCircleClockwise"); }
-		int baseQuadrant, testQuadrant;  // [0,3]
+		int baseQuadrant, testQuadrant;  // [0,3] are real quadrants, and [4,7] are horizontal/vertical perpendiculars.
 		if (baseDx > 0.0)
 		{
 			if (baseDy > 0.0) { baseQuadrant = 0; }
@@ -329,22 +338,26 @@ public:
 		case 4:
 			if (testQuadrant == 0 || testQuadrant == 5 || testQuadrant == 1) { return 1; }
 			if (testQuadrant == 3 || testQuadrant == 7 || testQuadrant == 2) { return 0; }
-			err("base and test angles are parallel-jf.coordCircleClockwise");
+			if (testQuadrant == 4) { return 2; }
+			if (testQuadrant == 6) { return 3; }
 			break;
 		case 5:
 			if (testQuadrant == 1 || testQuadrant == 6 || testQuadrant == 2) { return 1; }
 			if (testQuadrant == 0 || testQuadrant == 4 || testQuadrant == 3) { return 0; }
-			err("base and test angles are parallel-jf.coordCircleClockwise");
+			if (testQuadrant == 5) { return 2; }
+			if (testQuadrant == 7) { return 3; }
 			break;
 		case 6:
 			if (testQuadrant == 2 || testQuadrant == 7 || testQuadrant == 3) { return 1; }
 			if (testQuadrant == 1 || testQuadrant == 5 || testQuadrant == 0) { return 0; }
-			err("base and test angles are parallel-jf.coordCircleClockwise");
+			if (testQuadrant == 6) { return 2; }
+			if (testQuadrant == 4) { return 3; }
 			break;
 		case 7:
 			if (testQuadrant == 3 || testQuadrant == 4 || testQuadrant == 0) { return 1; }
 			if (testQuadrant == 2 || testQuadrant == 6 || testQuadrant == 1) { return 0; }
-			err("base and test angles are parallel-jf.coordCircleClockwise");
+			if (testQuadrant == 7) { return 2; }
+			if (testQuadrant == 5) { return 3; }
 			break;
 		}
 
@@ -413,52 +426,8 @@ public:
 	{
 		vector<vector<double>> coords;
 		toDouble(icoords, coords);
-
-		double baseDx = coords[1][0] - coords[0][0];
-		double baseDy = coords[1][1] - coords[0][1];
-		double testDx = coords[2][0] - coords[1][0];
-		double testDy = coords[2][1] - coords[1][1];
-		int baseQuadrant, testQuadrant;  // [0,3]
-		if (baseDx > 0.0)
-		{
-			if (baseDy > 0.0) { baseQuadrant = 0; }
-			else { baseQuadrant = 3; }
-		}
-		else
-		{
-			if (baseDy > 0.0) { baseQuadrant = 1; }
-			else { baseQuadrant = 2; }
-		}
-		if (testDx > 0.0)
-		{
-			if (testDy > 0.0) { testQuadrant = 0; }
-			else { testQuadrant = 3; }
-		}
-		else
-		{
-			if (testDy > 0.0) { testQuadrant = 1; }
-			else { testQuadrant = 2; }
-		}
-
-		// Adjacent quadrants cases.
-		if (testQuadrant == (baseQuadrant + 1) % 4) { return 0; }
-		if (testQuadrant == (baseQuadrant - 1) % 4) { return 1; }
-
-		// Same/opposite quadrants cases.
-		double phi = atan(baseDy / baseDx);
-		double theta = atan(testDy / testDx);
-		if (baseQuadrant == 0 || baseQuadrant == 2)
-		{
-			if (theta > phi) { return 0; }
-			else { return 1; }
-		}
-		else
-		{
-			if (theta > phi) { return 1; }
-			else { return 0; }
-		}
-
-		return -1;
+		int answer = coordCircleClockwise(coords);
+		return answer;
 	}
 
 	template<typename ... Args> double coordDist(Args& ... args)
@@ -471,6 +440,13 @@ public:
 		double yTemp = pow(test[1] - origin[1], 2.0);
 		double radius = sqrt(xTemp + yTemp);
 		return radius;
+	}
+	template<> double coordDist<vector<int>, vector<int>>(vector<int>& iv1, vector<int>& iv2)
+	{
+		vector<double> origin = { (double)iv1[0], (double)iv1[1] };
+		vector<double> test = { (double)iv2[0], (double)iv2[1] };
+		double dist = coordDist(origin, test);
+		return dist;
 	}
 
 	template<typename ... Args> string decToHex(Args& ... args) {}

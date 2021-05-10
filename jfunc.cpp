@@ -41,15 +41,21 @@ string JFUNC::bind(string& stmt0, vector<string>& params)
 }
 vector<int> JFUNC::destringifyCoord(string& sCoord)
 {
-	vector<int> coord(2);
+	vector<int> coord;
 	size_t pos1 = sCoord.find(',');
-	string tempX = sCoord.substr(0, pos1);
-	string tempY = sCoord.substr(pos1 + 1);
-	try
+	if (pos1 > sCoord.size()) { err("No comma-jf.destringifyCoord"); }
+	string temp; 
+	size_t pos2 = 0;
+	while (pos1 < sCoord.size())
 	{
-		coord[0] = stoi(tempX);
-		coord[1] = stoi(tempY);
+		temp = sCoord.substr(pos2, pos1 - pos2);
+		try { coord.push_back(stoi(temp)); }
+		catch (invalid_argument& ia) { err("stoi-jf.destringifyCoord"); }
+		pos2 = pos1 + 1;
+		pos1 = sCoord.find(',', pos2);
 	}
+	temp = sCoord.substr(pos2);
+	try { coord.push_back(stoi(temp)); }
 	catch (invalid_argument& ia) { err("stoi-jf.destringifyCoord"); }
 	return coord;
 }
@@ -466,8 +472,13 @@ void JFUNC::stopWatch(atomic_int& control, atomic_ullong& timer)
 }
 string JFUNC::stringifyCoord(vector<int>& coord)
 {
-	if (coord.size() != 2) { err("coord format-jf.stringifyCoord"); }
-	string sCoord = to_string(coord[0]) + "," + to_string(coord[1]);
+	if (coord.size() < 2) { err("coord format-jf.stringifyCoord"); }
+	string sCoord;
+	for (int ii = 0; ii < coord.size(); ii++)
+	{
+		sCoord += to_string(coord[ii]) + ",";
+	}
+	sCoord.pop_back();
 	return sCoord;
 }
 vector<int> JFUNC::svectorToIvector(vector<string>& svec)

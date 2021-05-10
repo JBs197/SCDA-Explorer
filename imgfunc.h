@@ -20,6 +20,7 @@ class IMGFUNC
     int candidateRelativeWidthMin = 50;
     vector<unsigned char> dataPNG, debugDataPNG;
 	bool debug = 1;
+    double defaultCenterOfMassTolerance = 45.0;  // Angular deviation.
     int defaultCharSpace = 1;
     int defaultDotWidth = 5;
     vector<int> defaultExtractDim = { 400, 400 };
@@ -31,6 +32,7 @@ class IMGFUNC
     int defaultTextSeparatorWidth = 2;
     double defaultWaterPercentage = 0.5;
     double defaultWidthTestRatio = 3.0;
+    int defaultZoneRadialDistanceTolerance = 10;
     int deltaRadius = 0;
     vector<vector<unsigned char>> font;  // Index is ascii minus 32.
     int fontHeight = 32;  // Pixels.
@@ -93,15 +95,113 @@ public:
 	void pngLoad(string& pathPNG);
     void pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN);
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
+    void pngToBinPause(SWITCHBOARD& sbgui);
     void setPathLengthImageDebug(int iLen);
+    int testBacktrack(vector<vector<int>>& tracks, vector<vector<int>>& candidates);
+    void testDistances(vector<vector<int>>& candidates, vector<double>& distances);
     int testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates);
+    void testCenterOfMass(vector<vector<int>>& tracks, vector<vector<int>>& candidates);
     int testOverWater(vector<vector<int>>& tracks);
     int testTextHumanFeature(vector<vector<unsigned char>>& Lrgb);
     vector<int> testZoneLength(vector<vector<int>>& pastPresent, vector<vector<int>>& candidates, string sZone);
     int testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate);
     vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
+    double zoneSweepPercentage(string sZone, vector<vector<unsigned char>>& Lrgb);
 
 	// TEMPLATES
+
+    template<typename ... Args> void appendMapLegend(vector<vector<unsigned char>>& source, vector<int>& sourceDim, vector<string>& sBlocks, Args& ... args)
+    {
+        jf.err("appendMapLegend template-im");
+    }
+    template<> void appendMapLegend<vector<vector<unsigned char>>>(vector<vector<unsigned char>>& source, vector<int>& sourceDim, vector<string>& sBlocks, vector<vector<unsigned char>>& colourList)
+    {
+        if (sBlocks.size() != colourList.size()) { jf.err("Text/colour mismatch-im.appendMapLegend"); }
+        if (!mapIsInit()) { initMapColours(); }
+
+        // Determine the sizes needed.
+        int charSpace = defaultCharSpace;
+        int textSeparatorWidth = defaultTextSeparatorWidth;
+        int numLines = 1;
+        int charWidth, ascii, maxWidth;
+        vector<int> blockWidth(sBlocks.size(), 0);
+        vector<int> textWidth(sBlocks.size(), 0);
+        vector<int> lineWidth = { 0 };  // Form [width of first line, width of second line, ...]. 
+        vector<int> blocksPerLine = { 0 };
+        for (int ii = 0; ii < sBlocks.size(); ii++)  // For each block...
+        {
+            blockWidth[ii] += textSeparatorWidth;
+            blockWidth[ii] += fontHeight;  // Colour box.
+            textWidth[ii] += charSpace;
+            for (int jj = 0; jj < sBlocks[ii].size(); jj++)
+            {
+                try { charWidth = mapFontWidth.at(sBlocks[ii][jj]); }
+                catch (out_of_range& oor) { jf.err("mapFontWidth-im.makeText"); }
+                textWidth[ii] += charWidth + charSpace;
+            }
+            blockWidth[ii] += textWidth[ii];
+            blockWidth[ii] += textSeparatorWidth;
+
+            if (blockWidth[ii] + lineWidth[numLines - 1] < sourceDim[0])
+            {
+                lineWidth[numLines - 1] += blockWidth[ii];
+                blocksPerLine[numLines - 1]++;
+            }
+            else
+            {
+                numLines++;
+                lineWidth.push_back(blockWidth[ii]);
+                blocksPerLine.push_back(1);
+            }
+        }
+
+        // Make the image to be inserted.
+        vector<unsigned char> imgText;
+        vector<vector<int>> startStop(2, vector<int>(2, 0));
+        vector<int> topLeft, boxDim, pasteDim;
+        pasteDim.assign(2, fontHeight);
+        int blockIndex = 0;
+        int thickness = 3;
+        vector<int> legDim = { sourceDim[0], numLines * fontHeight };
+        vector<unsigned char> legend = pngBlankCanvas(boxDim);
+        for (int ii = 0; ii < numLines; ii++)
+        {
+            startStop[0][0] += textSeparatorWidth / 2;
+            startStop[1][0] += textSeparatorWidth / 2;
+            startStop[1][1] += fontHeight;
+            for (int jj = 0; jj < blocksPerLine[ii]; jj++)
+            {
+                linePaint(startStop, Black, legend, legDim[0], textSeparatorWidth);
+                topLeft = { startStop[0][0] + (textSeparatorWidth / 2), startStop[0][1] };
+                topLeft[0] += 8;
+                topLeft[1] += 8;
+                boxDim = { 16, 16 };
+                rectanglePaint(topLeft, boxDim, Black, legend, legDim, thickness, colourList[blockIndex]);
+                topLeft[0] += fontHeight - 8;
+                topLeft[1] -= 8;
+                imgText = makeTextLine(sBlocks[blockIndex]);
+                pasteDim[0] = textWidth[blockIndex];
+                pngPaste(legend, legDim, imgText, pasteDim, topLeft);
+                startStop[0][0] = topLeft[0] + pasteDim[0] + 8;
+                startStop[1][0] = startStop[0][0];
+                linePaint(startStop, Black, legend, legDim[0], textSeparatorWidth);
+                startStop[0][0] += textSeparatorWidth;
+                startStop[1][0] += textSeparatorWidth;
+                blockIndex++;
+            }
+            startStop[0][0] = 0;
+            startStop[0][1] += fontHeight;
+            startStop[1][0] = 0;
+            startStop[1][1] += fontHeight;
+        }
+
+        // Paste atop the source image. 
+        vector<int> oldNew = { sourceDim[0], sourceDim[1], sourceDim[0], sourceDim[1] + (numLines * fontHeight) };
+        pngExtend(source, oldNew);
+        vector<int> coordPaste = { 0, sourceDim[1] };
+        pngPaste(source, sourceDim, legend, legDim, coordPaste);
+        int bbq = 1;
+    }
 
     template<typename ... Args> void coordDist(Args& ... args)
     {
@@ -342,73 +442,15 @@ public:
                 colours[jj] = { (unsigned char)round(dR), (unsigned char)round(dG), (unsigned char)round(dB) };
             }
         }
-
-        /*
-        // Red -> Yellow
-        if (goBlack[0])
-        {
-            colours[0] = { 0, 0, 0 };
-            for (int ii = 1; ii < sizeBand; ii++)
+        if (stopColour != Black)  // This is to correct a rounding
+        {                         // error causing 255->0.
+            int index = colours.size() - 1;
+            while (colours[index] == Black)
             {
-                colours[ii] = colours[ii - 1];
-                colours[ii][1] += 255 / sizeBand;
-                colours[ii][0] += 255 / sizeBand;
+                colours[index] = stopColour;
+                index--;
             }
         }
-        else
-        {
-            colours[0] = { 255, 0, 0 };
-            for (int ii = 1; ii < sizeBand; ii++)
-            {
-                colours[ii] = colours[ii - 1];
-                colours[ii][1] += 255 / sizeBand;
-            }
-        }
-
-        // Yellow -> Green
-        if (goBlack[1])
-        {
-            colours[1 * sizeBand] = { 255, 255, 0 };
-            for (int ii = sizeBand + 1; ii < 2 * sizeBand; ii++)
-            {
-                colours[ii] = colours[ii - 1];
-                colours[ii][0] -= 255 / sizeBand;
-            }
-        }
-        else
-        {
-            colours[1 * sizeBand] = { 255, 255, 0 };
-            for (int ii = sizeBand + 1; ii < 2 * sizeBand; ii++)
-            {
-                colours[ii] = colours[ii - 1];
-                colours[ii][0] -= 255 / sizeBand;
-            }
-        }
-
-
-        colours[2 * sizeBand] = { 0, 255, 0 };
-        for (int ii = (2 * sizeBand) + 1; ii < 3 * sizeBand; ii++)
-        {
-            colours[ii] = colours[ii - 1];
-            colours[ii][2] += 255 / sizeBand;
-        }
-
-        colours[3 * sizeBand] = { 0, 255, 255 };
-        for (int ii = (3 * sizeBand) + 1; ii < 4 * sizeBand; ii++)
-        {
-            colours[ii] = colours[ii - 1];
-            colours[ii][1] -= 255 / sizeBand;
-        }
-
-        colours[4 * sizeBand] = { 0, 0, 255 };
-        for (int ii = (4 * sizeBand) + 1; ii < 5 * sizeBand; ii++)
-        {
-            colours[ii] = colours[ii - 1];
-            colours[ii][0] += 255 / sizeBand;
-        }
-        colours[numColours - 1] = { 255, 0, 255 };
-        */
-
         return colours;
     }
 
@@ -567,11 +609,15 @@ public:
     }
     template<> void makeMapPngToBin< >(vector<vector<int>>& vBorderPath)
     {
+        string outputPath = sroot + "\\debug\\pngToBin Debug.png";
+        makeMapPngToBin(vBorderPath, outputPath);
+    }
+    template<> void makeMapPngToBin<string>(vector<vector<int>>& vBorderPath, string& outputPath)
+    {
         debugDataPNG = dataPNG;  // Note that the bands are Red->Yellow->Green,
         int widthDot = 5;        // Green->Teal->Blue->Violet
         int numDots = vBorderPath.size();
         vector<int> sourceDim = { width, height };
-        string outputPath = sroot + "\\debug\\pngToBin Debug.png";
         string avoidColour = "Blue";
         vector<vector<unsigned char>> colours = getColourSpectrum(numDots, avoidColour);
         for (int ii = 0; ii < numDots; ii++)
@@ -941,7 +987,7 @@ public:
         jf.toDouble(iBorder, border);
     }
 
-    template<typename ... Args> void octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, Args& ... args)
+    template<typename ... Args> void octogonBearing(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int& radius, Args& ... args)
     {
         // Uses the past [0] and present [1] coordinates to define an initial 
         // vector. A ring of pixels around [1] are scanned for the given sZone. 
@@ -953,7 +999,7 @@ public:
         // performed to determine the best candidate. 
         jf.err("octogonBearing template-im");
     }
-    template<> void octogonBearing<double, int>(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, double& theta, int& widthZone)
+    template<> void octogonBearing<double, int>(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int& radius, double& theta, int& widthZone)
     {
         unordered_map<string, int> mapIndexCandidate;
         unordered_map<string, int> mapWidth;
@@ -964,7 +1010,7 @@ public:
         int lettersExist = 0;
         vector<vector<int>> pastPresentFuture = pastPresent;
         string sCandidate;
-        int iWidth;
+        int iWidth, newRadius;
         
         // Test for letter zone sandwiches.
         if (numCandidates > 1)
@@ -992,7 +1038,9 @@ public:
                     theta = -2.0;
                     return;
                 }
-                octogonBearing(sbgui, pastPresent, sZone, radius - 2, theta, widthZone);
+                newRadius = radius - 2;
+                octogonBearing(sbgui, pastPresent, sZone, newRadius, theta, widthZone);
+                if (theta >= 0.0) { radius = newRadius; }
                 if (radius != defaultSearchRadius) { return; }
             }
             else if (radius <= 2)
@@ -1014,7 +1062,9 @@ public:
                     theta = -2.0;
                     return;
                 }
-                octogonBearing(sbgui, pastPresent, sZone, radius + 2, theta, widthZone);
+                newRadius = radius + 2;
+                octogonBearing(sbgui, pastPresent, sZone, newRadius, theta, widthZone);
+                if (theta >= 0.0) { radius = newRadius; }
                 if (radius != defaultSearchRadius) { return; }
             }
             else
@@ -1092,7 +1142,7 @@ public:
             }
 
             // Defeat.
-            return;
+            jf.err("Defeat-im.octogonBearing");
         }
 
         if (numCandidates == 1)
@@ -1106,7 +1156,7 @@ public:
             return;
         }
     }
-    template<> void octogonBearing<vector<double>>(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int radius, vector<double>& theta)
+    template<> void octogonBearing<vector<double>>(SWITCHBOARD& sbgui, vector<vector<int>>& pastPresent, string sZone, int& radius, vector<double>& theta)
     {
         unordered_map<string, int> mapIndexCandidate;
         vector<int> intervalSize;

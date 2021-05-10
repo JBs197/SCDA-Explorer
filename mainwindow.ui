@@ -548,11 +548,21 @@
         <x>158</x>
         <y>0</y>
         <width>71</width>
-        <height>451</height>
+        <height>21</height>
        </rect>
       </property>
       <property name="text">
-       <string/>
+       <string>Maps Completed</string>
+      </property>
+     </widget>
+     <widget class="QListWidget" name="listW_bindone">
+      <property name="geometry">
+       <rect>
+        <x>160</x>
+        <y>30</y>
+        <width>71</width>
+        <height>421</height>
+       </rect>
       </property>
      </widget>
     </widget>
@@ -657,6 +667,47 @@
      <string>Resume?</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pB_pause">
+    <property name="geometry">
+     <rect>
+      <x>1080</x>
+      <y>530</y>
+      <width>21</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Pause</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pB_adv1">
+    <property name="geometry">
+     <rect>
+      <x>1110</x>
+      <y>530</y>
+      <width>21</width>
+      <height>24</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Advance 
+ + 1</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pB_adv10">
+    <property name="geometry">
+     <rect>
+      <x>1110</x>
+      <y>550</y>
+      <width>21</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Advance 
+ + 10</string>
+    </property>
+   </widget>
    <zorder>cB_drives</zorder>
    <zorder>pB_scan</zorder>
    <zorder>pB_insert</zorder>
@@ -681,6 +732,9 @@
    <zorder>pB_localmaps</zorder>
    <zorder>pB_convert</zorder>
    <zorder>pB_resume</zorder>
+   <zorder>pB_pause</zorder>
+   <zorder>pB_adv1</zorder>
+   <zorder>pB_adv10</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

@@ -83,6 +83,14 @@ bool SWITCHBOARD::push(thread::id id)
 	return m_calls[pindex - 1].try_lock();
 	//qDebug() << "SB pushed " << pindex;
 }
+bool SWITCHBOARD::pushHard(thread::id id)
+{
+	lock_guard<mutex> addrem(m_sb);
+	int pindex = map_phone.at(id);
+	if (pindex < 1) { return 0; }
+	m_calls[pindex - 1].lock();
+	return 1;
+}
 int SWITCHBOARD::pull(thread::id id, int start)
 {
 	lock_guard<mutex> addrem(m_sb);

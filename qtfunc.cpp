@@ -2,9 +2,27 @@
 
 using namespace std;
 
+void QTFUNC::displayBinList(QListWidget*& qLW, vector<string>& pathBin)
+{
+	QString qtemp;
+	string temp;
+	size_t pos1, pos2;
+	listPathBin = pathBin;
+	qLW->clear();
+	for (int ii = 0; ii < pathBin.size(); ii++)
+	{
+		pos2 = pathBin[ii].rfind(".bin");
+		if (pos2 > pathBin[ii].size()) { jfqf.err("Failed to locate .bin extension-qf.displayBinList"); }
+		pos1 = pathBin[ii].rfind('\\', pos2) + 1;
+		temp = pathBin[ii].substr(pos1, pos2 - pos1);
+		qtemp = QString::fromUtf8(temp);
+		mapListPathBin.insert(qtemp, ii);
+		qLW->addItem(qtemp);
+	}
+}
 void QTFUNC::displayDebug(QLabel*& qlabel, vector<string>& pathPNG)
 {
-	int widthImg, heightImg, widthPM, heightPM;
+	int widthImg, heightImg, widthPM, heightPM, squareDim;
 	QString qtemp = QString::fromUtf8(pathPNG[0]);
 	vector<int> origin;
 	if (pathPNG.size() > 1)
@@ -16,29 +34,35 @@ void QTFUNC::displayDebug(QLabel*& qlabel, vector<string>& pathPNG)
 	heightImg = qimg.height();
 	widthPM = qlabel->width();
 	heightPM = qlabel->height();
+	squareDim = min(widthPM, heightPM);
 	if (origin.size() > 0)
 	{
-		int xTL = int(round((double)origin[0] - (double)origin[0] / defaultMapZoom));
-		int yTL = int(round((double)origin[1] - (double)origin[1] / defaultMapZoom));		
-		int xBR = int(round(((double)(widthImg - origin[0]) / defaultMapZoom) + (double)origin[0]));
-		int yBR = int(round(((double)(heightImg - origin[1]) / defaultMapZoom) + (double)origin[1]));		
-		QRect qrCrop = QRect(xTL, yTL, xBR - xTL, yBR - yTL);
-		QImage qimgTemp = qimg;
-		qimg = qimgTemp.copy(qrCrop);
-		widthImg = qimg.width();
-		heightImg = qimg.height();
-	}
-	QImage qimgScaled;
-	if ((double)heightImg / (double)heightPM > (double)widthImg / (double)widthPM)
-	{
-		qimgScaled = qimg.scaledToHeight(heightPM);
+		int xTL = origin[0] - (squareDim / 2);
+		int yTL = origin[1] - (squareDim / 2);		
+		QRect qrCrop = QRect(xTL, yTL, squareDim, squareDim);
+		QImage qimgCrop = qimg.copy(qrCrop);
+		QPixmap qpm = QPixmap::fromImage(qimgCrop);
+		qlabel->setPixmap(qpm);
+		if (origin.size() > 2)
+		{
+			pathPNG[1] = to_string(origin[2]); // Origin point's border index.
+		}
+		else { pathPNG.resize(1); }
 	}
 	else
 	{
-		qimgScaled = qimg.scaledToWidth(widthPM);
+		QImage qimgScaled;
+		if ((double)heightImg / (double)heightPM > (double)widthImg / (double)widthPM)
+		{
+			qimgScaled = qimg.scaledToHeight(heightPM);
+		}
+		else
+		{
+			qimgScaled = qimg.scaledToWidth(widthPM);
+		}
+		QPixmap qpm = QPixmap::fromImage(qimgScaled);
+		qlabel->setPixmap(qpm);
 	}
-	QPixmap qpm = QPixmap::fromImage(qimgScaled);
-	qlabel->setPixmap(qpm);
 	int bbq = 1;
 }
 void QTFUNC::displayPainterPath(QLabel*& qlabel, QPainterPath& path)

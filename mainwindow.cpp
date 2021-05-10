@@ -82,10 +82,18 @@ void MainWindow::initialize()
     ui->treeW_maps->setVisible(0);
     ui->label_maps->setGeometry(0, 0, 710, 450);
     ui->label_maps->setVisible(0);
-    ui->label_maps2->setGeometry(720, 0, 200, 400);
+    ui->label_maps2->setGeometry(720, 5, 100, 21);
     ui->label_maps2->setVisible(0);
-    ui->pB_resume->setGeometry(1100, 405, 81, 41);
+    ui->listW_bindone->setGeometry(720, 25, 190, 330);
+    ui->listW_bindone->setVisible(0);
+    ui->pB_resume->setGeometry(1190, 395, 81, 41);
     ui->pB_resume->setVisible(0);
+    ui->pB_pause->setGeometry(1100, 395, 81, 41);
+    ui->pB_pause->setVisible(0);
+    ui->pB_adv1->setGeometry(1100, 441, 81, 41);
+    ui->pB_adv1->setVisible(0);
+    ui->pB_adv10->setGeometry(1190, 441, 81, 41);
+    ui->pB_adv10->setVisible(0);
     ui->pB_usc->setVisible(0);
     ui->pB_download->setVisible(0);
     ui->pB_download->setEnabled(0);
@@ -308,7 +316,11 @@ void MainWindow::update_mode()
         ui->treeW_maps->setVisible(0);
         ui->label_maps->setVisible(0);
         ui->label_maps2->setVisible(0);
+        ui->listW_bindone->setVisible(0);
         ui->pB_resume->setVisible(0);
+        ui->pB_pause->setVisible(0);
+        ui->pB_adv1->setVisible(0);
+        ui->pB_adv10->setVisible(0);
         ui->pB_usc->setVisible(0);
         ui->pte_webinput->setVisible(0);
         ui->pte_localinput->setVisible(1);
@@ -328,8 +340,15 @@ void MainWindow::update_mode()
         ui->treeW_maps->setVisible(1);
         ui->label_maps->setVisible(1);
         ui->label_maps2->setVisible(1);
+        ui->listW_bindone->setVisible(1);
         ui->pB_resume->setVisible(1);
         ui->pB_resume->setEnabled(0);
+        ui->pB_pause->setVisible(1);
+        ui->pB_pause->setEnabled(0);
+        ui->pB_adv1->setVisible(1);
+        ui->pB_adv10->setVisible(1);
+        ui->pB_adv1->setEnabled(0);
+        ui->pB_adv10->setEnabled(0);
         ui->pB_usc->setVisible(1);
         ui->pte_webinput->setVisible(1);
         ui->pte_localinput->setVisible(0);
@@ -2065,11 +2084,11 @@ void MainWindow::on_pB_convert_clicked()
     QTreeWidgetItem* qitem = nullptr;
     if (qlist.size() < 1) { return; }
     int numKids = qlist[0]->childCount();
-    int numKidsTemp, inum;
+    int numKidsTemp, inum, iController;
     size_t pos1;
     QString qtemp = ui->pte_webinput->toPlainText();
     string temp = qtemp.toStdString();
-    string filePath;
+    string filePath, sController;
     vector<string> dirt, soap;  
     if (temp != "")
     {
@@ -2132,7 +2151,7 @@ void MainWindow::on_pB_convert_clicked()
     vector<int> colourDots = { 3, 2, 1 };  // Green, Yellow, Red.
     vector<vector<int>> dots;
 
-    // Launch the worker threads.
+    // Launch the worker thread(s).
     inum = ui->label_maps->width();
     prompt[0] += "," + to_string(inum) + ",";
     inum = ui->label_maps->height();
@@ -2140,62 +2159,283 @@ void MainWindow::on_pB_convert_clicked()
     int error = sb.start_call(myid, 1, comm[0]);
     if (error) { errnum("start_call-MainWindow.on_pB_convert", error); }
     sb.set_prompt(prompt);
-    std::thread thr(&MainWindow::convertGuide, this, ref(sb), ref(painterPathBorder));
+    vector<string> pathBin, pathBinShared, vsTemp;
+    std::thread thr(&MainWindow::convertGuide, this, ref(sb), ref(painterPathBorder), ref(pathBinShared));
     thr.detach();
     ui->tabW_online->setCurrentIndex(2);
+    ui->pB_pause->setEnabled(1);
     comm[0][2] = prompt.size() - 1;
-    reset_bar(comm[0][2], "Converting maps...");
+    string sBar = "Converting maps (0/" + to_string(comm[0][2]) + ") ...";
+    reset_bar(comm[0][2], sBar);
 
     // Receive and display path data. 
-    while (1)
+    double lenPPB;
+    vector<string> debugPath, bagOfAir;
+    bool letMeOut = 0;
+    int local_controller = remote_controller;
+    while (!letMeOut)
     {
         Sleep(gui_sleep);
         comm = sb.update(myid, comm[0]);
-        if (comm[1][0] == 3)
+        if (local_controller != remote_controller)
         {
-            vector<string> debugPath = sb.get_prompt();
-            qf.displayDebug(ui->label_maps, debugPath);
-            ui->pB_resume->setEnabled(1);
-            while (1)
+            // NOTE: Controller codes must be limited to [0,9].
+            sController = to_string(local_controller) + to_string(remote_controller);
+            try { iController = stoi(sController); }
+            catch (invalid_argument& ia) { err("stoi-MainWindow.on_pB_convert_clicked"); }
+            switch (iController)
             {
-                QCoreApplication::processEvents();
-                if (remote_controller == 2)
+            case 1:   // Run->Advance
+            {
+                local_controller = 1;
+                break;
+            }
+            case 2:   // Run->Cancel
+            {
+                comm[0][0] = 2;
+                sb.update(myid, comm[0]);
+                while (1)
                 {
-                    remote_controller = 0;
-                    ui->pB_resume->setEnabled(0);
-                    comm[0][0] = 3;
-                    sb.update(myid, comm[0]);
-                    break;
+                    Sleep(gui_sleep);
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[1][0] == 2)
+                    {
+                        barMessage("Map conversions cancelled.");
+                        remote_controller = 0;
+                        return;
+                    }
                 }
-                Sleep(50);
+                break;
+            }
+            case 3:   // Run->Pause
+            {
+                comm[0][0] = 3;
+                sb.update(myid, comm[0]);
+                local_controller = 3;
+                barMessage("PAUSED");
+                while (comm[1][0] != 3)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                }
+                break;
+            }
+            case 30:  // Pause->Run
+            {
+                comm[0][0] = 0;
+                sb.update(myid, comm[0]);
+                local_controller = 0;
+                sBar = "Converting maps (" + to_string(comm[0][1]);
+                sBar += "/" + to_string(comm[0][2]) + ") ...";
+                barMessage(sBar);
+                break;
+            }
             }
         }
-        if (comm[0][0] == 3 && comm[1][0] == 0) { comm[0][0] = 0; }
-        if (comm[1][1] > comm[0][1])  // New BIN map available to display.
+        switch (local_controller)
         {
-            error = sb.pull(myid, 0);
-            if (error < 0) { err("sb.pull-MainWindow.on_pB_test"); }
-            myPPB = painterPathBorder;
-            sb.done(myid);
-            comm[0][1] = comm[1][1];
-            jobs_done = comm[0][1];
-            update_bar();
-            qf.displayBin(ui->label_maps, myPPB);
-        }
-        QCoreApplication::processEvents();
-        if (comm[1][0] == 1 || comm[1][0] == -2)
+        case 0:
         {
+            if (comm[1][0] == 3)
+            {
+                debugPath = sb.get_prompt();
+                sb.set_prompt(bagOfAir);
+                qf.displayDebug(ui->label_maps, debugPath);
+                if (debugPath.size() > 1)
+                {
+                    try
+                    {
+                        inum = stoi(debugPath[1]);
+                        qtemp = "Center point index: ";
+                        qtemp.append(debugPath[1].c_str());
+                        ui->pte_webinput->setPlainText(qtemp);
+                    }
+                    catch (invalid_argument& ia) {}
+                }
+                ui->pB_resume->setEnabled(1);
+                ui->pB_pause->setEnabled(0);
+                ui->pB_adv1->setEnabled(1);
+                ui->pB_adv10->setEnabled(1);
+                remote_controller = 3;
+                comm[0][0] = 3;
+                while (1)
+                {
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (remote_controller == 0 && comm[0][0] == 3)
+                    {
+                        vsTemp = { "" };
+                        sb.set_prompt(vsTemp);
+                        comm[0][0] = 0;
+                        sb.update(myid, comm[0]);
+                    }
+                    else if (remote_controller == 1 && comm[0][0] == 3)
+                    {
+                        vsTemp = { to_string(advBuffer) };
+                        advBuffer = -1;
+                        sb.set_prompt(vsTemp);
+                        comm[0][0] = 0;
+                        sb.update(myid, comm[0]);
+                    }
+                    if (comm[1][0] == 0)
+                    {
+                        local_controller = 0;
+                        break;
+                    }
+                    Sleep(50);
+                }
+            }
+            if (comm[1][1] > comm[0][1])  // New BIN map available to display.
+            {
+                error = sb.pull(myid, 0);
+                if (error < 0) { err("sb.pull-MainWindow.on_pB_convert"); }
+                myPPB = painterPathBorder;
+                pathBin.insert(pathBin.end(), pathBinShared.begin(), pathBinShared.end());
+                pathBinShared.clear();
+                painterPathBorder.clear();
+                sb.done(myid);
+                comm[0][1] = comm[1][1];
+                jobs_done = comm[0][1];
+                update_bar();
+                sBar = "Converting maps (" + to_string(comm[0][1]);
+                sBar += "/" + to_string(comm[0][2]) + ") ...";
+                barMessage(sBar);
+                lenPPB = myPPB.length();
+                if (lenPPB > 0.0) { qf.displayBin(ui->label_maps, myPPB); }
+                else if (pathBin.size() > 0) { qf.displayBin(ui->label_maps, pathBin[pathBin.size() - 1]); }
+                qf.displayBinList(ui->listW_bindone, pathBin);
+            }
+            if (comm[1][0] == 1)
+            {
+                error = sb.end_call(myid);
+                if (error) { errnum("sb.end_call-on_pB_insert", error); }
+                jobs_done = comm[0][2];
+                update_bar();
+                barMessage("Map conversions completed.");
+                letMeOut = 1;
+                break;
+            }
             QCoreApplication::processEvents();
-            error = sb.end_call(myid);
-            if (error) { errnum("sb.end_call-on_pB_insert", error); }
-            jobs_done = comm[0][2];
-            update_bar();
-            break;           // Manager reports task finished/cancelled.
+            break;
         }
+        case 1:
+        {
+            if (comm[1][0] = 3)
+            {
+                debugPath = sb.get_prompt();
+                sb.set_prompt(bagOfAir);
+                qf.displayDebug(ui->label_maps, debugPath);
+                if (debugPath.size() > 1)
+                {
+                    try
+                    {
+                        inum = stoi(debugPath[1]);
+                        qtemp = "Center point index: ";
+                        qtemp.append(debugPath[1].c_str());
+                        ui->pte_webinput->setPlainText(qtemp);
+                    }
+                    catch (invalid_argument& ia) {}
+                }
+                ui->pB_resume->setEnabled(1);
+                ui->pB_pause->setEnabled(0);
+                ui->pB_adv1->setEnabled(1);
+                ui->pB_adv10->setEnabled(1);
+                remote_controller = 3;
+                comm[0][0] = 3;
+                while (1)
+                {
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (remote_controller == 0 && comm[0][0] == 3)
+                    {
+                        vsTemp = { "" };
+                        sb.set_prompt(vsTemp);
+                        comm[0][0] = 0;
+                        sb.update(myid, comm[0]);
+                    }
+                    else if (remote_controller == 1 && comm[0][0] == 3)
+                    {
+                        vsTemp = { to_string(advBuffer) };
+                        advBuffer = -1;
+                        sb.set_prompt(vsTemp);
+                        comm[0][0] = 0;
+                        sb.update(myid, comm[0]);
+                    }
+                    if (comm[1][0] == 0)
+                    {
+                        local_controller = 0;
+                        break;
+                    }
+                    Sleep(50);
+                }
+            }
+            sb.update(myid, comm[0]);
+            break;
+        }
+        case 3:
+        {
+            if (comm[1][0] == 0) 
+            {
+                comm[0][0] = 0; 
+                local_controller = 0;
+            }
+            if (comm[1][0] == 3)
+            {
+                debugPath = sb.get_prompt();
+                qf.displayDebug(ui->label_maps, debugPath);
+                if (debugPath.size() > 1)
+                {
+                    try 
+                    { 
+                        inum = stoi(debugPath[1]); 
+                        qtemp = "Center point index: ";
+                        qtemp.append(debugPath[1].c_str());
+                        ui->pte_webinput->setPlainText(qtemp);
+                    }
+                    catch (invalid_argument& ia) {}
+                }
+                ui->pB_resume->setEnabled(1);
+                ui->pB_pause->setEnabled(0);
+                ui->pB_adv1->setEnabled(1);
+                ui->pB_adv10->setEnabled(1);
+                remote_controller = 3;
+                while (1)
+                {
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (remote_controller == 0 && comm[0][0] == 3)
+                    {
+                        vsTemp = { "" };
+                        sb.set_prompt(vsTemp);
+                        comm[0][0] = 0;
+                        sb.update(myid, comm[0]);
+                    }
+                    else if (remote_controller == 1 && comm[0][0] == 3)
+                    {
+                        vsTemp = { to_string(advBuffer) };
+                        advBuffer = -1;
+                        sb.set_prompt(vsTemp);
+                        comm[0][0] = 0;
+                        sb.update(myid, comm[0]);
+                    }
+                    if (comm[1][0] == 0)
+                    {
+                        local_controller = 0;
+                        break;
+                    }
+                    Sleep(50);
+                }
+            }
+            QCoreApplication::processEvents();
+            break;
+        }
+        }
+
     }
-    barMessage("Map conversions completed.");
+    QCoreApplication::processEvents();
 }
-void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorder)
+void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorder, vector<string>& pathBIN)
 {
     vector<int> mycomm;
     vector<vector<int>> comm_gui;
@@ -2207,9 +2447,9 @@ void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorde
     vector<string> dirt1 = { "mapsPNG", ".png" };
     vector<string> dirt2 = { "mapsBIN", ".bin" };
     QPainterPath pPB;
-    vector<vector<double>> borderPathBIN, borderFrameBIN;
     string extension, pathInput, pathOutput, temp;
-    bool success;
+    vector<vector<double>> borderPathBIN, borderFrameBIN;
+    bool success, letMeOut;
     int rank, inum;
 
     vector<int> windowDim(2);
@@ -2269,6 +2509,20 @@ void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorde
             }
             }
         }
+        if (rank == 2)
+        {
+            success = sbgui.pushHard(myid);
+            if (!success) { err("pushHard-MainWindow.convertGuide"); }
+            if (pathOutput.size() > 0)
+            {
+                pathBIN.push_back(pathOutput);
+            }
+            else
+            {
+                pathBIN.push_back(prompt[ii]);
+            }
+            sbgui.done(myid);
+        }
         mycomm[1]++;
         sbgui.update(myid, mycomm);
     }
@@ -2276,8 +2530,32 @@ void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorde
 }
 void MainWindow::on_pB_resume_clicked()
 {
-    remote_controller = 2;
+    remote_controller = 0;
+    ui->pB_pause->setEnabled(1);
+    ui->pB_resume->setEnabled(0);
 }
+void MainWindow::on_pB_pause_clicked()
+{
+    remote_controller = 3;
+    ui->pB_pause->setEnabled(0);
+}
+void MainWindow::on_pB_adv1_clicked()
+{
+    advBuffer = 1;
+    remote_controller = 1;
+    ui->pB_resume->setEnabled(0);
+    ui->pB_adv1->setEnabled(0);
+    ui->pB_adv10->setEnabled(0);
+}
+void MainWindow::on_pB_adv10_clicked()
+{
+    advBuffer = 10;
+    remote_controller = 1;
+    ui->pB_resume->setEnabled(0);
+    ui->pB_adv1->setEnabled(0);
+    ui->pB_adv10->setEnabled(0);
+}
+
 
 // (Debug function) Perform a test function.
 // 0 = download given webpage
@@ -2571,9 +2849,24 @@ void MainWindow::on_tabW_online_currentChanged(int index)
     {
     case 0:
         ui->pB_download->setEnabled(0);
+        ui->pB_resume->setVisible(0);
+        ui->pB_pause->setVisible(0);
+        ui->pB_adv1->setVisible(0);
+        ui->pB_adv10->setVisible(0);
         break;
     case 1:
         ui->pB_download->setEnabled(1);
+        ui->pB_resume->setVisible(0);
+        ui->pB_pause->setVisible(0);
+        ui->pB_adv1->setVisible(0);
+        ui->pB_adv10->setVisible(0);
+        break;
+    case 2:
+        ui->pB_download->setEnabled(0);
+        ui->pB_resume->setVisible(1);
+        ui->pB_pause->setVisible(1);
+        ui->pB_adv1->setVisible(1);
+        ui->pB_adv10->setVisible(1);
         break;
     }
 }
@@ -2620,6 +2913,16 @@ void MainWindow::on_treeW_statscan_itemSelectionChanged()
 void MainWindow::on_treeW_maps_itemSelectionChanged() 
 {
 
+}
+void MainWindow::on_listW_bindone_itemSelectionChanged()
+{
+    QString qtemp;
+    QList<QListWidgetItem*> qlist = ui->listW_bindone->selectedItems();
+    if (qlist.size() == 1)
+    {
+         qtemp = qlist[0]->text();
+         qf.displayBin(ui->label_maps, qtemp);
+    }
 }
 
 // DEBUG FUNCTIONS:

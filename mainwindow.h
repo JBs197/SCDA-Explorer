@@ -74,6 +74,10 @@ private slots:
     void on_pB_localmaps_clicked();
     void on_pB_convert_clicked();
     void on_pB_resume_clicked();
+    void on_pB_pause_clicked();
+    void on_pB_adv1_clicked();
+    void on_pB_adv10_clicked();
+    void on_listW_bindone_itemSelectionChanged();
 
 private:
     Ui::MainWindow *ui;
@@ -84,10 +88,11 @@ private:
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
     int jobs_max, jobs_done, jobs_percent;
     int threads_working = 0;
-    int remote_controller = 0;  // 0 = standard, 1 = cancel.
+    int remote_controller = 0;  // 0 = run, 1 = ??, 2 = cancel, 3 = pause.
     bool begun_logging = 0;
     int qrow_title_width = 20;
     int active_mode = 0;
+    int advBuffer;
     int qnam_status = 0;
     wstring wdrive;
     string sdrive;
@@ -113,7 +118,7 @@ private:
     void auto_expand(QTreeWidget*&, int);
     void barMessage(string message);
     void bind(string&, vector<string>&);
-    void convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorder);
+    void convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorder, vector<string>& pathBIN);
     void delete_cata(SWITCHBOARD&, SQLFUNC&);
     void display_catalogue(SQLFUNC&, SWITCHBOARD&, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
     void display_table(string);

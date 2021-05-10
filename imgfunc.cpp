@@ -21,6 +21,7 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         octoRGB = octogonRGB(octoPath);
         mapIndexCandidate.clear();
         candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
+        testBacktrack(tracks, candidates);
         numIncreases++;
     }
     if (tracks.size() < 2) { return candidates[0]; }     // We arbitrarily choose the path
@@ -28,16 +29,23 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     vector<double> distances;                            // on an analog clock, for the 
     coordDist(originPast, candidates, distances);        // first step.
     double minDistance, dTemp;
-    int elimIndex;
+    int elimIndex, numCandidates;
 
-    if (numIncreases > 2)
+    testDistances(candidates, distances);
+    while (candidates.size() < 1)
     {
-        makeMapBorderFindNext(tracks, radius, candidates, pathImg);
-        waitMapDebug(sbgui, pathImg, tracks);
-        int bbq = 1;
+        radius += (3 * borderThickness);
+        octoPath = octogonPath(origin, radius);
+        octogonCheckBoundary(octoPath, sourceDim, 0);
+        octoRGB = octogonRGB(octoPath);
+        mapIndexCandidate.clear();
+        candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
+        testBacktrack(tracks, candidates);
+        numIncreases++;
     }
+    if (candidates.size() == 1) { return candidates[0]; }
 
-    do
+    while (candidates.size() > 2)
     {
         minDistance = distances[0];
         elimIndex = 0;
@@ -51,16 +59,19 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         }
         candidates.erase(candidates.begin() + elimIndex);
         distances.erase(distances.begin() + elimIndex);
-    } while (candidates.size() > 2);
-    if (candidates.size() == 1) { return candidates[0]; }
+    }
 
     // There can only be two candidates remaining.  
+    
     // Perform a series of tests to determine the right path.
 
     // Test for access to the interior (white) zone, if on land.
-    sZone = "white";
-    int numCandidates = testCandidatesInteriorZone(sbgui, tracks, sZone, candidates);
-    if (numCandidates == 1) { return candidates[0]; }
+    if (!testOverWater(tracks))
+    {
+        sZone = "white";
+        numCandidates = testCandidatesInteriorZone(sbgui, tracks, sZone, candidates);
+        if (numCandidates == 1) { return candidates[0]; }
+    }
 
     // Test for greater distance from previous border point. 
     if (distances[0] > distances[1])
@@ -88,6 +99,10 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         searchRadiusIncrease += 2;
         return borderFindNext(sbgui, tracks);
     }
+
+    // Hail Mary.
+    testCenterOfMass(tracks, candidates);
+    if (candidates.size() == 1) { return candidates[0]; }
 
     // Defeat. Make a debug map.
     makeMapBorderFindNext(tracks, radius, candidates);
@@ -262,18 +277,14 @@ double IMGFUNC::clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tra
     int numBearings = tracks.size() - 1;
     vector<double> bearings(numBearings, -1.0);
     vector<int> widthZone(numBearings);
-    int attemptRadius;
+    int radius;
     for (int ii = 0; ii < numBearings; ii++)
     {
         pastPresent[0] = tracks[ii];
         pastPresent[1] = tracks[ii + 1];
-        attemptRadius = 0;
-        octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearings[ii], widthZone[ii]);
+        radius = defaultSearchRadius;
+        octogonBearing(sbgui, pastPresent, sZone, radius, bearings[ii], widthZone[ii]);
         if (bearings[ii] >= 0.0 && bearings[0] < 180.0) { numClockwise++; }
-        else if (bearings[ii] < 0.0)
-        {
-            // RESUMER
-        }
     }
     double percent = (double)numClockwise / ((double)tracks.size() - 1.0);
     return percent;
@@ -696,10 +707,17 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
     // Returns the border path generated, for easy display/human review.
     if (!mapIsInit()) { initMapColours(); }
     pngLoad(pathPNG);
+    string temp;
+    string pathMapDebug = sroot + "\\debug\\pngToBin Debug.png";
+    vector<string> vsTemp;
+    vector<int> viTemp;
     vector<vector<double>> corners = frameCorners();
     vector<vector<int>> vBorderPath(1, vector<int>());
     vBorderPath[0] = borderFindStart();
-    vector<vector<int>> tracks;
+    vector<vector<int>> tracks, commGui;
+    thread::id myid = this_thread::get_id();
+    vector<int> myComm = sbgui.getMyComm(myid);
+    vector<int> advStop = { 0, -1 };
     int sizeVBP = 1;
     while (1)
     {
@@ -716,12 +734,56 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
         {
             tracks = vBorderPath;
         }
+        if (advStop[0] == advStop[1])
+        {
+            advStop = { 0, -1 };
+            makeMapPngToBin(tracks, pathMapDebug);
+            viTemp = tracks[tracks.size() - 1];
+            viTemp.push_back(vBorderPath.size() - 1);
+            temp = jf.stringifyCoord(viTemp);
+            vsTemp = { pathMapDebug, temp };
+            sbgui.set_prompt(vsTemp);
+            pngToBinPause(sbgui);  // Will wait here until gui signals 'resume'.
+            vsTemp = sbgui.get_prompt();
+            if (vsTemp[0].size() > 0)
+            {
+                try { advStop[1] = stoi(vsTemp[0]); }
+                catch (invalid_argument& ia) { jf.err("stoi-im.pngToBin"); }
+            }
+        }
+        commGui = sbgui.update(myid, myComm);
+        if (commGui[0][0] == 3)
+        {
+            myComm[0] = 3;
+            makeMapPngToBin(tracks, pathMapDebug);
+            viTemp = tracks[tracks.size() - 1];
+            viTemp.push_back(vBorderPath.size() - 1);
+            temp = jf.stringifyCoord(viTemp);
+            vsTemp = { pathMapDebug, temp };
+            sbgui.set_prompt(vsTemp);
+            sbgui.update(myid, myComm);
+            while (commGui[0][0] == 3)
+            {
+                this_thread::sleep_for(100ms);
+                commGui = sbgui.update(myid, myComm);
+            }
+            myComm[0] = 0;
+            vsTemp = sbgui.get_prompt();
+            if (vsTemp[0].size() > 0)
+            {
+                try { advStop[1] = stoi(vsTemp[0]); }
+                catch (invalid_argument& ia) { jf.err("stoi-im.pngToBin"); }
+                advStop[0] = 0;
+            }
+            sbgui.update(myid, myComm);
+        }
         vBorderPath.push_back(borderFindNext(sbgui, tracks));
         if (vBorderPath[vBorderPath.size() - 1][0] < 0 || vBorderPath[vBorderPath.size() - 1][1] < 0)
         {
             jf.err("vBorderPath error-im.pngToBin");
         }
         sizeVBP++;
+        if (advStop[1] > 0) { advStop[0]++; }
         searchRadiusIncrease = 0;
         rabbitHole = 0;
         if (sizeVBP > 10)
@@ -734,8 +796,12 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
         }
         if (sizeVBP == pathLengthImageDebug)
         {
-            makeMapPngToBin(vBorderPath);
-            int bbq = 1;
+            makeMapPngToBin(vBorderPath, pathMapDebug);
+            vsTemp.resize(2);
+            vsTemp[0] = pathMapDebug;
+            vsTemp[1] = jf.stringifyCoord(vBorderPath[vBorderPath.size() - 1]);
+            sbgui.set_prompt(vsTemp);
+            pngToBinPause(sbgui);
         }
     }
 
@@ -869,6 +935,27 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
     sbgui.update(myid, mycomm);
     long long timer = jf.timerStop();
     jf.logTime("Converted " + prompt[0] + " to BIN coordinates", timer);
+}
+void IMGFUNC::pngToBinPause(SWITCHBOARD& sbgui)
+{
+    int statusGui;
+    thread::id myid = this_thread::get_id();
+    vector<int> myComm = sbgui.getMyComm(myid);
+    myComm[0] = 3;
+    vector<vector<int>> commGui = sbgui.update(myid, myComm);
+    if (commGui[0][0] == 0) { statusGui = 0; }
+    else if (commGui[0][0] == 3) { statusGui = 1; }
+    else { jf.err("commGui-im.pngToBinPause"); }
+
+    while (statusGui < 2)
+    {
+        this_thread::sleep_for(100ms);
+        commGui = sbgui.update(myid, myComm);
+        if (statusGui == 0 && commGui[0][0] == 3) { statusGui = 1; }
+        else if (statusGui == 1 && commGui[0][0] == 0) { statusGui = 2; }
+    }
+    myComm[0] = 0;
+    sbgui.update(myid, myComm);
 }
 bool IMGFUNC::mapIsInit()
 {
@@ -1034,6 +1121,28 @@ void IMGFUNC::setPathLengthImageDebug(int iLen)
     if (iLen > 0) { pathLengthImageDebug = iLen; }
     else { pathLengthImageDebug = defaultPathLengthImageDebug; }
 }
+int IMGFUNC::testBacktrack(vector<vector<int>>& tracks, vector<vector<int>>& candidates)
+{
+    double dist, nearest;
+    double radius = (double)defaultSearchRadius / 2.0;
+    for (int ii = candidates.size() - 1; ii >= 0; ii--)
+    {
+        nearest = 4294967295.0;
+        for (int jj = 0; jj < tracks.size(); jj++)
+        {
+            dist = jf.coordDist(candidates[ii], tracks[jj]);
+            if (dist < nearest)
+            {
+                nearest = dist;
+            }
+        }
+        if (nearest < radius)
+        {
+            candidates.erase(candidates.begin() + ii);
+        }
+    }
+    return candidates.size();
+}
 int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates)
 {
     // Test two candidates for their access to a desired sZone. Attempts to 
@@ -1041,13 +1150,30 @@ int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>&
     if (candidates.size() != 2) { jf.err("Not given two candidates-im.testCandidatesInteriorZone"); }
     vector<double> bearingsInterior(2, -1.0);
     vector<int> widthZone(2);
+    vector<int> radiusNeeded(2, defaultSearchRadius);
     double widthRatio;
     vector<vector<int>> pastPresent(2, vector<int>(2));
     pastPresent[0] = tracks[tracks.size() - 1];
     pastPresent[1] = candidates[0];
-    octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearingsInterior[0], widthZone[0]);
+    octogonBearing(sbgui, pastPresent, sZone, radiusNeeded[0], bearingsInterior[0], widthZone[0]);
     pastPresent[1] = candidates[1];
-    octogonBearing(sbgui, pastPresent, sZone, defaultSearchRadius, bearingsInterior[1], widthZone[1]);
+    octogonBearing(sbgui, pastPresent, sZone, radiusNeeded[1], bearingsInterior[1], widthZone[1]);
+    int radialDiff = abs(radiusNeeded[0] - radiusNeeded[1]);
+    if (radialDiff > defaultZoneRadialDistanceTolerance)
+    {
+        int diverge0 = abs(radiusNeeded[0] - defaultSearchRadius);
+        int diverge1 = abs(radiusNeeded[1] - defaultSearchRadius);
+        if (diverge0 < diverge1)
+        {
+            candidates.erase(candidates.begin() + 1);
+            return 1;
+        }
+        else
+        {
+            candidates.erase(candidates.begin() + 0);
+            return 1;
+        }
+    }
     vector<int> goClock(2, 0);
     if (bearingsInterior[0] >= 0.0 && bearingsInterior[1] < 0.0)
     {
@@ -1115,22 +1241,84 @@ int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>&
     }
     return 2;
 }
+void IMGFUNC::testCenterOfMass(vector<vector<int>>& tracks, vector<vector<int>>& candidates)
+{
+    double dTemp;
+    vector<double> angles(candidates.size());
+    vector<vector<int>> pastPresentFuture(3, vector<int>(2));
+    pastPresentFuture[0] = { width / 2, height / 2 };  // Center of map.
+    pastPresentFuture[1] = tracks[tracks.size() - 1];  // Origin.
+    for (int ii = 0; ii < candidates.size(); ii++)
+    {
+        pastPresentFuture[2] = candidates[ii];
+        dTemp = jf.angleBetweenVectors(pastPresentFuture);
+        angles[ii] = abs(dTemp - 180.0);  // Because the center serves as 'past',
+    }                                     // an angle of 180 degrees is ideal.
+    vector<double> anglesSorted = { angles[0] };
+    for (int ii = 1; ii < angles.size(); ii++)
+    {
+        for (int jj = 0; jj < anglesSorted.size(); jj++)
+        {
+            if (angles[ii] < anglesSorted[jj])
+            {
+                anglesSorted.insert(anglesSorted.begin() + jj, angles[ii]);
+                break;
+            }
+            else if (jj == anglesSorted.size() - 1)
+            {
+                anglesSorted.insert(anglesSorted.end(), angles[ii]);
+            }
+        }
+    }
+    if (anglesSorted[1] - anglesSorted[0] < defaultCenterOfMassTolerance) { return; }
+    
+    vector<int> winner;
+    for (int ii = 0; ii < angles.size(); ii++)
+    {
+        if (angles[ii] == anglesSorted[0])
+        {
+            winner = candidates[ii];
+            break;
+        }
+    }
+    for (int ii = candidates.size() - 1; ii >= 0; ii--)
+    {
+        if (candidates[ii] != winner)
+        {
+            candidates.erase(candidates.begin() + ii);
+        }
+    }
+    int bbq = 1;
+}
+void IMGFUNC::testDistances(vector<vector<int>>& candidates, vector<double>& distances)
+{
+    if (candidates.size() != distances.size()) { jf.err("Size mismatch-im.testDistances"); }
+    double thisTall = (double)defaultSearchRadius / 2.0;
+    for (int ii = distances.size() - 1; ii >= 0; ii--)
+    {
+        if (distances[ii] < thisTall)
+        {
+            candidates.erase(candidates.begin() + ii);
+        }
+    }
+}
 int IMGFUNC::testOverWater(vector<vector<int>>& tracks)
 {
     // Test returns TRUE if it detects a minimum of two water zones, 
     // as well as having a high percentage of water pixels in the ring.
     string sZone = "water";
     unordered_map<string, int> mapIndexCandidate;
-    unordered_map<string, int> mapWidth;
     vector<int> intervalSize;
     vector<vector<int>> octoPath = octogonPath(tracks[tracks.size() - 1], defaultSearchRadius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
-    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, intervalSize, mapWidth);
-    
+    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
+    double percentage; 
     if (lightHouse.size() > 1)
     {
-
+        percentage = zoneSweepPercentage(sZone, octoRGB);
+        if (percentage > defaultWaterPercentage) { return 1; }
     }
+    return 0;
 }
 int IMGFUNC::testTextHumanFeature(vector<vector<unsigned char>>& Lrgb)
 {
@@ -1377,4 +1565,18 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
     vBorder.resize(0);
     return vBorder;
 }
-
+double IMGFUNC::zoneSweepPercentage(string sZone, vector<vector<unsigned char>>& Lrgb)
+{
+    // For a given zone type, return its representation percentage from
+    // a list of RGB pixels.
+    string sZoneTemp;
+    int total = Lrgb.size();
+    int count = 0;
+    for (int ii = 0; ii < total; ii++)
+    {
+        sZoneTemp = pixelZone(Lrgb[ii]);
+        if (sZoneTemp == sZone) { count++; }
+    }
+    double percentage = (double)count / (double)total;
+    return percentage;
+}

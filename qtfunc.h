@@ -2,6 +2,7 @@
 
 #include <QtCore>
 #include <QColumnView>
+#include <QListWidget>
 #include <QListView>
 #include <QTableView>
 #include <QTreeWidget>
@@ -20,6 +21,8 @@ class QTFUNC
 	int diameterDefault = 5;
 	IMGFUNC im;
 	JFUNC jfqf;
+	vector<string> listPathBin;
+	QMap<QString, int> mapListPathBin;
 	QMap<QTreeWidget*, int> map_display_root;
 	QPainter painter;
 	QPen pen;
@@ -30,6 +33,7 @@ class QTFUNC
 public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
+	void displayBinList(QListWidget*& qLW, vector<string>& pathBin);
 	void displayDebug(QLabel*& qlabel, vector<string>& pathPNG);
 	void displayPainterPath(QLabel*& qlabel, QPainterPath& path);
 	void displayText(QLabel*, string stext);
@@ -176,6 +180,7 @@ public:
 	}
 	template<> void displayBin<string>(QLabel*& qlabel, string& pathBIN)
 	{
+		jfqf.timerStart();
 		// Load all coordinates into memory from the bin file.
 		string sfile = jfqf.load(pathBIN);
 		if (sfile.size() < 1) { err("load-qf.displayBin"); }
@@ -243,23 +248,29 @@ public:
 		im.coordShift(border, mapShift, borderShifted);
 
 		// Paint the coordinates onto the GUI window.
-		pmPainting = QPixmap(pmCanvas);
-		QPainter* painter = new QPainter(&pmPainting);
-		QPen pen = QPen(colourDefault, 3.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-		painter->setPen(pen);
+		pmPainterReset(qlabel);
+		pen.setWidth(5);
 		QPainterPath path = pathMake(borderShifted);
-		painter->drawPath(path);
+		painter.drawPath(path);
 		qlabel->setPixmap(pmPainting);
+
+		long long timer = jfqf.timerStop();
+		qDebug() << "Time to displayBin from file: " << timer;
 		int bbq = 1;
+	}
+	template<> void displayBin<QString>(QLabel*& qlabel, QString& qName)
+	{
+		int listIndex = mapListPathBin.value(qName, -1);
+		if (listIndex < 0) { jfqf.err("mapListPathBin-qf.displayBin"); }
+		string pathBIN = listPathBin[listIndex];
+		displayBin(qlabel, pathBIN);
 	}
 	template<> void displayBin<QPainterPath>(QLabel*& qlabel, QPainterPath& painterPathBorder)
 	{
 		// Paint the coordinates onto the GUI window.
-		pmPainting = QPixmap(pmCanvas);
-		QPainter* painter = new QPainter(&pmPainting);
-		QPen pen = QPen(colourDefault, 3.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-		painter->setPen(pen);
-		painter->drawPath(painterPathBorder);
+		pmPainterReset(qlabel);
+		pen.setWidth(5);
+		painter.drawPath(painterPathBorder);
 		qlabel->setPixmap(pmPainting);
 		QCoreApplication::processEvents();
 		int bbq = 1;
