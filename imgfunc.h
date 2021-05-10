@@ -23,7 +23,7 @@ class IMGFUNC
     double defaultCenterOfMassTolerance = 45.0;  // Angular deviation.
     int defaultCharSpace = 1;
     int defaultDotWidth = 5;
-    vector<int> defaultExtractDim = { 400, 400 };
+    vector<int> defaultExtractDim;
     string defaultFont = "Sylfaen";
     int defaultLineWidth = 4;
     int defaultOctogonWidth = 3;
@@ -83,7 +83,7 @@ public:
 	vector<vector<int>> linePath(vector<vector<int>>& startStop);
     vector<vector<int>> linePathToEdge(vector<vector<int>>& startMid);
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
-	bool mapIsInit();
+    bool mapIsInit();
     void octogonCheckBoundary(vector<vector<int>>& octoPath, vector<int>& sourceDim, int pathSpace);
     vector<vector<int>> octogonPath(vector<int> origin, int radius);
     string pixelDecToHex(vector<unsigned char>& rgb);
@@ -96,6 +96,7 @@ public:
     void pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN);
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinPause(SWITCHBOARD& sbgui);
+    void setExtractDim(vector<int> extractDim);
     void setPathLengthImageDebug(int iLen);
     int testBacktrack(vector<vector<int>>& tracks, vector<vector<int>>& candidates);
     void testDistances(vector<vector<int>>& candidates, vector<double>& distances);
@@ -105,6 +106,7 @@ public:
     int testTextHumanFeature(vector<vector<unsigned char>>& Lrgb);
     vector<int> testZoneLength(vector<vector<int>>& pastPresent, vector<vector<int>>& candidates, string sZone);
     int testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate);
+    void thrMakeMapPTB(vector<vector<int>> vBorderPath, string outputPath, vector<unsigned char> source, vector<int> sourceDim);
     vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
     double zoneSweepPercentage(string sZone, vector<vector<unsigned char>>& Lrgb);
 
@@ -492,6 +494,54 @@ public:
         }
     }
 
+    template<typename ... Args> void makeLegendV(vector<unsigned char>& legend, vector<int>& legendDim, vector<string>& listText, Args& ... args)
+    {
+        jf.err("makeLegendV template-im");
+    }
+    template<> void makeLegendV<vector<vector<unsigned char>>>(vector<unsigned char>& legend, vector<int>& legendDim, vector<string>& listText, vector<vector<unsigned char>>& listColour)
+    {
+        int charSpace = defaultCharSpace;
+        int textSeparatorWidth = defaultTextSeparatorWidth;
+        int inum, charWidth, ascii, maxWidth, maxWidthText;
+        vector<int> blockWidth(listText.size(), 0);
+        vector<int> textWidth(listText.size(), 0);
+        maxWidth = -1;
+        maxWidthText = -1;
+        for (int ii = 0; ii < blockWidth.size(); ii++)  // For each block...
+        {
+            blockWidth[ii] += fontHeight;
+            textWidth[ii] += charSpace;
+            for (int jj = 0; jj < listText[ii].size(); jj++)
+            {
+                try { charWidth = mapFontWidth.at(listText[ii][jj]); }
+                catch (out_of_range& oor) { jf.err("mapFontWidth-im.makeText"); }
+                textWidth[ii] += charWidth + charSpace;
+            }
+            blockWidth[ii] += textWidth[ii];
+            if (blockWidth[ii] > maxWidth) { maxWidth = blockWidth[ii]; }
+            if (textWidth[ii] > maxWidthText) { maxWidthText = textWidth[ii]; }
+        }
+
+        inum = listText.size() * fontHeight;
+        legendDim = { maxWidth, inum };
+        legend = pngBlankCanvas(legendDim);
+        vector<int> topLeft, boxDim, pasteTL;
+        topLeft.assign(2, 8);
+        boxDim.assign(2, 16);
+        pasteTL.assign(2, fontHeight);
+        vector<int> pasteDim = { maxWidthText, fontHeight };
+        int thickness = 3;
+        vector<unsigned char> textLine;
+        for (int ii = 0; ii < listText.size(); ii++)
+        {
+            topLeft[1] = 8 + (ii * fontHeight);
+            rectanglePaint(topLeft, boxDim, Black, legend, legendDim, thickness, listColour[ii]);
+            textLine = makeTextLine(listText[ii], maxWidthText);
+            pasteTL[1] = ii * fontHeight;
+            pngPaste(legend, legendDim, textLine, pasteDim, pasteTL);
+        }        
+    }
+
     template<typename ... Args> void makeMapBorderFindNext(vector<vector<int>>& tracks, int radius, vector<vector<int>> candidates, Args& ... args)
     {
         // Debug map maker for the 'borderFindNext' function. 
@@ -507,11 +557,12 @@ public:
         if (tracks.size() < 1) { jf.err("No tracks-im.makeMapBorderFindNext"); }
         if (!mapIsInit()) { initMapColours(); }
         debugDataPNG = dataPNG;
-        string dotLegend;
-        pngTextColourBuffer.clear();
+        vector<string> listText;
+        vector<vector<unsigned char>> listColour;
+
+        // Paint on the full image. 
         if (radius > 0) { octogonPaint(Orange, tracks[tracks.size() - 1], radius); }
         octogonPaint(Gold, tracks[tracks.size() - 1], defaultSearchRadius);
-
         vector<vector<int>> startStop(2, vector<int>());
         for (int ii = 0; ii < tracks.size() - 1; ii++)
         {
@@ -519,29 +570,28 @@ public:
             startStop[1] = tracks[ii + 1];
             linePaint(startStop, Teal);
         }
-
         for (int ii = 0; ii < tracks.size() - 1; ii++)
         {
             dotPaint(tracks[ii], Green);
-            pngAppendText(dotLegend, tracks[ii]);
-            pngTextColourBuffer.push_back(Green);
+            pngAppendText(listText, tracks[ii]);
+            listColour.push_back(Green);
         }
         dotPaint(tracks[tracks.size() - 1], Yellow);
-        pngAppendText(dotLegend, tracks[tracks.size() - 1]);
-        pngTextColourBuffer.push_back(Yellow);
-
+        pngAppendText(listText, tracks[tracks.size() - 1]);
+        listColour.push_back(Yellow);
         for (int ii = 0; ii < candidates.size(); ii++)
         {
             dotPaint(candidates[ii], Red);
-            pngAppendText(dotLegend, candidates[ii]);
-            pngTextColourBuffer.push_back(Red);
+            pngAppendText(listText, candidates[ii]);
+            listColour.push_back(Red);
         }
 
-        vector<int> legendDim = { width, fontHeight };
-        vector<unsigned char> legendImg;
-        makeText(dotLegend, legendImg, legendDim, pngTextColourBuffer);
-
+        // Switch to the cropped image, and add the legend.
         vector<int> sourceDim = { width, height };
+        vector<unsigned char> cropped = pngExtractRect(tracks[tracks.size() - 1], debugDataPNG, sourceDim, defaultExtractDim);
+        vector<unsigned char> legendImg;
+        vector<int> legendDim;
+        makeText(dotLegend, legendImg, legendDim, pngTextColourBuffer);
         vector<int> oldNew = { width, height, width, height + legendDim[1] };
         pngExtend(debugDataPNG, oldNew);
         sourceDim = { oldNew[2], oldNew[3] };
@@ -1450,11 +1500,11 @@ public:
         }
     }
 
-    template<typename ... Args> void pngAppendText(string& text, Args& ... args)
+    template<typename ... Args> void pngAppendText(Args& ... args)
     {
         jf.err("pngAppendText-im");
     }
-    template<> void pngAppendText<vector<int>>(string& text, vector<int>& coord)
+    template<> void pngAppendText<string, vector<int>>(string& text, vector<int>& coord)
     {
         string temp;
         if (text.size() < 1)
@@ -1466,6 +1516,12 @@ public:
             temp = "\n(" + to_string(coord[0]) + ", " + to_string(coord[1]) + ")";
         }
         text.append(temp);
+    }
+    template<> void pngAppendText<vector<string>, vector<int>>(vector<string>& listText, vector<int>& coord)
+    {
+        if (coord.size() < 2) { jf.err("Bad coordinates-im.pngAppendText"); }
+        string temp = "(" + to_string(coord[0]) + "," + to_string(coord[1]) + ")";
+        listText.push_back(temp);
     }
 
     template<typename ... Args> void pngExtend(Args& ... args)

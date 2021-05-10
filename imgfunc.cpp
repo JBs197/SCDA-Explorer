@@ -796,10 +796,14 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
         }
         if (sizeVBP == pathLengthImageDebug)
         {
-            makeMapPngToBin(vBorderPath, pathMapDebug);
+            viTemp = { width, height };
+            std::thread ptb(&IMGFUNC::thrMakeMapPTB, this, vBorderPath, pathMapDebug, dataPNG, viTemp);
+            ptb.detach();
+            viTemp = vBorderPath[vBorderPath.size() - 1];
+            viTemp.push_back(sizeVBP);
             vsTemp.resize(2);
             vsTemp[0] = pathMapDebug;
-            vsTemp[1] = jf.stringifyCoord(vBorderPath[vBorderPath.size() - 1]);
+            vsTemp[1] = jf.stringifyCoord(viTemp);
             sbgui.set_prompt(vsTemp);
             pngToBinPause(sbgui);
         }
@@ -1115,6 +1119,10 @@ vector<vector<int>> IMGFUNC::octogonPath(vector<int> origin, int radius)
         path[index][1] = path[index - 1][1] + dV[1];
     }
     return path;
+}
+void IMGFUNC::setExtractDim(vector<int> extractDim)
+{
+    defaultExtractDim = extractDim;
 }
 void IMGFUNC::setPathLengthImageDebug(int iLen)
 {
@@ -1481,6 +1489,19 @@ int IMGFUNC::testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<u
         candidates.erase(candidates.begin() + indexDeathRow[ii]);
     }
     return (int)candidates.size();
+}
+void IMGFUNC::thrMakeMapPTB(vector<vector<int>> vBorderPath, string outputPath, vector<unsigned char> source, vector<int> sourceDim)
+{
+    // Note that the bands are Red->Yellow->Green->Teal->Blue->Pink
+    int widthDot = 5;        
+    int numDots = vBorderPath.size();
+    string avoidColour = "Blue";
+    vector<vector<unsigned char>> colours = getColourSpectrum(numDots, avoidColour);
+    for (int ii = 0; ii < numDots; ii++)
+    {
+        dotPaint(vBorderPath[ii], colours[ii], source, sourceDim[0], widthDot);
+    }
+    pngPrint(source, sourceDim, outputPath);
 }
 vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec)
 {

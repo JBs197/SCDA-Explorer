@@ -2452,6 +2452,7 @@ void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorde
     bool success, letMeOut;
     int rank, inum;
 
+    im.setExtractDim({ ui->label_maps->width(), ui->label_maps->height() });
     vector<int> windowDim(2);
     size_t pos1 = prompt[0].find(',');
     temp = prompt[0].substr(0, pos1);
