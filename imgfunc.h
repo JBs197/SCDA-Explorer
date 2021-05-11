@@ -15,11 +15,11 @@ class IMGFUNC
 {
 	vector<vector<int>> borderRegion;  // Sequence of coords that represent the region's border.
 	int borderThickness = 6;
-    double candidateDistanceTolerance = 0.4;  // Final two candidates: colour count or distance! 
     int candidateRelativeLengthMin = 50;
     int candidateRelativeWidthMin = 50;
     vector<unsigned char> dataPNG, debugDataPNG;
 	bool debug = 1;
+    double defaultCandidateDistanceTolerance = 0.35;  
     double defaultCenterOfMassTolerance = 45.0;  // Angular deviation.
     int defaultCharSpace = 1;
     int defaultDotWidth = 5;
@@ -47,9 +47,11 @@ class IMGFUNC
     vector<vector<unsigned char>> pngTextColourBuffer;
 	int width, height, numComponents, recordVictor;
     int rabbitHole = 0;
+    const int rabbitHoleDepth = 16;
     int searchRadiusIncrease = 0;
     double stretchFactor;
     int sizeVBP;
+    int textFound = -1;
 
     vector<unsigned char> Black = { 0, 0, 0 };
     vector<unsigned char> Blue = { 0, 0, 255 };
@@ -77,6 +79,7 @@ public:
 	void drawMarker(vector<unsigned char>& img, vector<int>& vCoord);
     vector<vector<double>> frameCorners();
     vector<unsigned char> getColour(string sColour);
+    int getQuadrant(vector<vector<int>>& startStop);
     double getStretchFactor(string& widthHeight);
     void initGlyph(string& filePath, int ascii);
 	void initMapColours();
@@ -313,6 +316,15 @@ public:
         }
     }
 
+    template<typename ... Args> void deadConeText(vector<int>& origin, Args& ... args)
+    {
+        jf.err("deadConeText template-im");
+    }
+    template<> void deadConeText<vector<vector<int>>, vector<int>>(vector<int>& origin, vector<vector<int>>& octoPath, vector<int>& deadStartStop)
+    {
+        
+    }
+
     template<typename ... Args> void deleteColumn(int col, Args& ... args)
     {
         jf.err("deleteColumn template-im");
@@ -498,6 +510,25 @@ public:
         }
     }
 
+    template<typename ... Args> void lineScan(vector<vector<int>>& startStop, Args& ... args)
+    {
+        // NOTE: Image coordinates use a reversed y-axis (positive points down) !
+        //       7
+        //     2 | 3
+        //   6---+---4      <--- Quadrant diagram.
+        //     1 | 0
+        //       5
+        jf.err("lineScan template-im");
+    }
+    template<> void lineScan<vector<unsigned char>, vector<int>>(vector<vector<int>>& startStop, vector<unsigned char>& rgb, vector<int>& coord)
+    {
+        vector<vector<int>> line = linePath(startStop);
+        for (int ii = 0; ii < line.size(); ii++)
+        {
+
+        }
+    }
+
     template<typename ... Args> void makeLegendV(vector<unsigned char>& legend, vector<int>& legendDim, vector<string>& listText, Args& ... args)
     {
         jf.err("makeLegendV template-im");
@@ -628,6 +659,7 @@ public:
     }
     template<> void makeMapOctogonBearing<vector<vector<int>>>(vector<vector<int>>& pastPresentFuture)
     {
+        // pPF has form [past, origin, candidate0, candidate1, ...].
         if (!mapIsInit()) { initMapColours(); }
         debugDataPNG = dataPNG;
         int widthDot = 5;
@@ -635,13 +667,19 @@ public:
         vector<vector<int>> startStop(2, vector<int>());
         startStop[0] = pastPresentFuture[0];
         startStop[1] = pastPresentFuture[1];
-        linePaint(startStop, debugDataPNG, width, Teal, widthLine);
+        linePaint(startStop, Teal, debugDataPNG, width, widthLine);
         startStop[0] = pastPresentFuture[1];
-        startStop[1] = pastPresentFuture[2];
-        linePaint(startStop, debugDataPNG, width, Orange, widthLine);
-        dotPaint(pastPresentFuture[0], debugDataPNG, width, Green, widthDot);
-        dotPaint(pastPresentFuture[1], debugDataPNG, width, Yellow, widthDot);
-        dotPaint(pastPresentFuture[2], debugDataPNG, width, Red, widthDot);
+        for (int ii = 2; ii < pastPresentFuture.size(); ii++)
+        {
+            startStop[1] = pastPresentFuture[ii];
+            linePaint(startStop, Orange, debugDataPNG, width, widthLine);
+        }
+        dotPaint(pastPresentFuture[0], Green, debugDataPNG, width, widthDot);
+        dotPaint(pastPresentFuture[1], Yellow, debugDataPNG, width, widthDot);
+        for (int ii = 2; ii < pastPresentFuture.size(); ii++)
+        {
+            dotPaint(pastPresentFuture[ii], Red, debugDataPNG, width, widthDot);
+        }
         vector<int> sourceDim = { width, height };
         vector<unsigned char> cropped = pngExtractRect(pastPresentFuture[1], debugDataPNG, sourceDim, defaultExtractDim);
         int imgSize = cropped.size();
@@ -651,7 +689,7 @@ public:
         {
             bufferUC[ii] = cropped[ii];
         }
-        string pathImg = sroot + "\\debug\\tempDebug.png";
+        string pathImg = sroot + "\\debug\\OctogonBearingDebug.png";
         int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
     }
@@ -1201,7 +1239,15 @@ public:
             }
 
             // Defeat.
-            jf.err("Defeat-im.octogonBearing");
+            if (pastPresentFuture.size() == 2)
+            {
+                for (int ii = 0; ii < candidates.size(); ii++)
+                {
+                    pastPresentFuture.push_back(candidates[ii]);
+                }
+            }
+            makeMapOctogonBearing(pastPresentFuture);
+            return;
         }
 
         if (numCandidates == 1)
@@ -1490,11 +1536,17 @@ public:
     template<> vector<vector<unsigned char>> octogonRGB<vector<vector<int>>>(vector<vector<int>>& octoPath)
     {
         vector<vector<unsigned char>> octoRGB(octoPath.size(), vector<unsigned char>(3));
+        vector<unsigned char> textColour = { 38, 115, 0 };
+        textFound = -1;
         for (int ii = 0; ii < octoRGB.size(); ii++)
         {
             octoRGB[ii] = pixelRGB(octoPath[ii]);
+            if (octoRGB[ii] == textColour && textFound < 0)
+            {
+                textFound = ii;
+            }
         }
-        removeColourCushion(octoRGB, { 38, 115, 0 }, White, 7);
+        //removeColourCushion(octoRGB, { 38, 115, 0 }, White, 7);
         return octoRGB;
     }
 

@@ -561,7 +561,17 @@
         <x>160</x>
         <y>30</y>
         <width>71</width>
-        <height>421</height>
+        <height>341</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QPlainTextEdit" name="pte_advance">
+      <property name="geometry">
+       <rect>
+        <x>163</x>
+        <y>380</y>
+        <width>71</width>
+        <height>71</height>
        </rect>
       </property>
      </widget>
@@ -680,32 +690,17 @@
      <string>Pause</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pB_adv1">
+   <widget class="QPushButton" name="pB_advance">
     <property name="geometry">
      <rect>
       <x>1110</x>
       <y>530</y>
       <width>21</width>
-      <height>24</height>
+      <height>41</height>
      </rect>
     </property>
     <property name="text">
-     <string>Advance 
- + 1</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pB_adv10">
-    <property name="geometry">
-     <rect>
-      <x>1110</x>
-      <y>550</y>
-      <width>21</width>
-      <height>21</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Advance 
- + 10</string>
+     <string>Advance</string>
     </property>
    </widget>
    <zorder>cB_drives</zorder>
@@ -733,8 +728,7 @@
    <zorder>pB_convert</zorder>
    <zorder>pB_resume</zorder>
    <zorder>pB_pause</zorder>
-   <zorder>pB_adv1</zorder>
-   <zorder>pB_adv10</zorder>
+   <zorder>pB_advance</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

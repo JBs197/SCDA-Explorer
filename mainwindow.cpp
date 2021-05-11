@@ -90,10 +90,11 @@ void MainWindow::initialize()
     ui->pB_resume->setVisible(0);
     ui->pB_pause->setGeometry(1100, 395, 81, 41);
     ui->pB_pause->setVisible(0);
-    ui->pB_adv1->setGeometry(1100, 441, 81, 41);
-    ui->pB_adv1->setVisible(0);
-    ui->pB_adv10->setGeometry(1190, 441, 81, 41);
-    ui->pB_adv10->setVisible(0);
+    ui->pB_advance->setGeometry(1100, 441, 81, 41);
+    ui->pB_advance->setVisible(0);
+    ui->pte_advance->setGeometry(820, 405, 78, 41);
+    ui->pte_advance->setPlainText("1");
+    ui->pte_advance->setVisible(0);
     ui->pB_usc->setVisible(0);
     ui->pB_download->setVisible(0);
     ui->pB_download->setEnabled(0);
@@ -319,8 +320,8 @@ void MainWindow::update_mode()
         ui->listW_bindone->setVisible(0);
         ui->pB_resume->setVisible(0);
         ui->pB_pause->setVisible(0);
-        ui->pB_adv1->setVisible(0);
-        ui->pB_adv10->setVisible(0);
+        ui->pB_advance->setVisible(0);
+        ui->pte_advance->setVisible(0);
         ui->pB_usc->setVisible(0);
         ui->pte_webinput->setVisible(0);
         ui->pte_localinput->setVisible(1);
@@ -345,10 +346,9 @@ void MainWindow::update_mode()
         ui->pB_resume->setEnabled(0);
         ui->pB_pause->setVisible(1);
         ui->pB_pause->setEnabled(0);
-        ui->pB_adv1->setVisible(1);
-        ui->pB_adv10->setVisible(1);
-        ui->pB_adv1->setEnabled(0);
-        ui->pB_adv10->setEnabled(0);
+        ui->pB_advance->setVisible(1);
+        ui->pte_advance->setVisible(1);
+        ui->pB_advance->setEnabled(0);
         ui->pB_usc->setVisible(1);
         ui->pte_webinput->setVisible(1);
         ui->pte_localinput->setVisible(0);
@@ -2255,8 +2255,7 @@ void MainWindow::on_pB_convert_clicked()
                 }
                 ui->pB_resume->setEnabled(1);
                 ui->pB_pause->setEnabled(0);
-                ui->pB_adv1->setEnabled(1);
-                ui->pB_adv10->setEnabled(1);
+                ui->pB_advance->setEnabled(1);
                 remote_controller = 3;
                 comm[0][0] = 3;
                 while (1)
@@ -2339,8 +2338,7 @@ void MainWindow::on_pB_convert_clicked()
                 }
                 ui->pB_resume->setEnabled(1);
                 ui->pB_pause->setEnabled(0);
-                ui->pB_adv1->setEnabled(1);
-                ui->pB_adv10->setEnabled(1);
+                ui->pB_advance->setEnabled(1);
                 remote_controller = 3;
                 comm[0][0] = 3;
                 while (1)
@@ -2397,8 +2395,7 @@ void MainWindow::on_pB_convert_clicked()
                 }
                 ui->pB_resume->setEnabled(1);
                 ui->pB_pause->setEnabled(0);
-                ui->pB_adv1->setEnabled(1);
-                ui->pB_adv10->setEnabled(1);
+                ui->pB_advance->setEnabled(1);
                 remote_controller = 3;
                 while (1)
                 {
@@ -2539,21 +2536,34 @@ void MainWindow::on_pB_pause_clicked()
     remote_controller = 3;
     ui->pB_pause->setEnabled(0);
 }
-void MainWindow::on_pB_adv1_clicked()
+void MainWindow::on_pB_advance_clicked()
 {
-    advBuffer = 1;
+    QString qtemp = ui->pte_advance->toPlainText();
+    string temp = qtemp.toStdString();
+    vector<string> dirt = { " " };
+    jf.clean(temp, dirt);
+    int inum;
+    if (temp == "")
+    {
+        advBuffer = 1;
+        ui->pte_advance->setPlainText("1");
+    }
+    else
+    {
+        try 
+        {
+            inum = stoi(temp); 
+            advBuffer = abs(inum);
+        }
+        catch (invalid_argument& ia)
+        {
+            ui->pte_advance->setPlainText("Error");
+            return;
+        }
+    }
     remote_controller = 1;
     ui->pB_resume->setEnabled(0);
-    ui->pB_adv1->setEnabled(0);
-    ui->pB_adv10->setEnabled(0);
-}
-void MainWindow::on_pB_adv10_clicked()
-{
-    advBuffer = 10;
-    remote_controller = 1;
-    ui->pB_resume->setEnabled(0);
-    ui->pB_adv1->setEnabled(0);
-    ui->pB_adv10->setEnabled(0);
+    ui->pB_advance->setEnabled(0);
 }
 
 
@@ -2851,22 +2861,22 @@ void MainWindow::on_tabW_online_currentChanged(int index)
         ui->pB_download->setEnabled(0);
         ui->pB_resume->setVisible(0);
         ui->pB_pause->setVisible(0);
-        ui->pB_adv1->setVisible(0);
-        ui->pB_adv10->setVisible(0);
+        ui->pB_advance->setVisible(0);
+        ui->pte_advance->setVisible(0);
         break;
     case 1:
         ui->pB_download->setEnabled(1);
         ui->pB_resume->setVisible(0);
         ui->pB_pause->setVisible(0);
-        ui->pB_adv1->setVisible(0);
-        ui->pB_adv10->setVisible(0);
+        ui->pB_advance->setVisible(0);
+        ui->pte_advance->setVisible(0);
         break;
     case 2:
         ui->pB_download->setEnabled(0);
         ui->pB_resume->setVisible(1);
         ui->pB_pause->setVisible(1);
-        ui->pB_adv1->setVisible(1);
-        ui->pB_adv10->setVisible(1);
+        ui->pB_advance->setVisible(1);
+        ui->pte_advance->setVisible(1);
         break;
     }
 }

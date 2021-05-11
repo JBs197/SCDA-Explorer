@@ -75,8 +75,7 @@ private slots:
     void on_pB_convert_clicked();
     void on_pB_resume_clicked();
     void on_pB_pause_clicked();
-    void on_pB_adv1_clicked();
-    void on_pB_adv10_clicked();
+    void on_pB_advance_clicked();
     void on_listW_bindone_itemSelectionChanged();
 
 private:

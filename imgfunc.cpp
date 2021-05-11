@@ -75,6 +75,7 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     }
 
     // Test for greater distance from previous border point. 
+    double candidateDistanceTolerance = defaultCandidateDistanceTolerance * (1.0 - ((0.5 * rabbitHole) / (rabbitHoleDepth - 1)));
     if (distances[0] > distances[1])
     {
         dTemp = (distances[0] - distances[1]) / distances[0];
@@ -95,7 +96,7 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
 
     // Try again, larger radius.
     rabbitHole++;
-    if (rabbitHole > 0 && rabbitHole < 16)
+    if (rabbitHole > 0 && rabbitHole < rabbitHoleDepth)
     {
         searchRadiusIncrease += 2;
         return borderFindNext(sbgui, tracks);
@@ -285,7 +286,7 @@ double IMGFUNC::clockwisePercentage(SWITCHBOARD& sbgui, vector<vector<int>>& tra
         pastPresent[1] = tracks[ii + 1];
         radius = defaultSearchRadius;
         octogonBearing(sbgui, pastPresent, sZone, radius, bearings[ii], widthZone[ii]);
-        if (bearings[ii] >= 0.0 && bearings[0] < 180.0) { numClockwise++; }
+        if (bearings[ii] >= 0.0 && bearings[ii] < 180.0) { numClockwise++; }
     }
     double percent = (double)numClockwise / ((double)tracks.size() - 1.0);
     return percent;
@@ -412,6 +413,36 @@ vector<unsigned char> IMGFUNC::getColour(string sColour)
     else if (sColour == "Yellow") { return Yellow; }
     vector<unsigned char> failure;
     return failure;
+}
+int IMGFUNC::getQuadrant(vector<vector<int>>& startStop)
+{
+    // NOTE: Image coordinates use a reversed y-axis (positive points down) !
+    //       7
+    //     2 | 3
+    //   6---+---4      <--- Quadrant diagram.
+    //     1 | 0
+    //       5
+    int Dx = startStop[1][0] - startStop[0][0];
+    int Dy = startStop[1][1] - startStop[0][1];
+    if (Dx > 0)
+    {
+        if (Dy > 0) { return 0; }
+        else if (Dy < 0) { return 3; }
+        else { return 4; }
+    }
+    else if (Dx < 0)
+    {
+        if (Dy > 0) { return 1; }
+        else if (Dy < 0) { return 2; }
+        else { return 6; }
+    }
+    else
+    {
+        if (Dy > 0) { return 5; }
+        else if (Dy < 0) { return 7; }
+        else { jf.err("startStop identical-im.getQuadrant"); }
+    }
+    return -1;
 }
 double IMGFUNC::getStretchFactor(string& widthHeight)
 {
@@ -1286,16 +1317,17 @@ void IMGFUNC::testCenterOfMass(vector<vector<int>>& tracks, vector<vector<int>>&
         angles[ii] = abs(dTemp - 180.0);  // Because the center serves as 'past',
     }                                     // an angle of 180 degrees is ideal.
     vector<double> anglesSorted = { angles[0] };
+    int inum = anglesSorted.size();
     for (int ii = 1; ii < angles.size(); ii++)
     {
-        for (int jj = 0; jj < anglesSorted.size(); jj++)
+        for (int jj = 0; jj < inum; jj++)
         {
             if (angles[ii] < anglesSorted[jj])
             {
                 anglesSorted.insert(anglesSorted.begin() + jj, angles[ii]);
                 break;
             }
-            else if (jj == anglesSorted.size() - 1)
+            else if (jj == inum - 1)
             {
                 anglesSorted.insert(anglesSorted.end(), angles[ii]);
             }
