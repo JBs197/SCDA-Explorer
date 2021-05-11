@@ -36,18 +36,20 @@ class IMGFUNC
     int deltaRadius = 0;
     vector<vector<unsigned char>> font;  // Index is ascii minus 32.
     int fontHeight = 32;  // Pixels.
-    string pathActivePNG;
 	JFUNC jf;
     vector<unsigned char> legendColourBox;
 	unordered_map<string, string> mapColour;
     unordered_map<int, int> mapFontWidth;  // Input ascii, output glyph width (pixels).  
-    int pathLengthImageDebug;
+    string pathActivePNG;
+    string pathMapDebug;
+    int pauseVBP;
     vector<int> pointOfOrigin, revisedExtractDim;
     vector<vector<unsigned char>> pngTextColourBuffer;
 	int width, height, numComponents, recordVictor;
     int rabbitHole = 0;
     int searchRadiusIncrease = 0;
     double stretchFactor;
+    int sizeVBP;
 
     vector<unsigned char> Black = { 0, 0, 0 };
     vector<unsigned char> Blue = { 0, 0, 255 };
@@ -86,6 +88,7 @@ public:
     bool mapIsInit();
     void octogonCheckBoundary(vector<vector<int>>& octoPath, vector<int>& sourceDim, int pathSpace);
     vector<vector<int>> octogonPath(vector<int> origin, int radius);
+    void pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int radius, vector<vector<int>>& candidates);
     string pixelDecToHex(vector<unsigned char>& rgb);
 	void pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsigned char> rgb, vector<int> coord);
 	vector<unsigned char> pixelRGB(vector<int>& coord);
@@ -96,8 +99,9 @@ public:
     void pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN);
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinPause(SWITCHBOARD& sbgui);
+    void removeColourCushion(vector<vector<unsigned char>>& Lrgb, vector<unsigned char> colourCore, vector<unsigned char> colourCushion, int length);
     void setExtractDim(vector<int> extractDim);
-    void setPathLengthImageDebug(int iLen);
+    void setPauseVBP(int iLen);
     int testBacktrack(vector<vector<int>>& tracks, vector<vector<int>>& candidates);
     void testDistances(vector<vector<int>>& candidates, vector<double>& distances);
     int testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates);
@@ -588,24 +592,29 @@ public:
 
         // Switch to the cropped image, and add the legend.
         vector<int> sourceDim = { width, height };
-        vector<unsigned char> cropped = pngExtractRect(tracks[tracks.size() - 1], debugDataPNG, sourceDim, defaultExtractDim);
+        int smallDim = min(defaultExtractDim[0], defaultExtractDim[1]);
+        int largeDim = max(defaultExtractDim[0], defaultExtractDim[1]);
+        vector<int> croppedDim = { smallDim, smallDim };
+        vector<unsigned char> cropped = pngExtractRect(tracks[tracks.size() - 1], debugDataPNG, sourceDim, croppedDim);
         vector<unsigned char> legendImg;
         vector<int> legendDim;
-        makeText(dotLegend, legendImg, legendDim, pngTextColourBuffer);
-        vector<int> oldNew = { width, height, width, height + legendDim[1] };
-        pngExtend(debugDataPNG, oldNew);
-        sourceDim = { oldNew[2], oldNew[3] };
-        vector<int> coordPaste = { 0, height };
-        pngPaste(debugDataPNG, sourceDim, legendImg, legendDim, coordPaste);
+        makeLegendV(legendImg, legendDim, listText, listColour);
+        int xDim = min(smallDim + legendDim[0], largeDim);
+        vector<int> oldNew = { croppedDim[0], croppedDim[1], xDim, croppedDim[1] };
+        pngExtend(cropped, oldNew);
+        croppedDim = { oldNew[2], oldNew[3] };
+        vector<int> coordPaste = { croppedDim[0] - legendDim[0], 0 };
+        pngPaste(cropped, croppedDim, legendImg, legendDim, coordPaste);
 
-        int imgSize = debugDataPNG.size();
+        // Print to file.
+        int imgSize = cropped.size();
         int channels = 3;
         auto bufferUC = new unsigned char[imgSize];
         for (int ii = 0; ii < imgSize; ii++)
         {
-            bufferUC[ii] = debugDataPNG[ii];
+            bufferUC[ii] = cropped[ii];
         }
-        int error = stbi_write_png(pathImg.c_str(), oldNew[2], oldNew[3], channels, bufferUC, 0);
+        int error = stbi_write_png(pathImg.c_str(), croppedDim[0], croppedDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
     }
 
@@ -1471,6 +1480,7 @@ public:
         vvTemp = lineRGB(vVictor, radius / 2);
         octoRGB.insert(octoRGB.end(), vvTemp.begin(), vvTemp.end());
 
+        removeColourCushion(octoRGB, { 38, 115, 0 }, White, 7);
         if (octoRGB[0] != octoRGB[octoRGB.size() - 1])
         {
             jf.err("first-last RGB mismatch-im.scanOctogon");
@@ -1484,6 +1494,7 @@ public:
         {
             octoRGB[ii] = pixelRGB(octoPath[ii]);
         }
+        removeColourCushion(octoRGB, { 38, 115, 0 }, White, 7);
         return octoRGB;
     }
 

@@ -43,8 +43,6 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         testBacktrack(tracks, candidates);
         numIncreases++;
     }
-    if (candidates.size() == 1) { return candidates[0]; }
-
     while (candidates.size() > 2)
     {
         minDistance = distances[0];
@@ -60,6 +58,9 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         candidates.erase(candidates.begin() + elimIndex);
         distances.erase(distances.begin() + elimIndex);
     }
+
+    pauseMapDebug(sbgui, tracks, radius, candidates);
+    if (candidates.size() == 1) { return candidates[0]; }
 
     // There can only be two candidates remaining.  
     
@@ -634,333 +635,6 @@ vector<vector<unsigned char>> IMGFUNC::lineRGB(vector<vector<int>>& vVictor, int
     vVictor[0][1] = viTemp[1];
     return Lrgb;
 }
-string IMGFUNC::pixelDecToHex(vector<unsigned char>& rgb)
-{
-    string shex, temp;
-    for (int ii = 0; ii < rgb.size(); ii++)
-    {
-        temp = jf.decToHex(rgb[ii]);
-        shex += temp;
-    }
-    return shex;
-}
-void IMGFUNC::pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsigned char> rgb, vector<int> coord)
-{
-    if (coord[0] < 0 || coord[1] < 0 || coord[0] >= widthImg) { return; }
-    int offset = getOffset(coord, widthImg);
-    if (offset + 2 >= img.size()) { return; }
-    img[offset + 0] = rgb[0];
-    img[offset + 1] = rgb[1];
-    img[offset + 2] = rgb[2];
-}
-vector<unsigned char> IMGFUNC::pixelRGB(vector<int>& coord)
-{
-	if (dataPNG.size() < 1) { jf.err("No loaded image-im.pixelRGB"); } 
-	if (coord[0] < 0 || coord[0] >= width) { jf.err("xCoord out of bounds-im.pixelRGB"); }
-    if (coord[1] < 0 || coord[1] >= height) { jf.err("yCoord out of bounds-im.pixelRGB"); }
-    vector<unsigned char> rgb(3);
-    int offset = getOffset(coord);
-	rgb[0] = dataPNG[offset + 0];
-	rgb[1] = dataPNG[offset + 1];
-	rgb[2] = dataPNG[offset + 2];
-	return rgb;
-}
-string IMGFUNC::pixelZone(vector<unsigned char>& rgb)
-{
-    string szone;
-    string shex = pixelDecToHex(rgb);
-    try { szone = mapColour.at(shex); }
-    catch (out_of_range& oor) { szone = "unknown"; }
-    return szone;
-}
-vector<unsigned char> IMGFUNC::pngBlankCanvas(vector<int>& dim)
-{
-    int size = dim[0] * dim[1] * 3;
-    vector<unsigned char> canvas(size, 255);
-    return canvas;
-}
-vector<unsigned char> IMGFUNC::pngExtractRow(int row, vector<unsigned char>& img, vector<int>& sourceDim)
-{
-    if (row >= sourceDim[1] || row < 0) { jf.err("Row outside boundaries-im.pngExtractRow"); }
-    vector<unsigned char> vRow(3 * sourceDim[0]);
-    vector<int> viTemp(2, 0);
-    viTemp[1] = row;
-    int offset = getOffset(viTemp, sourceDim[0]);
-    for (int ii = 0; ii < vRow.size(); ii++)
-    {
-        vRow[ii] = img[offset + ii];
-    }
-    return vRow;
-}
-void IMGFUNC::pngLoad(string& pathPNG)
-{
-	unsigned char* dataTemp = stbi_load(pathPNG.c_str(), &width, &height, &numComponents, 0);
-	int sizeTemp = width * height * numComponents;
-	dataPNG.resize(sizeTemp);
-	copy(dataTemp, dataTemp + sizeTemp, dataPNG.begin());
-    pathActivePNG = pathPNG;
-
-    int bbq = 0;
-}
-void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
-{
-    // Returns the border path generated, for easy display/human review.
-    if (!mapIsInit()) { initMapColours(); }
-    pngLoad(pathPNG);
-    string temp;
-    string pathMapDebug = sroot + "\\debug\\pngToBin Debug.png";
-    vector<string> vsTemp;
-    vector<int> viTemp;
-    vector<vector<double>> corners = frameCorners();
-    vector<vector<int>> vBorderPath(1, vector<int>());
-    vBorderPath[0] = borderFindStart();
-    vector<vector<int>> tracks, commGui;
-    thread::id myid = this_thread::get_id();
-    vector<int> myComm = sbgui.getMyComm(myid);
-    vector<int> advStop = { 0, -1 };
-    int sizeVBP = 1;
-    while (1)
-    {
-        if (sizeVBP > 6)
-        {
-            tracks[0] = tracks[1];
-            tracks[1] = tracks[2];
-            tracks[2] = tracks[3];
-            tracks[3] = tracks[4];
-            tracks[4] = tracks[5];
-            tracks[5] = vBorderPath[vBorderPath.size() - 1];
-        }
-        else
-        {
-            tracks = vBorderPath;
-        }
-        if (advStop[0] == advStop[1])
-        {
-            advStop = { 0, -1 };
-            makeMapPngToBin(tracks, pathMapDebug);
-            viTemp = tracks[tracks.size() - 1];
-            viTemp.push_back(vBorderPath.size() - 1);
-            temp = jf.stringifyCoord(viTemp);
-            vsTemp = { pathMapDebug, temp };
-            sbgui.set_prompt(vsTemp);
-            pngToBinPause(sbgui);  // Will wait here until gui signals 'resume'.
-            vsTemp = sbgui.get_prompt();
-            if (vsTemp[0].size() > 0)
-            {
-                try { advStop[1] = stoi(vsTemp[0]); }
-                catch (invalid_argument& ia) { jf.err("stoi-im.pngToBin"); }
-            }
-        }
-        commGui = sbgui.update(myid, myComm);
-        if (commGui[0][0] == 3)
-        {
-            myComm[0] = 3;
-            makeMapPngToBin(tracks, pathMapDebug);
-            viTemp = tracks[tracks.size() - 1];
-            viTemp.push_back(vBorderPath.size() - 1);
-            temp = jf.stringifyCoord(viTemp);
-            vsTemp = { pathMapDebug, temp };
-            sbgui.set_prompt(vsTemp);
-            sbgui.update(myid, myComm);
-            while (commGui[0][0] == 3)
-            {
-                this_thread::sleep_for(100ms);
-                commGui = sbgui.update(myid, myComm);
-            }
-            myComm[0] = 0;
-            vsTemp = sbgui.get_prompt();
-            if (vsTemp[0].size() > 0)
-            {
-                try { advStop[1] = stoi(vsTemp[0]); }
-                catch (invalid_argument& ia) { jf.err("stoi-im.pngToBin"); }
-                advStop[0] = 0;
-            }
-            sbgui.update(myid, myComm);
-        }
-        vBorderPath.push_back(borderFindNext(sbgui, tracks));
-        if (vBorderPath[vBorderPath.size() - 1][0] < 0 || vBorderPath[vBorderPath.size() - 1][1] < 0)
-        {
-            jf.err("vBorderPath error-im.pngToBin");
-        }
-        sizeVBP++;
-        if (advStop[1] > 0) { advStop[0]++; }
-        searchRadiusIncrease = 0;
-        rabbitHole = 0;
-        if (sizeVBP > 10)
-        {
-            if (jobsDone(vBorderPath[vBorderPath.size() - 1])) 
-            {
-                vBorderPath.push_back(vBorderPath[0]);
-                break; 
-            }
-        }
-        if (sizeVBP == pathLengthImageDebug)
-        {
-            viTemp = { width, height };
-            std::thread ptb(&IMGFUNC::thrMakeMapPTB, this, vBorderPath, pathMapDebug, dataPNG, viTemp);
-            ptb.detach();
-            viTemp = vBorderPath[vBorderPath.size() - 1];
-            viTemp.push_back(sizeVBP);
-            vsTemp.resize(2);
-            vsTemp[0] = pathMapDebug;
-            vsTemp[1] = jf.stringifyCoord(viTemp);
-            sbgui.set_prompt(vsTemp);
-            pngToBinPause(sbgui);
-        }
-    }
-
-    ofstream sPrinter(pathBIN.c_str(), ios::trunc);
-    auto report = sPrinter.rdstate();
-    sPrinter << "//frame" << endl;
-    for (int ii = 0; ii < corners.size(); ii++)
-    {
-        sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
-    }
-    sPrinter << endl;
-
-    sPrinter << "//border" << endl;
-    for (int ii = 0; ii < vBorderPath.size(); ii++)
-    {
-        sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
-    }
-    sPrinter.close();
-}
-void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
-{
-    jf.timerStart();
-    vector<int> mycomm;
-    vector<vector<int>> comm_gui;
-    thread::id myid = this_thread::get_id();
-    sbgui.answer_call(myid, mycomm);
-    vector<string> prompt = sbgui.get_prompt();
-    bool success, frameDone;
-
-    if (!mapIsInit()) { initMapColours(); }
-    pngLoad(prompt[0]);
-    vector<vector<double>> corners = frameCorners();
-    size_t pos1 = prompt[2].find(',');
-    string temp = prompt[2].substr(0, pos1);
-    string temp2 = prompt[2].substr(pos1 + 1);
-    double widthLabel, heightLabel;
-    try
-    {
-        widthLabel = stod(temp);
-        heightLabel = stod(temp2);
-    }
-    catch (invalid_argument& ia) { jf.err("stod-im.pngToBinLive"); }
-    double widthDemSup = (double)width / widthLabel;
-    double heightDemSup = (double)height / heightLabel;
-    if (widthDemSup > heightDemSup)
-    {
-        stretchFactor = 1.0 / widthDemSup;
-    }
-    else
-    {
-        stretchFactor = 1.0 / heightDemSup;
-    }
-    success = sbgui.push(myid);
-    if (success)
-    {
-        border = corners;
-        border.push_back({ stretchFactor });
-        success = sbgui.done(myid);
-        if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
-        frameDone = 0;
-        mycomm[1] = 1;
-        sbgui.update(myid, mycomm);
-    }
-
-    vector<vector<int>> vBorderPath(1, vector<int>());
-    vBorderPath[0] = borderFindStart();
-    vector<vector<int>> tracks;
-    int sizeVBP = 1;
-    while (1)
-    {
-        if (sizeVBP > 6)
-        {
-            tracks[0] = tracks[1];
-            tracks[1] = tracks[2];
-            tracks[2] = tracks[3];
-            tracks[3] = tracks[4];
-            tracks[4] = tracks[5];
-            tracks[5] = vBorderPath[vBorderPath.size() - 1];
-        }
-        else
-        {
-            tracks = vBorderPath;
-        }
-        vBorderPath.push_back(borderFindNext(sbgui, tracks));
-        if (vBorderPath[vBorderPath.size() - 1][0] < 0 || vBorderPath[vBorderPath.size() - 1][1] < 0)
-        {
-            jf.err("vBorderPath error-im.pngToBinLive");
-        }
-        sizeVBP++;
-        searchRadiusIncrease = 0;
-        rabbitHole = 0;
-        success = sbgui.push(myid);
-        if (success)
-        {
-            if (frameDone)
-            {
-                jf.toDouble(vBorderPath, border);
-                success = sbgui.done(myid);
-                if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
-            }
-            else if (border.size() == 0)
-            {
-                frameDone = 1;
-                jf.toDouble(vBorderPath, border);
-                success = sbgui.done(myid);
-                if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
-            }
-        }
-        if (sizeVBP > 10)
-        {
-            if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
-        }
-    }
-
-    ofstream sPrinter(prompt[1].c_str(), ios::trunc);
-    auto report = sPrinter.rdstate();
-    sPrinter << "//frame" << endl;
-    for (int ii = 0; ii < corners.size(); ii++)
-    {
-        sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
-    }
-    sPrinter << endl;
-
-    sPrinter << "//border" << endl;
-    for (int ii = 0; ii < vBorderPath.size(); ii++)
-    {
-        sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
-    }
-
-    mycomm[0] = 1;
-    sbgui.update(myid, mycomm);
-    long long timer = jf.timerStop();
-    jf.logTime("Converted " + prompt[0] + " to BIN coordinates", timer);
-}
-void IMGFUNC::pngToBinPause(SWITCHBOARD& sbgui)
-{
-    int statusGui;
-    thread::id myid = this_thread::get_id();
-    vector<int> myComm = sbgui.getMyComm(myid);
-    myComm[0] = 3;
-    vector<vector<int>> commGui = sbgui.update(myid, myComm);
-    if (commGui[0][0] == 0) { statusGui = 0; }
-    else if (commGui[0][0] == 3) { statusGui = 1; }
-    else { jf.err("commGui-im.pngToBinPause"); }
-
-    while (statusGui < 2)
-    {
-        this_thread::sleep_for(100ms);
-        commGui = sbgui.update(myid, myComm);
-        if (statusGui == 0 && commGui[0][0] == 3) { statusGui = 1; }
-        else if (statusGui == 1 && commGui[0][0] == 0) { statusGui = 2; }
-    }
-    myComm[0] = 0;
-    sbgui.update(myid, myComm);
-}
 bool IMGFUNC::mapIsInit()
 {
     size_t size = mapColour.size();
@@ -1120,14 +794,363 @@ vector<vector<int>> IMGFUNC::octogonPath(vector<int> origin, int radius)
     }
     return path;
 }
+void IMGFUNC::pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int radius, vector<vector<int>>& candidates)
+{
+    if (pathMapDebug.size() > 0)
+    {  // RESUME HERE. Fix octoRGB skimming letters.
+        vector<string> vsTemp = { pathMapDebug, to_string(sizeVBP) };
+        makeMapBorderFindNext(tracks, radius, candidates, vsTemp[0]);
+        sbgui.set_prompt(vsTemp);
+        pngToBinPause(sbgui);
+        vsTemp = sbgui.get_prompt();
+        if (vsTemp[0].size() > 0)
+        {
+            int inum;
+            try { inum = stoi(vsTemp[0]); }
+            catch (invalid_argument& ia) { jf.err("stoi-im.pauseMapDebug"); }
+            pauseVBP = sizeVBP + inum;
+            vsTemp = { "" };
+            sbgui.set_prompt(vsTemp);
+        }
+        else { pauseVBP = -1; }
+    }
+    pathMapDebug.clear();
+}
+string IMGFUNC::pixelDecToHex(vector<unsigned char>& rgb)
+{
+    string shex, temp;
+    for (int ii = 0; ii < rgb.size(); ii++)
+    {
+        temp = jf.decToHex(rgb[ii]);
+        shex += temp;
+    }
+    return shex;
+}
+void IMGFUNC::pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsigned char> rgb, vector<int> coord)
+{
+    if (coord[0] < 0 || coord[1] < 0 || coord[0] >= widthImg) { return; }
+    int offset = getOffset(coord, widthImg);
+    if (offset + 2 >= img.size()) { return; }
+    img[offset + 0] = rgb[0];
+    img[offset + 1] = rgb[1];
+    img[offset + 2] = rgb[2];
+}
+vector<unsigned char> IMGFUNC::pixelRGB(vector<int>& coord)
+{
+	if (dataPNG.size() < 1) { jf.err("No loaded image-im.pixelRGB"); } 
+	if (coord[0] < 0 || coord[0] >= width) { jf.err("xCoord out of bounds-im.pixelRGB"); }
+    if (coord[1] < 0 || coord[1] >= height) { jf.err("yCoord out of bounds-im.pixelRGB"); }
+    vector<unsigned char> rgb(3);
+    int offset = getOffset(coord);
+	rgb[0] = dataPNG[offset + 0];
+	rgb[1] = dataPNG[offset + 1];
+	rgb[2] = dataPNG[offset + 2];
+	return rgb;
+}
+string IMGFUNC::pixelZone(vector<unsigned char>& rgb)
+{
+    string szone;
+    string shex = pixelDecToHex(rgb);
+    try { szone = mapColour.at(shex); }
+    catch (out_of_range& oor) { szone = "unknown"; }
+    return szone;
+}
+vector<unsigned char> IMGFUNC::pngBlankCanvas(vector<int>& dim)
+{
+    int size = dim[0] * dim[1] * 3;
+    vector<unsigned char> canvas(size, 255);
+    return canvas;
+}
+vector<unsigned char> IMGFUNC::pngExtractRow(int row, vector<unsigned char>& img, vector<int>& sourceDim)
+{
+    if (row >= sourceDim[1] || row < 0) { jf.err("Row outside boundaries-im.pngExtractRow"); }
+    vector<unsigned char> vRow(3 * sourceDim[0]);
+    vector<int> viTemp(2, 0);
+    viTemp[1] = row;
+    int offset = getOffset(viTemp, sourceDim[0]);
+    for (int ii = 0; ii < vRow.size(); ii++)
+    {
+        vRow[ii] = img[offset + ii];
+    }
+    return vRow;
+}
+void IMGFUNC::pngLoad(string& pathPNG)
+{
+	unsigned char* dataTemp = stbi_load(pathPNG.c_str(), &width, &height, &numComponents, 0);
+	int sizeTemp = width * height * numComponents;
+	dataPNG.resize(sizeTemp);
+	copy(dataTemp, dataTemp + sizeTemp, dataPNG.begin());
+    pathActivePNG = pathPNG;
+
+    int bbq = 0;
+}
+void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
+{
+    // Returns the border path generated, for easy display/human review.
+    if (!mapIsInit()) { initMapColours(); }
+    pngLoad(pathPNG);
+    string temp;
+    string pathMapPTB = sroot + "\\debug\\PTB.png";
+    string pathMapPTBdebug = sroot + "\\debug\\PTBdebug.png";
+    vector<string> vsTemp;
+    vector<int> viTemp;
+    vector<vector<double>> corners = frameCorners();
+    vector<vector<int>> vBorderPath(1, vector<int>());
+    vBorderPath[0] = borderFindStart();
+    vector<vector<int>> tracks, commGui;
+    thread::id myid = this_thread::get_id();
+    vector<int> myComm = sbgui.getMyComm(myid);
+    sizeVBP = 1;
+    while (1)
+    {
+        if (sizeVBP > 6)
+        {
+            tracks[0] = tracks[1];
+            tracks[1] = tracks[2];
+            tracks[2] = tracks[3];
+            tracks[3] = tracks[4];
+            tracks[4] = tracks[5];
+            tracks[5] = vBorderPath[vBorderPath.size() - 1];
+        }
+        else
+        {
+            tracks = vBorderPath;
+        }
+        commGui = sbgui.update(myid, myComm);
+        if (commGui[0][0] == 3)
+        {
+            viTemp = { width, height };
+            std::thread ptb(&IMGFUNC::thrMakeMapPTB, this, vBorderPath, pathMapPTB, dataPNG, viTemp);
+            ptb.detach();
+            pathMapDebug = pathMapPTBdebug;
+        }
+        vBorderPath.push_back(borderFindNext(sbgui, tracks));
+        if (vBorderPath[vBorderPath.size() - 1][0] < 0 || vBorderPath[vBorderPath.size() - 1][1] < 0)
+        {
+            jf.err("vBorderPath error-im.pngToBin");
+        }
+        sizeVBP++;
+        searchRadiusIncrease = 0;
+        rabbitHole = 0;
+        if (sizeVBP > 10)
+        {
+            if (jobsDone(vBorderPath[vBorderPath.size() - 1])) 
+            {
+                vBorderPath.push_back(vBorderPath[0]);
+                break; 
+            }
+        }
+        if (sizeVBP == pauseVBP)
+        {
+            viTemp = { width, height };
+            std::thread ptb(&IMGFUNC::thrMakeMapPTB, this, vBorderPath, pathMapPTB, dataPNG, viTemp);
+            ptb.detach();
+            pathMapDebug = pathMapPTBdebug;
+
+            /*
+            viTemp = vBorderPath[vBorderPath.size() - 1];
+            viTemp.push_back(sizeVBP);
+            vsTemp.resize(2);
+            vsTemp[0] = pathMapDebug;
+            vsTemp[1] = jf.stringifyCoord(viTemp);
+            sbgui.set_prompt(vsTemp);
+            pngToBinPause(sbgui);
+            */
+
+        }
+    }
+
+    ofstream sPrinter(pathBIN.c_str(), ios::trunc);
+    auto report = sPrinter.rdstate();
+    sPrinter << "//frame" << endl;
+    for (int ii = 0; ii < corners.size(); ii++)
+    {
+        sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
+    }
+    sPrinter << endl;
+
+    sPrinter << "//border" << endl;
+    for (int ii = 0; ii < vBorderPath.size(); ii++)
+    {
+        sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
+    }
+    sPrinter.close();
+}
+void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
+{
+    jf.timerStart();
+    vector<int> mycomm;
+    vector<vector<int>> comm_gui;
+    thread::id myid = this_thread::get_id();
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();
+    bool success, frameDone;
+
+    if (!mapIsInit()) { initMapColours(); }
+    pngLoad(prompt[0]);
+    vector<vector<double>> corners = frameCorners();
+    size_t pos1 = prompt[2].find(',');
+    string temp = prompt[2].substr(0, pos1);
+    string temp2 = prompt[2].substr(pos1 + 1);
+    double widthLabel, heightLabel;
+    try
+    {
+        widthLabel = stod(temp);
+        heightLabel = stod(temp2);
+    }
+    catch (invalid_argument& ia) { jf.err("stod-im.pngToBinLive"); }
+    double widthDemSup = (double)width / widthLabel;
+    double heightDemSup = (double)height / heightLabel;
+    if (widthDemSup > heightDemSup)
+    {
+        stretchFactor = 1.0 / widthDemSup;
+    }
+    else
+    {
+        stretchFactor = 1.0 / heightDemSup;
+    }
+    success = sbgui.push(myid);
+    if (success)
+    {
+        border = corners;
+        border.push_back({ stretchFactor });
+        success = sbgui.done(myid);
+        if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
+        frameDone = 0;
+        mycomm[1] = 1;
+        sbgui.update(myid, mycomm);
+    }
+
+    vector<vector<int>> vBorderPath(1, vector<int>());
+    vBorderPath[0] = borderFindStart();
+    vector<vector<int>> tracks;
+    int sizeVBP = 1;
+    while (1)
+    {
+        if (sizeVBP > 6)
+        {
+            tracks[0] = tracks[1];
+            tracks[1] = tracks[2];
+            tracks[2] = tracks[3];
+            tracks[3] = tracks[4];
+            tracks[4] = tracks[5];
+            tracks[5] = vBorderPath[vBorderPath.size() - 1];
+        }
+        else
+        {
+            tracks = vBorderPath;
+        }
+        vBorderPath.push_back(borderFindNext(sbgui, tracks));
+        if (vBorderPath[vBorderPath.size() - 1][0] < 0 || vBorderPath[vBorderPath.size() - 1][1] < 0)
+        {
+            jf.err("vBorderPath error-im.pngToBinLive");
+        }
+        sizeVBP++;
+        searchRadiusIncrease = 0;
+        rabbitHole = 0;
+        success = sbgui.push(myid);
+        if (success)
+        {
+            if (frameDone)
+            {
+                jf.toDouble(vBorderPath, border);
+                success = sbgui.done(myid);
+                if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
+            }
+            else if (border.size() == 0)
+            {
+                frameDone = 1;
+                jf.toDouble(vBorderPath, border);
+                success = sbgui.done(myid);
+                if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
+            }
+        }
+        if (sizeVBP > 10)
+        {
+            if (jobsDone(vBorderPath[vBorderPath.size() - 1])) { break; }
+        }
+    }
+
+    ofstream sPrinter(prompt[1].c_str(), ios::trunc);
+    auto report = sPrinter.rdstate();
+    sPrinter << "//frame" << endl;
+    for (int ii = 0; ii < corners.size(); ii++)
+    {
+        sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
+    }
+    sPrinter << endl;
+
+    sPrinter << "//border" << endl;
+    for (int ii = 0; ii < vBorderPath.size(); ii++)
+    {
+        sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
+    }
+
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+    long long timer = jf.timerStop();
+    jf.logTime("Converted " + prompt[0] + " to BIN coordinates", timer);
+}
+void IMGFUNC::pngToBinPause(SWITCHBOARD& sbgui)
+{
+    int statusGui;
+    thread::id myid = this_thread::get_id();
+    vector<int> myComm = sbgui.getMyComm(myid);
+    myComm[0] = 3;
+    vector<vector<int>> commGui = sbgui.update(myid, myComm);
+    if (commGui[0][0] == 0) { statusGui = 0; }
+    else if (commGui[0][0] == 3) { statusGui = 1; }
+    else { jf.err("commGui-im.pngToBinPause"); }
+
+    while (statusGui < 2)
+    {
+        this_thread::sleep_for(100ms);
+        commGui = sbgui.update(myid, myComm);
+        if (statusGui == 0 && commGui[0][0] == 3) { statusGui = 1; }
+        else if (statusGui == 1 && commGui[0][0] == 0) { statusGui = 2; }
+    }
+    myComm[0] = 0;
+    sbgui.update(myid, myComm);
+}
+void IMGFUNC::removeColourCushion(vector<vector<unsigned char>>& Lrgb, vector<unsigned char> colourCore, vector<unsigned char> colourCushion, int length)
+{
+    bool onCore;
+    int inum;
+    vector<unsigned char> pixel;
+    if (Lrgb[0] == colourCore) { onCore = 1; }
+    else { onCore = 0; }
+    for (int ii = 1; ii < Lrgb.size(); ii++)
+    {
+        if (Lrgb[ii] == colourCore && onCore == 0)
+        {
+            onCore = 1;
+            inum = min(length, ii);
+            for (int jj = 1; jj <= inum; jj++)
+            {
+                if (Lrgb[ii - jj] == colourCushion) { Lrgb[ii - jj] = colourCore; }
+            }
+        }
+        else if (Lrgb[ii] != colourCore && onCore == 1)
+        {
+            onCore = 0;
+            inum = min(length, (int)Lrgb.size() - 1 - ii);
+            for (int jj = 1; jj <= inum; jj++)
+            {
+                if (Lrgb[ii + jj] == colourCushion) { Lrgb[ii + jj] = colourCore; }
+            }
+            ii += inum;
+        }
+    }
+
+}
 void IMGFUNC::setExtractDim(vector<int> extractDim)
 {
     defaultExtractDim = extractDim;
 }
-void IMGFUNC::setPathLengthImageDebug(int iLen)
+void IMGFUNC::setPauseVBP(int iLen)
 {
-    if (iLen > 0) { pathLengthImageDebug = iLen; }
-    else { pathLengthImageDebug = defaultPathLengthImageDebug; }
+    if (iLen > 0) { pauseVBP = iLen; }
+    else { pauseVBP = defaultPathLengthImageDebug; }
 }
 int IMGFUNC::testBacktrack(vector<vector<int>>& tracks, vector<vector<int>>& candidates)
 {

@@ -24,45 +24,23 @@ void QTFUNC::displayDebug(QLabel*& qlabel, vector<string>& pathPNG)
 {
 	int widthImg, heightImg, widthPM, heightPM, squareDim;
 	QString qtemp = QString::fromUtf8(pathPNG[0]);
-	vector<int> origin;
-	if (pathPNG.size() > 1)
-	{
-		origin = jfqf.destringifyCoord(pathPNG[1]);
-	}
 	QImage qimg = QImage(qtemp);
 	widthImg = qimg.width();
 	heightImg = qimg.height();
 	widthPM = qlabel->width();
 	heightPM = qlabel->height();
 	squareDim = min(widthPM, heightPM);
-	if (origin.size() > 0)
+	QImage qimgScaled;
+	if ((double)heightImg / (double)heightPM > (double)widthImg / (double)widthPM)
 	{
-		int xTL = origin[0] - (squareDim / 2);
-		int yTL = origin[1] - (squareDim / 2);		
-		QRect qrCrop = QRect(xTL, yTL, squareDim, squareDim);
-		QImage qimgCrop = qimg.copy(qrCrop);
-		QPixmap qpm = QPixmap::fromImage(qimgCrop);
-		qlabel->setPixmap(qpm);
-		if (origin.size() > 2)
-		{
-			pathPNG[1] = to_string(origin[2]); // Origin point's border index.
-		}
-		else { pathPNG.resize(1); }
+		qimgScaled = qimg.scaledToHeight(heightPM);
 	}
 	else
 	{
-		QImage qimgScaled;
-		if ((double)heightImg / (double)heightPM > (double)widthImg / (double)widthPM)
-		{
-			qimgScaled = qimg.scaledToHeight(heightPM);
-		}
-		else
-		{
-			qimgScaled = qimg.scaledToWidth(widthPM);
-		}
-		QPixmap qpm = QPixmap::fromImage(qimgScaled);
-		qlabel->setPixmap(qpm);
+		qimgScaled = qimg.scaledToWidth(widthPM);
 	}
+	QPixmap qpm = QPixmap::fromImage(qimgScaled);
+	qlabel->setPixmap(qpm);
 	int bbq = 1;
 }
 void QTFUNC::displayPainterPath(QLabel*& qlabel, QPainterPath& path)
