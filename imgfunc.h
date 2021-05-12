@@ -19,6 +19,7 @@ class IMGFUNC
     int candidateRelativeWidthMin = 50;
     vector<unsigned char> dataPNG, debugDataPNG;
 	bool debug = 1;
+    double defaultAngleIncrement = 5.0;
     double defaultCandidateDistanceTolerance = 0.35;  
     double defaultCenterOfMassTolerance = 45.0;  // Angular deviation.
     int defaultCharSpace = 1;
@@ -51,7 +52,7 @@ class IMGFUNC
     int searchRadiusIncrease = 0;
     double stretchFactor;
     int sizeVBP;
-    int textFound = -1;
+    vector<int> textFound;
 
     vector<unsigned char> Black = { 0, 0, 0 };
     vector<unsigned char> Blue = { 0, 0, 255 };
@@ -316,13 +317,102 @@ public:
         }
     }
 
+    template<typename ... Args> void deadConePaint(vector<vector<unsigned char>>& Lrgb, vector<int>& deadStartStop, Args& ... args)
+    {
+        jf.err("deadConePaint template-im");
+    }
+    template<> void deadConePaint< >(vector<vector<unsigned char>>& Lrgb, vector<int>& deadStartStop)
+    {
+        if (Lrgb.size() < 1 || deadStartStop.size() < 1) { jf.err("parameters empty-im.deadConePaint"); }
+        int numCones = deadStartStop.size() / 2;
+        int index, imax = Lrgb.size();
+        for (int ii = 0; ii < numCones; ii++)
+        {
+            index = deadStartStop[ii * 2];
+            while (index != deadStartStop[(ii * 2) + 1])
+            {
+                Lrgb[index] = Blue;  // Blue is arbitrary.
+                index = (index + 1) % imax;
+            }
+        }
+    }
+
     template<typename ... Args> void deadConeText(vector<int>& origin, Args& ... args)
     {
         jf.err("deadConeText template-im");
     }
     template<> void deadConeText<vector<vector<int>>, vector<int>>(vector<int>& origin, vector<vector<int>>& octoPath, vector<int>& deadStartStop)
     {
-        
+        int numCones = textFound.size();
+        if (numCones < 1) { jf.err("textFound out of bounds-im.deadConeText"); }
+        deadStartStop.clear();
+        vector<unsigned char> colourText = { 38, 115, 0 };
+        vector<vector<int>> pPF(3, vector<int>(2));
+        vector<int> pixelFound;
+        int currentIndex;
+        double starterAngle, minAngle, currentAngle, angleDiff, maxAngle;
+        for (int ii = 0; ii < numCones; ii++)
+        {
+            pPF[0] = { origin[0], origin[1] + defaultSearchRadius };  // Points north.
+            pPF[1] = origin;
+            pPF[2] = octoPath[textFound[ii]];
+            starterAngle = jf.angleBetweenVectors(pPF);  // [0.0, 360.0)
+
+            minAngle = starterAngle;
+            do
+            {
+                minAngle -= defaultAngleIncrement;
+                if (minAngle < 0.0) { minAngle += 360.0; }
+                lineScan(colourText, origin, minAngle, pixelFound);
+            } while (pixelFound[0] >= 0);
+            minAngle += defaultAngleIncrement;  // Angle represents last pixel found.
+            if (minAngle >= 360.0) { minAngle -= 360.0; }
+            angleDiff = 360.0;
+            currentIndex = textFound[ii];
+            while (1)
+            {
+                pPF[2] = octoPath[currentIndex];
+                currentAngle = jf.angleBetweenVectors(pPF);
+                if (abs(currentAngle - minAngle) < angleDiff)
+                {
+                    angleDiff = abs(currentAngle - minAngle);
+                    currentIndex--;
+                    if (currentIndex < 0) { currentIndex = octoPath.size() - 1; }
+                }
+                else { break; }
+            }
+            currentIndex -= 7;
+            if (currentIndex < 0) { currentIndex = octoPath.size() - 1 + currentIndex; }
+            deadStartStop.push_back(currentIndex);
+
+            maxAngle = starterAngle;
+            do
+            {
+                maxAngle += defaultAngleIncrement;
+                if (maxAngle >= 360.0) { maxAngle -= 360.0; }
+                lineScan(colourText, origin, maxAngle, pixelFound);
+            } while (pixelFound[0] >= 0);
+            maxAngle -= defaultAngleIncrement;
+            if (maxAngle < 0.0) { maxAngle += 360.0; }
+            angleDiff = 360.0;
+            currentIndex = textFound[ii];
+            while (1)
+            {
+                pPF[2] = octoPath[currentIndex];
+                currentAngle = jf.angleBetweenVectors(pPF);
+                if (abs(currentAngle - maxAngle) < angleDiff)
+                {
+                    angleDiff = abs(currentAngle - maxAngle);
+                    currentIndex++;
+                    if (currentIndex >= octoPath.size()) { currentIndex = 0; }
+                }
+                else { break; }
+            }
+            currentIndex += 7;
+            if (currentIndex >= octoPath.size()) { currentIndex -= octoPath.size(); }
+            deadStartStop.push_back(currentIndex);
+        }
+        textFound.clear();
     }
 
     template<typename ... Args> void deleteColumn(int col, Args& ... args)
@@ -510,7 +600,7 @@ public:
         }
     }
 
-    template<typename ... Args> void lineScan(vector<vector<int>>& startStop, Args& ... args)
+    template<typename ... Args> void lineScan(vector<unsigned char> rgb, Args& ... args)
     {
         // NOTE: Image coordinates use a reversed y-axis (positive points down) !
         //       7
@@ -520,13 +610,19 @@ public:
         //       5
         jf.err("lineScan template-im");
     }
-    template<> void lineScan<vector<unsigned char>, vector<int>>(vector<vector<int>>& startStop, vector<unsigned char>& rgb, vector<int>& coord)
+    template<> void lineScan<vector<int>, double, vector<int>>(vector<unsigned char> rgb, vector<int>& origin, double& angle, vector<int>& coord)
     {
-        vector<vector<int>> line = linePath(startStop);
-        for (int ii = 0; ii < line.size(); ii++)
+        double xCoord = (double)origin[0];
+        double yCoord = (double)origin[1];
+        int maxRadius = 4 * defaultSearchRadius;
+        vector<unsigned char> rgbTemp;
+        for (int radius = 1; radius <= maxRadius; radius++)
         {
-
+            jf.coordOnCircle(origin, radius, angle, coord);
+            rgbTemp = pixelRGB(coord);
+            if (rgbTemp == rgb) { return; }
         }
+        coord = { -1, -1 };
     }
 
     template<typename ... Args> void makeLegendV(vector<unsigned char>& legend, vector<int>& legendDim, vector<string>& listText, Args& ... args)
@@ -782,6 +878,32 @@ public:
         octogonPaint(Black, debugDataPNG, sourceDim, widthDot, zonePath, pathSpace);
         pathSpace = -1;
         octogonPaint(Black, debugDataPNG, sourceDim, widthDot, zonePath, pathSpace);
+        int imgSize = debugDataPNG.size();
+        int channels = 3;
+        auto bufferUC = new unsigned char[imgSize];
+        for (int ii = 0; ii < imgSize; ii++)
+        {
+            bufferUC[ii] = debugDataPNG[ii];
+        }
+        string pathImg = sroot + "\\debug\\ZoneSweepDebug.png";
+        int error = stbi_write_png(pathImg.c_str(), sourceDim[0], sourceDim[1], channels, bufferUC, 0);
+        delete[] bufferUC;
+    }
+    template<> void makeMapZoneSweep<vector<vector<unsigned char>>>(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb)
+    {
+        if (zonePath.size() != Lrgb.size()) { jf.err("parameter size mismatch-im.makeMapZoneSweep"); }
+        if (!mapIsInit()) { initMapColours(); }
+        debugDataPNG = dataPNG;
+        vector<vector<int>> ringOuter, ringInner;
+        vector<int> sourceDim = { width, height };
+        int widthDot = 1, pathSpace = 1;
+        octogonPaint(Black, debugDataPNG, sourceDim, widthDot, zonePath, pathSpace);
+        pathSpace = -1;
+        octogonPaint(Black, debugDataPNG, sourceDim, widthDot, zonePath, pathSpace);
+        for (int ii = 0; ii < zonePath.size(); ii++)
+        {
+            pixelPaint(debugDataPNG, sourceDim[0], Lrgb[ii], zonePath[ii]);
+        }
         int imgSize = debugDataPNG.size();
         int channels = 3;
         auto bufferUC = new unsigned char[imgSize];
@@ -1537,16 +1659,25 @@ public:
     {
         vector<vector<unsigned char>> octoRGB(octoPath.size(), vector<unsigned char>(3));
         vector<unsigned char> textColour = { 38, 115, 0 };
-        textFound = -1;
-        for (int ii = 0; ii < octoRGB.size(); ii++)
+        textFound.clear();
+        bool textActive;
+        octoRGB[0] = pixelRGB(octoPath[0]);
+        if (octoRGB[0] == textColour) { textActive = 1; }
+        else { textActive = 0; }
+
+        for (int ii = 1; ii < octoRGB.size(); ii++)
         {
             octoRGB[ii] = pixelRGB(octoPath[ii]);
-            if (octoRGB[ii] == textColour && textFound < 0)
+            if (octoRGB[ii] == textColour && textActive == 0)
             {
-                textFound = ii;
+                textActive = 1;
+                textFound.push_back(ii);
+            }
+            else if (textActive == 1 && octoRGB[ii] != textColour)
+            {
+                textActive = 0;
             }
         }
-        //removeColourCushion(octoRGB, { 38, 115, 0 }, White, 7);
         return octoRGB;
     }
 

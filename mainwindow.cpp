@@ -2454,7 +2454,7 @@ void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorde
     temp = prompt[0].substr(0, pos1);
     try { inum = stoi(temp); }
     catch (invalid_argument& ia) { jf.err("stoi-MainWindow.convertGuide"); }
-    im.setPauseVBP(inum - 1);
+    im.setPauseVBP(inum);
     pos1++;
     size_t pos2 = prompt[0].find(',', pos1);
     temp = prompt[0].substr(pos1, pos2 - pos1);

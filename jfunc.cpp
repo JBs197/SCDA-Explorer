@@ -696,3 +696,18 @@ wstring JFUNC::utf8to16(string input)
 	output.resize(future - &output[0]);
 	return output;
 }
+int JFUNC::xDom(double angle)
+{
+	// NOTE: Angle is measured in degrees, starting from north, 
+	// and travelling clockwise. Returns 1 = xCoord dominant, 
+	// 0 = yCoord dominant, -1 = neither is dominant.
+	if (angle < 0.0 || angle >= 360.0) { err("angle out of bounds-jf.xDom"); }
+
+	if (angle < 45.0) { return 0; }
+	else if (angle > 45.0 && angle < 135.0) { return 1; }
+	else if (angle > 135.0 && angle < 225.0) { return 0; }
+	else if (angle > 225.0 && angle < 315.0) { return 1; }
+	else if (angle > 315.0) { return 0; }
+
+	return -1;
+}

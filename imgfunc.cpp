@@ -8,6 +8,16 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     unordered_map<string, int> mapIndexCandidate;
     vector<vector<int>> octoPath = octogonPath(origin, radius);
     vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
+    vector<int> deadStartStop;
+    if (textFound.size() > 0) // Undesirable white cushions should be painted blue.
+    {
+        deadConeText(origin, octoPath, deadStartStop); 
+        deadConePaint(octoRGB, deadStartStop);
+        if (sizeVBP == pauseVBP)
+        {
+            makeMapZoneSweep(octoPath, octoRGB);
+        }
+    }
     string sZone = "zoneBorder";
     vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
     vector<vector<int>> vvTemp, cPath;
@@ -828,7 +838,7 @@ vector<vector<int>> IMGFUNC::octogonPath(vector<int> origin, int radius)
 void IMGFUNC::pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int radius, vector<vector<int>>& candidates)
 {
     if (pathMapDebug.size() > 0)
-    {  // RESUME HERE. Fix octoRGB skimming letters.
+    {
         vector<string> vsTemp = { pathMapDebug, to_string(sizeVBP) };
         makeMapBorderFindNext(tracks, radius, candidates, vsTemp[0]);
         sbgui.set_prompt(vsTemp);

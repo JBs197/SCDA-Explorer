@@ -68,6 +68,7 @@ public:
 	int tree_from_marker(vector<vector<int>>&, vector<string>&);
 	string utf16to8(wstring);
 	wstring utf8to16(string);
+	int xDom(double angle);
 
 
 	// TEMPLATES
@@ -447,6 +448,34 @@ public:
 		vector<double> test = { (double)iv2[0], (double)iv2[1] };
 		double dist = coordDist(origin, test);
 		return dist;
+	}
+
+	template<typename ... Args> void coordOnCircle(Args& ... args)
+	{
+		err("coordOnCircle template-jf");
+	}
+	template<> void coordOnCircle<vector<double>, double, double, vector<double>>(vector<double>& origin, double& radius, double& angle, vector<double>& coord)
+	{
+		// NOTE: Angle is measured in degrees, starting from north, 
+		// and travelling clockwise.
+		if (radius < 0.0) { err("negative radius-jf.coordOnCircle"); }
+		if (angle < 0.0 || angle >= 360.0) { err("angle out of bounds-jf.coordOnCircle"); }
+		double angleRad = angle * 3.1415926535 / 180.0;
+		double xCoord = radius * sin(angleRad);
+		double yCoord = radius * cos(angleRad);
+		coord.resize(2);
+		coord[0] = origin[0] + xCoord;
+		coord[1] = origin[1] + yCoord;
+	}
+	template<> void coordOnCircle<vector<int>, int, double, vector<int>>(vector<int>& origin, int& radius, double& angle, vector<int>& coord)
+	{
+		vector<double> originD = { (double)origin[0], (double)origin[1] };
+		double radiusD = (double)radius;
+		vector<double> coordD;
+		coordOnCircle(originD, radiusD, angle, coordD);
+		coord.resize(2);
+		coord[0] = int(round(coordD[0]));
+		coord[1] = int(round(coordD[1]));
 	}
 
 	template<typename ... Args> string decToHex(Args& ... args) {}
