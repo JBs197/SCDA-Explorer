@@ -412,6 +412,7 @@ public:
             if (currentIndex >= octoPath.size()) { currentIndex -= octoPath.size(); }
             deadStartStop.push_back(currentIndex);
         }
+        if (debug) { makeMapDeadCone(origin, octoPath, deadStartStop); }
         textFound.clear();
     }
 
@@ -620,7 +621,10 @@ public:
         {
             jf.coordOnCircle(origin, radius, angle, coord);
             rgbTemp = pixelRGB(coord);
-            if (rgbTemp == rgb) { return; }
+            if (rgbTemp == rgb) 
+            {
+                return; 
+            }
         }
         coord = { -1, -1 };
     }
@@ -743,6 +747,32 @@ public:
         }
         int error = stbi_write_png(pathImg.c_str(), croppedDim[0], croppedDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
+    }
+
+    template<typename ... Args> void makeMapDeadCone(Args& ... args)
+    {
+        jf.err("makeMapDeadCone template-im");
+    }
+    template<> void makeMapDeadCone<vector<int>, vector<vector<int>>, vector<int>>(vector<int>& origin, vector<vector<int>>& octoPath, vector<int>& deadStartStop)
+    {
+        debugDataPNG = dataPNG;
+        vector<vector<int>> ringOuter, ringInner;
+        vector<int> sourceDim = { width, height };
+        int widthDot = 1, pathSpace = 1;
+        octogonPaint(Black, debugDataPNG, sourceDim, widthDot, octoPath, pathSpace);
+        pathSpace = -1;
+        octogonPaint(Black, debugDataPNG, sourceDim, widthDot, octoPath, pathSpace);
+        pixelPaint(debugDataPNG, sourceDim[0], Yellow, origin);
+        vector<vector<int>> startStop(2, vector<int>(2));
+        startStop[0] = origin;
+        for (int ii = 0; ii < deadStartStop.size(); ii++)
+        {
+            startStop[1] = octoPath[deadStartStop[ii]];
+            linePaint(startStop, Orange, debugDataPNG, sourceDim[0], widthDot);
+        }
+        vector<unsigned char> cropped = pngExtractRect(origin, debugDataPNG, sourceDim, defaultExtractDim);
+        string filePath = sroot + "\\debug\\Dead Cone Debug.png";
+        pngPrint(cropped, defaultExtractDim, filePath);
     }
 
     template<typename ... Args> void makeMapOctogonBearing(Args& ... args)

@@ -465,7 +465,7 @@ public:
 		double yCoord = radius * cos(angleRad);
 		coord.resize(2);
 		coord[0] = origin[0] + xCoord;
-		coord[1] = origin[1] + yCoord;
+		coord[1] = origin[1] - yCoord;
 	}
 	template<> void coordOnCircle<vector<int>, int, double, vector<int>>(vector<int>& origin, int& radius, double& angle, vector<int>& coord)
 	{
