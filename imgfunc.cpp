@@ -81,15 +81,21 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     {
         sZone = "white";
         numCandidates = testCandidatesInteriorZone(sbgui, tracks, sZone, candidates);
-        if (numCandidates == 1) { return candidates[0]; }
+        if (numCandidates == 1) 
+        {
+            return candidates[0]; 
+        }
     }
 
     // Test for greater distance from previous border point. 
     double candidateDistanceTolerance = defaultCandidateDistanceTolerance * (1.0 - ((0.5 * rabbitHole) / (rabbitHoleDepth - 1)));
-    if (distances[0] > distances[1])
-    {
-        dTemp = (distances[0] - distances[1]) / distances[0];
-        if (dTemp > candidateDistanceTolerance) { return candidates[0]; }
+    if (distances[0] > distances[1])                           // Note that the distance tolerance
+    {                                                          // equation's purpose is to gradually
+        dTemp = (distances[0] - distances[1]) / distances[0];  // lower the bar for this test, from
+        if (dTemp > candidateDistanceTolerance)                // 100% to 50% of the default. 
+        {
+            return candidates[0]; 
+        }
     }
     else
     {
@@ -106,6 +112,10 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
 
     // Try again, larger radius.
     rabbitHole++;
+    if (rabbitHole == 3)  // Three failures, so save this choice in case it is needed later for backtracking.
+    {
+        saveThisPoint(tracks, candidates);
+    }
     if (rabbitHole > 0 && rabbitHole < rabbitHoleDepth)
     {
         searchRadiusIncrease += 2;
@@ -114,7 +124,17 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
 
     // Hail Mary.
     testCenterOfMass(tracks, candidates);
-    if (candidates.size() == 1) { return candidates[0]; }
+    if (candidates.size() == 1) 
+    {
+        return candidates[0]; 
+    }
+
+    // Abort this path, and backtrack to the most recent saved point.
+    if (savePoints.size() > 0)
+    {
+        backtrack = 1;
+        return;
+    }
 
     // Defeat. Make a debug map.
     makeMapBorderFindNext(tracks, radius, candidates);
@@ -676,6 +696,15 @@ vector<vector<unsigned char>> IMGFUNC::lineRGB(vector<vector<int>>& vVictor, int
     vVictor[0][1] = viTemp[1];
     return Lrgb;
 }
+void IMGFUNC::loadRecentSavePoint(vector<vector<int>>& vBorderPath)
+{
+    if (savePoints.size() < 1) { jf.err("No saved points to load-im.loadRecentSavePoint"); }
+    vector<int> pointWrong = savePointChosen[savePointChosen.size() - 1];
+    savePointChosen.pop_back();
+    vector<int> pointRight(2);
+    for (int ii = )
+
+}
 bool IMGFUNC::mapIsInit()
 {
     size_t size = mapColour.size();
@@ -942,6 +971,8 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
     thread::id myid = this_thread::get_id();
     vector<int> myComm = sbgui.getMyComm(myid);
     sizeVBP = 1;
+    savePoints.clear();
+    savePointChosen.clear();
     while (1)
     {
         if (sizeVBP > 6)
@@ -970,6 +1001,15 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
         {
             jf.err("vBorderPath error-im.pngToBin");
         }
+        if (backtrack)
+        {
+            backtrack = 0;
+            loadRecentSavePoint();
+        }
+        if (savePoints.size() > savePointChosen.size())
+        {
+            savePointChosen.push_back(vBorderPath[vBorderPath.size() - 1]);
+        }
         sizeVBP++;
         searchRadiusIncrease = 0;
         rabbitHole = 0;
@@ -987,17 +1027,6 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
             std::thread ptb(&IMGFUNC::thrMakeMapPTB, this, vBorderPath, pathMapPTB, dataPNG, viTemp);
             ptb.detach();
             pathMapDebug = pathMapPTBdebug;
-
-            /*
-            viTemp = vBorderPath[vBorderPath.size() - 1];
-            viTemp.push_back(sizeVBP);
-            vsTemp.resize(2);
-            vsTemp[0] = pathMapDebug;
-            vsTemp[1] = jf.stringifyCoord(viTemp);
-            sbgui.set_prompt(vsTemp);
-            pngToBinPause(sbgui);
-            */
-
         }
     }
 
@@ -1183,6 +1212,18 @@ void IMGFUNC::removeColourCushion(vector<vector<unsigned char>>& Lrgb, vector<un
         }
     }
 
+}
+void IMGFUNC::saveThisPoint(vector<vector<int>>& tracks, vector<vector<int>>& candidates)
+{
+    vector<int> savePoint = { sizeVBP };
+    savePoint.push_back(tracks[tracks.size() - 1][0]);
+    savePoint.push_back(tracks[tracks.size() - 1][1]);
+    for (int ii = 0; ii < candidates.size(); ii++)
+    {
+        savePoint.push_back(candidates[ii][0]);
+        savePoint.push_back(candidates[ii][1]);
+    }
+    savePoints.push_back(savePoint);
 }
 void IMGFUNC::setExtractDim(vector<int> extractDim)
 {
@@ -1372,6 +1413,7 @@ void IMGFUNC::testDistances(vector<vector<int>>& candidates, vector<double>& dis
         if (distances[ii] < thisTall)
         {
             candidates.erase(candidates.begin() + ii);
+            distances.erase(distances.begin() + ii);
         }
     }
 }

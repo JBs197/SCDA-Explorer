@@ -13,6 +13,7 @@ extern const string sroot;
 
 class IMGFUNC
 {
+    bool backtrack = 0;
 	vector<vector<int>> borderRegion;  // Sequence of coords that represent the region's border.
 	int borderThickness = 6;
     int candidateRelativeLengthMin = 50;
@@ -49,6 +50,8 @@ class IMGFUNC
 	int width, height, numComponents, recordVictor;
     int rabbitHole = 0;
     const int rabbitHoleDepth = 16;
+    vector<vector<int>> savePointChosen;  // Form [point index][xChosen, yChosen]
+    vector<vector<int>> savePoints;  // Form [point index][sizeVBP, xOrigin, yOrigin, xCandidate0, yCandidate0, ... ]
     int searchRadiusIncrease = 0;
     double stretchFactor;
     int sizeVBP;
@@ -89,6 +92,7 @@ public:
 	vector<vector<int>> linePath(vector<vector<int>>& startStop);
     vector<vector<int>> linePathToEdge(vector<vector<int>>& startMid);
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
+    void loadRecentSavePoint(vector<vector<int>>& vBorderPath);
     bool mapIsInit();
     void octogonCheckBoundary(vector<vector<int>>& octoPath, vector<int>& sourceDim, int pathSpace);
     vector<vector<int>> octogonPath(vector<int> origin, int radius);
@@ -104,6 +108,7 @@ public:
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinPause(SWITCHBOARD& sbgui);
     void removeColourCushion(vector<vector<unsigned char>>& Lrgb, vector<unsigned char> colourCore, vector<unsigned char> colourCushion, int length);
+    void saveThisPoint(vector<vector<int>>& tracks, vector<vector<int>>& candidates);
     void setExtractDim(vector<int> extractDim);
     void setPauseVBP(int iLen);
     int testBacktrack(vector<vector<int>>& tracks, vector<vector<int>>& candidates);
@@ -756,23 +761,56 @@ public:
     template<> void makeMapDeadCone<vector<int>, vector<vector<int>>, vector<int>>(vector<int>& origin, vector<vector<int>>& octoPath, vector<int>& deadStartStop)
     {
         debugDataPNG = dataPNG;
+        vector<string> listStartStop;
+        vector<vector<unsigned char>> listColour;
         vector<vector<int>> ringOuter, ringInner;
         vector<int> sourceDim = { width, height };
-        int widthDot = 1, pathSpace = 1;
+        int widthDot = 1, pathSpace = 1, indexStart, indexStop, inum;
         octogonPaint(Black, debugDataPNG, sourceDim, widthDot, octoPath, pathSpace);
         pathSpace = -1;
         octogonPaint(Black, debugDataPNG, sourceDim, widthDot, octoPath, pathSpace);
-        pixelPaint(debugDataPNG, sourceDim[0], Yellow, origin);
         vector<vector<int>> startStop(2, vector<int>(2));
         startStop[0] = origin;
         for (int ii = 0; ii < deadStartStop.size(); ii++)
         {
             startStop[1] = octoPath[deadStartStop[ii]];
             linePaint(startStop, Orange, debugDataPNG, sourceDim[0], widthDot);
+            if (ii % 2 == 0)
+            {
+                indexStart = deadStartStop[ii] + 1;
+                if (indexStart >= octoPath.size()) { indexStart -= octoPath.size(); }
+                indexStop = deadStartStop[ii + 1];
+                while (indexStart != indexStop)
+                {
+                    pixelPaint(debugDataPNG, sourceDim[0], Blue, octoPath[indexStart]);
+                    indexStart++;
+                    if (indexStart >= octoPath.size()) { indexStart -= octoPath.size(); }
+                }
+            }
         }
-        vector<unsigned char> cropped = pngExtractRect(origin, debugDataPNG, sourceDim, defaultExtractDim);
+        for (int ii = 0; ii < deadStartStop.size(); ii++)
+        {
+            startStop[1] = octoPath[deadStartStop[ii]];
+            pngAppendText(listStartStop, startStop[1]);
+            listColour.push_back(Red);
+            pixelPaint(debugDataPNG, sourceDim[0], Red, startStop[1]);
+        }
+        pixelPaint(debugDataPNG, sourceDim[0], Yellow, origin);
+        pngAppendText(listStartStop, origin);
+        listColour.push_back(Yellow);
+        vector<unsigned char> legend;
+        vector<int> legendDim;
+        makeLegendV(legend, legendDim, listStartStop, listColour);
+        inum = ((origin[1] - octoPath[0][1]) * 2) + 40;
+        vector<int> croppedDim(2);
+        croppedDim[1] = max(legendDim[1], inum);
+        croppedDim[0] = croppedDim[1] + legendDim[0];
+        vector<int> originTilted = { origin[0] + (legendDim[0] / 2), origin[1] };
+        vector<unsigned char> cropped = pngExtractRect(originTilted, debugDataPNG, sourceDim, croppedDim);
+        vector<int> pasteTL = { croppedDim[0] - legendDim[0], 0 };
+        pngPaste(cropped, croppedDim, legend, legendDim, pasteTL);
         string filePath = sroot + "\\debug\\Dead Cone Debug.png";
-        pngPrint(cropped, defaultExtractDim, filePath);
+        pngPrint(cropped, croppedDim, filePath);
     }
 
     template<typename ... Args> void makeMapOctogonBearing(Args& ... args)
@@ -1254,6 +1292,16 @@ public:
         unordered_map<string, int> mapWidth;
         vector<vector<int>> octoPath = octogonPath(pastPresent[1], radius);
         vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
+        vector<int> deadStartStop;
+        if (textFound.size() > 0) // Undesirable white cushions should be painted blue.
+        {
+            deadConeText(pastPresent[1], octoPath, deadStartStop);
+            deadConePaint(octoRGB, deadStartStop);
+            if (sizeVBP == pauseVBP)
+            {
+                makeMapZoneSweep(octoPath, octoRGB);
+            }
+        }
         vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate, mapWidth);
         int numCandidates = candidates.size();
         int lettersExist = 0;
