@@ -50,8 +50,7 @@ class IMGFUNC
 	int width, height, numComponents, recordVictor;
     int rabbitHole = 0;
     const int rabbitHoleDepth = 16;
-    vector<vector<int>> savePointChosen;  // Form [point index][xChosen, yChosen]
-    vector<vector<int>> savePoints;  // Form [point index][sizeVBP, xOrigin, yOrigin, xCandidate0, yCandidate0, ... ]
+    vector<vector<vector<int>>> savePoints;  // Form [point index][sizeVBP, Origin, Candidate0, ... , CandidateChosen][x,y coords].
     int searchRadiusIncrease = 0;
     double stretchFactor;
     int sizeVBP;
@@ -1297,7 +1296,7 @@ public:
         {
             deadConeText(pastPresent[1], octoPath, deadStartStop);
             deadConePaint(octoRGB, deadStartStop);
-            if (sizeVBP == pauseVBP)
+            if (sizeVBP == pauseVBP - 1)
             {
                 makeMapZoneSweep(octoPath, octoRGB);
             }
@@ -1740,18 +1739,21 @@ public:
         textFound.clear();
         bool textActive;
         octoRGB[0] = pixelRGB(octoPath[0]);
-        if (octoRGB[0] == textColour) { textActive = 1; }
+        if (octoRGB[0] == textColour || octoRGB[0] == Black) { textActive = 1; }
         else { textActive = 0; }
 
         for (int ii = 1; ii < octoRGB.size(); ii++)
         {
             octoRGB[ii] = pixelRGB(octoPath[ii]);
-            if (octoRGB[ii] == textColour && textActive == 0)
+            if (octoRGB[ii] == textColour || octoRGB[ii] == Black)
             {
-                textActive = 1;
-                textFound.push_back(ii);
+                if (!textActive)
+                {
+                    textActive = 1;
+                    textFound.push_back(ii);
+                }
             }
-            else if (textActive == 1 && octoRGB[ii] != textColour)
+            else if (textActive)
             {
                 textActive = 0;
             }

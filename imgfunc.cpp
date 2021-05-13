@@ -130,16 +130,16 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     }
 
     // Abort this path, and backtrack to the most recent saved point.
+    vector<int> failure = { -1, -1 };
     if (savePoints.size() > 0)
     {
         backtrack = 1;
-        return;
+        return failure;
     }
 
     // Defeat. Make a debug map.
     makeMapBorderFindNext(tracks, radius, candidates);
     jf.err("Failed to determine next border point-im.borderFindNext");
-    vector<int> failure = { -1, -1 };
     return failure;
 }
 vector<int> IMGFUNC::borderFindStart()
@@ -699,11 +699,44 @@ vector<vector<unsigned char>> IMGFUNC::lineRGB(vector<vector<int>>& vVictor, int
 void IMGFUNC::loadRecentSavePoint(vector<vector<int>>& vBorderPath)
 {
     if (savePoints.size() < 1) { jf.err("No saved points to load-im.loadRecentSavePoint"); }
-    vector<int> pointWrong = savePointChosen[savePointChosen.size() - 1];
-    savePointChosen.pop_back();
-    vector<int> pointRight(2);
-    for (int ii = )
-
+    vector<int> pointWrong, pointRight, origin;
+    for (int ii = savePoints.size() - 1; ii >= 0; ii--)
+    {
+        if (savePoints[ii][0].size() < 2)
+        {
+            savePoints.erase(savePoints.begin() + ii);
+        }
+        else
+        {
+            pointWrong = savePoints[ii][savePoints[ii].size() - 1];
+            savePoints[ii].erase(savePoints[ii].end());
+            for (int jj = savePoints[ii].size() - 1; jj >= 2; jj--)
+            {
+                if (savePoints[ii][jj] == pointWrong)
+                {
+                    savePoints[ii].erase(savePoints[ii].begin() + jj);
+                }
+            }
+            if (savePoints[ii].size() < 3)
+            {
+                savePoints.erase(savePoints.begin() + ii);
+            }
+            else
+            {
+                pointRight = savePoints[ii][savePoints[ii].size() - 1];
+                origin = savePoints[ii][1];
+                break;
+            }
+        }
+    }
+    if (pointRight.size() < 2) { jf.err("Failed to determine pointRight-im.loadRecentSavePoint"); }
+    while (vBorderPath[vBorderPath.size() - 1] != origin)
+    {
+        vBorderPath.erase(vBorderPath.end());
+        sizeVBP--;
+    }
+    vBorderPath.push_back(pointRight);
+    pauseVBP = sizeVBP + 1;
 }
 bool IMGFUNC::mapIsInit()
 {
@@ -972,7 +1005,6 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
     vector<int> myComm = sbgui.getMyComm(myid);
     sizeVBP = 1;
     savePoints.clear();
-    savePointChosen.clear();
     while (1)
     {
         if (sizeVBP > 6)
@@ -997,18 +1029,19 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
             pathMapDebug = pathMapPTBdebug;
         }
         vBorderPath.push_back(borderFindNext(sbgui, tracks));
+        if (backtrack)
+        {
+            backtrack = 0;
+            loadRecentSavePoint(vBorderPath);
+        }
         if (vBorderPath[vBorderPath.size() - 1][0] < 0 || vBorderPath[vBorderPath.size() - 1][1] < 0)
         {
             jf.err("vBorderPath error-im.pngToBin");
         }
-        if (backtrack)
-        {
-            backtrack = 0;
-            loadRecentSavePoint();
-        }
-        if (savePoints.size() > savePointChosen.size())
-        {
-            savePointChosen.push_back(vBorderPath[vBorderPath.size() - 1]);
+        if (savePoints.size() > 0 && savePoints[savePoints.size() - 1][0].size() < 2)
+        {   // Repeating sizeVBP signals that the chosen point was appended to the list.
+            savePoints[savePoints.size() - 1][0].push_back(savePoints[savePoints.size() - 1][0][0]);
+            savePoints[savePoints.size() - 1].push_back(vBorderPath[vBorderPath.size() - 1]);
         }
         sizeVBP++;
         searchRadiusIncrease = 0;
@@ -1215,13 +1248,12 @@ void IMGFUNC::removeColourCushion(vector<vector<unsigned char>>& Lrgb, vector<un
 }
 void IMGFUNC::saveThisPoint(vector<vector<int>>& tracks, vector<vector<int>>& candidates)
 {
-    vector<int> savePoint = { sizeVBP };
-    savePoint.push_back(tracks[tracks.size() - 1][0]);
-    savePoint.push_back(tracks[tracks.size() - 1][1]);
+    vector<vector<int>> savePoint(1, vector<int>(1));
+    savePoint[0] = { sizeVBP };
+    savePoint.push_back(tracks[tracks.size() - 1]);
     for (int ii = 0; ii < candidates.size(); ii++)
     {
-        savePoint.push_back(candidates[ii][0]);
-        savePoint.push_back(candidates[ii][1]);
+        savePoint.push_back(candidates[ii]);
     }
     savePoints.push_back(savePoint);
 }
@@ -1274,9 +1306,7 @@ int IMGFUNC::testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>&
     int radialDiff = abs(radiusNeeded[0] - radiusNeeded[1]);
     if (radialDiff > defaultZoneRadialDistanceTolerance)
     {
-        int diverge0 = abs(radiusNeeded[0] - defaultSearchRadius);
-        int diverge1 = abs(radiusNeeded[1] - defaultSearchRadius);
-        if (diverge0 < diverge1)
+        if (radiusNeeded[0] < radiusNeeded[1])
         {
             candidates.erase(candidates.begin() + 1);
             return 1;
