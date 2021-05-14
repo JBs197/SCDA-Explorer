@@ -1025,7 +1025,7 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
     pngLoad(pathPNG);
     string temp;
     string pathMapPTB = sroot + "\\debug\\PTB.png";
-    string pathMapPTBdebug = sroot + "\\debug\\PTBdebug.png";
+    string pathMapPTBdebug = sroot + "\\debug\\PTBdebug";
     vector<string> vsTemp;
     vector<int> viTemp;
     vector<vector<double>> corners = frameCorners();

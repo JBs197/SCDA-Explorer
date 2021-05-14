@@ -108,6 +108,12 @@ void MainWindow::initialize()
     ui->pB_convert->setVisible(0);
     ui->pB_convert->setGeometry(990, 530, 81, 41);
 
+    // Prepare mouse event offsets.
+    QRect posLabelMaps = ui->tabW_online->geometry();
+    QPoint TL = posLabelMaps.topLeft();
+    labelMapsDx = -1 * TL.x();
+    labelMapsDy = -1 * TL.y();
+
     // Initialize the progress bar with blanks.
     reset_bar(100, " ");
 
@@ -367,12 +373,20 @@ void MainWindow::update_mode()
 // Mouse functions.
 void MainWindow::mousePressEvent(QMouseEvent* event)
 {
-    QPointF pointClickF;
+    QPoint pointClick;
     if (event->button() == Qt::LeftButton)
     {
-        pointClickF = event->position();
+        pointClick = event->position().toPoint();
     }
-    qDebug() << "Mouse click: " << pointClickF;
+    if (active_mode == 1)
+    {
+        if (ui->tabW_online->currentIndex() == 2)
+        {
+            pointClick.rx() += labelMapsDx;
+            pointClick.ry() += labelMapsDy;
+            qDebug() << "Mouse click: " << pointClick;
+        }
+    }
 }
 
 // For the given local drive, display (as a tree widget) the available catalogues, organized by year.

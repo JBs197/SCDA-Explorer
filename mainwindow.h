@@ -85,13 +85,12 @@ private:
     const int worker_batch = 10;  // Number of CSVs workers prepare before pushing to the manager.
     const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
-    int jobs_max, jobs_done, jobs_percent;
+    int jobs_max, jobs_done, jobs_percent, advBuffer, labelMapsDx, labelMapsDy;
     int threads_working = 0;
     int remote_controller = 0;  // 0 = run, 1 = ??, 2 = cancel, 3 = pause.
     bool begun_logging = 0;
     int qrow_title_width = 20;
     int active_mode = 0;
-    int advBuffer;
     int qnam_status = 0;
     wstring wdrive;
     string sdrive;
