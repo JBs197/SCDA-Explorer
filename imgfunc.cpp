@@ -3,6 +3,7 @@
 vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks)
 {
     string pathImg = sroot + "\\debug\\borderFindNextDebug.png";
+    vector<int> failure = { -1, -1 };
     vector<int> origin = tracks[tracks.size() - 1];
     int radius = defaultSearchRadius + searchRadiusIncrease;
     unordered_map<string, int> mapIndexCandidate;
@@ -21,10 +22,22 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     string sZone = "zoneBorder";
     vector<vector<int>> candidates = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
     vector<vector<int>> vvTemp, cPath;
-    int numIncreases = 0;
+    int numIncreases = 0, inum = -1;
     vector<int> sourceDim = { width, height };
     while (candidates.size() < 2)
     {
+        if (candidates.size() == 1)
+        {
+            inum = testHereBeDragons(octoRGB, candidates[0], mapIndexCandidate);
+            if (inum > 0)
+            {
+                if (savePoints.size() > 0)
+                {
+                    backtrack = 1;
+                }
+                return failure;
+            }
+        }
         radius += (3 * borderThickness);
         octoPath = octogonPath(origin, radius);
         octogonCheckBoundary(octoPath, sourceDim, 0);
@@ -77,7 +90,7 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     // Perform a series of tests to determine the right path.
 
     // Test for access to the interior (white) zone, if on land.
-    if (!testOverWater(tracks))
+    if (!testOverWater(tracks, candidates))
     {
         sZone = "white";
         numCandidates = testCandidatesInteriorZone(sbgui, tracks, sZone, candidates);
@@ -112,9 +125,17 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
 
     // Try again, larger radius.
     rabbitHole++;
-    if (rabbitHole == 3)  // Three failures, so save this choice in case it is needed later for backtracking.
+    if (rabbitHole == 4)  
     {
-        saveThisPoint(tracks, candidates);
+        if (debug)
+        {
+            saveThisPoint(tracks, candidates);
+        }
+        else
+        {
+            pathMapDebug = sroot + "\\debug\\Query User.png";
+            pauseMapDebug(sbgui, tracks, radius, candidates);
+        }
     }
     if (rabbitHole > 0 && rabbitHole < rabbitHoleDepth)
     {
@@ -130,7 +151,6 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     }
 
     // Abort this path, and backtrack to the most recent saved point.
-    vector<int> failure = { -1, -1 };
     if (savePoints.size() > 0)
     {
         backtrack = 1;
@@ -570,7 +590,18 @@ void IMGFUNC::initMapColours()
     shex = pixelDecToHex(rgb);
     sval = "textHumanFeature";
     mapColour.emplace(shex, sval);
-
+    rgb[0] = 1;
+    rgb[1] = 1;
+    rgb[2] = 254;
+    shex = pixelDecToHex(rgb);
+    sval = "blottedGreen";
+    mapColour.emplace(shex, sval);
+    rgb[0] = 2;
+    rgb[1] = 2;
+    rgb[2] = 253;
+    shex = pixelDecToHex(rgb);
+    sval = "blottedBlack";
+    mapColour.emplace(shex, sval);
 }
 bool IMGFUNC::isInit()
 {
@@ -700,6 +731,8 @@ void IMGFUNC::loadRecentSavePoint(vector<vector<int>>& vBorderPath)
 {
     if (savePoints.size() < 1) { jf.err("No saved points to load-im.loadRecentSavePoint"); }
     vector<int> pointWrong, pointRight, origin;
+    double minDistance = 4294967295.0, dist;
+    int minIndex = -1;
     for (int ii = savePoints.size() - 1; ii >= 0; ii--)
     {
         if (savePoints[ii][0].size() < 2)
@@ -709,30 +742,28 @@ void IMGFUNC::loadRecentSavePoint(vector<vector<int>>& vBorderPath)
         else
         {
             pointWrong = savePoints[ii][savePoints[ii].size() - 1];
-            savePoints[ii].erase(savePoints[ii].end());
-            for (int jj = savePoints[ii].size() - 1; jj >= 2; jj--)
+            savePoints[ii].erase(savePoints[ii].begin() + savePoints[ii].size() - 1);
+            for (int jj = 2; jj < savePoints[ii].size(); jj++)
             {
-                if (savePoints[ii][jj] == pointWrong)
+                dist = jf.coordDist(pointWrong, savePoints[ii][jj]);
+                if (dist < minDistance)
                 {
-                    savePoints[ii].erase(savePoints[ii].begin() + jj);
+                    minDistance = dist;
+                    minIndex = jj;
                 }
             }
-            if (savePoints[ii].size() < 3)
-            {
-                savePoints.erase(savePoints.begin() + ii);
-            }
-            else
-            {
-                pointRight = savePoints[ii][savePoints[ii].size() - 1];
-                origin = savePoints[ii][1];
-                break;
-            }
+            savePoints[ii].erase(savePoints[ii].begin() + minIndex);
+            if (savePoints[ii].size() != 3) { jf.err("savePoints-im.loadRecentSavePoint"); }
+            pointRight = savePoints[ii][2];
+            origin = savePoints[ii][1];
+            savePoints.erase(savePoints.begin() + ii);
+            break;
         }
     }
     if (pointRight.size() < 2) { jf.err("Failed to determine pointRight-im.loadRecentSavePoint"); }
     while (vBorderPath[vBorderPath.size() - 1] != origin)
     {
-        vBorderPath.erase(vBorderPath.end());
+        vBorderPath.erase(vBorderPath.end() - 1);
         sizeVBP--;
     }
     vBorderPath.push_back(pointRight);
@@ -1003,6 +1034,7 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
     vector<vector<int>> tracks, commGui;
     thread::id myid = this_thread::get_id();
     vector<int> myComm = sbgui.getMyComm(myid);
+    int inum;
     sizeVBP = 1;
     savePoints.clear();
     while (1)
@@ -1033,6 +1065,8 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
         {
             backtrack = 0;
             loadRecentSavePoint(vBorderPath);
+            inum = min((int)vBorderPath.size(), 6);
+            tracks.assign(vBorderPath.begin() + vBorderPath.size() - inum - 1, vBorderPath.end() - 1);
         }
         if (vBorderPath[vBorderPath.size() - 1][0] < 0 || vBorderPath[vBorderPath.size() - 1][1] < 0)
         {
@@ -1447,21 +1481,115 @@ void IMGFUNC::testDistances(vector<vector<int>>& candidates, vector<double>& dis
         }
     }
 }
-int IMGFUNC::testOverWater(vector<vector<int>>& tracks)
+int IMGFUNC::testHereBeDragons(vector<vector<unsigned char>> Lrgb, vector<int>& borderCoord, unordered_map<string, int>& mapIndexCandidate)
+{
+    // Given a ring of colours to scan and a single border point, 
+    // determine if we have reached the edge of the map.
+    // Returns 0 = not on map edge, 1 = map edge
+    string temp = jf.stringifyCoord(borderCoord);
+    string szone;
+    int inum, index, indexFinal, iScore = 0;
+    try { index = mapIndexCandidate.at(temp); }
+    catch (out_of_range& oor) { jf.err("mapIndexCandidate-im.testHereBeDragons"); }
+    indexFinal = (index - 1) % Lrgb.size();
+    while (index != indexFinal)
+    {
+        szone = pixelZone(Lrgb[index]);
+        if (szone != "unknown" && szone != "zoneBorder")
+        {
+            if (iScore == 0)
+            {
+                if (szone == "water")
+                {
+                    iScore = 1;
+                }
+                else if (szone == "roadSmall")
+                {
+                    iScore = 2;
+                }
+                else if (szone == "zoneOutside")
+                {
+                    iScore = 3;
+                }
+            }
+            else if (iScore < 10)
+            {
+                if (szone == "black")
+                {
+                    iScore += 10;
+                }
+                else if (szone == "blottedBlack")
+                {
+                    iScore += 20;
+                }
+            }
+            else if (iScore < 100)
+            {
+                if (szone == "white")
+                {
+                    iScore += 100;
+                }
+            }
+            else if (iScore < 1000)
+            {
+                inum = iScore % 100;
+                if (szone == "black" && inum < 20)
+                {
+                    iScore += 1000;
+                }
+                else if (szone == "blottedBlack" && inum > 20)
+                {
+                    iScore += 2000;
+                }
+            }
+            else if (iScore < 10000)
+            {
+                inum = iScore % 10;
+                if (szone == "water" && inum == 1)
+                {
+                    iScore += 10000;
+                }
+                else if (szone == "roadSmall" && inum == 2)
+                {
+                    iScore += 20000;
+                }
+                else if (szone == "zoneOutside" && inum == 3)
+                {
+                    iScore += 30000;
+                }
+            }
+        }
+        index = (index + 1) % Lrgb.size();
+    }
+    if (iScore > 10000) 
+    {
+        return 1; 
+    }
+    return 0;
+}
+int IMGFUNC::testOverWater(vector<vector<int>>& tracks, vector<vector<int>>& candidates)
 {
     // Test returns TRUE if it detects a minimum of two water zones, 
     // as well as having a high percentage of water pixels in the ring.
     string sZone = "water";
+    vector<vector<int>> vviTemp(1, vector<int>(2));
+    vviTemp[0] = tracks[tracks.size() - 1];
+    vviTemp.insert(vviTemp.end(), candidates.begin(), candidates.end());
     unordered_map<string, int> mapIndexCandidate;
     vector<int> intervalSize;
-    vector<vector<int>> octoPath = octogonPath(tracks[tracks.size() - 1], defaultSearchRadius);
-    vector<vector<unsigned char>> octoRGB = octogonRGB(octoPath);
-    vector<vector<int>> lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
+    vector<vector<int>> octoPath, lightHouse;
+    vector<vector<unsigned char>> octoRGB;
     double percentage; 
-    if (lightHouse.size() > 1)
+    for (int ii = 0; ii < vviTemp.size(); ii++)
     {
-        percentage = zoneSweepPercentage(sZone, octoRGB);
-        if (percentage > defaultWaterPercentage) { return 1; }
+        octoPath = octogonPath(vviTemp[ii], borderThickness);
+        octoRGB = octogonRGB(octoPath);
+        lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
+        if (lightHouse.size() > 1)
+        {
+            percentage = zoneSweepPercentage(sZone, octoRGB);
+            if (percentage > defaultWaterPercentage) { return 1; }
+        }
     }
     return 0;
 }
@@ -1728,13 +1856,15 @@ double IMGFUNC::zoneSweepPercentage(string sZone, vector<vector<unsigned char>>&
     // For a given zone type, return its representation percentage from
     // a list of RGB pixels.
     string sZoneTemp;
+    string border = "zoneBorder";
     int total = Lrgb.size();
-    int count = 0;
+    int count = 0, countNonBorder = 0;
     for (int ii = 0; ii < total; ii++)
     {
         sZoneTemp = pixelZone(Lrgb[ii]);
         if (sZoneTemp == sZone) { count++; }
+        if (sZoneTemp != border) { countNonBorder++; }
     }
-    double percentage = (double)count / (double)total;
+    double percentage = (double)count / (double)countNonBorder;
     return percentage;
 }

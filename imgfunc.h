@@ -19,9 +19,9 @@ class IMGFUNC
     int candidateRelativeLengthMin = 50;
     int candidateRelativeWidthMin = 50;
     vector<unsigned char> dataPNG, debugDataPNG;
-	bool debug = 1;
+	bool debug = 0;
     double defaultAngleIncrement = 5.0;
-    double defaultCandidateDistanceTolerance = 0.35;  
+    double defaultCandidateDistanceTolerance = 0.33;  
     double defaultCenterOfMassTolerance = 45.0;  // Angular deviation.
     int defaultCharSpace = 1;
     int defaultDotWidth = 5;
@@ -32,7 +32,7 @@ class IMGFUNC
     int defaultPathLengthImageDebug = 1000;
     int defaultSearchRadius = 15;
     int defaultTextSeparatorWidth = 2;
-    double defaultWaterPercentage = 0.5;
+    double defaultWaterPercentage = 0.45;
     double defaultWidthTestRatio = 3.0;
     int defaultZoneRadialDistanceTolerance = 10;
     int deltaRadius = 0;
@@ -114,7 +114,8 @@ public:
     void testDistances(vector<vector<int>>& candidates, vector<double>& distances);
     int testCandidatesInteriorZone(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, string sZone, vector<vector<int>>& candidates);
     void testCenterOfMass(vector<vector<int>>& tracks, vector<vector<int>>& candidates);
-    int testOverWater(vector<vector<int>>& tracks);
+    int testHereBeDragons(vector<vector<unsigned char>> Lrgb, vector<int>& borderCoord, unordered_map<string, int>& mapIndexCandidate);
+    int testOverWater(vector<vector<int>>& tracks, vector<vector<int>>& candidates);
     int testTextHumanFeature(vector<vector<unsigned char>>& Lrgb);
     vector<int> testZoneLength(vector<vector<int>>& pastPresent, vector<vector<int>>& candidates, string sZone);
     int testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate);

@@ -364,6 +364,17 @@ void MainWindow::update_mode()
 
 // GUI-SPECIFIC FUNCTIONS, WITH ASSOCIATED MANAGER AND WORKER FUNCTIONS:
 
+// Mouse functions.
+void MainWindow::mousePressEvent(QMouseEvent* event)
+{
+    QPointF pointClickF;
+    if (event->button() == Qt::LeftButton)
+    {
+        pointClickF = event->position();
+    }
+    qDebug() << "Mouse click: " << pointClickF;
+}
+
 // For the given local drive, display (as a tree widget) the available catalogues, organized by year.
 void MainWindow::on_pB_scan_clicked()
 {
