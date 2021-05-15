@@ -68,6 +68,7 @@ public:
 	int tree_from_marker(vector<vector<int>>&, vector<string>&);
 	string utf16to8(wstring);
 	wstring utf8to16(string);
+	void UTF16clean(wstring&);
 	int xDom(double angle);
 
 

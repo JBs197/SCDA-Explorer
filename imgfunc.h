@@ -19,11 +19,12 @@ class IMGFUNC
     int candidateRelativeLengthMin = 50;
     int candidateRelativeWidthMin = 50;
     vector<unsigned char> dataPNG, debugDataPNG;
-	bool debug = 0;
+	bool debug = 1;
     double defaultAngleIncrement = 5.0;
     double defaultCandidateDistanceTolerance = 0.33;  
     double defaultCenterOfMassTolerance = 45.0;  // Angular deviation.
     int defaultCharSpace = 1;
+    string defaultDebugMapPath = sroot + "\\debug\\PTBdebug.png";
     int defaultDotWidth = 5;
     vector<int> defaultExtractDim;
     string defaultFont = "Sylfaen";
@@ -47,7 +48,7 @@ class IMGFUNC
     int pauseVBP;
     vector<int> pointOfOrigin, revisedExtractDim;
     vector<vector<unsigned char>> pngTextColourBuffer;
-	int width, height, numComponents, recordVictor;
+	int width, height, numComponents = 3, recordVictor;
     int rabbitHole = 0;
     const int rabbitHoleDepth = 16;
     vector<vector<vector<int>>> savePoints;  // Form [point index][sizeVBP, Origin, Candidate0, ... , CandidateChosen][x,y coords].
@@ -65,6 +66,7 @@ class IMGFUNC
     vector<unsigned char> Purple = { 160, 50, 255 };
     vector<unsigned char> Red = { 255, 0, 0 };
     vector<unsigned char> Teal = { 0, 155, 255 };
+    vector<unsigned char> Violet = { 127, 0, 255 };
     vector<unsigned char> White = { 255, 255, 255 };
     vector<unsigned char> Yellow = { 255, 255, 0 };
 
@@ -82,6 +84,8 @@ public:
 	void drawMarker(vector<unsigned char>& img, vector<int>& vCoord);
     vector<vector<double>> frameCorners();
     vector<unsigned char> getColour(string sColour);
+    int getDotWidth();
+    string getMapPath(int mode);
     int getQuadrant(vector<vector<int>>& startStop);
     double getStretchFactor(string& widthHeight);
     void initGlyph(string& filePath, int ascii);
@@ -120,6 +124,7 @@ public:
     vector<int> testZoneLength(vector<vector<int>>& pastPresent, vector<vector<int>>& candidates, string sZone);
     int testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate);
     void thrMakeMapPTB(vector<vector<int>> vBorderPath, string outputPath, vector<unsigned char> source, vector<int> sourceDim);
+    //void thrMakeMapPTBdebug(vector<unsigned char>& source, vector<vector<int>> tracks, int radius, vector<vector<int>> candidates, string pathImg);
     vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
     double zoneSweepPercentage(string sZone, vector<vector<unsigned char>>& Lrgb);
 
@@ -742,7 +747,7 @@ public:
         vector<int> coordPaste = { croppedDim[0] - legendDim[0], 0 };
         pngPaste(cropped, croppedDim, legendImg, legendDim, coordPaste);
 
-        // Print to file.
+        // Print the cropped image to file.
         int imgSize = cropped.size();
         int channels = 3;
         auto bufferUC = new unsigned char[imgSize];
@@ -752,6 +757,26 @@ public:
         }
         int error = stbi_write_png(pathImg.c_str(), croppedDim[0], croppedDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
+
+        // Print the cropped image's top-left, origin, and candidate coordinates.
+        string pathBin = pathImg.substr(0, pathImg.size() - 4);
+        pathBin += ".bin";
+        ofstream sPrinter(pathBin.c_str(), ios::trunc);
+        auto report = sPrinter.rdstate();
+        vector<int> viTemp(2);
+        viTemp[0] = tracks[tracks.size() - 1][0] - (oldNew[0] / 2);
+        viTemp[1] = tracks[tracks.size() - 1][1] - (oldNew[1] / 2);
+        sPrinter << "//topleft" << endl;
+        sPrinter << to_string(viTemp[0]) << "," << to_string(viTemp[1]) << endl << endl;
+        sPrinter << "//origin" << endl;
+        sPrinter << to_string(tracks[tracks.size() - 1][0]) << "," << to_string(tracks[tracks.size() - 1][1]) << endl << endl;
+        sPrinter << "//candidate" << endl;
+        for (int ii = 0; ii < candidates.size(); ii++)
+        {
+            sPrinter << to_string(candidates[ii][0]) << "," << to_string(candidates[ii][1]) << endl;
+        }
+        sPrinter << endl;
+        sPrinter.close();
     }
 
     template<typename ... Args> void makeMapDeadCone(Args& ... args)

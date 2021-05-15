@@ -400,9 +400,9 @@
    <widget class="QPushButton" name="pB_mode">
     <property name="geometry">
      <rect>
-      <x>1140</x>
+      <x>1200</x>
       <y>530</y>
-      <width>81</width>
+      <width>21</width>
       <height>41</height>
      </rect>
     </property>
@@ -561,18 +561,32 @@
         <x>160</x>
         <y>30</y>
         <width>71</width>
-        <height>341</height>
+        <height>291</height>
        </rect>
       </property>
      </widget>
      <widget class="QPlainTextEdit" name="pte_advance">
       <property name="geometry">
        <rect>
-        <x>163</x>
-        <y>380</y>
+        <x>160</x>
+        <y>330</y>
         <width>71</width>
         <height>71</height>
        </rect>
+      </property>
+     </widget>
+     <widget class="QCheckBox" name="checkB_override">
+      <property name="geometry">
+       <rect>
+        <x>160</x>
+        <y>409</y>
+        <width>76</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>  Manual 
+ Override?</string>
       </property>
      </widget>
     </widget>

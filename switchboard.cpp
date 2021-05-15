@@ -67,6 +67,7 @@ void SWITCHBOARD::set_prompt(vector<string>& prompt)
 {
 	lock_guard<mutex> addrem(m_sb);
 	sprompt = prompt;
+	int bbq = 1;
 }
 vector<string> SWITCHBOARD::get_prompt()
 {

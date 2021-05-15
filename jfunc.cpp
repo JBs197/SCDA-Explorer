@@ -197,6 +197,7 @@ string JFUNC::load(string file_path)
 	// Uses the first 8 bytes to guess what file encoding is being used.
 
 	wstring file_wpath = utf8to16(file_path);
+	UTF16clean(file_wpath);
 	FILE* pFile;
 	errno_t error = _wfopen_s(&pFile, file_wpath.c_str(), L"rb");
 	if (pFile == NULL) { err("ERROR: fopen-wload"); }
@@ -695,6 +696,19 @@ wstring JFUNC::utf8to16(string input)
 	f.in(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
 	output.resize(future - &output[0]);
 	return output;
+}
+void JFUNC::UTF16clean(wstring& ws)
+{
+	wchar_t wChar;
+	size_t len = 2;
+	for (size_t ii = 0; ii < ws.size() - 1; ii++)
+	{
+		if (ws[ii] == 195)
+		{
+			wChar = ws[ii + 1] + 64;
+			ws.replace(ii, len, &wChar);
+		}
+	}
 }
 int JFUNC::xDom(double angle)
 {

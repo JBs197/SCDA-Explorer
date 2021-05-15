@@ -26,7 +26,7 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     vector<int> sourceDim = { width, height };
     while (candidates.size() < 2)
     {
-        if (candidates.size() == 1)
+        if (!debug && candidates.size() == 1)
         {
             inum = testHereBeDragons(octoRGB, candidates[0], mapIndexCandidate);
             if (inum > 0)
@@ -116,25 +116,19 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         if (dTemp > candidateDistanceTolerance) { return candidates[1]; }
     }
 
-    string pathMap;
-    if (rabbitHole > 0 && debug == 1)
-    {
-        pathMap = sroot + "\\debug\\borderFND(radius" + to_string(radius) + ").png";
-        makeMapBorderFindNext(tracks, radius, candidates, pathMap);
-    }
-
     // Try again, larger radius.
     rabbitHole++;
     if (rabbitHole == 4)  
     {
         if (debug)
         {
-            saveThisPoint(tracks, candidates);
+            pathMapDebug = defaultDebugMapPath;
+            pauseMapDebug(sbgui, tracks, radius, candidates);
+            if (candidates.size() == 1) { return candidates[0]; }
         }
         else
         {
-            pathMapDebug = sroot + "\\debug\\Query User.png";
-            pauseMapDebug(sbgui, tracks, radius, candidates);
+            saveThisPoint(tracks, candidates);
         }
     }
     if (rabbitHole > 0 && rabbitHole < rabbitHoleDepth)
@@ -166,24 +160,53 @@ vector<int> IMGFUNC::borderFindStart()
 {
     if (!isInit()) { jf.err("No init-im.borderFindStart"); }
     vector<string> szones = { "zoneBorder", "white" };
-    int pixelJump = 2;
+    int minDim = min(width, height);
+    int interval = minDim / 10;
+    int pixelJump = 2, offset = 0; 
+    bool letMeOut = 0;
     vector<vector<int>> vCorners = { {0,0}, {width-1,0}, {0,height-1}, {width-1,height-1} }; 
     vector<vector<int>> vVictors = { {pixelJump, pixelJump}, {-1 * pixelJump, pixelJump}, {pixelJump, -1 * pixelJump}, {-1 * pixelJump, -1 * pixelJump} };
     vector<vector<int>> vvI(2, vector<int>(2)), vCross1, vCross2;
-    for (int ii = 0; ii < 4; ii++)
+    while (!letMeOut)
     {
-        vvI[0] = vCorners[ii];
-        vvI[1] = vVictors[ii];
-        vCross1 = zoneChangeLinear(szones, vvI);
-        if (vCross1.size() == 0) { continue; }
+        for (int ii = 0; ii < 4; ii++)
+        {
+            vvI[0] = vCorners[ii];
+            switch (ii)
+            {
+            case 0:
+                vvI[0][0] += offset;
+                break;
+            case 1:
+                vvI[0][1] += offset;
+                break;
+            case 2:
+                vvI[0][1] -= offset;
+                break;
+            case 3:
+                vvI[0][0] -= offset;
+                break;
+            }
+            vvI[1] = vVictors[ii];
+            vCross1 = zoneChangeLinear(szones, vvI);
+            if (vCross1.size() == 0) { continue; }
 
-        szones = { "zoneBorder", "known" };
-        vvI[0] = vCross1[0];
-        vvI[1][0] *= -1;
-        vvI[1][1] *= -1;
-        vCross2 = zoneChangeLinear(szones, vvI);
-        if (vCross2.size() == 0) { continue; }
-        else { break; }
+            szones = { "zoneBorder", "known" };
+            vvI[0] = vCross1[0];
+            vvI[1][0] *= -1;
+            vvI[1][1] *= -1;
+            vCross2 = zoneChangeLinear(szones, vvI);
+            if (vCross2.size() == 0) { continue; }
+            else 
+            {
+                letMeOut = 1;
+                break; 
+            }
+        }
+        if (!letMeOut)
+        {
+            offset += interval;
+        }
     }
     vector<int> vStart;
     vector<double> thickness;
@@ -463,6 +486,22 @@ vector<unsigned char> IMGFUNC::getColour(string sColour)
     else if (sColour == "Yellow") { return Yellow; }
     vector<unsigned char> failure;
     return failure;
+}
+int IMGFUNC::getDotWidth()
+{
+    return defaultDotWidth;
+}
+string IMGFUNC::getMapPath(int mode)
+{
+    // Modes: 0 = cropped debug.
+    string path;
+    switch (mode)
+    {
+    case 0:
+        path = defaultDebugMapPath;
+        break;
+    }
+    return path;
 }
 int IMGFUNC::getQuadrant(vector<vector<int>>& startStop)
 {
@@ -937,7 +976,7 @@ void IMGFUNC::pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int
         sbgui.set_prompt(vsTemp);
         pngToBinPause(sbgui);
         vsTemp = sbgui.get_prompt();
-        if (vsTemp[0].size() > 0)
+        if (vsTemp.size() == 1)
         {
             int inum;
             try { inum = stoi(vsTemp[0]); }
@@ -946,7 +985,22 @@ void IMGFUNC::pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int
             vsTemp = { "" };
             sbgui.set_prompt(vsTemp);
         }
-        else { pauseVBP = -1; }
+        if (vsTemp.size() == 2)
+        {
+            vector<int> userCoord = jf.destringifyCoord(vsTemp[1]);
+            if (userCoord != tracks[tracks.size() - 1])
+            {
+                for (int ii = candidates.size() - 1; ii >= 0; ii--)
+                {
+                    if (candidates[ii] != userCoord)
+                    {
+                        candidates.erase(candidates.begin() + ii);
+                    }
+                }
+            }
+            vsTemp = { "" };
+            sbgui.set_prompt(vsTemp);
+        }
     }
     pathMapDebug.clear();
 }
@@ -1025,7 +1079,7 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
     pngLoad(pathPNG);
     string temp;
     string pathMapPTB = sroot + "\\debug\\PTB.png";
-    string pathMapPTBdebug = sroot + "\\debug\\PTBdebug";
+    string pathMapPTBdebug = sroot + "\\debug\\PTBdebug.png";
     vector<string> vsTemp;
     vector<int> viTemp;
     vector<vector<double>> corners = frameCorners();
@@ -1241,7 +1295,7 @@ void IMGFUNC::pngToBinPause(SWITCHBOARD& sbgui)
 
     while (statusGui < 2)
     {
-        this_thread::sleep_for(100ms);
+        this_thread::sleep_for(55ms);
         commGui = sbgui.update(myid, myComm);
         if (statusGui == 0 && commGui[0][0] == 3) { statusGui = 1; }
         else if (statusGui == 1 && commGui[0][0] == 0) { statusGui = 2; }
@@ -1582,7 +1636,7 @@ int IMGFUNC::testOverWater(vector<vector<int>>& tracks, vector<vector<int>>& can
     double percentage; 
     for (int ii = 0; ii < vviTemp.size(); ii++)
     {
-        octoPath = octogonPath(vviTemp[ii], borderThickness);
+        octoPath = octogonPath(vviTemp[ii], (2 * borderThickness));
         octoRGB = octogonRGB(octoPath);
         lightHouse = zoneSweep(sZone, octoRGB, octoPath, mapIndexCandidate);
         if (lightHouse.size() > 1)
@@ -1833,14 +1887,18 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
         if (coord)
         {
             coordA[0] = coordB[0] + dx;
+            if (coordA[0] < 0 || coordA[0] >= width) { break; }
             coordA[1] = coordB[1] + dy;
+            if (coordA[1] < 0 || coordA[1] >= height) { break; }
             coord = 0;
             rgb = pixelRGB(coordA);
         }
         else
         {
             coordB[0] = coordA[0] + dx;
+            if (coordB[0] < 0 || coordB[0] >= width) { break; }
             coordB[1] = coordA[1] + dy;
+            if (coordB[1] < 0 || coordB[1] >= height) { break; }
             coord = 1;
             rgb = pixelRGB(coordB);
         }

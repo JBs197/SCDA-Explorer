@@ -84,15 +84,15 @@ void MainWindow::initialize()
     ui->label_maps->setVisible(0);
     ui->label_maps2->setGeometry(720, 5, 100, 21);
     ui->label_maps2->setVisible(0);
-    ui->listW_bindone->setGeometry(720, 25, 190, 330);
+    ui->listW_bindone->setGeometry(720, 25, 190, 280);
     ui->listW_bindone->setVisible(0);
-    ui->pB_resume->setGeometry(1190, 395, 81, 41);
+    ui->pB_resume->setGeometry(1190, 345, 81, 41);
     ui->pB_resume->setVisible(0);
-    ui->pB_pause->setGeometry(1100, 395, 81, 41);
+    ui->pB_pause->setGeometry(1100, 345, 81, 41);
     ui->pB_pause->setVisible(0);
-    ui->pB_advance->setGeometry(1100, 441, 81, 41);
+    ui->pB_advance->setGeometry(1100, 391, 81, 41);
     ui->pB_advance->setVisible(0);
-    ui->pte_advance->setGeometry(820, 405, 78, 41);
+    ui->pte_advance->setGeometry(820, 355, 78, 41);
     ui->pte_advance->setPlainText("1");
     ui->pte_advance->setVisible(0);
     ui->pB_usc->setVisible(0);
@@ -107,12 +107,15 @@ void MainWindow::initialize()
     ui->pB_search->setGeometry(990, 530, 81, 41);
     ui->pB_convert->setVisible(0);
     ui->pB_convert->setGeometry(990, 530, 81, 41);
+    ui->pB_mode->setGeometry(1140, 530, 81, 41);
+    ui->checkB_override->setGeometry(820, 405, 80, 40);
+    ui->checkB_override->setVisible(0);
 
     // Prepare mouse event offsets.
     QRect posLabelMaps = ui->tabW_online->geometry();
     QPoint TL = posLabelMaps.topLeft();
-    labelMapsDx = -1 * TL.x();
-    labelMapsDy = -1 * TL.y();
+    labelMapsDx = (-1 * TL.x()) - 2;
+    labelMapsDy = (-1 * TL.y()) - 25;
 
     // Initialize the progress bar with blanks.
     reset_bar(100, " ");
@@ -336,6 +339,7 @@ void MainWindow::update_mode()
         ui->pB_viewtable->setVisible(1);
         ui->pB_localmaps->setVisible(0);
         ui->pB_convert->setVisible(0);
+        ui->checkB_override->setVisible(0);
         break;
     case 1:
         ui->tabW_results->setVisible(0);
@@ -363,6 +367,7 @@ void MainWindow::update_mode()
         ui->pB_viewtable->setVisible(0);
         ui->pB_localmaps->setVisible(1);
         ui->pB_convert->setVisible(1);
+        ui->checkB_override->setVisible(1);
         break;
     }
 }
@@ -374,17 +379,50 @@ void MainWindow::update_mode()
 void MainWindow::mousePressEvent(QMouseEvent* event)
 {
     QPoint pointClick;
+    vector<int> clickCoord(2);
+    vector<string> promptUpdate;
+    double dist;
     if (event->button() == Qt::LeftButton)
     {
         pointClick = event->position().toPoint();
+        clickCoord[0] = pointClick.x();
+        clickCoord[1] = pointClick.y();
     }
     if (active_mode == 1)
     {
         if (ui->tabW_online->currentIndex() == 2)
         {
-            pointClick.rx() += labelMapsDx;
-            pointClick.ry() += labelMapsDy;
-            qDebug() << "Mouse click: " << pointClick;
+            if (remote_controller == 3 && debugMapCoord.size() > 0)
+            {
+                clickCoord[0] += labelMapsDx + debugMapCoord[0][0];
+                clickCoord[1] += labelMapsDy + debugMapCoord[0][1];
+                if (ui->checkB_override->isChecked())
+                {
+                    qf.debugMapSelected(ui->label_maps, clickCoord, debugMapCoord);
+                    promptUpdate = { "", jf.stringifyCoord(clickCoord) };
+                    sb.set_prompt(promptUpdate);
+                    remote_controller = 0;
+                    ui->pB_pause->setEnabled(1);
+                    ui->pB_resume->setEnabled(0);
+                }
+                else
+                {
+                    for (int ii = 1; ii < debugMapCoord.size(); ii++)
+                    {
+                        dist = jf.coordDist(clickCoord, debugMapCoord[ii]);
+                        if (dist < 5.0)
+                        {
+                            qf.debugMapSelected(ui->label_maps, ii, debugMapCoord);
+                            promptUpdate = { "", jf.stringifyCoord(debugMapCoord[ii]) };
+                            sb.set_prompt(promptUpdate);
+                            remote_controller = 0;
+                            ui->pB_pause->setEnabled(1);
+                            ui->pB_resume->setEnabled(0);
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -2266,7 +2304,7 @@ void MainWindow::on_pB_convert_clicked()
             {
                 debugPath = sb.get_prompt();
                 sb.set_prompt(bagOfAir);
-                qf.displayDebug(ui->label_maps, debugPath);
+                qf.displayDebug(ui->label_maps, debugPath, debugMapCoord);
                 if (debugPath.size() > 1)
                 {
                     try
@@ -2289,8 +2327,8 @@ void MainWindow::on_pB_convert_clicked()
                     comm = sb.update(myid, comm[0]);
                     if (remote_controller == 0 && comm[0][0] == 3)
                     {
-                        vsTemp = { "" };
-                        sb.set_prompt(vsTemp);
+                        //vsTemp = { "" };
+                        //sb.set_prompt(vsTemp);
                         comm[0][0] = 0;
                         sb.update(myid, comm[0]);
                     }
@@ -2345,11 +2383,11 @@ void MainWindow::on_pB_convert_clicked()
         }
         case 1:
         {
-            if (comm[1][0] = 3)
+            if (comm[1][0] == 3)
             {
                 debugPath = sb.get_prompt();
                 sb.set_prompt(bagOfAir);
-                qf.displayDebug(ui->label_maps, debugPath);
+                qf.displayDebug(ui->label_maps, debugPath, debugMapCoord);
                 if (debugPath.size() > 1)
                 {
                     try
@@ -2372,8 +2410,8 @@ void MainWindow::on_pB_convert_clicked()
                     comm = sb.update(myid, comm[0]);
                     if (remote_controller == 0 && comm[0][0] == 3)
                     {
-                        vsTemp = { "" };
-                        sb.set_prompt(vsTemp);
+                        //vsTemp = { "" };
+                        //sb.set_prompt(vsTemp);
                         comm[0][0] = 0;
                         sb.update(myid, comm[0]);
                     }
@@ -2406,7 +2444,7 @@ void MainWindow::on_pB_convert_clicked()
             if (comm[1][0] == 3)
             {
                 debugPath = sb.get_prompt();
-                qf.displayDebug(ui->label_maps, debugPath);
+                qf.displayDebug(ui->label_maps, debugPath, debugMapCoord);
                 if (debugPath.size() > 1)
                 {
                     try 
@@ -2716,7 +2754,7 @@ void MainWindow::on_pB_test_clicked()
         comm = sb.update(myid, comm[0]);
         if (comm[1][0] == 3)
         {
-            qf.displayDebug(ui->label_maps, pathImg);
+            qf.displayDebug(ui->label_maps, pathImg, debugMapCoord);
             while (1)
             {
                 QCoreApplication::processEvents();
@@ -2888,6 +2926,7 @@ void MainWindow::on_tabW_online_currentChanged(int index)
         ui->pB_pause->setVisible(0);
         ui->pB_advance->setVisible(0);
         ui->pte_advance->setVisible(0);
+        ui->checkB_override->setVisible(0);
         break;
     case 1:
         ui->pB_download->setEnabled(1);
@@ -2895,6 +2934,7 @@ void MainWindow::on_tabW_online_currentChanged(int index)
         ui->pB_pause->setVisible(0);
         ui->pB_advance->setVisible(0);
         ui->pte_advance->setVisible(0);
+        ui->checkB_override->setVisible(0);
         break;
     case 2:
         ui->pB_download->setEnabled(0);
@@ -2902,6 +2942,7 @@ void MainWindow::on_tabW_online_currentChanged(int index)
         ui->pB_pause->setVisible(1);
         ui->pB_advance->setVisible(1);
         ui->pte_advance->setVisible(1);
+        ui->checkB_override->setVisible(1);
         break;
     }
 }

@@ -17,10 +17,12 @@ class QTFUNC
 {
 	QBrush brush;
 	QColor colourDefault = Qt::black;
+	string defaultDebugMapPath, defaultDebugMapPathSelected;
+	int defaultDotWidth = -1;
 	double defaultMapZoom = 3.0;
 	int diameterDefault = 5;
 	IMGFUNC im;
-	JFUNC jfqf;
+	JFUNC jf;
 	vector<string> listPathBin;
 	QMap<QString, int> mapListPathBin;
 	QMap<QTreeWidget*, int> map_display_root;
@@ -29,12 +31,13 @@ class QTFUNC
 	QPixmap pmCanvas, pmPainting;
 	QRectF rect;
 
+	vector<unsigned char> Violet = { 127, 0, 255 };
 
 public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
 	void displayBinList(QListWidget*& qLW, vector<string>& pathBin);
-	void displayDebug(QLabel*& qlabel, vector<string>& pathPNG);
+	void displayDebug(QLabel*& qlabel, vector<string>& pathPNG, vector<vector<int>>& debugMapCoord);
 	void displayPainterPath(QLabel*& qlabel, QPainterPath& path);
 	void displayText(QLabel*, string stext);
 	void display_subt(QTreeWidget*, QTreeWidgetItem*);
@@ -45,11 +48,78 @@ public:
 	string getBranchPath(QTreeWidgetItem*& qBranch, string rootDir);
 	int get_display_root(QTreeWidget*);
 	void initPixmap(QLabel* qlabel);
+	vector<vector<int>> loadDebugMapCoord(string& pathBin);
 	QPainterPath pathMakeCircle(vector<double> origin, double radius, int sides);
 	void pmPainterReset(QLabel*& qlabel);
+	void setDebugMapPath(string spath);
 	void set_display_root(QTreeWidget*, int);
 
 	// TEMPLATES
+	template<typename ... Args> void debugMapSelected(QLabel*& qlabel, Args ... args)
+	{
+		jf.err("debugMapSelected template-qf");
+	}
+	template<> void debugMapSelected<int, vector<vector<int>>>(QLabel*& qlabel, int index, vector<vector<int>> debugMapCoord)
+	{
+		if (defaultDotWidth < 0) { defaultDotWidth = im.getDotWidth(); }
+		if (defaultDebugMapPath.size() < 1) { setDebugMapPath(im.getMapPath(0)); }
+		vector<int> mapDim(2), pixelCoord(2);
+		int numComponents, offset, halfDot = defaultDotWidth / 2;
+		pixelCoord[0] = debugMapCoord[index][0] - debugMapCoord[0][0] - halfDot;
+		pixelCoord[1] = debugMapCoord[index][1] - debugMapCoord[0][1] - halfDot;
+		unsigned char* dataTemp = stbi_load(defaultDebugMapPath.c_str(), &mapDim[0], &mapDim[1], &numComponents, 0);
+		for (int ii = 0; ii < defaultDotWidth; ii++)
+		{
+			offset = im.getOffset(pixelCoord, mapDim[0]);
+			for (int jj = 0; jj < defaultDotWidth; jj++)
+			{
+				dataTemp[offset] = Violet[0];
+				offset++;
+				dataTemp[offset] = Violet[1];
+				offset++;
+				dataTemp[offset] = Violet[2];
+				offset++;
+			}
+			pixelCoord[1]++;
+		}
+		int error = stbi_write_png(defaultDebugMapPathSelected.c_str(), mapDim[0], mapDim[1], numComponents, dataTemp, 0);
+		QString qtemp = QString::fromUtf8(defaultDebugMapPathSelected);
+		QImage qimg = QImage(qtemp);
+		QPixmap qpm = QPixmap::fromImage(qimg);
+		qlabel->setPixmap(qpm);
+		int bbq = 1;
+	}
+	template<> void debugMapSelected<vector<int>, vector<vector<int>>>(QLabel*& qlabel, vector<int> manualCoord, vector<vector<int>> debugMapCoord)
+	{
+		if (defaultDotWidth < 0) { defaultDotWidth = im.getDotWidth(); }
+		if (defaultDebugMapPath.size() < 1) { setDebugMapPath(im.getMapPath(0)); }
+		vector<int> mapDim(2), pixelCoord(2);
+		int numComponents, offset, halfDot = defaultDotWidth / 2;
+		pixelCoord[0] = manualCoord[0] - debugMapCoord[0][0] - halfDot;
+		pixelCoord[1] = manualCoord[1] - debugMapCoord[0][1] - halfDot;
+		unsigned char* dataTemp = stbi_load(defaultDebugMapPath.c_str(), &mapDim[0], &mapDim[1], &numComponents, 0);
+		for (int ii = 0; ii < defaultDotWidth; ii++)
+		{
+			offset = im.getOffset(pixelCoord, mapDim[0]);
+			for (int jj = 0; jj < defaultDotWidth; jj++)
+			{
+				dataTemp[offset] = Violet[0];
+				offset++;
+				dataTemp[offset] = Violet[1];
+				offset++;
+				dataTemp[offset] = Violet[2];
+				offset++;
+			}
+			pixelCoord[1]++;
+		}
+		int error = stbi_write_png(defaultDebugMapPathSelected.c_str(), mapDim[0], mapDim[1], numComponents, dataTemp, 0);
+		QString qtemp = QString::fromUtf8(defaultDebugMapPathSelected);
+		QImage qimg = QImage(qtemp);
+		QPixmap qpm = QPixmap::fromImage(qimg);
+		qlabel->setPixmap(qpm);
+		int bbq = 1;
+	}
+
 	template<typename Q> void display(Q*, vector<vector<int>>&, vector<string>&) 
 	{
 		err("display template-qf");
@@ -67,7 +137,7 @@ public:
 		// Make a qitem for every node in the tree.
 		for (int ii = 0; ii < tree_st.size(); ii++)
 		{
-			wtemp = jfqf.utf8to16(tree_pl[ii]);
+			wtemp = jf.utf8to16(tree_pl[ii]);
 			qtemp = QString::fromStdWString(wtemp);
 			qtemp = QString::fromUtf8(tree_pl[ii]);
 			qitem = new QTreeWidgetItem();
@@ -176,13 +246,13 @@ public:
 
 	template<typename ... Args> void displayBin(QLabel*& qlabel, Args& ... args)
 	{
-		jfqf.err("displayBin template-qf");
+		jf.err("displayBin template-qf");
 	}
 	template<> void displayBin<string>(QLabel*& qlabel, string& pathBIN)
 	{
-		jfqf.timerStart();
+		jf.timerStart();
 		// Load all coordinates into memory from the bin file.
-		string sfile = jfqf.load(pathBIN);
+		string sfile = jf.load(pathBIN);
 		if (sfile.size() < 1) { err("load-qf.displayBin"); }
 		size_t pos1, pos2, posStart, posStop;
 		vector<vector<int>> frameCorners, border;
@@ -254,14 +324,14 @@ public:
 		painter.drawPath(path);
 		qlabel->setPixmap(pmPainting);
 
-		long long timer = jfqf.timerStop();
+		long long timer = jf.timerStop();
 		qDebug() << "Time to displayBin from file: " << timer;
 		int bbq = 1;
 	}
 	template<> void displayBin<QString>(QLabel*& qlabel, QString& qName)
 	{
 		int listIndex = mapListPathBin.value(qName, -1);
-		if (listIndex < 0) { jfqf.err("mapListPathBin-qf.displayBin"); }
+		if (listIndex < 0) { jf.err("mapListPathBin-qf.displayBin"); }
 		string pathBIN = listPathBin[listIndex];
 		displayBin(qlabel, pathBIN);
 	}
@@ -369,7 +439,7 @@ public:
 	template<> QPainterPath pathMake<vector<vector<int>>>(vector<vector<int>>& iCoordList)
 	{
 		vector<vector<double>> coordList;
-		jfqf.toDouble(iCoordList, coordList);
+		jf.toDouble(iCoordList, coordList);
 		QPainterPath path = pathMake(coordList);
 		return path;
 	}

@@ -89,9 +89,8 @@ private:
     int threads_working = 0;
     int remote_controller = 0;  // 0 = run, 1 = ??, 2 = cancel, 3 = pause.
     bool begun_logging = 0;
-    int qrow_title_width = 20;
-    int active_mode = 0;
-    int qnam_status = 0;
+    int qrow_title_width = 20, active_mode = 0, qnam_status = 0;
+    vector<vector<int>> debugMapCoord;  // Form [TL, origin, candidate0, ... ][xCoord, yCoord]
     wstring wdrive;
     string sdrive;
     QString qdrive;
