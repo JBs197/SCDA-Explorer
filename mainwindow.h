@@ -77,6 +77,7 @@ private slots:
     void on_pB_pause_clicked();
     void on_pB_advance_clicked();
     void on_listW_bindone_itemSelectionChanged();
+    void on_pB_backspace_clicked();
 
 private:
     Ui::MainWindow *ui;
@@ -86,6 +87,7 @@ private:
     const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
     int jobs_max, jobs_done, jobs_percent, advBuffer, labelMapsDx, labelMapsDy;
+    int backBuffer;
     int threads_working = 0;
     int remote_controller = 0;  // 0 = run, 1 = ??, 2 = cancel, 3 = pause.
     bool begun_logging = 0;

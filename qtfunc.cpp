@@ -61,7 +61,7 @@ void QTFUNC::displayDebug(QLabel*& qlabel, vector<string>& pathPNG, vector<vecto
 	}
 	QPixmap qpm = QPixmap::fromImage(qimgScaled);
 	qlabel->setPixmap(qpm);
-	int bbq = 1;
+	lastMap = 0;
 }
 void QTFUNC::displayPainterPath(QLabel*& qlabel, QPainterPath& path)
 {

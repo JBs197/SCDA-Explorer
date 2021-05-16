@@ -108,8 +108,11 @@ void MainWindow::initialize()
     ui->pB_convert->setVisible(0);
     ui->pB_convert->setGeometry(990, 530, 81, 41);
     ui->pB_mode->setGeometry(1140, 530, 81, 41);
-    ui->checkB_override->setGeometry(820, 405, 80, 40);
+    ui->checkB_override->setGeometry(730, 405, 80, 40);
     ui->checkB_override->setVisible(0);
+    ui->pB_backspace->setGeometry(1191, 437, 80, 40);
+    ui->pB_backspace->setVisible(0);
+    ui->pB_backspace->setEnabled(0);
 
     // Prepare mouse event offsets.
     QRect posLabelMaps = ui->tabW_online->geometry();
@@ -340,6 +343,7 @@ void MainWindow::update_mode()
         ui->pB_localmaps->setVisible(0);
         ui->pB_convert->setVisible(0);
         ui->checkB_override->setVisible(0);
+        ui->pB_backspace->setVisible(0);
         break;
     case 1:
         ui->tabW_results->setVisible(0);
@@ -368,6 +372,7 @@ void MainWindow::update_mode()
         ui->pB_localmaps->setVisible(1);
         ui->pB_convert->setVisible(1);
         ui->checkB_override->setVisible(1);
+        ui->pB_backspace->setVisible(1);
         break;
     }
 }
@@ -382,6 +387,7 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
     vector<int> clickCoord(2);
     vector<string> promptUpdate;
     double dist;
+    int inum;
     if (event->button() == Qt::LeftButton)
     {
         pointClick = event->position().toPoint();
@@ -394,33 +400,48 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
         {
             if (remote_controller == 3 && debugMapCoord.size() > 0)
             {
-                clickCoord[0] += labelMapsDx + debugMapCoord[0][0];
-                clickCoord[1] += labelMapsDy + debugMapCoord[0][1];
-                if (ui->checkB_override->isChecked())
+                inum = qf.getLastMap();
+                if (inum == 0)
                 {
-                    qf.debugMapSelected(ui->label_maps, clickCoord, debugMapCoord);
-                    promptUpdate = { "", jf.stringifyCoord(clickCoord) };
-                    sb.set_prompt(promptUpdate);
-                    remote_controller = 0;
-                    ui->pB_pause->setEnabled(1);
-                    ui->pB_resume->setEnabled(0);
-                }
-                else
-                {
-                    for (int ii = 1; ii < debugMapCoord.size(); ii++)
+                    clickCoord[0] += labelMapsDx + debugMapCoord[0][0];
+                    clickCoord[1] += labelMapsDy + debugMapCoord[0][1];
+                    if (ui->checkB_override->isChecked())
                     {
-                        dist = jf.coordDist(clickCoord, debugMapCoord[ii]);
-                        if (dist < 5.0)
+                        qf.debugMapSelected(ui->label_maps, clickCoord, debugMapCoord);
+                        promptUpdate = { "", "", jf.stringifyCoord(clickCoord) };
+                        sb.set_prompt(promptUpdate);
+                        advBuffer = 1;
+                        remote_controller = 1;
+                        ui->pB_pause->setEnabled(1);
+                        ui->pB_resume->setEnabled(0);
+                        ui->pB_backspace->setEnabled(0);
+                        ui->checkB_override->setChecked(0);
+                    }
+                    else
+                    {
+                        for (int ii = 1; ii < debugMapCoord.size(); ii++)
                         {
-                            qf.debugMapSelected(ui->label_maps, ii, debugMapCoord);
-                            promptUpdate = { "", jf.stringifyCoord(debugMapCoord[ii]) };
-                            sb.set_prompt(promptUpdate);
-                            remote_controller = 0;
-                            ui->pB_pause->setEnabled(1);
-                            ui->pB_resume->setEnabled(0);
-                            break;
+                            dist = jf.coordDist(clickCoord, debugMapCoord[ii]);
+                            if (dist < 5.0)
+                            {
+                                qf.debugMapSelected(ui->label_maps, ii, debugMapCoord);
+                                promptUpdate = { "", jf.stringifyCoord(debugMapCoord[ii]) };
+                                sb.set_prompt(promptUpdate);
+                                remote_controller = 0;
+                                ui->pB_pause->setEnabled(1);
+                                ui->pB_resume->setEnabled(0);
+                                ui->pB_backspace->setEnabled(0);
+                                break;
+                            }
                         }
                     }
+                }
+                else if (inum == 1)
+                {
+                    clickCoord[0] += labelMapsDx;
+                    clickCoord[1] += labelMapsDy;
+                    promptUpdate = { jf.stringifyCoord(clickCoord) };
+                    qDebug() << "Click: " << QString::fromStdString(promptUpdate[0]);
                 }
             }
         }
@@ -2142,7 +2163,6 @@ void MainWindow::populateQtreeList(JTREE& jtx, QTreeWidgetItem*& qparent, string
 // Convert a downloaded PDF map into a BIN map.
 void MainWindow::on_pB_convert_clicked()
 {
-    string pathImg = sroot + "\\debug\\tempDebug.png";
     QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
     QTreeWidgetItem* qitem = nullptr;
     if (qlist.size() < 1) { return; }
@@ -2162,9 +2182,42 @@ void MainWindow::on_pB_convert_clicked()
     }
     else { inum = -1; }
     vector<string> prompt = { to_string(inum) };  // Form [utility ints, pathInput1, pathInput2, ...].
-    if (numKids > 0)  // If a folder was selected...
+    
+    dirt = { "Local Maps" };
+    if (numKids == 0)  // If a single file was selected...
     {
-        dirt = { "Local Maps" };
+        qtemp = qlist[0]->text(0);
+        temp = qtemp.toUtf8();
+        qitem = qlist[0]->parent();
+        while (qitem != nullptr)
+        {
+            qtemp = qitem->text(0);
+            filePath = qtemp.toUtf8();
+            filePath += "\\" + temp;
+            temp = filePath;
+            qitem = qitem->parent();
+        }
+        prompt.push_back("");
+        prompt[prompt.size() - 1] = sroot + "\\" + filePath;
+        pos1 = filePath.rfind('.');
+        temp = filePath.substr(pos1);
+        if (temp == ".pdf")
+        {
+            soap = { "mapsPDF" };
+        }
+        else if (temp == ".png")
+        {
+            soap = { "mapsPNG" };
+        }
+        else if (temp == ".bin")
+        {
+            soap = { "mapsBIN" };
+        }
+        else { jf.err("extension clean-MainWindow.on_pB_convert"); }
+        jf.clean(prompt[prompt.size() - 1], dirt, soap);
+    }
+    else if (numKids > 0)  // If a folder was selected...
+    {
         for (int ii = 0; ii < numKids; ii++)
         {
             numKidsTemp = qlist[0]->child(ii)->childCount();
@@ -2319,6 +2372,7 @@ void MainWindow::on_pB_convert_clicked()
                 ui->pB_resume->setEnabled(1);
                 ui->pB_pause->setEnabled(0);
                 ui->pB_advance->setEnabled(1);
+                ui->pB_backspace->setEnabled(1);
                 remote_controller = 3;
                 comm[0][0] = 3;
                 while (1)
@@ -2334,8 +2388,24 @@ void MainWindow::on_pB_convert_clicked()
                     }
                     else if (remote_controller == 1 && comm[0][0] == 3)
                     {
-                        vsTemp = { to_string(advBuffer) };
+                        vsTemp = sb.get_prompt();
+                        if (vsTemp.size() == 3)  // Keep coords in vsTemp[2].
+                        {
+                            vsTemp[0] = to_string(advBuffer);
+                        }
+                        else
+                        {
+                            vsTemp = { to_string(advBuffer) };
+                        }
                         advBuffer = -1;
+                        sb.set_prompt(vsTemp);
+                        comm[0][0] = 0;
+                        sb.update(myid, comm[0]);
+                    }
+                    else if (remote_controller == 4 && comm[0][0] == 3)
+                    {
+                        vsTemp = { to_string(-1 * backBuffer) };
+                        backBuffer = -1;
                         sb.set_prompt(vsTemp);
                         comm[0][0] = 0;
                         sb.update(myid, comm[0]);
@@ -2343,6 +2413,8 @@ void MainWindow::on_pB_convert_clicked()
                     if (comm[1][0] == 0)
                     {
                         local_controller = 0;
+                        if (remote_controller == 4) { remote_controller = 1; }
+                        ui->checkB_override->setChecked(0);
                         break;
                     }
                     Sleep(50);
@@ -2402,6 +2474,7 @@ void MainWindow::on_pB_convert_clicked()
                 ui->pB_resume->setEnabled(1);
                 ui->pB_pause->setEnabled(0);
                 ui->pB_advance->setEnabled(1);
+                ui->pB_backspace->setEnabled(1);
                 remote_controller = 3;
                 comm[0][0] = 3;
                 while (1)
@@ -2417,8 +2490,24 @@ void MainWindow::on_pB_convert_clicked()
                     }
                     else if (remote_controller == 1 && comm[0][0] == 3)
                     {
-                        vsTemp = { to_string(advBuffer) };
+                        vsTemp = sb.get_prompt();
+                        if (vsTemp.size() == 3)  // Keep coords in vsTemp[2].
+                        {
+                            vsTemp[0] = to_string(advBuffer);
+                        }
+                        else
+                        {
+                            vsTemp = { to_string(advBuffer) };
+                        }
                         advBuffer = -1;
+                        sb.set_prompt(vsTemp);
+                        comm[0][0] = 0;
+                        sb.update(myid, comm[0]);
+                    }
+                    else if (remote_controller == 4 && comm[0][0] == 3)
+                    {
+                        vsTemp = { to_string(-1 * backBuffer) };
+                        backBuffer = -1;
                         sb.set_prompt(vsTemp);
                         comm[0][0] = 0;
                         sb.update(myid, comm[0]);
@@ -2426,6 +2515,7 @@ void MainWindow::on_pB_convert_clicked()
                     if (comm[1][0] == 0)
                     {
                         local_controller = 0;
+                        if (remote_controller == 4) { remote_controller = 1; }
                         break;
                     }
                     Sleep(50);
@@ -2459,6 +2549,8 @@ void MainWindow::on_pB_convert_clicked()
                 ui->pB_resume->setEnabled(1);
                 ui->pB_pause->setEnabled(0);
                 ui->pB_advance->setEnabled(1);
+                ui->checkB_override->setChecked(0);
+                ui->pB_backspace->setEnabled(1);
                 remote_controller = 3;
                 while (1)
                 {
@@ -2479,9 +2571,18 @@ void MainWindow::on_pB_convert_clicked()
                         comm[0][0] = 0;
                         sb.update(myid, comm[0]);
                     }
+                    else if (remote_controller == 4 && comm[0][0] == 3)
+                    {
+                        vsTemp = { to_string(-1 * backBuffer) };
+                        backBuffer = -1;
+                        sb.set_prompt(vsTemp);
+                        comm[0][0] = 0;
+                        sb.update(myid, comm[0]);
+                    }
                     if (comm[1][0] == 0)
                     {
                         local_controller = 0;
+                        if (remote_controller == 4) { remote_controller = 1; }
                         break;
                     }
                     Sleep(50);
@@ -2593,11 +2694,14 @@ void MainWindow::on_pB_resume_clicked()
     remote_controller = 0;
     ui->pB_pause->setEnabled(1);
     ui->pB_resume->setEnabled(0);
+    ui->pB_backspace->setEnabled(0);
+    ui->checkB_override->setChecked(0);
 }
 void MainWindow::on_pB_pause_clicked()
 {
     remote_controller = 3;
     ui->pB_pause->setEnabled(0);
+    ui->checkB_override->setChecked(0);
 }
 void MainWindow::on_pB_advance_clicked()
 {
@@ -2627,8 +2731,37 @@ void MainWindow::on_pB_advance_clicked()
     remote_controller = 1;
     ui->pB_resume->setEnabled(0);
     ui->pB_advance->setEnabled(0);
+    ui->pB_backspace->setEnabled(0);
+    ui->checkB_override->setChecked(0);
 }
-
+void MainWindow::on_pB_backspace_clicked()
+{
+    QString qtemp = ui->pte_advance->toPlainText();
+    string temp = qtemp.toStdString();
+    vector<string> dirt = { " " };
+    jf.clean(temp, dirt);
+    int inum;
+    if (temp == "")
+    {
+        backBuffer = 1;
+        ui->pte_advance->setPlainText("1");
+    }
+    else
+    {
+        try
+        {
+            inum = stoi(temp);
+            backBuffer = abs(inum) + 1;
+        }
+        catch (invalid_argument& ia)
+        {
+            ui->pte_advance->setPlainText("Error");
+            return;
+        }
+    }
+    ui->checkB_override->setChecked(0);
+    remote_controller = 4;
+}
 
 // (Debug function) Perform a test function.
 // 0 = download given webpage
@@ -2927,6 +3060,7 @@ void MainWindow::on_tabW_online_currentChanged(int index)
         ui->pB_advance->setVisible(0);
         ui->pte_advance->setVisible(0);
         ui->checkB_override->setVisible(0);
+        ui->pB_backspace->setVisible(0);
         break;
     case 1:
         ui->pB_download->setEnabled(1);
@@ -2935,6 +3069,7 @@ void MainWindow::on_tabW_online_currentChanged(int index)
         ui->pB_advance->setVisible(0);
         ui->pte_advance->setVisible(0);
         ui->checkB_override->setVisible(0);
+        ui->pB_backspace->setVisible(0);
         break;
     case 2:
         ui->pB_download->setEnabled(0);
@@ -2943,6 +3078,7 @@ void MainWindow::on_tabW_online_currentChanged(int index)
         ui->pB_advance->setVisible(1);
         ui->pte_advance->setVisible(1);
         ui->checkB_override->setVisible(1);
+        ui->pB_backspace->setVisible(1);
         break;
     }
 }

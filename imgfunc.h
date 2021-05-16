@@ -33,6 +33,7 @@ class IMGFUNC
     int defaultPathLengthImageDebug = 1000;
     int defaultSearchRadius = 15;
     int defaultTextSeparatorWidth = 2;
+    int defaultTracksLength = 10;
     double defaultWaterPercentage = 0.45;
     double defaultWidthTestRatio = 3.0;
     int defaultZoneRadialDistanceTolerance = 10;
@@ -525,6 +526,16 @@ public:
     template<> vector<vector<unsigned char>> getColourSpectrum<string>(int numColours, string& sColour)
     {
         vector<string> keyColours = { "Red", "Yellow", "Green", "Teal", "Blue", "Pink" };
+        if (numColours < 0)
+        {
+            vector<string> vsTemp = keyColours;
+            int inum = keyColours.size();
+            for (int ii = 0; ii < inum; ii++)
+            {
+                keyColours[ii] = vsTemp[inum - 1 - ii];
+            }
+            numColours *= -1;
+        }
         for (int ii = 0; ii < keyColours.size(); ii++)
         {
             if (keyColours[ii] == sColour)
@@ -536,12 +547,80 @@ public:
         }
         double deltaR, deltaG, deltaB, dR, dG, dB;
         int offset;
-        int sizeBand = numColours / 5;  // ->Green->Teal->Blue->Violet.
+        int sizeBand = max(numColours / 5, 1);  // ->Green->Teal->Blue->Violet.
         double dSB = (double)sizeBand;
         vector<unsigned char> startColour, stopColour;
         vector<vector<unsigned char>> colours(numColours, vector<unsigned char>(3));
-
-        for (int ii = 0; ii < 5; ii++)
+        int footprints = min(numColours, 5);
+        for (int ii = 0; ii < footprints; ii++)
+        {
+            offset = sizeBand * ii;
+            startColour = getColour(keyColours[ii]);
+            dR = (double)startColour[0];
+            dG = (double)startColour[1];
+            dB = (double)startColour[2];
+            stopColour = getColour(keyColours[ii + 1]);
+            deltaR = ((double)stopColour[0] - dR) / dSB;
+            deltaG = ((double)stopColour[1] - dG) / dSB;
+            deltaB = ((double)stopColour[2] - dB) / dSB;
+            colours[offset] = startColour;
+            for (int jj = offset + 1; jj < offset + sizeBand; jj++)
+            {
+                dR += deltaR;
+                dG += deltaG;
+                dB += deltaB;
+                colours[jj] = { (unsigned char)round(dR), (unsigned char)round(dG), (unsigned char)round(dB) };
+            }
+        }
+        if (stopColour != Black)  // This is to correct a rounding
+        {                         // error causing 255->0.
+            int index = colours.size() - 1;
+            while (colours[index] == Black)
+            {
+                colours[index] = stopColour;
+                index--;
+            }
+        }
+        return colours;
+    }
+    template<> vector<vector<unsigned char>> getColourSpectrum<vector<string>>(int numColours, vector<string>& colourStartStop)
+    {
+        vector<string> keyColours = { "Red", "Yellow", "Green", "Teal", "Blue", "Pink" };
+        if (numColours == 0) { jf.err("numColours cannot be zero"); }
+        int sizeKey = keyColours.size(), inum;
+        if (numColours < 0)
+        {
+            vector<string> vsTemp = keyColours;
+            for (int ii = 0; ii < sizeKey; ii++)
+            {
+                keyColours[ii] = vsTemp[sizeKey - 1 - ii];
+            }
+            numColours *= -1;
+        }
+        for (int ii = sizeKey - 1; ii > 0; ii--)
+        {
+            if (keyColours[ii] == colourStartStop[1])
+            {
+                inum = ii + 1;
+                keyColours.erase(keyColours.begin() + inum, keyColours.end());
+            }
+            else if (keyColours[ii] == colourStartStop[0])
+            {
+                inum = ii;
+                keyColours.erase(keyColours.begin(), keyColours.begin() + inum);
+                break;
+            }
+        }
+        sizeKey = keyColours.size() - 1;
+        if (sizeKey < 1) { jf.err("keyColours is too small"); }
+        double deltaR, deltaG, deltaB, dR, dG, dB;
+        int offset;
+        int sizeBand = max(numColours / sizeKey, 1);
+        double dSB = (double)sizeBand;
+        vector<unsigned char> startColour, stopColour;
+        vector<vector<unsigned char>> colours(numColours, vector<unsigned char>(3));
+        int numBands = min(numColours, sizeKey);
+        for (int ii = 0; ii < numBands; ii++)
         {
             offset = sizeBand * ii;
             startColour = getColour(keyColours[ii]);
@@ -702,28 +781,31 @@ public:
         if (tracks.size() < 1) { jf.err("No tracks-im.makeMapBorderFindNext"); }
         if (!mapIsInit()) { initMapColours(); }
         debugDataPNG = dataPNG;
-        vector<string> listText;
+        vector<string> listText, colourStartStop;
         vector<vector<unsigned char>> listColour;
 
         // Paint on the full image. 
         if (radius > 0) { octogonPaint(Orange, tracks[tracks.size() - 1], radius); }
         octogonPaint(Gold, tracks[tracks.size() - 1], defaultSearchRadius);
+        int lineThickness = 2;
         vector<vector<int>> startStop(2, vector<int>());
         for (int ii = 0; ii < tracks.size() - 1; ii++)
         {
             startStop[0] = tracks[ii];
             startStop[1] = tracks[ii + 1];
-            linePaint(startStop, Teal);
+            linePaint(startStop, Black, debugDataPNG, width, lineThickness);
         }
-        for (int ii = 0; ii < tracks.size() - 1; ii++)
+        int numColours = tracks.size() - 1;
+        colourStartStop = { "Pink", "Yellow" };
+        listColour = getColourSpectrum(-1 * numColours, colourStartStop);
+        for (int ii = 0; ii < numColours; ii++)
         {
-            dotPaint(tracks[ii], Green);
+            dotPaint(tracks[ii], listColour[ii]);
             pngAppendText(listText, tracks[ii]);
-            listColour.push_back(Green);
         }
-        dotPaint(tracks[tracks.size() - 1], Yellow);
+        dotPaint(tracks[tracks.size() - 1], Orange);
         pngAppendText(listText, tracks[tracks.size() - 1]);
-        listColour.push_back(Yellow);
+        listColour.push_back(Orange);
         for (int ii = 0; ii < candidates.size(); ii++)
         {
             dotPaint(candidates[ii], Red);

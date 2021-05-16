@@ -23,6 +23,7 @@ class QTFUNC
 	int diameterDefault = 5;
 	IMGFUNC im;
 	JFUNC jf;
+	int lastMap = -1;  // -1 = nothing loaded yet, 0 = debug map, 1 = bin map
 	vector<string> listPathBin;
 	QMap<QString, int> mapListPathBin;
 	QMap<QTreeWidget*, int> map_display_root;
@@ -46,6 +47,7 @@ public:
 	void drawLinesDebug(QPainter& qpaint, vector<vector<double>>& lines);
 	void err(string);
 	string getBranchPath(QTreeWidgetItem*& qBranch, string rootDir);
+	int getLastMap() { return lastMap; }
 	int get_display_root(QTreeWidget*);
 	void initPixmap(QLabel* qlabel);
 	vector<vector<int>> loadDebugMapCoord(string& pathBin);
@@ -326,7 +328,7 @@ public:
 
 		long long timer = jf.timerStop();
 		qDebug() << "Time to displayBin from file: " << timer;
-		int bbq = 1;
+		lastMap = 1;
 	}
 	template<> void displayBin<QString>(QLabel*& qlabel, QString& qName)
 	{
@@ -343,7 +345,7 @@ public:
 		painter.drawPath(painterPathBorder);
 		qlabel->setPixmap(pmPainting);
 		QCoreApplication::processEvents();
-		int bbq = 1;
+		lastMap = 1;
 	}
 
 	template<typename ... Args> void displayPainterPathDots(QLabel*& qlabel, QPainterPath& path, Args& ... args)
@@ -446,7 +448,7 @@ public:
 	template<> QPainterPath pathMake<vector<vector<double>>>(vector<vector<double>>& coordList)
 	{
 		QPainterPath path;
-		path.moveTo(coordList[0][0], coordList[0][0]);
+		path.moveTo(coordList[0][0], coordList[0][1]);
 		for (int ii = 1; ii < coordList.size(); ii++)
 		{
 			path.lineTo(coordList[ii][0], coordList[ii][1]);

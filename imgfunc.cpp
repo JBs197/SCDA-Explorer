@@ -83,6 +83,11 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
     }
 
     pauseMapDebug(sbgui, tracks, radius, candidates);
+    if (sizeVBP < 0)
+    {
+        backtrack = 1;
+        return failure;
+    }
     if (candidates.size() == 1) { return candidates[0]; }
 
     // There can only be two candidates remaining.  
@@ -124,7 +129,12 @@ vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> trac
         {
             pathMapDebug = defaultDebugMapPath;
             pauseMapDebug(sbgui, tracks, radius, candidates);
-            if (candidates.size() == 1) { return candidates[0]; }
+            if (sizeVBP < 0) 
+            {
+                backtrack = 1;
+                return failure; 
+            }
+            else if (candidates.size() == 1) { return candidates[0]; }
         }
         else
         {
@@ -971,23 +981,29 @@ void IMGFUNC::pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int
 {
     if (pathMapDebug.size() > 0)
     {
+        int inum;
+        vector<int> userCoord;
         vector<string> vsTemp = { pathMapDebug, to_string(sizeVBP) };
         makeMapBorderFindNext(tracks, radius, candidates, vsTemp[0]);
         sbgui.set_prompt(vsTemp);
         pngToBinPause(sbgui);
         vsTemp = sbgui.get_prompt();
-        if (vsTemp.size() == 1)
+        if (vsTemp.size() == 1)  // Advance to prompt's index.
         {
-            int inum;
             try { inum = stoi(vsTemp[0]); }
             catch (invalid_argument& ia) { jf.err("stoi-im.pauseMapDebug"); }
-            pauseVBP = sizeVBP + inum;
+            if (inum >= 0) { pauseVBP = sizeVBP + inum; }
+            else 
+            { 
+                sizeVBP += inum; 
+                sizeVBP *= -1;
+            }
             vsTemp = { "" };
             sbgui.set_prompt(vsTemp);
         }
-        if (vsTemp.size() == 2)
+        else if (vsTemp.size() == 2)  // Select the chosen candidate, and resume.
         {
-            vector<int> userCoord = jf.destringifyCoord(vsTemp[1]);
+            userCoord = jf.destringifyCoord(vsTemp[1]);
             if (userCoord != tracks[tracks.size() - 1])
             {
                 for (int ii = candidates.size() - 1; ii >= 0; ii--)
@@ -998,6 +1014,17 @@ void IMGFUNC::pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int
                     }
                 }
             }
+            vsTemp = { "" };
+            sbgui.set_prompt(vsTemp);
+        }
+        else if (vsTemp.size() == 3)  // Select the chosen pixel, discarding 
+        {                             // all generated candidates. Advance 1.
+            try { inum = stoi(vsTemp[0]); }
+            catch (invalid_argument& ia) { jf.err("stoi-im.pauseMapDebug"); }
+            pauseVBP = sizeVBP + inum;
+            userCoord = jf.destringifyCoord(vsTemp[2]);
+            candidates.resize(1);
+            candidates[0] = userCoord;
             vsTemp = { "" };
             sbgui.set_prompt(vsTemp);
         }
@@ -1093,14 +1120,10 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
     savePoints.clear();
     while (1)
     {
-        if (sizeVBP > 6)
+        if (sizeVBP > defaultTracksLength)
         {
-            tracks[0] = tracks[1];
-            tracks[1] = tracks[2];
-            tracks[2] = tracks[3];
-            tracks[3] = tracks[4];
-            tracks[4] = tracks[5];
-            tracks[5] = vBorderPath[vBorderPath.size() - 1];
+            inum = vBorderPath.size();
+            tracks.assign(vBorderPath.begin() + inum - defaultTracksLength, vBorderPath.end());
         }
         else
         {
@@ -1118,9 +1141,40 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
         if (backtrack)
         {
             backtrack = 0;
-            loadRecentSavePoint(vBorderPath);
-            inum = min((int)vBorderPath.size(), 6);
-            tracks.assign(vBorderPath.begin() + vBorderPath.size() - inum - 1, vBorderPath.end() - 1);
+            if (sizeVBP >= 0)
+            {
+                loadRecentSavePoint(vBorderPath);
+                if (sizeVBP > defaultTracksLength)
+                {
+                    inum = vBorderPath.size();
+                    tracks.assign(vBorderPath.begin() + inum - defaultTracksLength - 1, vBorderPath.begin() + inum - 1);
+                }
+                else
+                {
+                    tracks = vBorderPath;
+                    tracks.pop_back();
+                }
+            }
+            else
+            {
+                sizeVBP *= -1;
+                pauseVBP = sizeVBP + 1;
+                while (vBorderPath.size() > sizeVBP + 1)
+                {
+                    vBorderPath.pop_back();
+                }
+                tracks.clear();
+                if (sizeVBP > defaultTracksLength)
+                {
+                    inum = vBorderPath.size();
+                    tracks.assign(vBorderPath.begin() + inum - defaultTracksLength - 1, vBorderPath.begin() + inum - 1);
+                }
+                else
+                {
+                    tracks = vBorderPath;
+                    tracks.pop_back();
+                }
+            }
         }
         if (vBorderPath[vBorderPath.size() - 1][0] < 0 || vBorderPath[vBorderPath.size() - 1][1] < 0)
         {
