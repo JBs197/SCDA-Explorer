@@ -78,6 +78,7 @@ private slots:
     void on_pB_advance_clicked();
     void on_listW_bindone_itemSelectionChanged();
     void on_pB_backspace_clicked();
+    void on_listW_statscan_itemSelectionChanged();
 
 private:
     Ui::MainWindow *ui;
@@ -87,7 +88,7 @@ private:
     const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
     int jobs_max, jobs_done, jobs_percent, advBuffer, labelMapsDx, labelMapsDy;
-    int backBuffer;
+    int backBuffer, downloadWindow = -1;
     int threads_working = 0;
     int remote_controller = 0;  // 0 = run, 1 = ??, 2 = cancel, 3 = pause.
     bool begun_logging = 0;
@@ -119,6 +120,7 @@ private:
     void bind(string&, vector<string>&);
     void convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorder, vector<string>& pathBIN);
     void delete_cata(SWITCHBOARD&, SQLFUNC&);
+    void displayDiscrepancies(string& folderPath, QListWidget*& qlist);
     void display_catalogue(SQLFUNC&, SWITCHBOARD&, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
     void display_table(string);
     void dlCSV(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV);
@@ -126,6 +128,7 @@ private:
     void downloader(SWITCHBOARD&);
     void downloadMaps(SWITCHBOARD&);
     vector<string> extract_gids(string);
+    int fetchGeoList(int iYear, string sCata, vector<string>& geoLayers);
     void initImgFont(string fontName);
     void mousePressEvent(QMouseEvent* event) override;
     void populateQtree(JTREE&, QTreeWidgetItem*&, string);

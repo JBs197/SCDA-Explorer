@@ -1415,16 +1415,6 @@ public:
         vector<vector<int>> pastPresentFuture = pastPresent;
         string sCandidate;
         int iWidth, newRadius;
-        
-        // Test for letter zone sandwiches.
-        if (numCandidates > 1)
-        {
-            lettersExist = testTextHumanFeature(octoRGB);
-            if (lettersExist > 0)
-            {
-                numCandidates = testZoneSweepLetters(octoPath, octoRGB, candidates, mapIndexCandidate);
-            }
-        }
 
         // Relaunch octogonBearing with a larger or smaller search radius. If 
         // the search radius passes outside the interval (2, 4*default), then 

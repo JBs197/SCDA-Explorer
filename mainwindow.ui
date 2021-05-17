@@ -449,7 +449,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="tab">
      <attribute name="title">
@@ -460,7 +460,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>256</width>
+        <width>161</width>
         <height>451</height>
        </rect>
       </property>
@@ -468,7 +468,7 @@
        <number>2</number>
       </property>
       <attribute name="headerVisible">
-       <bool>false</bool>
+       <bool>true</bool>
       </attribute>
       <attribute name="headerMinimumSectionSize">
        <number>100</number>
@@ -486,6 +486,19 @@
         <string>Number</string>
        </property>
       </column>
+     </widget>
+     <widget class="QListWidget" name="listW_statscan">
+      <property name="geometry">
+       <rect>
+        <x>160</x>
+        <y>0</y>
+        <width>71</width>
+        <height>451</height>
+       </rect>
+      </property>
+      <property name="selectionMode">
+       <enum>QAbstractItemView::ExtendedSelection</enum>
+      </property>
      </widget>
     </widget>
     <widget class="QWidget" name="tab_2">

@@ -588,6 +588,7 @@ public:
 	{
 		wstring wfile = utf8to16(sfile);
 		wstring wpath = utf8to16(path);
+		UTF16clean(wpath);
 		wofstream WPR;
 		WPR.imbue(locale(locale::empty(), new codecvt_utf8<wchar_t, 0x10ffff, generate_header>));
 		WPR.open(wpath, wofstream::binary, wofstream::trunc);

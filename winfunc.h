@@ -34,7 +34,7 @@ public:
     string browse(string);
     static void CALLBACK call(HINTERNET, DWORD_PTR, DWORD, LPVOID, DWORD);
     void delete_file(string);
-    int download(string, string);
+    int download(string url, string filePath);
     bool file_exist(string);
     string get_exec_dir();
     string get_exec_path();

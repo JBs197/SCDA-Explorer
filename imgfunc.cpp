@@ -1133,8 +1133,8 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
         if (commGui[0][0] == 3)
         {
             viTemp = { width, height };
-            std::thread ptb(&IMGFUNC::thrMakeMapPTB, this, vBorderPath, pathMapPTB, dataPNG, viTemp);
-            ptb.detach();
+            //std::thread ptb(&IMGFUNC::thrMakeMapPTB, this, vBorderPath, pathMapPTB, dataPNG, viTemp);
+            //ptb.detach();
             pathMapDebug = pathMapPTBdebug;
         }
         vBorderPath.push_back(borderFindNext(sbgui, tracks));
@@ -1199,8 +1199,8 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
         if (sizeVBP == pauseVBP)
         {
             viTemp = { width, height };
-            std::thread ptb(&IMGFUNC::thrMakeMapPTB, this, vBorderPath, pathMapPTB, dataPNG, viTemp);
-            ptb.detach();
+            //std::thread ptb(&IMGFUNC::thrMakeMapPTB, this, vBorderPath, pathMapPTB, dataPNG, viTemp);
+            //ptb.detach();
             pathMapDebug = pathMapPTBdebug;
         }
     }

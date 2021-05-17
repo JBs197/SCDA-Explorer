@@ -76,8 +76,10 @@ void MainWindow::initialize()
     ui->treeW_subtables->setGeometry(0, 0, 531, 461);
     ui->tabW_online->setVisible(0);
     ui->tabW_online->setGeometry(370, 10, 921, 481);
-    ui->treeW_statscan->setGeometry(0, 0, 921, 461);
+    ui->treeW_statscan->setGeometry(0, 0, 521, 456);
     ui->treeW_statscan->setVisible(0);
+    ui->listW_statscan->setGeometry(526, 0, 401, 456);
+    ui->listW_statscan->setVisible(0);
     ui->treeW_maps->setGeometry(0, 0, 921, 461);
     ui->treeW_maps->setVisible(0);
     ui->label_maps->setGeometry(0, 0, 710, 450);
@@ -326,6 +328,7 @@ void MainWindow::update_mode()
         ui->pB_viewcata->setVisible(1);
         ui->tabW_online->setVisible(0);
         ui->treeW_statscan->setVisible(0);
+        ui->listW_statscan->setVisible(0);
         ui->treeW_maps->setVisible(0);
         ui->label_maps->setVisible(0);
         ui->label_maps2->setVisible(0);
@@ -352,15 +355,11 @@ void MainWindow::update_mode()
         ui->pB_viewcata->setVisible(0);
         ui->tabW_online->setVisible(1);
         ui->treeW_statscan->setVisible(1);
+        ui->listW_statscan->setVisible(1);
         ui->treeW_maps->setVisible(1);
         ui->label_maps->setVisible(1);
         ui->label_maps2->setVisible(1);
         ui->listW_bindone->setVisible(1);
-        ui->pB_resume->setVisible(1);
-        ui->pB_resume->setEnabled(0);
-        ui->pB_pause->setVisible(1);
-        ui->pB_pause->setEnabled(0);
-        ui->pB_advance->setVisible(1);
         ui->pte_advance->setVisible(1);
         ui->pB_advance->setEnabled(0);
         ui->pB_usc->setVisible(1);
@@ -372,7 +371,16 @@ void MainWindow::update_mode()
         ui->pB_localmaps->setVisible(1);
         ui->pB_convert->setVisible(1);
         ui->checkB_override->setVisible(1);
-        ui->pB_backspace->setVisible(1);
+        int indexTab = ui->tabW_online->currentIndex();
+        if (indexTab == 2)
+        {
+            ui->pB_resume->setVisible(1);
+            ui->pB_resume->setEnabled(0);
+            ui->pB_pause->setVisible(1);
+            ui->pB_pause->setEnabled(0);
+            ui->pB_advance->setVisible(1);
+            ui->pB_backspace->setVisible(1);
+        }
         break;
     }
 }
@@ -1339,14 +1347,14 @@ void MainWindow::display_table(string tname)
 // Query Statistics Canada for information.
 void MainWindow::on_pB_usc_clicked()
 {
-    int error, inum, uscMode, iyear, ipdf, ijpg;
+    int error, inum, uscMode, iyear, numMap;
     int iroot = -1;
-    string temp, syear, filePath, sname, webpage, url;
+    string temp, syear, filePath, sname, webpage, url, fileType;
     vector<string> slayer;
     vector<int> ilayer;
     QTreeWidgetItem* qnode;
     QString qtemp;
-
+    size_t pos1;
     QList<QTreeWidgetItem*> qSelected = ui->treeW_statscan->selectedItems();
     if (qSelected.size() < 1) { uscMode = 0; }
     else
@@ -1369,15 +1377,15 @@ void MainWindow::on_pB_usc_clicked()
         jf.isort_slist(slayer);
         sname = "Statistics Canada Census Data";
         temp = sroot;
-        jt.init(sname, temp);
+        jtMaps.init(sname, temp);
         ilayer = jf.svectorToIvector(slayer);
-        jt.addChildren(slayer, ilayer, iroot);
+        jtMaps.addChildren(slayer, ilayer, iroot);
         ui->treeW_statscan->clear();
         qnode = new QTreeWidgetItem();
         qtemp = QString::fromStdString(sname);
         qnode->setText(0, qtemp);
         ui->treeW_statscan->addTopLevelItem(qnode);
-        populateQtree(jt, qnode, sname);
+        populateQtree(jtMaps, qnode, sname);
         ui->treeW_statscan->expandAll();
         break;
     }
@@ -1389,8 +1397,8 @@ void MainWindow::on_pB_usc_clicked()
         webpage = wf.browse(url);
         slayer = jf.textParser(webpage, navSearch[1]);
         ilayer.assign(slayer.size(), -1);
-        jt.addChildren(slayer, ilayer, syear);
-        populateQtree(jt, qSelected[0], syear);
+        jtMaps.addChildren(slayer, ilayer, syear);
+        populateQtree(jtMaps, qSelected[0], syear);
         qSelected[0]->sortChildren(0, Qt::SortOrder::AscendingOrder);
         break;
     }
@@ -1410,31 +1418,80 @@ void MainWindow::on_pB_usc_clicked()
         }
         try { iyear = stoi(syear); }
         catch (out_of_range& oor) { err("stoi-MainWindow.on_pB_usc_clicked"); }
-        slayer = { "CSV Data", "Geo Data" };
-        ilayer.resize(2);
+        slayer = { "Local CSVs", "Online CSVs" };
+        ilayer.resize(2);  
         temp = sroot + "\\" + syear + "\\" + sname;
         ilayer[0] = wf.get_file_path_number(temp, ".csv");
+
+        vector<string> geoLayers;
+        sc.initGeo();
         temp += "\\" + sname + " geo list.bin";
-        ilayer[1] = (int)wf.file_exist(temp);
+        if (!wf.file_exist(temp))
+        {
+            ilayer[1] = fetchGeoList(iyear, sname, geoLayers);
+        }
+        else if (!sc.testGeoList(temp))
+        {
+            ilayer[1] = fetchGeoList(iyear, sname, geoLayers);
+        }
+        else
+        {
+            ilayer[1] = sc.skimGeoList(temp, geoLayers);
+        }
+
         if (iyear >= 2011)
         {
-            slayer.push_back("Map Data");
-            temp = sroot + "\\" + syear + "\\" + sname + "\\maps";
-            if (wf.file_exist(temp))
+            if (geoLayers.size() < 1) { err("No geoLayers-MainWindow.on_pB_usc_clicked"); }
+            slayer.push_back("Local PDF Maps");
+            temp = sroot + "\\mapsPDF";
+            numMap = 0;
+            for (int ii = 0; ii < geoLayers.size(); ii++)
             {
-                ipdf = wf.get_file_path_number(temp, ".pdf");
-                ijpg = wf.get_file_path_number(temp, ".jpg");
-                ilayer.push_back(max(ipdf, ijpg));
+                if (geoLayers[ii] != "")
+                {
+                    temp += "\\" + geoLayers[ii];
+                }
+                inum = wf.get_file_path_number(temp, ".pdf");
+                numMap += inum;
             }
-            else
+            ilayer.push_back(numMap);
+
+            slayer.push_back("Local BIN Maps");
+            temp = sroot + "\\mapsBIN";
+            numMap = 0;
+            for (int ii = 0; ii < geoLayers.size(); ii++)
             {
-                ilayer.push_back(0);
+                if (geoLayers[ii] != "")
+                {
+                    temp += "\\" + geoLayers[ii];
+                }
+                inum = wf.get_file_path_number(temp, ".bin");
+                numMap += inum;
             }
+            ilayer.push_back(numMap);
         }
-        jt.deleteChildren(sname);
-        jt.addChildren(slayer, ilayer, sname);
-        populateQtree(jt, qSelected[0], sname);
+
+        jtMaps.deleteChildren(sname);
+        jtMaps.addChildren(slayer, ilayer, sname);
+        populateQtree(jtMaps, qSelected[0], sname);
         qSelected[0]->setExpanded(1);
+        break;
+    }
+    case 3:  // Set data type, display discrepancies.
+    {
+        qtemp = qSelected[0]->text(0);
+        fileType = qtemp.toStdString();
+        qtemp = qSelected[0]->parent()->text(0);
+        sname = qtemp.toStdString();
+        qtemp = qSelected[0]->parent()->parent()->text(0);
+        syear = qtemp.toStdString();
+        pos1 = fileType.find("CSVs");
+        if (pos1 < fileType.size())
+        {
+            temp = sroot + "\\" + syear + "\\" + sname;
+            displayDiscrepancies(temp, ui->listW_statscan);
+        }
+
         break;
     }
     }
@@ -1449,7 +1506,7 @@ void MainWindow::populateQtree(JTREE& jtx, QTreeWidgetItem*& qparent, string spa
     vector<string> skids; 
     jtx.listChildren(sparent, skids);
     if (skids.size() < 1) { return; }  // Leaf node.
-    string temp = "CSV Data";
+    string temp = "Local CSVs";
     if (skids[0] == temp)
     {
         jtx.listChildren(sparent, ikids);
@@ -1485,6 +1542,90 @@ void MainWindow::populateQtree(JTREE& jtx, QTreeWidgetItem*& qparent, string spa
         populateQtree(jtx, qkids[ii], skids[ii]);
     }
 }
+int MainWindow::fetchGeoList(int iYear, string sCata, vector<string>& geoLayers)
+{
+    // Will download a geo list file (including geo layers) in the catalogue's folder.
+    string temp = sc.urlCata(sCata);
+    string urlCata = wf.urlRedirect(temp);
+    string urlGeoList = sc.urlGeoList(iYear, urlCata);
+    string geoPage = wf.browse(urlGeoList);
+    vector<string> geoTemp = jf.textParser(geoPage, navSearch[6]);
+    geoLayers = sc.makeGeoLayers(geoTemp[0]);
+    vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
+    string geoList = sc.makeGeoList(geoLinkNames, geoLayers);
+    vector<string> dirt = { "/" };
+    vector<string> soap = { "or" };
+    jf.clean(geoList, dirt, soap);
+    temp = sroot + "\\" + to_string(iYear) + "\\" + sCata;
+    temp += "\\" + sCata + " geo list.bin";
+    jf.printer(temp, geoList);
+    int numRegions = geoLinkNames.size();
+    return numRegions;
+}
+void MainWindow::displayDiscrepancies(string& folderPath, QListWidget*& qlist)
+{
+    vector<int> gidLocal, gidOnline;
+    vector<string> csvLocal, csvOnline;
+    string sfile, temp;
+    QString qtemp;
+    size_t pos2;
+    size_t pos1 = folderPath.find("maps");
+    if (pos1 < folderPath.size())
+    {
+        // Add later.
+    }
+    else
+    {
+        csvLocal = wf.get_file_list(folderPath, "*.csv");
+        gidLocal.resize(csvLocal.size());
+        for (int ii = 0; ii < csvLocal.size(); ii++)
+        {
+            pos1 = csvLocal[ii].find('(') + 1;
+            pos2 = csvLocal[ii].find(')', pos1);
+            temp = csvLocal[ii].substr(pos1, pos2 - pos1);
+            try { gidLocal[ii] = stoi(temp); }
+            catch (invalid_argument& ia) { err("stoi-MainWindow.displayDiscrepancies"); }
+        }
+
+        pos1 = folderPath.rfind('\\') + 1;
+        sfile = folderPath.substr(pos1);
+        temp = folderPath + "\\" + sfile + " geo list.bin";
+        sfile = jf.load(temp);
+        pos1 = sfile.find_first_of("1234567890");
+        pos2 = sfile.find('$');
+        while (pos2 < sfile.size())
+        {
+            temp = sfile.substr(pos1, pos2 - pos1);
+            try { gidOnline.push_back(stoi(temp)); }
+            catch (invalid_argument& ia) { err("stoi-MainWindow.displayDiscrepancies"); }
+            pos1 = pos2 + 1;
+            pos2 = sfile.find('$', pos1);
+            temp = sfile.substr(pos1, pos2 - pos1);
+            csvOnline.push_back(temp);
+            pos1 = sfile.find('\n', pos2) + 1;
+            pos2 = sfile.find('$', pos1);
+        }
+
+        for (int ii = gidLocal.size() - 1; ii >= 0; ii--)
+        {
+            for (int jj = gidOnline.size() - 1; jj >= 0; jj--)
+            {
+                if (gidLocal[ii] == gidOnline[jj])
+                {
+                    csvOnline.erase(csvOnline.begin() + jj);
+                    gidOnline.erase(gidOnline.begin() + jj);
+                    break;
+                }
+            }
+        }
+        for (int ii = 0; ii < gidOnline.size(); ii++)
+        {
+            temp = "(" + to_string(gidOnline[ii]) + ") " + csvOnline[ii];
+            qtemp = QString::fromUtf8(temp);
+            qlist->addItem(qtemp);
+        }
+    }
+}
 
 // Download the selected file(s).
 void MainWindow::on_pB_download_clicked()
@@ -1499,8 +1640,7 @@ void MainWindow::on_pB_download_clicked()
     
     qlist = ui->treeW_statscan->selectedItems();
     if (qlist.size() < 1) { return; }
-    int kids, iStatusCata, error;
-    int igen = 0;
+    int kids, iStatusCata, error, igen = 0;
     QTreeWidgetItem* pNode = nullptr;
     QTreeWidgetItem* pParent = qlist[0];
     do
@@ -1510,11 +1650,12 @@ void MainWindow::on_pB_download_clicked()
         igen++;
     } while (pParent != nullptr);
     QString qtemp;
+    string temp;
     switch (onlineTab)
     {
     case 0:
     {
-        prompt.resize(3);  // Form [syear, sname, dlType].
+        prompt.resize(3);  // Form [syear, sname, ???].
         if (igen <= 2) 
         {
             qtemp = qlist[0]->text(0);
@@ -1551,17 +1692,18 @@ void MainWindow::on_pB_download_clicked()
             qtemp = qlist[0]->parent()->text(0);
             prompt[1] = qtemp.toStdString();
         }
-        
+
         if (listCata.size() < 1)
         {
-            iStatusCata = sf.statusCata(prompt[1]);
-            if (iStatusCata == 2)
+            QList<QListWidgetItem*> qSelected = ui->listW_statscan->selectedItems();
+            prompt.resize(qSelected.size() + 2);
+            for (int ii = 0; ii < qSelected.size(); ii++)
             {
-                qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
-                return;
+                qtemp = qSelected[ii]->text();
+                prompt[ii + 2] = qtemp.toStdString();
             }
-            else { prompt[2] = to_string(iStatusCata); }
             sb.set_prompt(prompt);
+            sb.start_call(myid, 1, comm[0]);
             std::thread dl(&MainWindow::downloader, this, ref(sb));
             dl.detach();
         }
@@ -1857,71 +1999,66 @@ void MainWindow::downloader(SWITCHBOARD& sb)
     vector<vector<int>> comm_gui;
     thread::id myid = this_thread::get_id();
     sb.answer_call(myid, mycomm);
-    vector<string> prompt = sb.get_prompt();  // Form [syear, sname, dlType].
+    vector<string> prompt = sb.get_prompt();  // Form [syear, sname, gid0, ... ].
     int iyear, dlMode, yearMode;
     try { iyear = stoi(prompt[0]); }
     catch (out_of_range& oor) { err("stoi-MainWindow.downloader"); }
-    if (iyear <= 2006) { yearMode = 0; }
-    else if (iyear <= 2013) { yearMode = 1; }
-    else if (iyear <= 2017) { yearMode = 2; }
-    if (prompt[2] == "Catalogue") { dlMode = 0; }
+    string folderPath = sroot + "\\" + prompt[0] + "\\" + prompt[1];
+    wf.makeDir(folderPath);
+    string geoPath = folderPath + "\\" + prompt[1] + " geo list.bin";
+    bool geo;
+    if (prompt.size() > 2) { geo = 0; }
+    else { geo = 1; }
 
-    string temp, urlCata, urlGeoList, geoPage;
-    temp = sc.urlCata(prompt[1]);
-    urlCata = wf.urlRedirect(temp);
-    urlGeoList = sc.urlGeoList(iyear, urlCata);
-    prompt.push_back(urlGeoList);
-    geoPage = wf.browse(urlGeoList);
-    vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
-    vector<vector<string>> splitLinkNames = sc.splitLinkNames(geoLinkNames);  // Form [region index][indentation, url object, region name, gid].
-    unordered_map<string, int> mapGeoIndent;
-    vector<string> geoLayerCodes;
-    temp = sroot + "\\" + prompt[0] + "\\" + prompt[1];
-    wf.makeDir(temp);
-    switch (yearMode)  // Define a task as 10 CSV downloads, or 1 geo list download.
-    {  
-    case 0:
+    size_t pos1;
+    string sfile, urlCata, urlGeoList, geoPage, urlCataDL, csvPath, csvFile;
+    vector<string> gidList, csvNameList;
+    vector<vector<string>> geoAll;
+    if (geo)
     {
-        mycomm[2] = (splitLinkNames.size() / 10) + 1;
-        break;
+        geoAll = sc.readGeo(geoPath);
+        mycomm[2] = geoAll.size() - 1;
+        sb.update(myid, mycomm);
     }
-    case 1:
+    else
     {
-        sc.initGeo();
-        geoLayerCodes = sc.getLayerSelected(geoPage);
-        mycomm[2] = 2 * ((splitLinkNames.size() / 10) + 1) + 1;
-        break;
-    }
-    case 2:
-    {
-        sc.initGeo();
-        geoLayerCodes = sc.getLayerSelected(geoPage);
-        mycomm[2] = 2 * ((splitLinkNames.size() / 10) + 1) + 1;
-        break;
-    }
-    }
-    sb.update(myid, mycomm);
-
-    for (int ii = 0; ii < splitLinkNames.size(); ii++)
-    {
-        dlCSV(splitLinkNames, prompt, ii);
-        if (ii % 10 == 9 || ii == splitLinkNames.size() - 1)
+        mycomm[2] = prompt.size() - 2;
+        sb.update(myid, mycomm);
+        gidList.resize(mycomm[2]);
+        for (int ii = 0; ii < mycomm[2]; ii++)
         {
-            mycomm[1]++;
-            comm_gui = sb.update(myid, mycomm);
-            if (comm_gui[0][0] == 2)
-            {
-                mycomm[0] = -2;
-                sb.update(myid, mycomm);
-                return;
-            }
+            pos1 = prompt[ii + 2].find(')');
+            gidList[ii] = prompt[ii + 2].substr(1, pos1 - 1);
         }
     }
-    dlGeo(splitLinkNames, prompt, mapGeoIndent);
-    mycomm[1]++;
+    vector<string> dirt = { "/" };
+    vector<string> soap = { "or" };
+    string temp = sc.urlCata(prompt[1]);
+    urlCata = wf.urlRedirect(temp);
+    urlGeoList = sc.urlGeoList(iyear, urlCata);
+    geoPage = wf.browse(urlGeoList);
+
+    for (int ii = 0; ii < mycomm[2]; ii++)
+    {
+        if (geo)
+        {
+            urlCataDL = sc.urlCataDownload(iyear, geoPage, geoAll[ii + 1][0]);
+            csvPath = folderPath + "\\" + prompt[1] + " (" + geoAll[ii + 1][0];
+            csvPath += ") " + geoAll[ii + 1][1] + ".csv";
+        }
+        else
+        {
+            urlCataDL = sc.urlCataDownload(iyear, geoPage, gidList[ii]);
+            csvPath = folderPath + "\\" + prompt[1] + " " + prompt[ii + 2] + ".csv";
+        }
+        jf.clean(csvPath, dirt, soap);
+        csvFile = wf.browse(urlCataDL);
+        jf.printer(csvPath, csvFile);
+        mycomm[1]++;
+        sb.update(myid, mycomm);
+    }
     mycomm[0] = 1;
     sb.update(myid, mycomm);
-
     int bbq = 1;
 }
 void MainWindow::dlCSV(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV)
@@ -2455,6 +2592,7 @@ void MainWindow::on_pB_convert_clicked()
         }
         case 1:
         {
+            sb.update(myid, comm[0]);
             if (comm[1][0] == 3)
             {
                 debugPath = sb.get_prompt();
@@ -2521,7 +2659,7 @@ void MainWindow::on_pB_convert_clicked()
                     Sleep(50);
                 }
             }
-            sb.update(myid, comm[0]);
+            QCoreApplication::processEvents();
             break;
         }
         case 3:
@@ -2763,30 +2901,11 @@ void MainWindow::on_pB_backspace_clicked()
     remote_controller = 4;
 }
 
-// (Debug function) Perform a test function.
-// 0 = download given webpage
-// 1 = single file PNG->BIN,  2 = contents of folder PNG->BIN.
-// 3 = display BIN map.
+// Modes: 0 = download given webpage, 1 = compare local/online files
 void MainWindow::on_pB_test_clicked()
 {
-    string temp, pathPNG, pathBIN, dirPNG, dirBIN;
-    vector<string> prompt, dirt, soap, slist;
-    vector<vector<double>> pathBorder, pathBorderShared, pathBorderSegment;
-    vector<double> mapShift;
-    int error, inum, coordX, coordY;
-    bool frameDone = 0;
-    QPainterPath painterPathBorder;
-    vector<std::thread> tapestry;
-    thread::id myid = this_thread::get_id();
-    vector<vector<int>> comm(1, vector<int>());
-    comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
+    int mode = 0;
 
-    int mode = 1;
-    //dirPNG = sroot + "\\mapsPNG\\cmaca";
-    //dirBIN = sroot + "\\mapsBIN\\cmaca";
-    pathPNG = sroot + "\\mapsPNG\\province\\Alberta.png";
-    pathBIN = sroot + "\\mapsBIN\\province\\Alberta.bin";
-    qf.initPixmap(ui->label_maps);
     switch (mode)
     {
     case 0:
@@ -2799,171 +2918,11 @@ void MainWindow::on_pB_test_clicked()
     }
     case 1:
     {
-        prompt.resize(3);  // Form [pathPNG, pathBIN, "w,h"].
-        prompt[0] = pathPNG;
-        prompt[1] = pathBIN;
-        if (pathPNG.size() < 1)
-        {
-            reset_bar(100, "No PNG path specified.");
-            return;
-        }
-        else if (pathBIN.size() < 1)
-        {
-            prompt[1] = pathPNG;
-            dirt = { "PNG", ".png" };
-            soap = { "BIN", ".bin" };
-            jf.clean(prompt[1], dirt, soap);       
-        }
-        inum = ui->label_maps->width();
-        prompt[2] = to_string(inum) + ",";
-        inum = ui->label_maps->height();
-        prompt[2] += to_string(inum);
-        error = sb.start_call(myid, cores, comm[0]);
-        if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
-        sb.set_prompt(prompt);
-        std::thread dl(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorderShared));
-        dl.detach();
-        reset_bar(100, "Converting " + pathPNG);
-        break;
-    }
-    case 2:
-    {
-        prompt.resize(3);
-        if (dirPNG.size() < 1)
-        {
-            reset_bar(100, "No PNG folder directory specified.");
-            return;
-        }
-        else if (dirBIN.size() < 1)
-        {
-            dirBIN = dirPNG;
-            dirt = { "PNG", ".png" };
-            soap = { "BIN", ".bin" };
-            jf.clean(dirBIN, dirt, soap);
-        }
-        if (!wf.file_exist(dirPNG)) { wf.makeDir(dirPNG); }
-        if (!wf.file_exist(dirBIN)) { wf.makeDir(dirBIN); }
-        inum = ui->label_maps->width();
-        prompt[2] = to_string(inum) + ",";
-        inum = ui->label_maps->height();
-        prompt[2] += to_string(inum);
-        slist = wf.get_file_list(dirPNG, "*.png");
-        for (int ii = 0; ii < slist.size(); ii++)
-        {
-            prompt[0] = dirPNG + "\\" + slist[ii];
-            prompt[1] = dirBIN + "\\" + slist[ii];
-            dirt = { "PNG", ".png" };
-            soap = { "BIN", ".bin" };
-            jf.clean(prompt[1], dirt, soap);
-            error = sb.start_call(myid, cores, comm[0]);
-            if (error) { errnum("start_call-MainWindow.on_pB_test_clicked", error); }
-            sb.set_prompt(prompt);
-            std::thread dl(&IMGFUNC::pngToBinLive, ref(im), ref(sb), ref(pathBorderShared));
-            dl.detach();
-            reset_bar(100, "Converting " + prompt[0]);
-        }
-        reset_bar(100, prompt[1] + " done!");
-        
-        break;
-    }
-    case 3:
-    {
-        qf.displayBin(ui->label_maps, pathBIN);
-        return;
+
     }
     }
 
-    string sMessage;
-    QString qMessage;
-    vector<int> dotColours = { 1, 3, 4, 5 };
-    vector<vector<int>> dots;
-    vector<vector<vector<double>>> importDouble;
-    QPixmap pmDebug;
-    QImage imgDebug;
-    vector<string> pathImg = { sroot + "\\debug\\tempDebug.png" };
-    while (1)
-    {
-        Sleep(gui_sleep);
-        comm = sb.update(myid, comm[0]);
-        if (comm[1][0] == 3)
-        {
-            qf.displayDebug(ui->label_maps, pathImg, debugMapCoord);
-            while (1)
-            {
-                QCoreApplication::processEvents();
-                Sleep(50);
-                int bbq = 1;
-            }
-        }
-        error = sb.pull(myid, 0);
-        if (error < 0) { err("sb.pull-MainWindow.on_pB_test"); }
-        if (!frameDone)
-        {
-            comm = sb.update(myid, comm[0]);
-            while (comm[1][1] == 0 && comm[1][0] == 0)
-            {
-                Sleep(10);
-                comm = sb.update(myid, comm[0]);
-            }
-            mapShift.resize(3);            // Form [Dx, Dy, stretchFactor].
-            mapShift[0] = -1.0 * pathBorderShared[0][0];
-            mapShift[1] = -1.0 * pathBorderShared[0][1];
-            mapShift[2] = pathBorderShared[4][0];
-            pathBorderShared.clear();
-            frameDone = 1;
-            continue;
-        }
-        pathBorder = pathBorderShared;
-        sb.done(myid);
-        if (pathBorder.size() < 1) { continue; }
-        if (pathBorder.size() != pathBorderShared.size())
-        {
-            err("pathBorder size mismatch-MainWindow.on_pB_Test");
-        }
-        im.coordShift(pathBorder, mapShift);
-        if (pathBorder.size() != pathBorderShared.size())
-        {
-            err("pathBorder size mismatch-MainWindow.on_pB_Test");
-        }
-        painterPathBorder = qf.pathMake(pathBorder);
-        if (pathBorder.size() >= 4)
-        {
-            pathBorderSegment.assign(pathBorder.begin() + pathBorder.size() - 4, pathBorder.begin() + pathBorder.size());
-        }
-        else
-        {
-            pathBorderSegment.assign(pathBorder.begin(), pathBorder.end());
-        }
-        dots = qf.dotsMake(pathBorderSegment, dotColours);
-        qf.displayPainterPathDots(ui->label_maps, painterPathBorder, dots);
-        sMessage = to_string(pathBorder.size()) + " border points shown.\n";
-        for (int ii = 0; ii < pathBorderSegment.size(); ii++)
-        {
-            coordX = int(pathBorder[pathBorder.size() - 1 - ii][0]);
-            coordY = int(pathBorder[pathBorder.size() - 1 - ii][1]);
-            sMessage += "Last-" + to_string(ii) + ": (" + to_string(coordX);
-            sMessage += "," + to_string(coordY) + ")\n";
-        }
-        qMessage = QString::fromStdString(sMessage);
-        ui->label_maps2->setText(qMessage);
-        QCoreApplication::processEvents();
-        if (comm[1][0] == 1 || comm[1][0] == -2)
-        {
-            QCoreApplication::processEvents();
-            error = sb.end_call(myid);
-            if (error) { errnum("sb.end_call-on_pB_insert", error); }
-            jobs_done = comm[0][2];
-            update_bar();
-            break;           // Manager reports task finished/cancelled.
-        }
-    }
-
-
-
-    //string dirPDF = sroot + "\\mapsPDF\\province\\cmaca";
-    //gf.folderConvert(dirPDF);
-
-    //int bbq = 1;
+    int bbq = 1;
 }
 
 // Choose a local drive to examine for spreadsheets.
@@ -3121,6 +3080,7 @@ void MainWindow::on_treeW_statscan_itemSelectionChanged()
     {
         ui->pB_download->setEnabled(0);
     }
+    downloadWindow = 0;
 }
 void MainWindow::on_treeW_maps_itemSelectionChanged() 
 {
@@ -3135,6 +3095,10 @@ void MainWindow::on_listW_bindone_itemSelectionChanged()
          qtemp = qlist[0]->text();
          qf.displayBin(ui->label_maps, qtemp);
     }
+}
+void MainWindow::on_listW_statscan_itemSelectionChanged()
+{
+    downloadWindow = 1;
 }
 
 // DEBUG FUNCTIONS:

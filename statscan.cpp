@@ -17,7 +17,7 @@ int STATSCAN::cata_init(string& sample_csv)
     create_csv_table_template = make_create_csv_table_template(column_titles);
     insert_csv_row_template = make_insert_csv_row_template(column_titles);
 
-    jfsc.tree_from_indent(csv_tree, rows);
+    jf.tree_from_indent(csv_tree, rows);
     int tg_row_col;
     subtable_names_template = make_subtable_names_template(cata_name, tg_row_col, csv_tree, rows);
 
@@ -34,7 +34,7 @@ void STATSCAN::cleanURL(string& url)
 }
 void STATSCAN::err(string func)
 {
-    jfsc.err(func);
+    jf.err(func);
 }
 vector<string> STATSCAN::extract_column_titles(string& sfile)
 {
@@ -275,7 +275,7 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
             {
                 temp1 = line.substr(pos1 + 1, pos2 - pos1 - 1);
                 if (temp1 == "..") { damaged++; }
-                else if (jfsc.is_numeric(temp1))
+                else if (jf.is_numeric(temp1))
                 {
                     rows[rindex].push_back(temp1);
                 }
@@ -527,6 +527,57 @@ vector<string> STATSCAN::makeGeoLayers(string& geoTemp)
     } while (pos2 < geoTemp.size());
     return geoLayers;
 }
+string STATSCAN::makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLayers)
+{
+    // GID$[Region Name]$indentation
+    string geoList, temp;
+    size_t pos1, pos2;
+    vector<int> indents = { -1 };
+    int spaces, indent, sizeGL = geoLayers.size();
+    for (int ii = 0; ii < geoLinkNames.size(); ii++)
+    {
+        pos1 = geoLinkNames[ii].find("GID=") + 4;
+        pos2 = geoLinkNames[ii].find('&', pos1);
+        geoList += geoLinkNames[ii].substr(pos1, pos2 - pos1) + "$";
+        pos1 = geoLinkNames[ii].rfind('>') + 1;
+        geoList += geoLinkNames[ii].substr(pos1) + "$";
+        pos1 = geoLinkNames[ii].find('"');
+        temp = geoLinkNames[ii].substr(0, pos1);
+        try { spaces = stoi(temp); }
+        catch (invalid_argument& ia) { err("stoi-sc.makeGeoList"); }
+        if (ii == 0) { spaces = -1; }
+        for (int jj = 0; jj < indents.size(); jj++)
+        {
+            if (indents[jj] == spaces)
+            {
+                indent = jj;
+                break;
+            }
+            else if (jj == indents.size() - 1)
+            {
+                indent = indents.size();
+                indents.push_back(spaces);
+            }
+        }
+        if (indent >= sizeGL)
+        {
+            pos2 = geoList.rfind('$');
+            pos1 = geoList.rfind('$', pos2 - 1) + 1;
+            temp = geoList.substr(pos1, pos2 - pos1);
+            pos1 = temp.find("part");
+            pos2 = temp.find("partie");
+            if (pos1 < temp.size() && pos2 < temp.size()) { indent--; }
+            else { err("geoLayer indent mismatch-sc.makeGeoList"); }
+        }
+        geoList += to_string(indent) + "\n";
+    }
+    geoList += "\n@@Geo Layers\n";
+    for (int ii = 0; ii < sizeGL; ii++)
+    {
+        geoList += geoLayers[ii] + "\n";
+    }
+    return geoList;
+}
 
 string STATSCAN::make_csv_path(int gid_index)
 {
@@ -536,7 +587,7 @@ string STATSCAN::make_csv_path(int gid_index)
 wstring STATSCAN::make_csv_wpath(int gid_index)
 {
     string csv_path = cata_path + "\\" + cata_name + " " + csv_branches[gid_index];
-    wstring csv_wpath = jfsc.utf8to16(csv_path);
+    wstring csv_wpath = jf.utf8to16(csv_path);
     return csv_wpath;
 }
 
@@ -576,14 +627,14 @@ string STATSCAN::make_insert_damaged_csv(string cata_name, string gid, int damag
     string stmt = "INSERT OR IGNORE INTO TDamaged ([Catalogue Name], GID, [Number of Errors]) ";
     stmt += "VALUES (?, ?, ?);";
     vector<string> param = { cata_name, gid, to_string(damaged_val) };
-    jfsc.bind(stmt, param);
+    jf.bind(stmt, param);
     return stmt;
 }
 void STATSCAN::make_insert_csv_row_statement(string& stmt0, string tname, vector<string>& row_vals)
 {
     size_t pos1 = stmt0.find("!!!");
     stmt0.replace(pos1, 3, tname);
-    string stmt = jfsc.bind(stmt0, row_vals);
+    string stmt = jf.bind(stmt0, row_vals);
     stmt0 = stmt;
 }
 string STATSCAN::make_insert_csv_row_template(vector<string>& column_titles)
@@ -618,7 +669,7 @@ void STATSCAN::make_insert_primary_statement(string& stmt0, string gid, vector<v
             params.push_back(rows[ii][jj]);
         }
     }
-    string stmt = jfsc.bind(stmt0, params);
+    string stmt = jf.bind(stmt0, params);
     stmt0 = stmt;
 }
 string STATSCAN::make_insert_primary_template(string cata_name, vector<vector<string>>& text_vars, vector<string>& linearized_titles)
@@ -686,7 +737,7 @@ int STATSCAN::make_tgr_statements(vector<string>& tgr_stmts, string syear, strin
     // NOTE: The first statement in the vector must be executed BEFORE declaring a transaction !
 
     string geo_list_path = sroot + "\\" + syear + "\\" + sname + "\\" + sname + " geo list.bin";
-    string geo_list = jfsc.load(geo_list_path);
+    string geo_list = jf.load(geo_list_path);
     vector<vector<string>> tgr;
     vector<string> vtemp(3);
     int tgr_index, inum1, inum2;
@@ -891,6 +942,49 @@ vector<vector<string>> STATSCAN::navAsset()
     };
     return nA;
 }
+vector<vector<string>> STATSCAN::readGeo(string& geoPath)
+{
+    // First row is the geo layer data (province, cmaca, etc).
+    vector<vector<string>> geo(1, vector<string>());
+    size_t pos1, pos2, pos3;
+    string sfile = jf.load(geoPath);
+    pos1 = sfile.rfind("@@Geo");
+    if (pos1 > sfile.size()) { err("No geo layers-sc.readGeo"); }
+    pos3 = sfile.find_last_not_of('\n') + 1;
+    pos1 = sfile.find('\n', pos1) + 1;
+    pos2 = sfile.find('\n', pos1);
+    while (pos2 <= pos3)
+    {
+        if (pos1 == pos2)
+        {
+            geo[0].push_back("");
+        }
+        else
+        {
+            geo[0].push_back(sfile.substr(pos1, pos2 - pos1));
+        }
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('\n', pos1);
+    }
+
+    pos1 = sfile.find_first_of("1234567890");
+    pos2 = sfile.find('$', pos1);
+    while (pos2 < sfile.size())
+    {
+        pos3 = geo.size();
+        geo.push_back(vector<string>(3));
+        geo[pos3][0] = sfile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('$', pos1);
+        geo[pos3][1] = sfile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('\n', pos1);
+        geo[pos3][2] = sfile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('$', pos1);
+    }
+    return geo;
+}
 string STATSCAN::regionLinkToMapUrl(string& urlRegion, string& regionLink)
 {
     size_t pos1 = urlRegion.rfind('/') + 1;
@@ -935,7 +1029,34 @@ void STATSCAN::set_path(string path)
 {
 	cata_path = path;
 }
+int STATSCAN::skimGeoList(string& filePath, vector<string>& geoLayers)
+{
+    string sfile = jf.load(filePath);
+    int numRegions = 0;
+    size_t pos1 = sfile.find('\n');
+    size_t pos2 = sfile.rfind("@@Geo");
+    if (pos2 > sfile.size()) { err("Geo list lacking geo layers-sc.skimGeoList"); }
+    while (pos1 < pos2)
+    {
+        numRegions++;
+        pos1 = sfile.find('\n', pos1 + 1);
+    }
+    numRegions--;
 
+    size_t pos3 = sfile.find_last_not_of('\n') + 1;
+    pos2 = sfile.find('\n', pos2);
+    while (pos2 < pos3)
+    {
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('\n', pos1);
+        if (pos2 <= pos3)
+        {
+            if (pos1 == pos2) { geoLayers.push_back(""); }
+            else { geoLayers.push_back(sfile.substr(pos1, pos2 - pos1)); }
+        }
+    }
+    return numRegions;
+}
 vector<vector<string>> STATSCAN::splitLinkNames(vector<string>& linkNames)
 {
     vector<vector<string>> split(linkNames.size(), vector<string>(4));
@@ -965,25 +1086,41 @@ vector<vector<string>> STATSCAN::splitLinkNames(vector<string>& linkNames)
     }
     return split;
 }
+bool STATSCAN::testGeoList(string& filePath)
+{
+    string sfile = jf.load(filePath);
+    size_t pos = sfile.find("@@Geo Layers");
+    if (pos < sfile.size()) { return 1; }
+    return 0;
+}
 
 string STATSCAN::urlCata(string scata)
 {
     string url = "www12.statcan.gc.ca/global/URLRedirect.cfm?lang=E&ips=" + scata;
     return url;
 }
-string STATSCAN::urlCataDownload(int iyear, string& sfile)
+string STATSCAN::urlCataDownload(int iyear, string& geoPage, string gid)
 {
     int mode;
-    if (iyear <= 1986) { mode = 0; }
+    size_t pos1, pos2;
+    string temp, pid, url;
+    if (iyear == 2017) { mode = 0; }
     switch (mode)
     {
     case 0:
     {
-
+        pos1 = geoPage.find("geo-download");
+        if (pos1 > geoPage.size()) { err("geo-download-sc.urlCataDownload"); }
+        temp = "GID=" + gid;
+        pos1 = geoPage.find(temp, pos1);
+        pos1 = geoPage.find("PID=", pos1) + 4;
+        pos2 = geoPage.find('&', pos1);
+        pid = geoPage.substr(pos1, pos2 - pos1);
+        url = "www12.statcan.gc.ca/census-recensement/2016/dp-pd/dt-td/File.cfm?S=0&LANG=E&A=R&PID=";
+        url += pid + "&GID=" + gid + "&D1=0&D2=0&D3=0&D4=0&D5=0&D6=0&OFT=CSV";
         break;
     }
     }
-    string url;
     return url;
 }
 string STATSCAN::urlCataList(int iyear, string scata)

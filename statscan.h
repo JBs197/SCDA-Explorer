@@ -8,7 +8,7 @@ using namespace std;
 
 class STATSCAN
 {
-	JFUNC jfsc;
+	JFUNC jf;
 
 	string cata_path;
 	string cata_name;
@@ -60,6 +60,7 @@ public:
 	void initGeo();
 	vector<string> linearize_row_titles(vector<vector<string>>&, vector<string>&);
 	vector<string> makeGeoLayers(string& lineGeo);
+	string makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLayers);
 	string make_csv_path(int);
 	wstring make_csv_wpath(int);
 	string make_create_csv_table_statement(string&, string, string&);
@@ -74,10 +75,13 @@ public:
 	int make_tgrow_statements(vector<string>&);
 	string mapLinkToPDFUrl(string& urlMap, string& mapLink);
 	vector<vector<string>> navAsset();
+	vector<vector<string>> readGeo(string& geoPath);
 	string regionLinkToMapUrl(string& urlRegion, string& regionLink);
+	int skimGeoList(string& filePath, vector<string>& geoLayers);
 	vector<vector<string>> splitLinkNames(vector<string>& linkNames);
+	bool testGeoList(string& filePath);
 	string urlCata(string);
-	string urlCataDownload(int, string&);
+	string urlCataDownload(int iyear, string& geoPage, string gid);
 	string urlCataList(int iyear, string scata);
 	string urlGeoList(int iyear, string urlCata);
 	string urlYear(string);

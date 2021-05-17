@@ -93,9 +93,12 @@ void WINFUNC::call(HINTERNET hint, DWORD_PTR dw_context, DWORD dwInternetStatus,
 }
 string WINFUNC::browse(string url)
 {
-	string server_name, object_name, sPage;
+	string server_name, object_name, sPage, temp;
 	string oddError = "12002";
 	size_t cut_here;
+	temp = url;
+	cut_here = temp.find("www");
+	if (cut_here > 0) { url = temp.substr(cut_here); }
 	for (int ii = 0; ii < domains.size(); ii++)
 	{
 		cut_here = url.rfind(domains[ii]);
@@ -153,7 +156,7 @@ int WINFUNC::download(string url, string filepath)
 	char* bufferA;
 	unsigned char* ubufferA;
 	int size1, size2;
-	wstring fileW;
+	wstring fileW, filePathW;
 	string sfile;
 	bool special_char = 0;
 	bool saveBinary = 0;
@@ -162,6 +165,10 @@ int WINFUNC::download(string url, string filepath)
 
 	size_t pos1 = filepath.rfind(".pdf");
 	if (pos1 < filepath.size()) { saveBinary = 1; }
+	else
+	{
+		filePathW = jfwf.utf8to16(filepath);
+	}
 
 	hint = InternetOpenA(agent.c_str(), INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
 	if (hint)
