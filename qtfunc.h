@@ -46,6 +46,7 @@ public:
 	void drawFrame(QPixmap& pm, vector<vector<int>>& topleftBotright);
 	void drawLinesDebug(QPainter& qpaint, vector<vector<double>>& lines);
 	void err(string);
+	int getBranchGen(QTreeWidgetItem*& qBranch);
 	string getBranchPath(QTreeWidgetItem*& qBranch, string rootDir);
 	int getLastMap() { return lastMap; }
 	int get_display_root(QTreeWidget*);

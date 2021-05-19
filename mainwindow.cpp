@@ -54,6 +54,9 @@ void MainWindow::initialize()
     // Populate the navSearch matrix.
     navSearch = sc.navAsset();
 
+    // Initialize JTREE objects.
+    jtStatsCan.init("Statistics Canada Census Data", sroot);
+
     // Create (if necessary) these system-wide tables. 
     create_cata_index_table();  
     create_damaged_table();
@@ -1562,6 +1565,22 @@ int MainWindow::fetchGeoList(int iYear, string sCata, vector<string>& geoLayers)
     int numRegions = geoLinkNames.size();
     return numRegions;
 }
+int MainWindow::fetchGeoList(int iYear, string sCata, vector<string>& geoLayers, string& geoPage)
+{
+    // Will download a geo list file (including geo layers) in the catalogue's folder.
+    vector<string> geoTemp = jf.textParser(geoPage, navSearch[6]);
+    geoLayers = sc.makeGeoLayers(geoTemp[0]);
+    vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
+    string geoList = sc.makeGeoList(geoLinkNames, geoLayers);
+    vector<string> dirt = { "/" };
+    vector<string> soap = { "or" };
+    jf.clean(geoList, dirt, soap);
+    string temp = sroot + "\\" + to_string(iYear) + "\\" + sCata;
+    temp += "\\" + sCata + " geo list.bin";
+    jf.printer(temp, geoList);
+    int numRegions = geoLinkNames.size();
+    return numRegions;
+}
 void MainWindow::displayDiscrepancies(string& folderPath, QListWidget*& qlist)
 {
     vector<int> gidLocal, gidOnline;
@@ -1645,66 +1664,74 @@ void MainWindow::on_pB_download_clicked()
     jf.timerStart();
     int onlineTab = ui->tabW_online->currentIndex();
     QList<QTreeWidgetItem*> qlist, qChildren;
-    vector<string> prompt, listCata;
+    vector<string> prompt, listCata, sLayer;
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
     thread::id myid = this_thread::get_id();
     
-    qlist = ui->treeW_statscan->selectedItems();
-    if (qlist.size() < 1) { return; }
-    int kids, iStatusCata, error, igen = 0;
+    int kids, iStatusCata, error, iGen, inum, sizeComm, oldProgress, indexCata;
+    vector<int> iLayer;
     QTreeWidgetItem* pNode = nullptr;
-    QTreeWidgetItem* pParent = qlist[0];
-    do
-    {
-        pNode = pParent;
-        pParent = pNode->parent();
-        igen++;
-    } while (pParent != nullptr);
+    QTreeWidgetItem* pParent = nullptr;
     QString qtemp;
-    string temp;
+    string temp, url, webpage;
     switch (onlineTab)
     {
     case 0:
     {
-        prompt.resize(3);  // Form [syear, sname, ???].
-        if (igen <= 2) 
+        qlist = ui->treeW_statscan->selectedItems();
+        if (qlist.size() < 1) { return; }
+        iGen = qf.getBranchGen(qlist[0]);
+        prompt.resize(2);  // Form [syear, sname].
+        switch (iGen)
+        {
+        case 0:  // Root. Nothing to do...
+            return;
+        case 1:  // Year.
         {
             qtemp = qlist[0]->text(0);
             prompt[0] = qtemp.toStdString();
             kids = qlist[0]->childCount();
-            if (kids > 0)
+            if (kids == 0)
             {
-                listCata.resize(kids);
-                for (int ii = 0; ii < kids; ii++)
-                {
-                    pNode = qlist[0]->child(ii);
-                    qtemp = pNode->text(0);
-                    listCata[ii] = qtemp.toStdString();
-                }
+                url = sc.urlYear(prompt[0]);
+                webpage = wf.browse(url);
+                sLayer = jf.textParser(webpage, navSearch[1]);
+                iLayer.assign(sLayer.size(), -1);
+                jtStatsCan.addChildren(sLayer, iLayer, prompt[0]);
+                populateQtree(jtStatsCan, qlist[0], prompt[0]);
+                qlist[0]->sortChildren(0, Qt::SortOrder::AscendingOrder);
+                kids = qlist[0]->childCount();
             }
-            else
+            listCata.resize(kids);
+            for (int ii = 0; ii < kids; ii++)
             {
-                string url = sc.urlYear(prompt[0]);
-                string webpage = wf.browse(url);
-                listCata = jf.textParser(webpage, navSearch[1]);
+                pNode = qlist[0]->child(ii);
+                qtemp = pNode->text(0);
+                listCata[ii] = qtemp.toStdString();
             }
+            break;
         }
-        else if (igen == 3) 
-        { 
+        case 2:  // Catalogue.
+        {
             qtemp = qlist[0]->parent()->text(0);
             prompt[0] = qtemp.toStdString();
             qtemp = qlist[0]->text(0);
             prompt[1] = qtemp.toStdString();
+            break;
         }
-        else 
-        { 
+        case 3:  // CSV or maps.
+        {
             qtemp = qlist[0]->parent()->parent()->text(0);
             prompt[0] = qtemp.toStdString();
             qtemp = qlist[0]->parent()->text(0);
             prompt[1] = qtemp.toStdString();
+            break;
         }
+        }
+        QCoreApplication::processEvents();
 
+        string urlCata, 
         if (listCata.size() < 1)
         {
             QList<QListWidgetItem*> qSelected = ui->listW_statscan->selectedItems();
@@ -1721,74 +1748,82 @@ void MainWindow::on_pB_download_clicked()
         }
         else
         {
-            for (int ii = 0; ii < listCata.size(); ii++)
+            comm[0][2] = listCata.size();
+            error = sb.start_call(myid, cores, comm[0]);
+            if (error) { errnum("start_call-pB_download_clicked", error); }
+            sizeComm = comm.size();
+            temp = "Downloading catalogues for " + prompt[0] + " ...";
+            reset_bar(comm[0][2], temp);
+            inum = min(comm[0][2], cores);
+            for (int ii = 0; ii < inum; ii++)
             {
                 prompt[1] = listCata[ii];
                 iStatusCata = sf.statusCata(prompt[1]);
                 if (iStatusCata == 2)
                 {
                     qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
+                    inum++;
                     continue;
                 }
-                else { prompt[2] = to_string(iStatusCata); }
-                error = sb.start_call(myid, 1, comm[0]);
-                if (error) { errnum("start_call-pB_download_clicked", error); }
                 sb.set_prompt(prompt);
                 std::thread dl(&MainWindow::downloader, this, ref(sb));
                 dl.detach();
-                while (1)
+                while (comm.size() == sizeComm)
                 {
                     Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    if (remote_controller == 2)  // The 'cancel' button was pressed.
+                    comm = sb.update(myid, comm[0]);
+                }
+                sizeComm = comm.size();
+            }
+            indexCata = inum - 1;
+            while (1)
+            {
+                Sleep(gui_sleep);
+                QCoreApplication::processEvents();
+                oldProgress = comm[0][1];
+                comm = sb.update(myid, comm[0]);
+                comm[0][1] = 0;
+                for (int ii = 1; ii < comm.size(); ii++)
+                {
+                    comm[0][1] += comm[ii][1];
+                }
+                jobs_done = comm[0][1];
+                update_bar();
+                inum = comm[0][1] - oldProgress;
+                if (inum > 0)
+                {
+                    for (int ii = 0; ii < inum; ii++)
                     {
-                        comm[0][0] = 2;  // Inform the manager thread it should abort its task.
-                        remote_controller = 0;
-                    }
-                    try
-                    {
-                        comm = sb.update(myid, comm[0]);
-                        if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
+                        prompt[1] = listCata[ii];
+                        iStatusCata = sf.statusCata(prompt[1]);
+                        if (iStatusCata == 2)
                         {
-                            if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
-                            {
-                                comm[0][2] = comm[1][2];
-                                comm[0][1] = comm[1][1];
-                                if (onlineTab == 0)
-                                {
-                                    reset_bar(comm[1][2], "Downloading catalogue  " + prompt[1]);  // ... initialize the progress bar.
-                                }
-                                else if (onlineTab == 1)
-                                {
-                                    reset_bar(comm[1][2], "Downloading maps...");  // ... initialize the progress bar.
-                                }
-                                jobs_done = comm[0][1];
-                                update_bar();
-                            }
+                            qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
+                            inum++;
+                            continue;
                         }
-                        else
+                        sizeComm = comm.size();                        
+                        sb.set_prompt(prompt);
+                        std::thread dl(&MainWindow::downloader, this, ref(sb));
+                        dl.detach();
+                        while (comm.size() == sizeComm)
                         {
-                            comm[0][1] = comm[1][1];
-                            jobs_done = comm[0][1];
-                            update_bar();
+                            Sleep(gui_sleep);
+                            comm = sb.update(myid, comm[0]);
                         }
-                    }
-                    catch (out_of_range& oor)
-                    {
-                        err("sb.update-on_pB_download_clicked");
-                    }
-
-                    if (comm[1][0] == 1 || comm[1][0] == -2)
-                    {
-                        error = sb.end_call(myid);
-                        if (error) { errnum("sb.end_call-on_pB_download_clicked", error); }
-                        jobs_done = comm[0][2];
-                        update_bar();
-                        break;           // Manager reports task finished/cancelled.
+                        sizeComm = comm.size();
                     }
                 }
-                int bbq = 1;
+                if (comm[0][1] >= comm[0][2])
+                {
+                    error = sb.end_call(myid);
+                    if (error) { errnum("sb.end_call-on_pB_download_clicked", error); }
+                    jobs_done = comm[0][2];
+                    update_bar();
+                    break;           // Manager reports task finished/cancelled.
+                }
             }
+            int bbq = 1;
             return;
         }
 
@@ -1862,6 +1897,11 @@ void MainWindow::on_pB_download_clicked()
     
     long long timer = jf.timerStop();
     log("Downloaded catalogue " + prompt[1] + " in " + to_string(timer) + "ms");
+}
+void MainWindow::downloadCatalogue(SWITCHBOARD& sbgui)
+{
+
+
 }
 void MainWindow::downloadMaps(SWITCHBOARD& sb)
 {
@@ -2023,14 +2063,18 @@ void MainWindow::downloader(SWITCHBOARD& sb)
     else { geo = 1; sc.initGeo(); }
 
     size_t pos1;
-    string sfile, urlCata, urlGeoList, geoPage, urlCataDL, csvPath, csvFile;
+    string sfile, urlCataDL, csvPath, csvFile;
     vector<string> gidList, geoLayers;
     vector<vector<string>> geoAll;
+    string temp = sc.urlCata(prompt[1]);
+    string urlCata = wf.urlRedirect(temp);
+    string urlGeoList = sc.urlGeoList(iyear, urlCata);
+    string geoPage = wf.browse(urlGeoList);
     if (geo)
     {
         if (!wf.file_exist(geoPath))
         {
-            fetchGeoList(iyear, prompt[1], geoLayers);
+            fetchGeoList(iyear, prompt[1], geoLayers, geoPage);
         }
         geoAll = sc.readGeo(geoPath);
         mycomm[2] = geoAll.size() - 1;
@@ -2047,13 +2091,9 @@ void MainWindow::downloader(SWITCHBOARD& sb)
             gidList[ii] = prompt[ii + 2].substr(1, pos1 - 1);
         }
     }
+    
     vector<string> dirt = { "/" };
     vector<string> soap = { "or" };
-    string temp = sc.urlCata(prompt[1]);
-    urlCata = wf.urlRedirect(temp);
-    urlGeoList = sc.urlGeoList(iyear, urlCata);
-    geoPage = wf.browse(urlGeoList);
-
     for (int ii = 0; ii < mycomm[2]; ii++)
     {
         if (geo)

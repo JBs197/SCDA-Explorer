@@ -111,6 +111,20 @@ void QTFUNC::err(string func)
 {
 	jf.err(func);
 }
+int QTFUNC::getBranchGen(QTreeWidgetItem*& qBranch)
+{
+	// Generation 0 is the root.
+	int iGen = -1;
+	QTreeWidgetItem* pNode = nullptr;
+	QTreeWidgetItem* pParent = qBranch;
+	do
+	{
+		pNode = pParent;
+		pParent = pNode->parent();
+		iGen++;
+	} while (pParent != nullptr);
+	return iGen;
+}
 string QTFUNC::getBranchPath(QTreeWidgetItem*& qBranch, string rootDir)
 {
 	QList<QTreeWidgetItem*> qGenealogy;  // In reverse (present->parent->ancestors).

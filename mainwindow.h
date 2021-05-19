@@ -38,7 +38,7 @@ public:
     GSFUNC gf;
     IMGFUNC im;
     JFUNC jf;
-    JTREE jt, jtMaps;
+    JTREE jt, jtMaps, jtStatsCan;
     QTFUNC qf;
     SWITCHBOARD sb;
     SQLFUNC sf;
@@ -125,10 +125,12 @@ private:
     void display_table(string);
     void dlCSV(vector<vector<string>>& sLN, vector<string>& prompt, int indexCSV);
     string dlGeo(vector<vector<string>>& splitLinkNames, vector<string>& prompt, unordered_map<string, int>& mapGeoIndent);
+    void downloadCatalogue(SWITCHBOARD& sbgui);
     void downloader(SWITCHBOARD&);
     void downloadMaps(SWITCHBOARD&);
     vector<string> extract_gids(string);
     int fetchGeoList(int iYear, string sCata, vector<string>& geoLayers);
+    int fetchGeoList(int iYear, string sCata, vector<string>& geoLayers, string& geoPage);
     void initImgFont(string fontName);
     void mousePressEvent(QMouseEvent* event) override;
     void populateQtree(JTREE&, QTreeWidgetItem*&, string);

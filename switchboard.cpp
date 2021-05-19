@@ -38,11 +38,17 @@ int SWITCHBOARD::end_call(thread::id id)
 {
 	lock_guard<mutex> addrem(m_sb);
 	int pindex = map_phone.at(id);
-	if (pindex != 0) { return 1; }
-	phone_lines.clear();
-	sprompt.clear();
-	map_phone.clear();
-	//signout.clear();
+	if (pindex == 0) 
+	{
+		phone_lines.clear();
+		sprompt.clear();
+		map_phone.clear();
+	}
+	else
+	{
+		phone_lines[pindex] = { -1, 0 };
+		map_phone.erase(id);
+	}
 	return 0;
 }
 
