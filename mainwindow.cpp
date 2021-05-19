@@ -78,7 +78,7 @@ void MainWindow::initialize()
     ui->tabW_online->setGeometry(370, 10, 921, 481);
     ui->treeW_statscan->setGeometry(0, 0, 521, 456);
     ui->treeW_statscan->setVisible(0);
-    ui->listW_statscan->setGeometry(526, 0, 401, 456);
+    ui->listW_statscan->setGeometry(526, 0, 396, 456);
     ui->listW_statscan->setVisible(0);
     ui->treeW_maps->setGeometry(0, 0, 921, 461);
     ui->treeW_maps->setVisible(0);
@@ -1565,9 +1565,10 @@ int MainWindow::fetchGeoList(int iYear, string sCata, vector<string>& geoLayers)
 void MainWindow::displayDiscrepancies(string& folderPath, QListWidget*& qlist)
 {
     vector<int> gidLocal, gidOnline;
-    vector<string> csvLocal, csvOnline;
-    string sfile, temp;
+    vector<string> csvLocal, csvOnline, geoLayers;
+    string sfile, temp, syear, sCata;
     QString qtemp;
+    int iYear;
     size_t pos2;
     size_t pos1 = folderPath.find("maps");
     if (pos1 < folderPath.size())
@@ -1576,6 +1577,7 @@ void MainWindow::displayDiscrepancies(string& folderPath, QListWidget*& qlist)
     }
     else
     {
+        wf.makeDir(folderPath);
         csvLocal = wf.get_file_list(folderPath, "*.csv");
         gidLocal.resize(csvLocal.size());
         for (int ii = 0; ii < csvLocal.size(); ii++)
@@ -1588,8 +1590,17 @@ void MainWindow::displayDiscrepancies(string& folderPath, QListWidget*& qlist)
         }
 
         pos1 = folderPath.rfind('\\') + 1;
-        sfile = folderPath.substr(pos1);
-        temp = folderPath + "\\" + sfile + " geo list.bin";
+        sCata = folderPath.substr(pos1);
+        temp = folderPath + "\\" + sCata + " geo list.bin";
+        if (!wf.file_exist(temp))
+        {
+            pos1 = temp.find('\\') + 1;
+            pos2 = temp.find('\\', pos1);
+            syear = temp.substr(pos1, pos2 - pos1);
+            try { iYear = stoi(syear); }
+            catch (invalid_argument& ia) { err("stoi-MainWindow.displayDiscrepancies"); }
+            fetchGeoList(iYear, sCata, geoLayers);
+        }
         sfile = jf.load(temp);
         pos1 = sfile.find_first_of("1234567890");
         pos2 = sfile.find('$');
@@ -1618,6 +1629,7 @@ void MainWindow::displayDiscrepancies(string& folderPath, QListWidget*& qlist)
                 }
             }
         }
+        qlist->clear();
         for (int ii = 0; ii < gidOnline.size(); ii++)
         {
             temp = "(" + to_string(gidOnline[ii]) + ") " + csvOnline[ii];
@@ -2008,14 +2020,18 @@ void MainWindow::downloader(SWITCHBOARD& sb)
     string geoPath = folderPath + "\\" + prompt[1] + " geo list.bin";
     bool geo;
     if (prompt.size() > 2) { geo = 0; }
-    else { geo = 1; }
+    else { geo = 1; sc.initGeo(); }
 
     size_t pos1;
     string sfile, urlCata, urlGeoList, geoPage, urlCataDL, csvPath, csvFile;
-    vector<string> gidList, csvNameList;
+    vector<string> gidList, geoLayers;
     vector<vector<string>> geoAll;
     if (geo)
     {
+        if (!wf.file_exist(geoPath))
+        {
+            fetchGeoList(iyear, prompt[1], geoLayers);
+        }
         geoAll = sc.readGeo(geoPath);
         mycomm[2] = geoAll.size() - 1;
         sb.update(myid, mycomm);
