@@ -81,7 +81,7 @@ void MainWindow::initialize()
     ui->tabW_online->setGeometry(370, 10, 921, 481);
     ui->treeW_statscan->setGeometry(0, 0, 521, 456);
     ui->treeW_statscan->setVisible(0);
-    ui->listW_statscan->setGeometry(526, 0, 396, 456);
+    ui->listW_statscan->setGeometry(526, 0, 386, 456);
     ui->listW_statscan->setVisible(0);
     ui->treeW_maps->setGeometry(0, 0, 921, 461);
     ui->treeW_maps->setVisible(0);
@@ -1765,6 +1765,21 @@ void MainWindow::on_pB_download_clicked()
             }
             else
             {
+                iStatusCata = getCataStatus(prompt[0], prompt[1], csvLocal, csvOnline);
+                if (iStatusCata == 1)
+                {
+                    csvDiff = jf.compareList(csvLocal, csvOnline);
+                    prompt.resize(3 + csvDiff[1].size());
+                    for (int jj = 0; jj < csvDiff[1].size(); jj++)
+                    {
+                        prompt[3 + jj] = csvDiff[1][jj];
+                    }
+                }
+                else if (iStatusCata == 2)
+                {
+                    qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
+                    break;
+                }
                 iStatusCata = sf.statusCata(prompt[1]);
                 if (iStatusCata == 2)
                 {
@@ -1773,6 +1788,7 @@ void MainWindow::on_pB_download_clicked()
                 }
                 try { iYear = stoi(prompt[0]); }
                 catch (invalid_argument& ia) { err("stoi-MainWindow.on_pB_download"); }
+                temp = sc.urlCata(prompt[1]);
                 urlCata = wf.urlRedirect(temp);
                 urlGeoList = sc.urlGeoList(iYear, urlCata);
                 prompt.push_back(urlGeoList);
@@ -2145,7 +2161,7 @@ void MainWindow::downloader(SWITCHBOARD& sb)
     wf.makeDir(folderPath);
     string geoPath = folderPath + "\\" + prompt[1] + " geo list.bin";
     bool geo;
-    if (prompt.size() > 2) { geo = 0; }
+    if (prompt.size() > 3) { geo = 0; }
     else { geo = 1; sc.initGeo(); }
 
     size_t pos1;

@@ -32,6 +32,82 @@ void STATSCAN::cleanURL(string& url)
         pos1 = url.find("&amp;", pos1);
     }
 }
+void STATSCAN::downloadCatalogue(SWITCHBOARD& sbgui)
+{
+    vector<int> mycomm;
+    vector<vector<int>> comm_gui;
+    thread::id myid = this_thread::get_id();
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form [syear, sname].    
+    
+    int iYear;
+    try { iYear = stoi(prompt[0]); }
+    catch (out_of_range& oor) { err("stoi-sc.downloadCatalogue"); }
+
+    // Read the geo list, downloading a new one if necessary.
+    initGeo();
+    string folderPath = sroot + "\\" + prompt[0] + "\\" + prompt[1];
+    wf.makeDir(folderPath);
+    string geoPath = folderPath + "\\" + prompt[1] + " geo list.bin";
+    string geoPage;
+    if (!wf.file_exist(geoPath))
+    {
+        downloadGeoList(prompt[0], prompt[1], geoPage);
+    }
+    else if (!testGeoList(geoPath))
+    {
+        downloadGeoList(prompt[0], prompt[1], geoPage);
+    }
+    vector<vector<string>> geoAll = readGeo(geoPath);
+    
+    //
+    
+    if (prompt.size() > 3)
+    {
+        vector<string> gidList(prompt.size() - 3);
+        for (int ii = 3; ii < prompt.size(); ii++)
+        {
+            sc.getGidFromPath(gidList[ii - 3], prompt[ii]);
+        }
+        for (int ii = geoAll.size() - 1; ii >= 1; ii--)
+        {
+            for (int jj = gidList.size() - 1; jj >= 0; jj--)
+            {
+                if (geoAll[ii][0] == gidList[jj]) { break; }
+                else if (jj == 0)
+                {
+                    geoAll.erase(geoAll.begin() + ii);
+                }
+            }
+        }
+    }
+    mycomm[2] = geoAll.size() - 1;
+    comm_gui = sbgui.update(myid, mycomm);
+    string urlCataDL, csvPath, csvFile;
+    for (int ii = 1; ii < geoAll.size(); ii++)
+    {
+        urlCataDL = sc.urlCataDownload(iYear, geoPage, geoAll[ii][0]);
+        csvPath = folderPath + "\\" + prompt[1] + " (" + geoAll[ii][0];
+        csvPath += ") " + geoAll[ii][1] + ".csv";
+        if (wf.file_exist(csvPath)) { continue; }
+        csvFile = wf.browse(urlCataDL);
+        jf.printer(csvPath, csvFile);
+        mycomm[1]++;
+        sbgui.update(myid, mycomm);
+    }
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+}
+void STATSCAN::downloadGeoList(string sYear, string sName, string& geoPage)
+{
+    int iYear;
+    try { iYear = stoi(sYear); }
+    catch (invalid_argument& ia) { err("stoi-sc.downloadGeoList"); }
+    string temp = urlCata(sName);
+    string urlCata = wf.urlRedirect(temp);
+    string urlGeoList = urlGeoList(iYear, urlCata);
+    string geoPage = wf.browse(urlGeoList);
+}
 void STATSCAN::err(string func)
 {
     jf.err(func);

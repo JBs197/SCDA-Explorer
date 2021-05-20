@@ -2,6 +2,8 @@
 
 #include <string>
 #include <vector>
+#include "switchboard.h"
+#include "winfunc.h"
 #include "jfunc.h"
 
 using namespace std;
@@ -9,6 +11,7 @@ using namespace std;
 class STATSCAN
 {
 	JFUNC jf;
+	WINFUNC wf;
 
 	string cata_path;
 	string cata_name;
@@ -37,6 +40,8 @@ public:
 	void set_path(string);
 	int cata_init(string&);
 	void cleanURL(string& url);
+	void downloadCatalogue(SWITCHBOARD& sbgui);
+	void downloadGeoList(string sYear, string sName, string& geoPage);
 	void err(string);
 	vector<string> extract_column_titles(string&);
 	string extract_description(string&);
