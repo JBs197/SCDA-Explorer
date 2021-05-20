@@ -52,6 +52,16 @@ int SWITCHBOARD::end_call(thread::id id)
 	return 0;
 }
 
+// Allows the manager thread to remove a worker thread.
+int SWITCHBOARD::terminateCall(thread::id id, int pindex)
+{
+	lock_guard<mutex> addrem(m_sb);
+	int myIndex = map_phone.at(id);
+	if (myIndex != 0) { return 1; }
+	phone_lines.erase(phone_lines.begin() + pindex);
+	return 0;
+}
+
 // Any thread can simultaneously give an update on its comm, and receive the current comm status for the job.
 vector<vector<int>> SWITCHBOARD::update(thread::id id, vector<int>& comm)
 {

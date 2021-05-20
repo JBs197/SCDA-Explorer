@@ -405,19 +405,22 @@ string STATSCAN::get_subtable_name_template(int index)
 void STATSCAN::initGeo()
 {
     string empty;
-    mapGeoLayers.emplace("Canada", empty);
-    mapGeoLayers.emplace("Can", empty);
-    mapGeoLayers.emplace("Prov.Terr.", "province");
-    mapGeoLayers.emplace("Prov.Terr", "province");
-    mapGeoLayers.emplace("CMACA", "cmaca");
-    mapGeoLayers.emplace("CMACA with Provincial Splits", "cmaca");
-    mapGeoLayers.emplace("CMACA with Provincial Splits 2016", "cmaca");
-    mapGeoLayers.emplace("CT", "ct");
-    mapGeoLayers.emplace("CD", "cd");
-    mapGeoLayers.emplace("CSD", "csd");
-    mapGeoLayers.emplace("FED", "fed");
-    mapGeoLayers.emplace("ER", "er");
-    //mapGeoLayers.emplace("FSA", "fsa");
+    if (mapGeoLayers.size() == 0)
+    {
+        mapGeoLayers.emplace("Canada", empty);
+        mapGeoLayers.emplace("Can", empty);
+        mapGeoLayers.emplace("Prov.Terr.", "province");
+        mapGeoLayers.emplace("Prov.Terr", "province");
+        mapGeoLayers.emplace("CMACA", "cmaca");
+        mapGeoLayers.emplace("CMACA with Provincial Splits", "cmaca");
+        mapGeoLayers.emplace("CMACA with Provincial Splits 2016", "cmaca");
+        mapGeoLayers.emplace("CT", "ct");
+        mapGeoLayers.emplace("CD", "cd");
+        mapGeoLayers.emplace("CSD", "csd");
+        mapGeoLayers.emplace("FED", "fed");
+        mapGeoLayers.emplace("ER", "er");
+        //mapGeoLayers.emplace("FSA", "fsa");
+    }
 }
 
 vector<string> STATSCAN::linearize_row_titles(vector<vector<string>>& rows, vector<string>& column_titles)

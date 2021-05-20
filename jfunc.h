@@ -38,6 +38,7 @@ public:
 	atomic_int stopwatch_control = 0;
 
 	string bind(string&, vector<string>&);
+	vector<vector<string>> compareList(vector<string>& list0, vector<string>& list1);
 	vector<int> destringifyCoord(string& sCoord);
 	void err(string);
 	string get_error_path();

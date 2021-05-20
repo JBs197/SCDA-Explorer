@@ -27,6 +27,7 @@ public:
 	int start_call(thread::id, int, vector<int>&);  // 1 = completed task
 	int answer_call(thread::id, vector<int>&);      // 2 = cancelled task
 	int end_call(thread::id);                       // 3 = paused task
+	int terminateCall(thread::id id, int pindex);
 	vector<string> get_prompt();
 	vector<int> getMyComm(thread::id);
 	void set_prompt(vector<string>&);

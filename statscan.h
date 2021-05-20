@@ -87,6 +87,28 @@ public:
 	string urlYear(string);
 
 	// TEMPLATES
+	template<typename ... Args> void getGidFromPath(Args& ... args)
+	{
+		err("getGidFromPath template-sc");
+	}
+	template<> void getGidFromPath<string, string>(string& csvPath, string& csvGid)
+	{
+		size_t pos1 = csvPath.find('(') + 1;
+		size_t pos2 = csvPath.find(')', pos1);
+		csvGid = csvPath.substr(pos1, pos2 - pos1);
+	}
+	template<> void getGidFromPath<vector<string>, vector<string>>(vector<string>& csvPaths, vector<string>& csvGids)
+	{
+		size_t pos1, pos2;
+		csvGids.resize(csvPaths.size());
+		for (int ii = 0; ii < csvPaths.size(); ii++)
+		{
+			pos1 = csvPaths[ii].find('(') + 1;
+			pos2 = csvPaths[ii].find(')', pos1);
+			csvGids[ii] = csvPaths[ii].substr(pos1, pos2 - pos1);
+		}
+	}
+
 	template<typename ... Args> string make_create_primary_table(Args& ... args)
 	{
 		// Returns a complete statement to create a catalogue's primary table. 

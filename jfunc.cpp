@@ -39,6 +39,35 @@ string JFUNC::bind(string& stmt0, vector<string>& params)
 
 	return stmt0;
 }
+vector<vector<string>> JFUNC::compareList(vector<string>& list0, vector<string>& list1)
+{
+	vector<vector<string>> difference(2, vector<string>());
+	vector<bool> checked;
+	checked.assign(list1.size(), 0);
+	for (int ii = 0; ii < list0.size(); ii++)
+	{
+		for (int jj = 0; jj < list1.size(); jj++)
+		{
+			if (list0[ii] == list1[jj])
+			{
+				checked[jj] = 1;
+				break;
+			}
+			else if (jj == list1.size() - 1)
+			{
+				difference[0].push_back(list0[ii]);
+			}
+		}
+	}
+	for (int ii = 0; ii < checked.size(); ii++)
+	{
+		if (!checked[ii])
+		{
+			difference[1].push_back(list1[ii]);
+		}
+	}
+	return difference;
+}
 vector<int> JFUNC::destringifyCoord(string& sCoord)
 {
 	vector<int> coord;

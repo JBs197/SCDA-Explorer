@@ -1545,6 +1545,33 @@ void MainWindow::populateQtree(JTREE& jtx, QTreeWidgetItem*& qparent, string spa
         populateQtree(jtx, qkids[ii], skids[ii]);
     }
 }
+int MainWindow::getCataStatus(string sYear, string sName, vector<string>& csvLocal, vector<string>& csvOnline)
+{
+    // Returns 0 = cata absent, 1 = cata partially downloaded, 2 = cata completely downloaded.
+    string folderPath = sroot + "\\" + sYear + "\\" + sName;
+    wf.makeDir(folderPath);
+    csvLocal = wf.get_file_list(folderPath, "*.csv");
+
+    sc.initGeo();
+    string geoPath = folderPath + "\\" + sName + " geo list.bin";
+    vector<string> geoLayers;
+    int iYear;
+    try { iYear = stoi(sYear); }
+    catch (invalid_argument& ia) { err("stoi-MainWindow.getCataStatus"); }
+    if (!wf.file_exist(geoPath)) { fetchGeoList(iYear, sName, geoLayers); }
+    else if (!sc.testGeoList(geoPath)) { fetchGeoList(iYear, sName, geoLayers); }
+    vector<vector<string>> geoAll = sc.readGeo(geoPath);
+    csvOnline.resize(geoAll.size() - 1);
+    for (int ii = 0; ii < csvOnline.size(); ii++)
+    {
+        csvOnline[ii] = sName + " (" + geoAll[ii + 1][0] + ") " + geoAll[ii + 1][1] + ".csv";
+    }
+
+    if (csvLocal.size() == 0) { return 0; }
+    else if (csvOnline.size() > csvLocal.size()) { return 1; }
+    else if (csvOnline.size() == csvLocal.size()) { return 2; }
+    return -1;
+}
 int MainWindow::fetchGeoList(int iYear, string sCata, vector<string>& geoLayers)
 {
     // Will download a geo list file (including geo layers) in the catalogue's folder.
@@ -1552,17 +1579,7 @@ int MainWindow::fetchGeoList(int iYear, string sCata, vector<string>& geoLayers)
     string urlCata = wf.urlRedirect(temp);
     string urlGeoList = sc.urlGeoList(iYear, urlCata);
     string geoPage = wf.browse(urlGeoList);
-    vector<string> geoTemp = jf.textParser(geoPage, navSearch[6]);
-    geoLayers = sc.makeGeoLayers(geoTemp[0]);
-    vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
-    string geoList = sc.makeGeoList(geoLinkNames, geoLayers);
-    vector<string> dirt = { "/" };
-    vector<string> soap = { "or" };
-    jf.clean(geoList, dirt, soap);
-    temp = sroot + "\\" + to_string(iYear) + "\\" + sCata;
-    temp += "\\" + sCata + " geo list.bin";
-    jf.printer(temp, geoList);
-    int numRegions = geoLinkNames.size();
+    int numRegions = fetchGeoList(iYear, sCata, geoLayers, geoPage);
     return numRegions;
 }
 int MainWindow::fetchGeoList(int iYear, string sCata, vector<string>& geoLayers, string& geoPage)
@@ -1661,20 +1678,22 @@ void MainWindow::displayDiscrepancies(string& folderPath, QListWidget*& qlist)
 // Download the selected file(s).
 void MainWindow::on_pB_download_clicked()
 {
-    jf.timerStart();
+    //jf.timerStart();
     int onlineTab = ui->tabW_online->currentIndex();
     QList<QTreeWidgetItem*> qlist, qChildren;
-    vector<string> prompt, listCata, sLayer;
+    vector<string> prompt, listCata, sLayer, csvLocal, csvOnline;
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
     thread::id myid = this_thread::get_id();
     
     int kids, iStatusCata, error, iGen, inum, sizeComm, oldProgress, indexCata;
+    int iYear;
     vector<int> iLayer;
     QTreeWidgetItem* pNode = nullptr;
     QTreeWidgetItem* pParent = nullptr;
     QString qtemp;
-    string temp, url, webpage;
+    string temp, url, webpage, urlCata, urlGeoList;
+    vector<vector<string>> csvDiff;
     switch (onlineTab)
     {
     case 0:
@@ -1731,102 +1750,112 @@ void MainWindow::on_pB_download_clicked()
         }
         QCoreApplication::processEvents();
 
-        string urlCata, 
         if (listCata.size() < 1)
         {
             QList<QListWidgetItem*> qSelected = ui->listW_statscan->selectedItems();
-            prompt.resize(qSelected.size() + 2);
-            for (int ii = 0; ii < qSelected.size(); ii++)
+            if (qSelected.size() > 0)
             {
-                qtemp = qSelected[ii]->text();
-                prompt[ii + 2] = qtemp.toStdString();
+                comm[0][2] = qSelected.size();
+                prompt.resize(qSelected.size() + 3);
+                for (int ii = 0; ii < qSelected.size(); ii++)
+                {
+                    qtemp = qSelected[ii]->text();
+                    prompt[ii + 3] = qtemp.toStdString();
+                }
+            }
+            else
+            {
+                iStatusCata = sf.statusCata(prompt[1]);
+                if (iStatusCata == 2)
+                {
+                    qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
+                    return;
+                }
+                try { iYear = stoi(prompt[0]); }
+                catch (invalid_argument& ia) { err("stoi-MainWindow.on_pB_download"); }
+                urlCata = wf.urlRedirect(temp);
+                urlGeoList = sc.urlGeoList(iYear, urlCata);
+                prompt.push_back(urlGeoList);
             }
             sb.set_prompt(prompt);
             sb.start_call(myid, 1, comm[0]);
             std::thread dl(&MainWindow::downloader, this, ref(sb));
             dl.detach();
+            while (comm[0][1] < comm[0][2])
+            {
+                Sleep(gui_sleep);
+                QCoreApplication::processEvents();
+                comm = sb.update(myid, comm[0]);
+                jobs_done = comm[1][1];
+                update_bar();
+                comm[0][1] = comm[1][1];
+            }
         }
         else
         {
             comm[0][2] = listCata.size();
-            error = sb.start_call(myid, cores, comm[0]);
+            error = sb.start_call(myid, 1, comm[0]);
             if (error) { errnum("start_call-pB_download_clicked", error); }
             sizeComm = comm.size();
             temp = "Downloading catalogues for " + prompt[0] + " ...";
             reset_bar(comm[0][2], temp);
-            inum = min(comm[0][2], cores);
-            for (int ii = 0; ii < inum; ii++)
+            prompt.resize(3);
+            for (int ii = 0; ii < comm[0][2]; ii++)
             {
                 prompt[1] = listCata[ii];
+                iStatusCata = getCataStatus(prompt[0], prompt[1], csvLocal, csvOnline); 
+                if (iStatusCata == 1)
+                {
+                    csvDiff = jf.compareList(csvLocal, csvOnline);
+                    prompt.resize(3 + csvDiff[1].size());
+                    for (int jj = 0; jj < csvDiff[1].size(); jj++)
+                    {
+                        prompt[3 + jj] = csvDiff[1][jj];
+                    }
+                }
+                else if (iStatusCata == 2)
+                {
+                    qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
+                    continue;
+                }
                 iStatusCata = sf.statusCata(prompt[1]);
                 if (iStatusCata == 2)
                 {
                     qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
-                    inum++;
                     continue;
                 }
+                temp = "Downloading catalogue " + prompt[1] + " for " + prompt[0] + " ...";
+                barMessage(temp);
+                try { iYear = stoi(prompt[0]); }
+                catch (invalid_argument& ia) { err("stoi-MainWindow.on_pB_download"); }
+                temp = sc.urlCata(prompt[1]);
+                urlCata = wf.urlRedirect(temp);
+                prompt[2] = sc.urlGeoList(iYear, urlCata);
                 sb.set_prompt(prompt);
-                std::thread dl(&MainWindow::downloader, this, ref(sb));
+                std::thread dl(&MainWindow::downloadCatalogue, this, ref(sb));
                 dl.detach();
-                while (comm.size() == sizeComm)
+                while (comm.size() == 1)
                 {
                     Sleep(gui_sleep);
                     comm = sb.update(myid, comm[0]);
                 }
-                sizeComm = comm.size();
-            }
-            indexCata = inum - 1;
-            while (1)
-            {
-                Sleep(gui_sleep);
-                QCoreApplication::processEvents();
-                oldProgress = comm[0][1];
-                comm = sb.update(myid, comm[0]);
-                comm[0][1] = 0;
-                for (int ii = 1; ii < comm.size(); ii++)
+                while (1)
                 {
-                    comm[0][1] += comm[ii][1];
-                }
-                jobs_done = comm[0][1];
-                update_bar();
-                inum = comm[0][1] - oldProgress;
-                if (inum > 0)
-                {
-                    for (int ii = 0; ii < inum; ii++)
-                    {
-                        prompt[1] = listCata[ii];
-                        iStatusCata = sf.statusCata(prompt[1]);
-                        if (iStatusCata == 2)
-                        {
-                            qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
-                            inum++;
-                            continue;
-                        }
-                        sizeComm = comm.size();                        
-                        sb.set_prompt(prompt);
-                        std::thread dl(&MainWindow::downloader, this, ref(sb));
-                        dl.detach();
-                        while (comm.size() == sizeComm)
-                        {
-                            Sleep(gui_sleep);
-                            comm = sb.update(myid, comm[0]);
-                        }
-                        sizeComm = comm.size();
-                    }
-                }
-                if (comm[0][1] >= comm[0][2])
-                {
-                    error = sb.end_call(myid);
-                    if (error) { errnum("sb.end_call-on_pB_download_clicked", error); }
-                    jobs_done = comm[0][2];
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    jobs_done = comm[1][1];
                     update_bar();
-                    break;           // Manager reports task finished/cancelled.
+                    if (comm[1][0] == 1) 
+                    {
+                        sb.terminateCall(myid, 1);
+                        break; 
+                    }
                 }
             }
             int bbq = 1;
             return;
         }
-
         break;
     }
     case 1:
@@ -1895,13 +1924,70 @@ void MainWindow::on_pB_download_clicked()
         }
     }
     
-    long long timer = jf.timerStop();
-    log("Downloaded catalogue " + prompt[1] + " in " + to_string(timer) + "ms");
+    //long long timer = jf.timerStop();
+    //log("Downloaded catalogue " + prompt[1] + " in " + to_string(timer) + "ms");
 }
 void MainWindow::downloadCatalogue(SWITCHBOARD& sbgui)
 {
-
-
+    vector<int> mycomm;
+    vector<vector<int>> comm_gui;
+    thread::id myid = this_thread::get_id();
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form [syear, sname, urlGeoList].
+    if (prompt.size() < 3) { err("prompt error-MainWindow.downloadCatalogue"); }
+    int iYear;
+    try { iYear = stoi(prompt[0]); }
+    catch (out_of_range& oor) { err("stoi-MainWindow.downloader"); }
+    string geoPage = wf.browse(prompt[2]);
+    sc.initGeo();
+    string folderPath = sroot + "\\" + prompt[0] + "\\" + prompt[1];
+    wf.makeDir(folderPath);
+    string geoPath = folderPath + "\\" + prompt[1] + " geo list.bin";
+    vector<string> geoLayers;
+    if (!wf.file_exist(geoPath))
+    {
+        fetchGeoList(iYear, prompt[1], geoLayers, geoPage);
+    }
+    else if (!sc.testGeoList(geoPath))
+    {
+        fetchGeoList(iYear, prompt[1], geoLayers, geoPage);
+    }
+    vector<vector<string>> geoAll = sc.readGeo(geoPath);
+    if (prompt.size() > 3)
+    {
+        vector<string> gidList(prompt.size() - 3);
+        for (int ii = 3; ii < prompt.size(); ii++)
+        {
+            sc.getGidFromPath(gidList[ii - 3], prompt[ii]);
+        }
+        for (int ii = geoAll.size() - 1; ii >= 1; ii--)
+        {
+            for (int jj = gidList.size() - 1; jj >= 0; jj--)
+            {
+                if (geoAll[ii][0] == gidList[jj]) { break; }
+                else if (jj == 0)
+                {
+                    geoAll.erase(geoAll.begin() + ii);
+                }
+            }
+        }
+    }
+    mycomm[2] = geoAll.size() - 1;
+    comm_gui = sbgui.update(myid, mycomm);
+    string urlCataDL, csvPath, csvFile;
+    for (int ii = 1; ii < geoAll.size(); ii++)
+    {
+        urlCataDL = sc.urlCataDownload(iYear, geoPage, geoAll[ii][0]);
+        csvPath = folderPath + "\\" + prompt[1] + " (" + geoAll[ii][0];
+        csvPath += ") " + geoAll[ii][1] + ".csv";
+        if (wf.file_exist(csvPath)) { continue; }
+        csvFile = wf.browse(urlCataDL);
+        jf.printer(csvPath, csvFile);
+        mycomm[1]++;
+        sbgui.update(myid, mycomm);
+    }
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
 }
 void MainWindow::downloadMaps(SWITCHBOARD& sb)
 {
