@@ -39,35 +39,6 @@ string JFUNC::bind(string& stmt0, vector<string>& params)
 
 	return stmt0;
 }
-vector<vector<string>> JFUNC::compareList(vector<string>& list0, vector<string>& list1)
-{
-	vector<vector<string>> difference(2, vector<string>());
-	vector<bool> checked;
-	checked.assign(list1.size(), 0);
-	for (int ii = 0; ii < list0.size(); ii++)
-	{
-		for (int jj = 0; jj < list1.size(); jj++)
-		{
-			if (list0[ii] == list1[jj])
-			{
-				checked[jj] = 1;
-				break;
-			}
-			else if (jj == list1.size() - 1)
-			{
-				difference[0].push_back(list0[ii]);
-			}
-		}
-	}
-	for (int ii = 0; ii < checked.size(); ii++)
-	{
-		if (!checked[ii])
-		{
-			difference[1].push_back(list1[ii]);
-		}
-	}
-	return difference;
-}
 vector<int> JFUNC::destringifyCoord(string& sCoord)
 {
 	vector<int> coord;
@@ -703,6 +674,38 @@ int JFUNC::tree_from_marker(vector<vector<int>>& tree_st, vector<string>& tree_p
 	}
 
 	return 0;
+}
+void JFUNC::unzip(string& zipPath)
+{
+	int error;
+	unsigned char* buffer;
+	size_t pos1 = zipPath.rfind('\\');
+	string folderPath = zipPath.substr(0, pos1);
+	string zName, uzPath;
+	FILE* myFile;
+	zip_file_t* zipFile;
+	zip_stat_t zipStats;
+	zip_stat_init(&zipStats);
+	zip_t* zipArchive = zip_open(zipPath.c_str(), NULL, &error);
+	zip_uint64_t numFiles = zip_get_num_entries(zipArchive, NULL);
+	zip_uint64_t sizeUnCompressed, bytesRead;
+	for (zip_uint64_t ii = 0; ii < numFiles; ii++)
+	{
+		error = zip_stat_index(zipArchive, ii, NULL, &zipStats);
+		if (error < 0) { err("zip_stat_index-jf.unzip"); }
+		sizeUnCompressed = zipStats.size;
+		zName = zipStats.name;
+		uzPath = folderPath + "\\" + zName;
+		buffer = new unsigned char[sizeUnCompressed];
+		zipFile = zip_fopen_index(zipArchive, ii, NULL);
+		bytesRead = zip_fread(zipFile, buffer, sizeUnCompressed);
+		if (bytesRead < 0) { err("zip_fread-jf.unzip"); }
+		myFile = fopen(uzPath.c_str(), "wb");
+		if (!myFile) { err("fopen-jf.unzip"); }
+		pos1 = fwrite(buffer, 1, sizeUnCompressed, myFile);
+		fclose(myFile);
+		delete[] buffer;
+	}	 
 }
 string JFUNC::utf16to8(wstring input)
 {

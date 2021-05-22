@@ -113,12 +113,16 @@ string WINFUNC::browse(string url)
 	if (server_name == hServer)
 	{
 		sPage = browseHelper(object_name, hConnect);
+		numPasses[0]++;
+		if (sPage == "12002") { err("12002-wf.browse"); }
 	}
 	else
 	{
+		hServer = server_name;
 		sPage = browseHelper(url);
+		numPasses[1]++;
+		if (sPage == "12002") { err("12002-wf.browse"); }
 	}
-
 	return sPage;
 }
 void WINFUNC::delete_file(string path)
@@ -282,6 +286,89 @@ int WINFUNC::download(string url, string filepath)
 	if (hconnect) { InternetCloseHandle(hconnect); }
 	if (hint) { InternetCloseHandle(hint); }
 	return 0;
+}
+void WINFUNC::downloadBin(string url, string filepath)
+{
+	string server_name;
+	string object_name;
+	size_t cut_here;
+	for (int ii = 0; ii < domains.size(); ii++)
+	{
+		cut_here = url.rfind(domains[ii]);
+		if (cut_here < url.size())
+		{
+			server_name = url.substr(0, cut_here + domains[ii].size());
+			object_name = url.substr(cut_here + domains[ii].size(), url.size() - cut_here - domains[ii].size());
+			break;
+		}
+	}
+
+	INTERNET_STATUS_CALLBACK InternetStatusCallback;
+	DWORD context = 1;
+	BOOL yesno = 0;
+	string agent = "downloadBin";
+	HINTERNET hint = NULL;
+	HINTERNET hconnect = NULL;
+	HINTERNET hrequest = NULL;
+	DWORD bytes_available;
+	DWORD bytes_read = 0;
+	unsigned char* ubufferA;
+	int size1, size2;
+	wstring fileW, filePathW;
+	string sfile;
+	bool special_char = 0;
+	basic_ofstream<unsigned char, char_traits<unsigned char>> BPRINTER;
+
+	hint = InternetOpenA(agent.c_str(), INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
+	if (hint)
+	{
+		InternetStatusCallback = InternetSetStatusCallback(hint, (INTERNET_STATUS_CALLBACK)call);
+		hconnect = InternetConnectA(hint, server_name.c_str(), INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, context);
+	}
+	else { winerr("InternetOpenA-wf.downloadBin"); }
+	if (hconnect)
+	{
+		hrequest = HttpOpenRequestA(hconnect, NULL, object_name.c_str(), NULL, NULL, NULL, 0, context);
+	}
+	else { winerr("InternetConnectA-wf.downloadBin"); }
+	if (hrequest)
+	{
+		yesno = HttpSendRequest(hrequest, NULL, 0, NULL, 0);
+	}
+	else { winerr("HttpOpenRequestA-wf.downloadBin"); }
+	if (yesno)
+	{
+		BPRINTER.open(filepath.c_str(), ios::binary | ios::trunc);
+		auto report = BPRINTER.rdstate();
+		bool Fail = BPRINTER.fail();
+		DWORD dwErr = GetLastError();
+		if (Fail == 1 && dwErr == 1113)
+		{
+			// Use wofstream.
+		}
+		else
+		{
+			do
+			{
+				bytes_available = 0;
+				InternetQueryDataAvailable(hrequest, &bytes_available, 0, 0);
+				ubufferA = new unsigned char[bytes_available];
+				if (!InternetReadFile(hrequest, ubufferA, bytes_available, &bytes_read))
+				{
+					winerr("InternetReadFile-wf.downloadBin");
+				}
+				BPRINTER.write(ubufferA, bytes_available);
+				BPRINTER.flush();
+				delete[] ubufferA;
+			} while (bytes_available > 0);
+			BPRINTER.close();
+		}
+	}
+	else { winerr("HttpSendRequest-wf.downloadBin"); }
+
+	if (hrequest) { InternetCloseHandle(hrequest); }
+	if (hconnect) { InternetCloseHandle(hconnect); }
+	if (hint) { InternetCloseHandle(hint); }
 }
 void WINFUNC::err(string func)
 {

@@ -32,64 +32,90 @@ void STATSCAN::cleanURL(string& url)
         pos1 = url.find("&amp;", pos1);
     }
 }
+vector<string> STATSCAN::disassembleNameCSV(string& fileName)
+{
+    // Form [sCata, GID, Region Name].
+    vector<string> output(3);
+    size_t pos1 = fileName.find('(') + 1;
+    output[0] = fileName.substr(0, pos1 - 2);
+    size_t pos2 = fileName.find(')', pos1);
+    output[1] = fileName.substr(pos1, pos2 - pos1);
+    pos1 = pos2 + 2;
+    pos2 = fileName.rfind(".csv");
+    output[2] = fileName.substr(pos1, pos2 - pos1);
+    return output;
+}
 void STATSCAN::downloadCatalogue(SWITCHBOARD& sbgui)
 {
     vector<int> mycomm;
     vector<vector<int>> comm_gui;
     thread::id myid = this_thread::get_id();
     sbgui.answer_call(myid, mycomm);
-    vector<string> prompt = sbgui.get_prompt();  // Form [syear, sname].    
-    
+    vector<string> prompt = sbgui.get_prompt();  // Form [syear, sname].       
     int iYear;
     try { iYear = stoi(prompt[0]); }
     catch (out_of_range& oor) { err("stoi-sc.downloadCatalogue"); }
 
     // Read the geo list, downloading a new one if necessary.
+    if (navSearch.size() < 1) { navSearch = navAsset(); }
     initGeo();
     string folderPath = sroot + "\\" + prompt[0] + "\\" + prompt[1];
     wf.makeDir(folderPath);
     string geoPath = folderPath + "\\" + prompt[1] + " geo list.bin";
-    string geoPage;
+    string zipPath = folderPath + "\\" + prompt[1] + " entireCata.zip";
+    string geoPage, geoURL;
     if (!wf.file_exist(geoPath))
     {
+        if (wf.file_exist(zipPath))
+        {
+            mycomm[0] = 1;
+            sbgui.update(myid, mycomm);
+            return;
+        }
         downloadGeoList(prompt[0], prompt[1], geoPage);
+        if (wf.file_exist(zipPath)) 
+        {
+            jf.unzip(zipPath);
+            mycomm[0] = 1;
+            sbgui.update(myid, mycomm);
+            return;
+        }
     }
     else if (!testGeoList(geoPath))
     {
         downloadGeoList(prompt[0], prompt[1], geoPage);
     }
-    vector<vector<string>> geoAll = readGeo(geoPath);
-    
-    //
-    
-    if (prompt.size() > 3)
+    unordered_map<string, string> mapGeo;
+    vector<vector<string>> geoAll = readGeo(geoPath, mapGeo);
+    if (geoPage.size() < 1)
     {
-        vector<string> gidList(prompt.size() - 3);
-        for (int ii = 3; ii < prompt.size(); ii++)
-        {
-            sc.getGidFromPath(gidList[ii - 3], prompt[ii]);
-        }
-        for (int ii = geoAll.size() - 1; ii >= 1; ii--)
-        {
-            for (int jj = gidList.size() - 1; jj >= 0; jj--)
-            {
-                if (geoAll[ii][0] == gidList[jj]) { break; }
-                else if (jj == 0)
-                {
-                    geoAll.erase(geoAll.begin() + ii);
-                }
-            }
-        }
+        geoURL = geoAll[geoAll.size() - 1][0];
+        geoPage = wf.browse(geoURL);
     }
-    mycomm[2] = geoAll.size() - 1;
-    comm_gui = sbgui.update(myid, mycomm);
-    string urlCataDL, csvPath, csvFile;
-    for (int ii = 1; ii < geoAll.size(); ii++)
+    
+    // Make a list of CSVs already in local storage, and compare it to the online CSV list.
+    vector<string> csvLocal = wf.get_file_list(folderPath, "*.csv");
+    vector<vector<string>> csvLocalDis(csvLocal.size());
+    for (int ii = 0; ii < csvLocalDis.size(); ii++)
     {
-        urlCataDL = sc.urlCataDownload(iYear, geoPage, geoAll[ii][0]);
-        csvPath = folderPath + "\\" + prompt[1] + " (" + geoAll[ii][0];
-        csvPath += ") " + geoAll[ii][1] + ".csv";
-        if (wf.file_exist(csvPath)) { continue; }
+        csvLocalDis[ii] = disassembleNameCSV(csvLocal[ii]);
+    }
+    vector<int> activeColumn = { 0, 1 };
+    vector<vector<string>> difference = jf.compareList(geoAll, csvLocalDis, activeColumn);
+    if (difference[1].size() > 0) { err("Local CSV not in geo list-sc.downloadCatalogue"); }
+    difference[0].erase(difference[0].begin() + difference[0].size() - 2, difference[0].end());
+
+    // Download all missing CSVs. 
+    mycomm[2] = difference[0].size();
+    comm_gui = sbgui.update(myid, mycomm);
+    string urlCataDL, csvPath, csvFile, regionName;
+    for (int ii = 0; ii < difference[0].size(); ii++)
+    {
+        urlCataDL = urlCataDownload(iYear, geoPage, difference[0][ii]);
+        try { regionName = mapGeo.at(difference[0][ii]); }
+        catch (out_of_range& oor) { err("mapGeo-sc.downloadCatalogue"); }
+        csvPath = folderPath + "\\" + prompt[1] + " (" + difference[0][ii];
+        csvPath += ") " + regionName + ".csv";
         csvFile = wf.browse(urlCataDL);
         jf.printer(csvPath, csvFile);
         mycomm[1]++;
@@ -103,10 +129,60 @@ void STATSCAN::downloadGeoList(string sYear, string sName, string& geoPage)
     int iYear;
     try { iYear = stoi(sYear); }
     catch (invalid_argument& ia) { err("stoi-sc.downloadGeoList"); }
+    string geoPath = sroot + "\\" + sYear + "\\" + sName;
+    geoPath += "\\" + sName + " geo list.bin";
     string temp = urlCata(sName);
     string urlCata = wf.urlRedirect(temp);
-    string urlGeoList = urlGeoList(iYear, urlCata);
-    string geoPage = wf.browse(urlGeoList);
+    string urlGeo = urlGeoList(iYear, urlCata);
+    geoPage = wf.browse(urlGeo);
+    if (testFileNotFound(geoPage))
+    {
+        string entireCataPath = sroot + "\\" + sYear + "\\" + sName;
+        entireCataPath += "\\" + sName + " entireCata.zip";
+        if (iYear >= 2016)
+        {
+            urlGeo = urlEntireTableDownload(iYear, urlCata);
+            wf.downloadBin(urlGeo, entireCataPath);
+            return;
+        }
+    }
+    vector<string> geoTemp = jf.textParser(geoPage, navSearch[6]);
+    if (testCanadaOnly(geoTemp[0]))
+    {
+        string entireCataPath = sroot + "\\" + sYear + "\\" + sName;
+        entireCataPath += "\\" + sName + " entireCata.zip";
+        if (iYear >= 2016)
+        {
+            urlGeo = urlEntireTableDownload(iYear, urlCata);
+            wf.downloadBin(urlGeo, entireCataPath);
+            return;
+        }
+    }
+    vector<string> geoLayers = makeGeoLayers(geoTemp[0]);
+    vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
+    string geoList = makeGeoList(geoLinkNames, geoLayers, urlGeo);
+    jf.printer(geoPath, geoList);
+}
+void STATSCAN::downloadMaps(SWITCHBOARD& sbgui)
+{
+    vector<int> mycomm;
+    vector<vector<int>> comm_gui;
+    thread::id myid = this_thread::get_id();
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form [syear, sname].
+    initGeo();
+    string temp = urlCata(prompt[1]);
+    string cataURL = wf.urlRedirect(temp);
+    int iYear;
+    try { iYear = stoi(prompt[0]); }
+    catch (invalid_argument& ia) { err("stoi-sc.downloadMaps"); }
+    string geoListURL = urlGeoList(iYear, cataURL);
+    string geoPage = wf.browse(geoListURL);
+    vector<string> geoTemp = jf.textParser(geoPage, navSearch[6]);
+    vector<string> geoLayers = makeGeoLayers(geoTemp[0]);
+    vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
+
+    int bbq = 1;
 }
 void STATSCAN::err(string func)
 {
@@ -487,9 +563,11 @@ void STATSCAN::initGeo()
         mapGeoLayers.emplace("Can", empty);
         mapGeoLayers.emplace("Prov.Terr.", "province");
         mapGeoLayers.emplace("Prov.Terr", "province");
+        mapGeoLayers.emplace("Provinces Territories", "province");
         mapGeoLayers.emplace("CMACA", "cmaca");
         mapGeoLayers.emplace("CMACA with Provincial Splits", "cmaca");
         mapGeoLayers.emplace("CMACA with Provincial Splits 2016", "cmaca");
+        mapGeoLayers.emplace("CMA with Provincial Splits", "cmaca");
         mapGeoLayers.emplace("CT", "ct");
         mapGeoLayers.emplace("CD", "cd");
         mapGeoLayers.emplace("CSD", "csd");
@@ -591,13 +669,14 @@ vector<string> STATSCAN::linearize_row_titles(vector<vector<string>>& rows, vect
 vector<string> STATSCAN::makeGeoLayers(string& geoTemp)
 {
     geoTemp.append("/ ");
-    vector<string> geoLayers;
+    vector<string> geoLayers, dirt;
     size_t pos1 = 0;
     size_t pos2 = geoTemp.find('/');
     string temp, geoLayer;
     do
     {
         temp = geoTemp.substr(pos1, pos2 - pos1);
+        jf.clean(temp, dirt);  // To remove extra spaces only.
         try { geoLayer = mapGeoLayers.at(temp); }
         catch (out_of_range& oor) { err("mapGeoLayers-sc.makeGeoLayers"); }
         geoLayers.push_back(geoLayer);
@@ -606,15 +685,18 @@ vector<string> STATSCAN::makeGeoLayers(string& geoTemp)
     } while (pos2 < geoTemp.size());
     return geoLayers;
 }
-string STATSCAN::makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLayers)
+string STATSCAN::makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLayers, string geoURL)
 {
     // GID$[Region Name]$indentation
-    string geoList, temp;
+    string geoList, temp, can0 = "Canada", can1 = "CANADA", can2 = "canada";
     size_t pos1, pos2;
     vector<int> indents = { -1 };
     int spaces, indent, sizeGL = geoLayers.size();
+    vector<string> dirt = { "/",  "  or  " };
+    vector<string> soap = { " or ", " or " };
     for (int ii = 0; ii < geoLinkNames.size(); ii++)
     {
+        jf.clean(geoLinkNames[ii], dirt, soap);
         pos1 = geoLinkNames[ii].find("GID=") + 4;
         pos2 = geoLinkNames[ii].find('&', pos1);
         geoList += geoLinkNames[ii].substr(pos1, pos2 - pos1) + "$";
@@ -624,7 +706,14 @@ string STATSCAN::makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLa
         temp = geoLinkNames[ii].substr(0, pos1);
         try { spaces = stoi(temp); }
         catch (invalid_argument& ia) { err("stoi-sc.makeGeoList"); }
-        if (ii == 0) { spaces = -1; }
+        if (ii == 0 && spaces != -1) 
+        {
+            pos2 = geoList.rfind('$');
+            pos1 = geoList.rfind('$', pos2 - 1) + 1;
+            temp = geoList.substr(pos1, pos2 - pos1);
+            if (temp == can0 || temp == can1 || temp == can2) { spaces = -1; }
+            else { indents[0] = spaces; }
+        }
         for (int jj = 0; jj < indents.size(); jj++)
         {
             if (indents[jj] == spaces)
@@ -655,6 +744,7 @@ string STATSCAN::makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLa
     {
         geoList += geoLayers[ii] + "\n";
     }
+    geoList += "\n@@Geo URL\n" + geoURL + "\n";
     return geoList;
 }
 
@@ -1064,6 +1154,64 @@ vector<vector<string>> STATSCAN::readGeo(string& geoPath)
     }
     return geo;
 }
+vector<vector<string>> STATSCAN::readGeo(string& geoPath, unordered_map<string, string>& mapGeo)
+{
+    // Normal rows have the form [GID, Region Name, indentation].
+    vector<vector<string>> geo;
+    size_t pos1, pos2, pos3;
+    int index;
+    string sfile = jf.load(geoPath);
+    pos1 = sfile.find_first_of("1234567890");
+    pos2 = sfile.find('$', pos1);
+    while (pos2 < sfile.size())
+    {
+        index = geo.size();
+        geo.push_back(vector<string>(3));
+        geo[index][0] = sfile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('$', pos1);
+        geo[index][1] = sfile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('\n', pos1);
+        geo[index][2] = sfile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('$', pos1);
+        mapGeo.emplace(geo[index][0], geo[index][1]);
+    }
+
+    // First supplementary row is the geo layer data (province, cmaca, etc).
+    index = geo.size();
+    geo.push_back(vector<string>());
+    pos1 = sfile.rfind("@@Geo Layers");
+    if (pos1 > sfile.size()) { err("No geo layers-sc.readGeo"); }
+    pos1 = sfile.find('\n', pos1) + 1;
+    pos2 = sfile.find('\n', pos1);
+    pos3 = sfile.find("@@Geo", pos1);
+    pos3 = sfile.find_last_not_of('\n', pos3 - 1) + 1;
+    while (pos2 <= pos3)
+    {
+        if (pos1 == pos2)
+        {
+            geo[index].push_back("");
+        }
+        else
+        {
+            geo[index].push_back(sfile.substr(pos1, pos2 - pos1));
+        }
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('\n', pos1);
+    }
+
+    // Second supplementary row is the geo page's URL.
+    index = geo.size();
+    geo.push_back(vector<string>(1));
+    pos1 = sfile.find("@@Geo URL", pos3);
+    pos1 = sfile.find('\n', pos1) + 1;
+    pos2 = sfile.find('\n', pos1);
+    geo[index][0] = sfile.substr(pos1, pos2 - pos1);
+
+    return geo;
+}
 string STATSCAN::regionLinkToMapUrl(string& urlRegion, string& regionLink)
 {
     size_t pos1 = urlRegion.rfind('/') + 1;
@@ -1113,7 +1261,7 @@ int STATSCAN::skimGeoList(string& filePath, vector<string>& geoLayers)
     string sfile = jf.load(filePath);
     int numRegions = 0;
     size_t pos1 = sfile.find('\n');
-    size_t pos2 = sfile.rfind("@@Geo");
+    size_t pos2 = sfile.rfind("@@Geo Layers");
     if (pos2 > sfile.size()) { err("Geo list lacking geo layers-sc.skimGeoList"); }
     while (pos1 < pos2)
     {
@@ -1122,7 +1270,8 @@ int STATSCAN::skimGeoList(string& filePath, vector<string>& geoLayers)
     }
     numRegions--;
 
-    size_t pos3 = sfile.find_last_not_of('\n') + 1;
+    size_t pos3 = sfile.rfind("@@Geo URL");
+    pos3 = sfile.find_last_not_of('\n', pos3 - 1) + 1;
     pos2 = sfile.find('\n', pos2);
     while (pos2 < pos3)
     {
@@ -1165,12 +1314,31 @@ vector<vector<string>> STATSCAN::splitLinkNames(vector<string>& linkNames)
     }
     return split;
 }
+bool STATSCAN::testCanadaOnly(string& geoLayer)
+{
+    size_t pos1 = geoLayer.find("Canada Only");
+    if (pos1 < geoLayer.size()) { return 1; }
+    return 0;
+}
+bool STATSCAN::testFileNotFound(string& webpage)
+{
+    // Returns TRUE if the given webpage's title contains 'File Not Found'.
+    size_t pos1 = webpage.find("<title>");
+    size_t pos2 = webpage.find("</title>", pos1);
+    if (pos1 > webpage.size() || pos2 > webpage.size()) { err("No HTML title-sc.testFileNotFound"); }
+    string temp = webpage.substr(pos1, pos2 - pos1);
+    pos1 = temp.find("File Not Found");
+    if (pos1 < temp.size()) { return 1; }
+    return 0;
+}
 bool STATSCAN::testGeoList(string& filePath)
 {
     string sfile = jf.load(filePath);
     size_t pos = sfile.find("@@Geo Layers");
-    if (pos < sfile.size()) { return 1; }
-    return 0;
+    if (pos > sfile.size()) { return 0; }
+    pos = sfile.find("@@Geo URL");
+    if (pos > sfile.size()) { return 0; }
+    return 1;
 }
 
 string STATSCAN::urlCata(string scata)
@@ -1206,6 +1374,22 @@ string STATSCAN::urlCataList(int iyear, string scata)
 {
     string temp;
     return temp;
+}
+string STATSCAN::urlEntireTableDownload(int iYear, string& urlCata)
+{
+    string url, pid;
+    size_t pos1, pos2;
+    if (iYear >= 2016)
+    {
+        pos1 = urlCata.rfind('/');
+        url = urlCata.substr(0, pos1);
+        pos1 = urlCata.find("PID=", pos1) + 4;
+        pos2 = urlCata.find('&', pos1);
+        pid = urlCata.substr(pos1, pos2 - pos1);
+        url += "/CompDataDownload.cfm?LANG=E&PID=";
+        url += pid + "&OFT=CSV";
+    }
+    return url;
 }
 string STATSCAN::urlGeoList(int iyear, string urlCata)
 {

@@ -13,6 +13,7 @@
 #include <chrono>
 #include <mutex>
 #include <cmath>
+#include <zip.h>
 
 using namespace std;
 extern mutex m_err;
@@ -38,7 +39,6 @@ public:
 	atomic_int stopwatch_control = 0;
 
 	string bind(string&, vector<string>&);
-	vector<vector<string>> compareList(vector<string>& list0, vector<string>& list1);
 	vector<int> destringifyCoord(string& sCoord);
 	void err(string);
 	string get_error_path();
@@ -67,6 +67,7 @@ public:
 	long long timerStop();
 	string timestamper();
 	int tree_from_marker(vector<vector<int>>&, vector<string>&);
+	void unzip(string& zipPath);
 	string utf16to8(wstring);
 	wstring utf8to16(string);
 	void UTF16clean(wstring&);
@@ -478,6 +479,99 @@ public:
 		coord.resize(2);
 		coord[0] = int(round(coordD[0]));
 		coord[1] = int(round(coordD[1]));
+	}
+
+	template<typename ... Args> vector<vector<string>> compareList(Args& ... args)
+	{
+		err("compareList template-jf");
+		vector<vector<string>> dummy;
+		return dummy;
+	}
+	template<> vector<vector<string>> compareList<vector<string>, vector<string>>(vector<string>& list0, vector<string>& list1)
+	{
+		vector<vector<string>> difference(2, vector<string>());
+		vector<bool> checked;
+		if (list0.size() < 1)
+		{
+			difference[1] = list1;
+			return difference;
+		}
+		else if (list1.size() < 1)
+		{
+			difference[0] = list0;
+			return difference;
+		}
+		checked.assign(list1.size(), 0);
+		for (int ii = 0; ii < list0.size(); ii++)
+		{
+			for (int jj = 0; jj < list1.size(); jj++)
+			{
+				if (list0[ii] == list1[jj])
+				{
+					checked[jj] = 1;
+					break;
+				}
+				else if (jj == list1.size() - 1)
+				{
+					difference[0].push_back(list0[ii]);
+				}
+			}
+		}
+		for (int ii = 0; ii < checked.size(); ii++)
+		{
+			if (!checked[ii])
+			{
+				difference[1].push_back(list1[ii]);
+			}
+		}
+		return difference;
+	}
+	template<> vector<vector<string>> compareList<vector<vector<string>>, vector<vector<string>>, vector<int>>(vector<vector<string>>& list0, vector<vector<string>>& list1, vector<int>& activeColumn)
+	{
+		vector<vector<string>> difference(2, vector<string>());
+		vector<bool> checked;
+		if (list0.size() < 1)
+		{
+			difference[1].resize(list1.size());
+			for (int ii = 0; ii < list1.size(); ii++)
+			{
+				difference[1][ii] = list1[ii][activeColumn[1]];
+			}
+			return difference;
+		}
+		else if (list1.size() < 1)
+		{
+			difference[0].resize(list0.size());
+			for (int ii = 0; ii < list0.size(); ii++)
+			{
+				difference[0][ii] = list0[ii][activeColumn[0]];
+			}
+			return difference;
+		}
+		checked.assign(list1.size(), 0);
+		for (int ii = 0; ii < list0.size(); ii++)
+		{
+			for (int jj = 0; jj < list1.size(); jj++)
+			{
+				if (list0[ii][activeColumn[0]] == list1[jj][activeColumn[1]])
+				{
+					checked[jj] = 1;
+					break;
+				}
+				else if (jj == list1.size() - 1)
+				{
+					difference[0].push_back(list0[ii][activeColumn[0]]);
+				}
+			}
+		}
+		for (int ii = 0; ii < checked.size(); ii++)
+		{
+			if (!checked[ii])
+			{
+				difference[1].push_back(list1[ii][activeColumn[1]]);
+			}
+		}
+		return difference;
 	}
 
 	template<typename ... Args> string decToHex(Args& ... args) {}

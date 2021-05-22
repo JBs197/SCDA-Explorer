@@ -130,7 +130,7 @@ private:
     void downloadMaps(SWITCHBOARD&);
     vector<string> extract_gids(string);
     int fetchGeoList(int iYear, string sCata, vector<string>& geoLayers);
-    int fetchGeoList(int iYear, string sCata, vector<string>& geoLayers, string& geoPage);
+    int fetchGeoList(int iYear, string sCata, vector<string>& geoLayers, string& geoPage, string geoURL);
     int getCataStatus(string sYear, string sName, vector<string>& csvLocal, vector<string>& csvOnline);
     void initImgFont(string fontName);
     void mousePressEvent(QMouseEvent* event) override;

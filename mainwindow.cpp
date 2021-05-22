@@ -1380,15 +1380,15 @@ void MainWindow::on_pB_usc_clicked()
         jf.isort_slist(slayer);
         sname = "Statistics Canada Census Data";
         temp = sroot;
-        jtMaps.init(sname, temp);
+        jtStatsCan.init(sname, temp);
         ilayer = jf.svectorToIvector(slayer);
-        jtMaps.addChildren(slayer, ilayer, iroot);
+        jtStatsCan.addChildren(slayer, ilayer, iroot);
         ui->treeW_statscan->clear();
         qnode = new QTreeWidgetItem();
         qtemp = QString::fromStdString(sname);
         qnode->setText(0, qtemp);
         ui->treeW_statscan->addTopLevelItem(qnode);
-        populateQtree(jtMaps, qnode, sname);
+        populateQtree(jtStatsCan, qnode, sname);
         ui->treeW_statscan->expandAll();
         break;
     }
@@ -1400,8 +1400,8 @@ void MainWindow::on_pB_usc_clicked()
         webpage = wf.browse(url);
         slayer = jf.textParser(webpage, navSearch[1]);
         ilayer.assign(slayer.size(), -1);
-        jtMaps.addChildren(slayer, ilayer, syear);
-        populateQtree(jtMaps, qSelected[0], syear);
+        jtStatsCan.addChildren(slayer, ilayer, syear);
+        populateQtree(jtStatsCan, qSelected[0], syear);
         qSelected[0]->sortChildren(0, Qt::SortOrder::AscendingOrder);
         break;
     }
@@ -1474,9 +1474,9 @@ void MainWindow::on_pB_usc_clicked()
             ilayer.push_back(numMap);
         }
 
-        jtMaps.deleteChildren(sname);
-        jtMaps.addChildren(slayer, ilayer, sname);
-        populateQtree(jtMaps, qSelected[0], sname);
+        jtStatsCan.deleteChildren(sname);
+        jtStatsCan.addChildren(slayer, ilayer, sname);
+        populateQtree(jtStatsCan, qSelected[0], sname);
         qSelected[0]->setExpanded(1);
         break;
     }
@@ -1494,7 +1494,6 @@ void MainWindow::on_pB_usc_clicked()
             temp = sroot + "\\" + syear + "\\" + sname;
             displayDiscrepancies(temp, ui->listW_statscan);
         }
-
         break;
     }
     }
@@ -1577,21 +1576,18 @@ int MainWindow::fetchGeoList(int iYear, string sCata, vector<string>& geoLayers)
     // Will download a geo list file (including geo layers) in the catalogue's folder.
     string temp = sc.urlCata(sCata);
     string urlCata = wf.urlRedirect(temp);
-    string urlGeoList = sc.urlGeoList(iYear, urlCata);
-    string geoPage = wf.browse(urlGeoList);
-    int numRegions = fetchGeoList(iYear, sCata, geoLayers, geoPage);
+    string geoURL = sc.urlGeoList(iYear, urlCata);
+    string geoPage = wf.browse(geoURL);
+    int numRegions = fetchGeoList(iYear, sCata, geoLayers, geoPage, geoURL);
     return numRegions;
 }
-int MainWindow::fetchGeoList(int iYear, string sCata, vector<string>& geoLayers, string& geoPage)
+int MainWindow::fetchGeoList(int iYear, string sCata, vector<string>& geoLayers, string& geoPage, string geoURL)
 {
     // Will download a geo list file (including geo layers) in the catalogue's folder.
     vector<string> geoTemp = jf.textParser(geoPage, navSearch[6]);
     geoLayers = sc.makeGeoLayers(geoTemp[0]);
     vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
-    string geoList = sc.makeGeoList(geoLinkNames, geoLayers);
-    vector<string> dirt = { "/" };
-    vector<string> soap = { "or" };
-    jf.clean(geoList, dirt, soap);
+    string geoList = sc.makeGeoList(geoLinkNames, geoLayers, geoURL);
     string temp = sroot + "\\" + to_string(iYear) + "\\" + sCata;
     temp += "\\" + sCata + " geo list.bin";
     jf.printer(temp, geoList);
@@ -1666,6 +1662,12 @@ void MainWindow::displayDiscrepancies(string& folderPath, QListWidget*& qlist)
             }
         }
         qlist->clear();
+        if (gidOnline.size() < 1)
+        {
+            temp = "No discrepancies!";
+            qtemp = QString::fromUtf8(temp);
+            qlist->addItem(qtemp);
+        }
         for (int ii = 0; ii < gidOnline.size(); ii++)
         {
             temp = "(" + to_string(gidOnline[ii]) + ") " + csvOnline[ii];
@@ -1687,7 +1689,8 @@ void MainWindow::on_pB_download_clicked()
     thread::id myid = this_thread::get_id();
     
     int kids, iStatusCata, error, iGen, inum, sizeComm, oldProgress, indexCata;
-    int iYear;
+    int iYear, numCata;
+    size_t pos1;
     vector<int> iLayer;
     QTreeWidgetItem* pNode = nullptr;
     QTreeWidgetItem* pParent = nullptr;
@@ -1710,26 +1713,54 @@ void MainWindow::on_pB_download_clicked()
         {
             qtemp = qlist[0]->text(0);
             prompt[0] = qtemp.toStdString();
-            kids = qlist[0]->childCount();
-            if (kids == 0)
+            url = sc.urlYear(prompt[0]);
+            webpage = wf.browse(url);
+            listCata = jf.textParser(webpage, navSearch[1]);
+            numCata = listCata.size();
+            for (int ii = 0; ii < numCata; ii++)
             {
-                url = sc.urlYear(prompt[0]);
-                webpage = wf.browse(url);
-                sLayer = jf.textParser(webpage, navSearch[1]);
-                iLayer.assign(sLayer.size(), -1);
-                jtStatsCan.addChildren(sLayer, iLayer, prompt[0]);
-                populateQtree(jtStatsCan, qlist[0], prompt[0]);
-                qlist[0]->sortChildren(0, Qt::SortOrder::AscendingOrder);
-                kids = qlist[0]->childCount();
+                prompt[1] = listCata[ii];
+                sb.set_prompt(prompt);
+                sb.start_call(myid, 1, comm[0]);
+                std::thread dlCata(&STATSCAN::downloadCatalogue, ref(sc), ref(sb));
+                dlCata.detach();
+                while (comm.size() < 2)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                }
+                while (comm[1][0] == 0)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[1][2] > comm[0][2])
+                    {
+                        comm[0][2] = comm[1][2];
+                        temp = "Downloading catalogue " + prompt[1] + " (";
+                        temp += to_string(ii + 1) + "/" + to_string(numCata) + ") ...";
+                        reset_bar(comm[0][2], temp);
+                    }
+                    jobs_done = comm[1][1];
+                    update_bar();
+                    if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
+                    {
+                        comm[0][0] = 1;
+                    }
+                    else { comm[0][1] = comm[1][1]; }
+                }
+                if (comm[0][2] == 0)
+                {
+                    temp = "Downloading catalogue " + prompt[1] + " (";
+                    temp += to_string(ii + 1) + "/" + to_string(numCata) + ") ...";
+                    barMessage(temp);
+                }
+                comm.resize(1);
+                comm[0].assign(comm_length, 0);
+                sb.end_call(myid);
             }
-            listCata.resize(kids);
-            for (int ii = 0; ii < kids; ii++)
-            {
-                pNode = qlist[0]->child(ii);
-                qtemp = pNode->text(0);
-                listCata[ii] = qtemp.toStdString();
-            }
-            break;
+            return;
         }
         case 2:  // Catalogue.
         {
@@ -1737,7 +1768,39 @@ void MainWindow::on_pB_download_clicked()
             prompt[0] = qtemp.toStdString();
             qtemp = qlist[0]->text(0);
             prompt[1] = qtemp.toStdString();
-            break;
+            sb.set_prompt(prompt);
+            sb.start_call(myid, 1, comm[0]);
+            std::thread dlCata(&STATSCAN::downloadCatalogue, ref(sc), ref(sb));
+            dlCata.detach();
+            while (comm.size() < 2)
+            {
+                Sleep(gui_sleep);
+                QCoreApplication::processEvents();
+                comm = sb.update(myid, comm[0]);
+            }
+            while (comm[0][0] == 0)
+            {
+                Sleep(gui_sleep);
+                QCoreApplication::processEvents();
+                comm = sb.update(myid, comm[0]);
+                if (comm[1][2] > comm[0][2])
+                {
+                    comm[0][2] = comm[1][2];
+                    temp = "Downloading catalogue " + prompt[1] + " ...";
+                    reset_bar(comm[0][2], temp);
+                }
+                jobs_done = comm[1][1];
+                update_bar();
+                if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
+                {
+                    comm[0][0] = 1;
+                }
+                else { comm[0][1] = comm[1][1]; }
+            }
+            sb.end_call(myid);
+            temp += " done!";
+            barMessage(temp);
+            return;
         }
         case 3:  // CSV or maps.
         {
@@ -1745,6 +1808,79 @@ void MainWindow::on_pB_download_clicked()
             prompt[0] = qtemp.toStdString();
             qtemp = qlist[0]->parent()->text(0);
             prompt[1] = qtemp.toStdString();
+            qtemp = qlist[0]->text(0);
+            temp = qtemp.toStdString();
+            pos1 = temp.find("CSV");
+            if (pos1 < temp.size())  // Download catalogue's CSVs.
+            {
+                sb.set_prompt(prompt);
+                sb.start_call(myid, 1, comm[0]);
+                std::thread dlCata(&STATSCAN::downloadCatalogue, ref(sc), ref(sb));
+                dlCata.detach();
+                while (comm.size() < 2)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                }
+                while (comm[0][0] == 0)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[1][2] > comm[0][2])
+                    {
+                        comm[0][2] = comm[1][2];
+                        temp = "Downloading catalogue " + prompt[1] + " ...";
+                        reset_bar(comm[0][2], temp);
+                    }
+                    jobs_done = comm[1][1];
+                    update_bar();
+                    if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
+                    {
+                        comm[0][0] = 1;
+                    }
+                    else { comm[0][1] = comm[1][1]; }
+                }
+                sb.end_call(myid);
+                temp += " done!";
+                barMessage(temp);
+            }
+            else  // Download catalogue's maps.
+            {
+                sb.set_prompt(prompt);
+                sb.start_call(myid, 1, comm[0]);
+                std::thread dlMaps(&STATSCAN::downloadMaps, ref(sc), ref(sb));
+                dlMaps.detach();
+                while (comm.size() < 2)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                }
+                while (comm[0][0] == 0)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[1][2] > comm[0][2])
+                    {
+                        comm[0][2] = comm[1][2];
+                        temp = "Downloading maps for catalogue " + prompt[1] + " ...";
+                        reset_bar(comm[0][2], temp);
+                    }
+                    jobs_done = comm[1][1];
+                    update_bar();
+                    if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
+                    {
+                        comm[0][0] = 1;
+                    }
+                    else { comm[0][1] = comm[1][1]; }
+                }
+                sb.end_call(myid);
+                temp += " done!";
+                barMessage(temp);
+            }
             break;
         }
         }
@@ -1962,11 +2098,11 @@ void MainWindow::downloadCatalogue(SWITCHBOARD& sbgui)
     vector<string> geoLayers;
     if (!wf.file_exist(geoPath))
     {
-        fetchGeoList(iYear, prompt[1], geoLayers, geoPage);
+        fetchGeoList(iYear, prompt[1], geoLayers, geoPage, prompt[2]);
     }
     else if (!sc.testGeoList(geoPath))
     {
-        fetchGeoList(iYear, prompt[1], geoLayers, geoPage);
+        fetchGeoList(iYear, prompt[1], geoLayers, geoPage, prompt[2]);
     }
     vector<vector<string>> geoAll = sc.readGeo(geoPath);
     if (prompt.size() > 3)
@@ -2019,8 +2155,8 @@ void MainWindow::downloadMaps(SWITCHBOARD& sb)
     vector<string> geoLayers, geoTemp, geoLinkNames, regionLink;
     vector<string> mapLink;
     vector<vector<string>> splitLinkNames;
-    vector<string> badChar = { "/" };
-    vector<string> goodChar = { "or" };
+    vector<string> badChar = { "/ " };
+    vector<string> goodChar = { "or " };
     size_t pos1, pos2;
     int iyear, spaces, indent;
     bool fileExist;
@@ -2176,7 +2312,7 @@ void MainWindow::downloader(SWITCHBOARD& sb)
     {
         if (!wf.file_exist(geoPath))
         {
-            fetchGeoList(iyear, prompt[1], geoLayers, geoPage);
+            fetchGeoList(iyear, prompt[1], geoLayers, geoPage, prompt[2]);
         }
         geoAll = sc.readGeo(geoPath);
         mycomm[2] = geoAll.size() - 1;

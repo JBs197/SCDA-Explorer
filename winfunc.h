@@ -18,8 +18,9 @@ class WINFUNC
     vector<string> domains = { ".com", ".net", ".org", ".edu", ".ca" };
     ofstream ERR;
     string error_path = sroot + "\\SCDA Error Log.txt";
-	HINTERNET hConnect;
+	HINTERNET hInt, hConnect;
 	string hServer;
+	vector<int> numPasses = { 0, 0 };
     static vector<wstring> objects;
     vector<int> tree_pl_int;  // List of integer payload values in the tree.
     vector<string> tree_pl_str;  // List of string payload values in the tree.
@@ -35,6 +36,7 @@ public:
     static void CALLBACK call(HINTERNET, DWORD_PTR, DWORD, LPVOID, DWORD);
     void delete_file(string);
     int download(string url, string filePath);
+	void downloadBin(string url, string filePath);
     bool file_exist(string);
     string get_exec_dir();
     string get_exec_path();
@@ -65,7 +67,7 @@ public:
     }
 
     template<typename ... Args> string browseHelper(string, Args& ... args) {}
-    template<> string browseHelper(string url)
+    template<> string browseHelper< >(string url)
 	{
 		setlocale(LC_ALL, "en_US.utf8");
 		string server_name, object_name;
@@ -84,8 +86,6 @@ public:
 		DWORD context = 1;
 		BOOL yesno = 0;
 		string agent = "browser";
-		HINTERNET hint = NULL;
-		HINTERNET hconnect = NULL;
 		HINTERNET hrequest = NULL;
 		DWORD bytes_available;
 		DWORD bytes_read = 0;
@@ -96,18 +96,19 @@ public:
 		string fileA;
 		vector<unsigned char> utf;
 
-		hint = InternetOpenA(agent.c_str(), INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
-		if (hint)
+		InternetCloseHandle(hConnect);
+		InternetCloseHandle(hInt);
+
+		hInt = InternetOpenA(agent.c_str(), INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
+		if (hInt)
 		{
-			InternetStatusCallback = InternetSetStatusCallback(hint, (INTERNET_STATUS_CALLBACK)call);
-			hconnect = InternetConnectA(hint, server_name.c_str(), INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, context);
+			InternetStatusCallback = InternetSetStatusCallback(hInt, (INTERNET_STATUS_CALLBACK)call);
+			hConnect = InternetConnectA(hInt, server_name.c_str(), INTERNET_DEFAULT_HTTP_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, context);
 		}
 		else { winerr("internetopen-wf.browse"); }
-		if (hconnect)
+		if (hConnect)
 		{
-			hConnect = hconnect;
-			hServer = server_name;
-			hrequest = HttpOpenRequestA(hconnect, NULL, object_name.c_str(), NULL, NULL, NULL, 0, context);
+			hrequest = HttpOpenRequestA(hConnect, NULL, object_name.c_str(), NULL, NULL, NULL, 0, context);
 		}
 		else { winerr("internetconnect-wf.browse"); }
 		if (hrequest)
@@ -164,6 +165,7 @@ public:
 		fileA = jfwf.utf16to8(fileW);
 		if (fileA.size() < 1) { winerr("blank return-wf.browse"); }
 		if (fileA == "") { winerr("blank return-wf.browse"); }
+		if (!InternetCloseHandle(hrequest)) { winerr("InternetCloseHandle-wf.browseHelper"); }
 		return fileA;
 	}
 	template<> string browseHelper<HINTERNET>(string object_name, HINTERNET& hConnect)
@@ -251,6 +253,7 @@ public:
 		fileA = jfwf.utf16to8(fileW);
 		if (fileA.size() < 1) { winerr("blank return-wf.browse"); }
 		if (fileA == "") { winerr("blank return-wf.browse"); }
+		if (!InternetCloseHandle(hrequest)) { winerr("InternetCloseHandle-wf.browseHelper"); }
 		return fileA;
 	}
 

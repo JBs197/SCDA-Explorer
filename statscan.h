@@ -27,6 +27,7 @@ class STATSCAN
 	vector<string> linearized_titles;
 	unordered_map<string, string> mapGeoLayers;
 	bool multi_column;
+	vector<vector<string>> navSearch;
 	vector<vector<string>> rows;  // Form [row_index][indented row title, row val1, row val2, ...].
 	vector<vector<string>> text_vars;
 	vector<string> subtable_names_template;  // Has '!!!' for GID. Otherwise, is complete.
@@ -40,8 +41,10 @@ public:
 	void set_path(string);
 	int cata_init(string&);
 	void cleanURL(string& url);
+	vector<string> disassembleNameCSV(string& fileName);
 	void downloadCatalogue(SWITCHBOARD& sbgui);
 	void downloadGeoList(string sYear, string sName, string& geoPage);
+	void downloadMaps(SWITCHBOARD& sbgui);
 	void err(string);
 	vector<string> extract_column_titles(string&);
 	string extract_description(string&);
@@ -65,7 +68,7 @@ public:
 	void initGeo();
 	vector<string> linearize_row_titles(vector<vector<string>>&, vector<string>&);
 	vector<string> makeGeoLayers(string& lineGeo);
-	string makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLayers);
+	string makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLayers, string geoURL);
 	string make_csv_path(int);
 	wstring make_csv_wpath(int);
 	string make_create_csv_table_statement(string&, string, string&);
@@ -81,13 +84,17 @@ public:
 	string mapLinkToPDFUrl(string& urlMap, string& mapLink);
 	vector<vector<string>> navAsset();
 	vector<vector<string>> readGeo(string& geoPath);
+	vector<vector<string>> readGeo(string& geoPath, unordered_map<string, string>& mapGeo);
 	string regionLinkToMapUrl(string& urlRegion, string& regionLink);
 	int skimGeoList(string& filePath, vector<string>& geoLayers);
 	vector<vector<string>> splitLinkNames(vector<string>& linkNames);
+	bool testCanadaOnly(string& geoLayer);
+	bool testFileNotFound(string& webpage);
 	bool testGeoList(string& filePath);
 	string urlCata(string);
 	string urlCataDownload(int iyear, string& geoPage, string gid);
 	string urlCataList(int iyear, string scata);
+	string urlEntireTableDownload(int iYear, string& urlCata);
 	string urlGeoList(int iyear, string urlCata);
 	string urlYear(string);
 
