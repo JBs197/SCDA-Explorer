@@ -52,9 +52,12 @@ void STATSCAN::downloadCatalogue(SWITCHBOARD& sbgui)
     thread::id myid = this_thread::get_id();
     sbgui.answer_call(myid, mycomm);
     vector<string> prompt = sbgui.get_prompt();  // Form [syear, sname].       
-    int iYear;
-    try { iYear = stoi(prompt[0]); }
-    catch (out_of_range& oor) { err("stoi-sc.downloadCatalogue"); }
+    int iYear, iCata;
+    try {
+        iYear = stoi(prompt[0]);
+        iCata = stoi(prompt[1].substr(8));
+    }
+    catch (invalid_argument& ia) { err("stoi-sc.downloadCatalogue"); }
 
     // Read the geo list, downloading a new one if necessary.
     if (navSearch.size() < 1) { navSearch = navAsset(); }
@@ -108,16 +111,16 @@ void STATSCAN::downloadCatalogue(SWITCHBOARD& sbgui)
     // Download all missing CSVs. 
     mycomm[2] = difference[0].size();
     comm_gui = sbgui.update(myid, mycomm);
-    string urlCataDL, csvPath, csvFile, regionName;
+    string urlCataDL, csvPath, csvFile, regionName, temp;
     for (int ii = 0; ii < difference[0].size(); ii++)
     {
         urlCataDL = urlCataDownload(iYear, geoPage, difference[0][ii]);
-        try { regionName = mapGeo.at(difference[0][ii]); }
+        try { temp = mapGeo.at(difference[0][ii]); }
         catch (out_of_range& oor) { err("mapGeo-sc.downloadCatalogue"); }
+        regionName = jf.utf8ToAscii(temp);
         csvPath = folderPath + "\\" + prompt[1] + " (" + difference[0][ii];
         csvPath += ") " + regionName + ".csv";
-        csvFile = wf.browse(urlCataDL);
-        jf.printer(csvPath, csvFile);
+        wf.download(urlCataDL, csvPath);
         mycomm[1]++;
         sbgui.update(myid, mycomm);
     }
@@ -469,7 +472,6 @@ vector<vector<string>> STATSCAN::extract_text_vars(string& sfile)
 	}
     return text_vars;
 }
-
 string STATSCAN::geoLinkToRegionUrl(string& urlGeoList, string& geoLink)
 {
     size_t pos1 = urlGeoList.rfind('/') + 1;
@@ -481,7 +483,6 @@ string STATSCAN::geoLinkToRegionUrl(string& urlGeoList, string& geoLink)
     mapUrl += temp;
     return mapUrl;
 }
-
 vector<string> STATSCAN::getLayerSelected(string& sfile)
 {
     // This function is meant to be used with a geo list webpage.

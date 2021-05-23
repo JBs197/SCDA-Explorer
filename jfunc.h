@@ -70,6 +70,7 @@ public:
 	void unzip(string& zipPath);
 	string utf16to8(wstring);
 	wstring utf8to16(string);
+	string utf8ToAscii(string);
 	void UTF16clean(wstring&);
 	int xDom(double angle);
 
@@ -695,7 +696,7 @@ public:
 		wstring wpath = utf8to16(path);
 		wofstream WPR;
 		WPR.imbue(locale(locale::empty(), new codecvt_utf8<wchar_t, 0x10ffff, generate_header>));
-		WPR.open(wpath, wofstream::trunc);
+		WPR.open(wpath, wofstream::trunc | wofstream::binary);
 		WPR << wfile << endl;
 		WPR.close();
 	}

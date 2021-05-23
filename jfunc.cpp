@@ -729,6 +729,19 @@ wstring JFUNC::utf8to16(string input)
 	output.resize(future - &output[0]);
 	return output;
 }
+string JFUNC::utf8ToAscii(string input)
+{
+	size_t pos = input.find(-61);
+	if (pos > input.size()) { return input; }
+	while (pos < input.size())
+	{
+		if (pos == input.size() - 1 || input[pos + 1] >= 0) { err("Scrambled UTF8-jf.utf8ToAscii"); }
+		input[pos] = input[pos + 1] + 64;
+		input.erase(input.begin() + pos + 1);
+		pos = input.find(-61, pos + 1);
+	}
+	return input;
+}
 void JFUNC::UTF16clean(wstring& ws)
 {
 	wchar_t wChar;

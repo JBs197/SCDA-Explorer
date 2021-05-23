@@ -14,11 +14,11 @@ using namespace std;
 
 class WINFUNC
 {
-    JFUNC jfwf;
+    JFUNC jf;
     vector<string> domains = { ".com", ".net", ".org", ".edu", ".ca" };
     ofstream ERR;
     string error_path = sroot + "\\SCDA Error Log.txt";
-	HINTERNET hInt, hConnect;
+	HINTERNET hInt, hConnect, WHOpen;
 	string hServer;
 	vector<int> numPasses = { 0, 0 };
     static vector<wstring> objects;
@@ -26,16 +26,15 @@ class WINFUNC
     vector<string> tree_pl_str;  // List of string payload values in the tree.
     vector<vector<int>> tree_structure;  // Form [node index][ancestor indices, node index as negative, children's indices].
 
-    void err(string);
-
 public:
 	explicit WINFUNC() {}
 	~WINFUNC() {}
 
     string browse(string);
     static void CALLBACK call(HINTERNET, DWORD_PTR, DWORD, LPVOID, DWORD);
-    void delete_file(string);
-    int download(string url, string filePath);
+	void clearCache();
+	void delete_file(string);
+    void download(string url, string filePath);
 	void downloadBin(string url, string filePath);
     bool file_exist(string);
     string get_exec_dir();
@@ -59,7 +58,7 @@ public:
     {
         lock_guard<mutex> lock(m_err);
         DWORD num = GetLastError();
-        string smessage = jfwf.timestamper() + " Windows Error #" + to_string(num) + ", from " + func + "\r\n";
+        string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + func + "\r\n";
         ERR.open(error_path, ofstream::app);
         ERR << smessage << endl;
         ERR.close();
@@ -125,7 +124,7 @@ public:
 				ubuffer = new unsigned char[bytes_available];
 				if (!InternetReadFile(hrequest, ubuffer, bytes_available, &bytes_read))
 				{
-					err("internetreadfile-wf.browse");
+					jf.err("internetreadfile-wf.browse");
 				}
 				for (int ii = 0; ii < bytes_available; ii++)
 				{
@@ -162,7 +161,7 @@ public:
 			winerr("httpsendrequest-wf.browse");
 		}
 
-		fileA = jfwf.utf16to8(fileW);
+		fileA = jf.utf16to8(fileW);
 		if (fileA.size() < 1) { winerr("blank return-wf.browse"); }
 		if (fileA == "") { winerr("blank return-wf.browse"); }
 		if (!InternetCloseHandle(hrequest)) { winerr("InternetCloseHandle-wf.browseHelper"); }
@@ -204,7 +203,7 @@ public:
 				ubuffer = new unsigned char[bytes_available];
 				if (!InternetReadFile(hrequest, ubuffer, bytes_available, &bytes_read))
 				{
-					err("internetreadfile-wf.browse");
+					jf.err("internetreadfile-wf.browse");
 				}
 				for (int ii = 0; ii < bytes_available; ii++)
 				{
@@ -250,7 +249,7 @@ public:
 			winerr("httpsendrequest-wf.browse");
 		}
 
-		fileA = jfwf.utf16to8(fileW);
+		fileA = jf.utf16to8(fileW);
 		if (fileA.size() < 1) { winerr("blank return-wf.browse"); }
 		if (fileA == "") { winerr("blank return-wf.browse"); }
 		if (!InternetCloseHandle(hrequest)) { winerr("InternetCloseHandle-wf.browseHelper"); }
@@ -261,7 +260,7 @@ public:
 	{
 		// Recursive function that makes an STPL tree of folder/file paths, starting 
 		// from a given root directory. Excludes system return folders and nonfile folders. 
-		err("getTreeFile template-wf");
+		jf.err("getTreeFile template-wf");
 	}
 	template<> void getTreeFile<string>(string rootPath, vector<vector<int>>& treeST, vector<string>& treePL, string& search)
 	{
@@ -317,10 +316,10 @@ public:
 			count = 0;
 			for (int ii = 0; ii < numFolder; ii++)
 			{
-				pivot = jfwf.getPivot(treeST[ii]);
+				pivot = jf.getPivot(treeST[ii]);
 				if (pivot >= treeST[ii].size() - 1)
 				{
-					if (pivot == 0) { err("Root has no children-wf.getTreeFile"); }
+					if (pivot == 0) { jf.err("Root has no children-wf.getTreeFile"); }
 					iParent = treeST[ii][pivot - 1];
 					for (int jj = treeST[iParent].size() - 1; jj >= 0; jj--)
 					{
@@ -390,10 +389,10 @@ public:
 			count = 0;
 			for (int ii = 0; ii < numFolder; ii++)
 			{
-				pivot = jfwf.getPivot(treeST[ii]);
+				pivot = jf.getPivot(treeST[ii]);
 				if (pivot >= treeST[ii].size() - 1)
 				{
-					if (pivot == 0) { err("Root has no children-wf.getTreeFile"); }
+					if (pivot == 0) { jf.err("Root has no children-wf.getTreeFile"); }
 					iParent = treeST[ii][pivot - 1];
 					for (int jj = treeST[iParent].size() - 1; jj >= 0; jj--)
 					{
@@ -414,7 +413,7 @@ public:
 	{
 		// Recursive function that makes an STPL tree of folder paths, starting 
 		// from a given root directory. Excludes system return folders. 
-		err("getTreeFolder template-wf");
+		jf.err("getTreeFolder template-wf");
 	}
 	template<> void getTreeFolder< >(int myIndex, vector<vector<int>>& treeST, vector<string>& treePL)
 	{

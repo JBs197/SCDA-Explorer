@@ -19,10 +19,7 @@
 #include "gsfunc.h"
 #include "imgfunc.h"
 #include "statscan.h"
-#include "Shlwapi.h"
-#include "catalogue.h"
 #include "switchboard.h"
-#pragma comment(lib, "Shlwapi.lib")
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -161,8 +158,8 @@ private:
     template<> void printer<wstring>(wstring& full_path, wstring& content)
     {
         lock_guard lock (m_io);
-        string path8 = utf16to8(full_path);
-        string content8 = utf16to8(content);
+        string path8 = jf.utf16to8(full_path);
+        string content8 = jf.utf16to8(content);
         HANDLE hfile = CreateFileA(path8.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, CREATE_ALWAYS, 0, NULL);
         if (hfile == INVALID_HANDLE_VALUE) { winerr(L"CreateFile-wprinter"); }
         DWORD bytes_written;
