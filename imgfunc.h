@@ -824,6 +824,15 @@ public:
         vector<int> oldNew = { croppedDim[0], croppedDim[1], xDim, croppedDim[1] };
         pngExtend(cropped, oldNew);
         croppedDim = { oldNew[2], oldNew[3] };
+        if (legendDim[1] > croppedDim[1])
+        {
+            oldNew[0] = croppedDim[0];
+            oldNew[1] = croppedDim[1];
+            oldNew[2] = croppedDim[0];
+            oldNew[3] = legendDim[1] + 1;
+            pngExtend(cropped, oldNew);
+            croppedDim = { oldNew[2], oldNew[3] };
+        }
         vector<int> coordPaste = { croppedDim[0] - legendDim[0], 0 };
         pngPaste(cropped, croppedDim, legendImg, legendDim, coordPaste);
 
@@ -910,6 +919,10 @@ public:
         vector<int> croppedDim(2);
         croppedDim[1] = max(legendDim[1], inum);
         croppedDim[0] = croppedDim[1] + legendDim[0];
+        if (croppedDim[1] <= legendDim[1]) 
+        { 
+            croppedDim[1] = legendDim[1] + 1; 
+        }
         vector<int> originTilted = { origin[0] + (legendDim[0] / 2), origin[1] };
         vector<unsigned char> cropped = pngExtractRect(originTilted, debugDataPNG, sourceDim, croppedDim);
         vector<int> pasteTL = { croppedDim[0] - legendDim[0], 0 };
@@ -2027,9 +2040,14 @@ public:
         {
             jf.err("xCoord out of bounds-im.pngPaste");
         }
-        if (coord[1] < 0 || coord[1] + pasteDim[1] > sourceDim[1])
+        if (coord[1] < 0)
         {
             jf.err("yCoord out of bounds-im.pngPaste");
+        }
+        if (coord[1] + pasteDim[1] > sourceDim[1])
+        {
+            vector<int> oldNew = { sourceDim[0], sourceDim[1], sourceDim[0], coord[1] + pasteDim[1] + 1 };
+            pngExtend(sourceImg, oldNew);
         }
         
         vector<unsigned char> newRow;
