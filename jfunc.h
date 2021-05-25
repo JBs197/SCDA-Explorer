@@ -38,6 +38,8 @@ public:
 	atomic_ullong stopwatch = 0;  // Max timer ticks is 1.8e19.
 	atomic_int stopwatch_control = 0;
 
+	string asciiToUTF8(string input);
+	wstring asciiToUTF16(string aFile);
 	string bind(string&, vector<string>&);
 	vector<int> destringifyCoord(string& sCoord);
 	void err(string);
@@ -693,12 +695,21 @@ public:
 	}
 	template<> void printer<wstring>(string path, wstring& wfile)
 	{
-		wstring wpath = utf8to16(path);
+		wstring wpath = asciiToUTF16(path);
 		wofstream WPR;
 		WPR.imbue(locale(locale::empty(), new codecvt_utf8<wchar_t, 0x10ffff, generate_header>));
 		WPR.open(wpath, wofstream::trunc | wofstream::binary);
 		WPR << wfile << endl;
 		WPR.close();
+	}
+	template<> void printer<vector<unsigned char>>(string path, vector<unsigned char>& binFile)
+	{
+		size_t count = binFile.size();
+		FILE* pFile = fopen(path.c_str(), "wb");
+		if (!pFile) { err("fopen-jf.printer"); }
+		size_t numBytes = fwrite(&binFile[0], 1, count, pFile);
+		if (numBytes != count) { err("fwrite-jf.printer"); }
+		fclose(pFile);
 	}
 
 	template<typename ... Args> void removeBlanks(Args& ... args) {}

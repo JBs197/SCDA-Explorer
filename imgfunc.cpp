@@ -983,7 +983,7 @@ void IMGFUNC::pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int
     {
         int inum;
         vector<int> userCoord;
-        vector<string> vsTemp = { pathMapDebug, to_string(sizeVBP) };
+        vector<string> vsTemp = { pathMapDebug, to_string(sizeVBP), pathActivePNG };
         makeMapBorderFindNext(tracks, radius, candidates, vsTemp[0]);
         sbgui.set_prompt(vsTemp);
         pngToBinPause(sbgui);
@@ -1092,12 +1092,16 @@ vector<unsigned char> IMGFUNC::pngExtractRow(int row, vector<unsigned char>& img
 void IMGFUNC::pngLoad(string& pathPNG)
 {
 	unsigned char* dataTemp = stbi_load(pathPNG.c_str(), &width, &height, &numComponents, 0);
-	int sizeTemp = width * height * numComponents;
+    if (dataTemp == NULL)
+    {
+        auto errorSTB = stbi_failure_reason();
+        int bbq = 1;
+    }
+    int sizeTemp = width * height * numComponents;
 	dataPNG.resize(sizeTemp);
 	copy(dataTemp, dataTemp + sizeTemp, dataPNG.begin());
     pathActivePNG = pathPNG;
-
-    int bbq = 0;
+    pauseVBP = defaultPathLengthImageDebug;
 }
 void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
 {

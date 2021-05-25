@@ -30,7 +30,7 @@ class IMGFUNC
     string defaultFont = "Sylfaen";
     int defaultLineWidth = 4;
     int defaultOctogonWidth = 3;
-    int defaultPathLengthImageDebug = 1000;
+    int defaultPathLengthImageDebug = 20;
     int defaultSearchRadius = 15;
     int defaultTextSeparatorWidth = 2;
     int defaultTracksLength = 10;
@@ -44,9 +44,8 @@ class IMGFUNC
     vector<unsigned char> legendColourBox;
 	unordered_map<string, string> mapColour;
     unordered_map<int, int> mapFontWidth;  // Input ascii, output glyph width (pixels).  
-    string pathActivePNG;
-    string pathMapDebug;
-    int pauseVBP;
+    string pathActivePNG, pathMapDebug, bufferTempASCII;
+    int pauseVBP, sizeVBP;
     vector<int> pointOfOrigin, revisedExtractDim;
     vector<vector<unsigned char>> pngTextColourBuffer;
 	int width, height, numComponents = 3, recordVictor;
@@ -55,7 +54,6 @@ class IMGFUNC
     vector<vector<vector<int>>> savePoints;  // Form [point index][sizeVBP, Origin, Candidate0, ... , CandidateChosen][x,y coords].
     int searchRadiusIncrease = 0;
     double stretchFactor;
-    int sizeVBP;
     vector<int> textFound;
 
     vector<unsigned char> Black = { 0, 0, 0 };
@@ -857,7 +855,7 @@ public:
         {
             sPrinter << to_string(candidates[ii][0]) << "," << to_string(candidates[ii][1]) << endl;
         }
-        sPrinter << endl;
+        //sPrinter << endl;
         sPrinter.close();
     }
 

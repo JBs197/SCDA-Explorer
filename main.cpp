@@ -2,7 +2,6 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBI_ASSERT(x)
-#define STBI_WINDOWS_UTF8
 #define STBI_ONLY_PNG
 #include "mainwindow.h"
 #include <QApplication>

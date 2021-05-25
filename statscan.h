@@ -4,7 +4,6 @@
 #include <vector>
 #include "switchboard.h"
 #include "winfunc.h"
-#include "jfunc.h"
 
 using namespace std;
 
@@ -91,7 +90,7 @@ public:
 	bool testCanadaOnly(string& geoLayer);
 	bool testFileNotFound(string& webpage);
 	bool testGeoList(string& filePath);
-	string urlCata(string);
+	string urlCatalogue(int iYear, string sCata);
 	string urlCataDownload(int iyear, string& geoPage, string gid);
 	string urlCataList(int iyear, string scata);
 	string urlEntireTableDownload(int iYear, string& urlCata);

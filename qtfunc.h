@@ -37,6 +37,8 @@ class QTFUNC
 public:
 	explicit QTFUNC() {}
 	~QTFUNC() {}
+	int deleteChildren(QTreeWidgetItem*& qNode);
+	int deleteLeaves(QTreeWidgetItem*& qNode);
 	void displayBinList(QListWidget*& qLW, vector<string>& pathBin);
 	void displayDebug(QLabel*& qlabel, vector<string>& pathPNG, vector<vector<int>>& debugMapCoord);
 	void displayPainterPath(QLabel*& qlabel, QPainterPath& path);

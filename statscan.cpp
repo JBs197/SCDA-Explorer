@@ -66,8 +66,15 @@ void STATSCAN::downloadCatalogue(SWITCHBOARD& sbgui)
     wf.makeDir(folderPath);
     string geoPath = folderPath + "\\" + prompt[1] + " geo list.bin";
     string zipPath = folderPath + "\\" + prompt[1] + " entireCata.zip";
+    string doNotDownload = folderPath + "\\" + prompt[1] + " do not download.txt";
     string geoPage, geoURL;
-    if (!wf.file_exist(geoPath))
+    if (wf.file_exist(doNotDownload))
+    {
+        mycomm[0] = 1;
+        sbgui.update(myid, mycomm);
+        return;
+    }
+    else if (!wf.file_exist(geoPath))
     {
         if (wf.file_exist(zipPath))
         {
@@ -83,6 +90,12 @@ void STATSCAN::downloadCatalogue(SWITCHBOARD& sbgui)
             sbgui.update(myid, mycomm);
             return;
         }
+        else if (wf.file_exist(doNotDownload))
+        {
+            mycomm[0] = 1;
+            sbgui.update(myid, mycomm);
+            return;
+        }
     }
     else if (!testGeoList(geoPath))
     {
@@ -93,7 +106,7 @@ void STATSCAN::downloadCatalogue(SWITCHBOARD& sbgui)
     if (geoPage.size() < 1)
     {
         geoURL = geoAll[geoAll.size() - 1][0];
-        geoPage = wf.browse(geoURL);
+        geoPage = wf.browseS(geoURL);
     }
     
     // Make a list of CSVs already in local storage, and compare it to the online CSV list.
@@ -111,13 +124,12 @@ void STATSCAN::downloadCatalogue(SWITCHBOARD& sbgui)
     // Download all missing CSVs. 
     mycomm[2] = difference[0].size();
     comm_gui = sbgui.update(myid, mycomm);
-    string urlCataDL, csvPath, csvFile, regionName, temp;
+    string urlCataDL, csvPath, csvFile, regionName;
     for (int ii = 0; ii < difference[0].size(); ii++)
     {
         urlCataDL = urlCataDownload(iYear, geoPage, difference[0][ii]);
-        try { temp = mapGeo.at(difference[0][ii]); }
+        try { regionName = mapGeo.at(difference[0][ii]); }
         catch (out_of_range& oor) { err("mapGeo-sc.downloadCatalogue"); }
-        regionName = jf.utf8ToAscii(temp);
         csvPath = folderPath + "\\" + prompt[1] + " (" + difference[0][ii];
         csvPath += ") " + regionName + ".csv";
         wf.download(urlCataDL, csvPath);
@@ -134,10 +146,9 @@ void STATSCAN::downloadGeoList(string sYear, string sName, string& geoPage)
     catch (invalid_argument& ia) { err("stoi-sc.downloadGeoList"); }
     string geoPath = sroot + "\\" + sYear + "\\" + sName;
     geoPath += "\\" + sName + " geo list.bin";
-    string temp = urlCata(sName);
-    string urlCata = wf.urlRedirect(temp);
+    string urlCata = urlCatalogue(iYear, sName);
     string urlGeo = urlGeoList(iYear, urlCata);
-    geoPage = wf.browse(urlGeo);
+    geoPage = wf.browseS(urlGeo);
     if (testFileNotFound(geoPage))
     {
         string entireCataPath = sroot + "\\" + sYear + "\\" + sName;
@@ -145,9 +156,11 @@ void STATSCAN::downloadGeoList(string sYear, string sName, string& geoPage)
         if (iYear >= 2016)
         {
             urlGeo = urlEntireTableDownload(iYear, urlCata);
-            wf.downloadBin(urlGeo, entireCataPath);
+            vector<unsigned char> zipFile = wf.browseUC(urlGeo);
+            jf.printer(entireCataPath, zipFile);
             return;
         }
+        else { err("No coding for early iYear-sc.downloadGeoList"); }
     }
     vector<string> geoTemp = jf.textParser(geoPage, navSearch[6]);
     if (testCanadaOnly(geoTemp[0]))
@@ -157,11 +170,21 @@ void STATSCAN::downloadGeoList(string sYear, string sName, string& geoPage)
         if (iYear >= 2016)
         {
             urlGeo = urlEntireTableDownload(iYear, urlCata);
-            wf.downloadBin(urlGeo, entireCataPath);
+            vector<unsigned char> zipFile = wf.browseUC(urlGeo);
+            jf.printer(entireCataPath, zipFile);
             return;
         }
+        else { err("No coding for early iYear-sc.downloadGeoList"); }
     }
     vector<string> geoLayers = makeGeoLayers(geoTemp[0]);
+    if (geoLayers[0] == "fsa")
+    {
+        string doNotDownload = sroot + "\\" + sYear + "\\" + sName;
+        doNotDownload += "\\" + sName + " do not download.txt";
+        string fsa = "fsa";
+        jf.printer(doNotDownload, fsa);
+        return;
+    }
     vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
     string geoList = makeGeoList(geoLinkNames, geoLayers, urlGeo);
     jf.printer(geoPath, geoList);
@@ -174,17 +197,16 @@ void STATSCAN::downloadMaps(SWITCHBOARD& sbgui)
     sbgui.answer_call(myid, mycomm);
     vector<string> prompt = sbgui.get_prompt();  // Form [syear, sname].
     initGeo();
-    string temp = urlCata(prompt[1]);
-    string cataURL = wf.urlRedirect(temp);
     int iYear;
     try { iYear = stoi(prompt[0]); }
     catch (invalid_argument& ia) { err("stoi-sc.downloadMaps"); }
+    string cataURL = urlCatalogue(iYear, prompt[1]);
     string geoListURL = urlGeoList(iYear, cataURL);
-    string geoPage = wf.browse(geoListURL);
+    string geoPage = wf.browseS(geoListURL);
     vector<string> geoTemp = jf.textParser(geoPage, navSearch[6]);
     vector<string> geoLayers = makeGeoLayers(geoTemp[0]);
     vector<string> geoLinkNames = jf.textParser(geoPage, navSearch[2]);
-
+    // RESUME HERE.
     int bbq = 1;
 }
 void STATSCAN::err(string func)
@@ -574,7 +596,8 @@ void STATSCAN::initGeo()
         mapGeoLayers.emplace("CSD", "csd");
         mapGeoLayers.emplace("FED", "fed");
         mapGeoLayers.emplace("ER", "er");
-        //mapGeoLayers.emplace("FSA", "fsa");
+        mapGeoLayers.emplace("FSA", "fsa");  // No maps available.
+        mapGeoLayers.emplace("DA", "da");  // No maps available.
     }
 }
 
@@ -680,6 +703,11 @@ vector<string> STATSCAN::makeGeoLayers(string& geoTemp)
         jf.clean(temp, dirt);  // To remove extra spaces only.
         try { geoLayer = mapGeoLayers.at(temp); }
         catch (out_of_range& oor) { err("mapGeoLayers-sc.makeGeoLayers"); }
+        if (geoLayer == "fsa")  // fsa zones currently have no maps on Stats Can.
+        {
+            geoLayers = { "fsa" };
+            return geoLayers;
+        }
         geoLayers.push_back(geoLayer);
         pos1 = pos2 + 1;
         pos2 = geoTemp.find('/', pos1);
@@ -1161,7 +1189,7 @@ vector<vector<string>> STATSCAN::readGeo(string& geoPath, unordered_map<string, 
     vector<vector<string>> geo;
     size_t pos1, pos2, pos3;
     int index;
-    string sfile = jf.load(geoPath);
+    string sfile = jf.load(geoPath), temp;
     pos1 = sfile.find_first_of("1234567890");
     pos2 = sfile.find('$', pos1);
     while (pos2 < sfile.size())
@@ -1177,7 +1205,8 @@ vector<vector<string>> STATSCAN::readGeo(string& geoPath, unordered_map<string, 
         geo[index][2] = sfile.substr(pos1, pos2 - pos1);
         pos1 = pos2 + 1;
         pos2 = sfile.find('$', pos1);
-        mapGeo.emplace(geo[index][0], geo[index][1]);
+        temp = jf.utf8ToAscii(geo[index][1]);
+        mapGeo.emplace(geo[index][0], temp);
     }
 
     // First supplementary row is the geo layer data (province, cmaca, etc).
@@ -1342,17 +1371,38 @@ bool STATSCAN::testGeoList(string& filePath)
     return 1;
 }
 
-string STATSCAN::urlCata(string scata)
+string STATSCAN::urlCatalogue(int iYear, string sCata)
 {
-    string url = "www12.statcan.gc.ca/global/URLRedirect.cfm?lang=E&ips=" + scata;
-    return url;
+    string urlCata, urlTemp;
+    wstring wPage, wTemp, wCata;
+    size_t pos1, pos2;
+    if (iYear >= 2016)
+    {
+        urlTemp = "www12.statcan.gc.ca/datasets/Index-eng.cfm?Temporal=";
+        urlTemp += to_string(iYear);
+        wPage = wf.browseW(urlTemp);
+        wCata = jf.utf8to16(sCata);
+        wTemp = L"title=\"Dataset " + wCata;
+        pos2 = wPage.find(wTemp);
+        pos1 = wPage.find(L"PID=", pos2) + 4;
+        pos2 = wPage.find_first_not_of(L"1234567890", pos1);
+        wCata = wPage.substr(pos1, pos2 - pos1);
+        urlTemp = jf.utf16to8(wCata);
+        urlCata = "www12.statcan.gc.ca/census-recensement/2016/dp-pd";
+        urlCata += "/dt-td/Rp-eng.cfm?LANG=E&APATH=3&DETAIL=0&DIM=0";
+        urlCata += "&FL=A&FREE=0&GC=0&GID=0&GK=0&GRP=1&PID=";
+        urlCata += urlTemp + "&PRID=10&PTYPE=109445&S=0&SHOWALL=0";
+        urlCata += "&SUB=0&Temporal=" + to_string(iYear) + "&THEME=123";
+        urlCata += "&VID=0&VNAMEE=&VNAMEF=";
+    }
+    return urlCata;
 }
 string STATSCAN::urlCataDownload(int iyear, string& geoPage, string gid)
 {
     int mode;
     size_t pos1, pos2;
     string temp, pid, url;
-    if (iyear == 2017) { mode = 0; }
+    if (iyear >= 2016) { mode = 0; }
     switch (mode)
     {
     case 0:

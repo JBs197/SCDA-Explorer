@@ -2,6 +2,37 @@
 
 using namespace std;
 
+string JFUNC::asciiToUTF8(string input)
+{
+	string output;
+	int sizeInput = input.size(), offset = 0;
+	output.assign(sizeInput, 0);
+	for (int ii = 0; ii < sizeInput; ii++)
+	{
+		if (input[ii] < 0)
+		{
+			output[ii + offset] = input[ii] - 64;
+			output.insert(output.begin() + ii, -61);
+			offset++;
+		}
+		else
+		{
+			output[ii + offset] = input[ii];
+		}
+	}
+	return output;
+}
+wstring JFUNC::asciiToUTF16(string input)
+{
+	mbstate_t mb{};
+	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(locale());
+	wstring output(input.size() * 2, L'\0');
+	const char* past;
+	wchar_t* future;
+	f.in(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
+	output.resize(future - &output[0]);
+	return output;
+}
 string JFUNC::bind(string& stmt0, vector<string>& params)
 {
 	// Replaces placeholders ('?') with parameter strings. Automatically adds single quotes.
@@ -194,85 +225,42 @@ vector<string> JFUNC::list_from_marker(string& input, char marker)
 string JFUNC::load(string file_path)
 {
 	// Load a file into memory as a string.
-	// Uses the first 8 bytes to guess what file encoding is being used.
 
-	wstring file_wpath = utf8to16(file_path);
-	UTF16clean(file_wpath);
-	FILE* pFile;
-	errno_t error = _wfopen_s(&pFile, file_wpath.c_str(), L"rb");
-	if (pFile == NULL) { err("ERROR: fopen-wload"); }
-	wchar_t enc[8];
-	int encoding = 0;
-	int count = 0;
-	for (int ii = 0; ii < 8; ii++)
-	{
-		enc[ii] = fgetwc(pFile);
-		if (enc[ii] > 1000)
-		{
-			count++;
-		}
-	}
-	if (count >= 5)
-	{
-		encoding = 1;  // UTF8
-	}
-	else
-	{
-		encoding = 2;  // UTF16
-	}
+	FILE* pFile = fopen(file_path.c_str(), "rb");
+	if (pFile == NULL) { err("fopen-jf.load"); }
+	fseek(pFile, 0, SEEK_END);
+	int sizeFile = ftell(pFile);
+	if (sizeFile < 0) { err("ftell-jf.load"); }
+	fseek(pFile, 0, SEEK_SET);
+	unsigned char* buffer = new unsigned char[sizeFile];
+	size_t numChar = fread(buffer, 1, sizeFile, pFile);
+	if (numChar != sizeFile) { err("fread-jf.load"); }
 	fclose(pFile);
 
-	string output;
-	wstring wtemp;
-	ifstream myfile;
-	wifstream mywfile;
-	streampos size;
-	wstreampos wsize;
-	char* buffer;
-	wchar_t* wbuffer;
-	long file_size;
-	size_t bytes_read;
-	switch (encoding)
+	int inum = 0;
+	for (int ii = 0; ii < 8; ii++)
 	{
-	case 0:
-		myfile.open(file_path, ios::in | ios::binary | ios::ate);
-		size = myfile.tellg();
-		buffer = new char[size];
-		myfile.seekg(0, ios::beg);
-		myfile.read(buffer, size);
-		output.assign(buffer, size);
-		delete[] buffer;
-		break;
-
-	case 1:
-		mywfile.open(file_wpath, wios::in | wios::ate);
-		wsize = mywfile.tellg();
-		wbuffer = new wchar_t[wsize];
-		mywfile.seekg(0, ios::beg);
-		mywfile.read(wbuffer, wsize);
-		wtemp.assign(wbuffer, wsize);
-		delete[] wbuffer;
-		output = utf16to8(wtemp);
-		break;
-
-	case 2:
-		mywfile.open(file_wpath, wios::in | wios::ate);
-		wsize = mywfile.tellg();
-		wbuffer = new wchar_t[wsize];
-		mywfile.seekg(0, ios::beg);
-		mywfile.read(wbuffer, wsize);
-		for (int ii = 0; ii < wsize; ii++)
-		{
-			if (wbuffer[ii] != NULL)
-			{
-				wtemp.push_back(wbuffer[ii]);
-			}
-		}
-		delete[] wbuffer;
-		output = utf16to8(wtemp);
-		break;
+		if (buffer[ii] == 0) { inum++; }
 	}
-	int bbq = 1;
+
+	string output;
+	if (buffer[0] + buffer[1] == 509)
+	{
+		// UTF-16
+	}
+	else if (inum == 4)
+	{
+		// UTF-16
+	}
+	else  // UTF-8 or ASCII
+	{
+		output.resize(sizeFile);
+		for (int ii = 0; ii < sizeFile; ii++)
+		{
+			output[ii] = (char)buffer[ii];
+		}
+	}
+	delete[] buffer;
 	return output;
 }
 void JFUNC::log(string message)
@@ -709,9 +697,12 @@ void JFUNC::unzip(string& zipPath)
 }
 string JFUNC::utf16to8(wstring input)
 {
-	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(locale());
 	mbstate_t mb{};
-	string output(input.size() * f.max_length(), '\0');
+	locale utf8 = locale("en_US.UTF8");
+	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(utf8);
+	size_t len = input.size();
+	string output;
+	output.assign(len * 2, 0);
 	const wchar_t* past;
 	char* future;
 	f.out(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
@@ -720,9 +711,10 @@ string JFUNC::utf16to8(wstring input)
 }
 wstring JFUNC::utf8to16(string input)
 {
-	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(locale());
 	mbstate_t mb{};
-	wstring output(input.size() * f.max_length(), L'\0');
+	locale utf8 = locale("en_US.UTF8");
+	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(utf8);
+	wstring output(input.size() * 2, L'\0');
 	const char* past;
 	wchar_t* future;
 	f.in(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
@@ -735,9 +727,21 @@ string JFUNC::utf8ToAscii(string input)
 	if (pos > input.size()) { return input; }
 	while (pos < input.size())
 	{
-		if (pos == input.size() - 1 || input[pos + 1] >= 0) { err("Scrambled UTF8-jf.utf8ToAscii"); }
-		input[pos] = input[pos + 1] + 64;
-		input.erase(input.begin() + pos + 1);
+		if (pos == input.size() - 1) { err("Scrambled UTF8-jf.utf8ToAscii"); }
+		if (input[pos + 1] >= 0)
+		{
+			if (input[pos + 1] == 63)
+			{
+				input[pos] = -1 * input[pos + 1];
+				input.erase(input.begin() + pos + 1);
+			}
+			else { err("Scrambled UTF8-jf.utf8ToAscii"); }
+		}
+		else
+		{
+			input[pos] = input[pos + 1] + 64;
+			input.erase(input.begin() + pos + 1);
+		}
 		pos = input.find(-61, pos + 1);
 	}
 	return input;
@@ -746,12 +750,22 @@ void JFUNC::UTF16clean(wstring& ws)
 {
 	wchar_t wChar;
 	size_t len = 2;
+	wstring wTemp;
 	for (size_t ii = 0; ii < ws.size() - 1; ii++)
 	{
 		if (ws[ii] == 195)
 		{
-			wChar = ws[ii + 1] + 64;
-			ws.replace(ii, len, &wChar);
+			wTemp.assign(ws.begin() + ii, ws.begin() + ii + 5);
+			if (wTemp[2] == 194)
+			{
+				ws[ii] = wTemp[3] + 64;
+				ws.erase(ws.begin() + ii + 1, ws.begin() + ii + 4);
+			}
+			else
+			{
+				ws[ii] = ws[ii + 1] + 64;
+				ws.erase(ws.begin() + ii + 1);
+			}
 		}
 	}
 }

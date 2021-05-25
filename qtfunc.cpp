@@ -2,6 +2,41 @@
 
 using namespace std;
 
+int QTFUNC::deleteChildren(QTreeWidgetItem*& qNode)
+{
+	int numKids = 0;
+	QList<QTreeWidgetItem*> qChildren = qNode->takeChildren();
+	if (qChildren.size() > 0)
+	{
+		foreach(QTreeWidgetItem * child, qChildren)
+		{
+			delete child;
+			numKids++;
+		}
+		return numKids;
+	}
+	else { return 0; }
+	return -1;
+}
+int QTFUNC::deleteLeaves(QTreeWidgetItem*& qNode)
+{
+	int count = 0;
+	int numKids = qNode->childCount(), numGrandKids;
+	if (numKids == 0) { return 0; }
+	QTreeWidgetItem* qChild = nullptr;
+	for (int ii = numKids - 1; ii >= 0; ii--)
+	{
+		qChild = qNode->child(ii);
+		numGrandKids = qChild->childCount();
+		if (numGrandKids == 0)
+		{
+			qChild = qNode->takeChild(ii);
+			delete qChild;
+			count++;
+		}
+	}
+	return count;
+}
 void QTFUNC::displayBinList(QListWidget*& qLW, vector<string>& pathBin)
 {
 	QString qtemp;
@@ -173,7 +208,7 @@ vector<vector<int>> QTFUNC::loadDebugMapCoord(string& pathBin)
 	temp = sfile.substr(pos1, pos2 - pos1);
 	DMC[1] = jf.destringifyCoord(temp);
 	pos1 = sfile.find("//candidate");
-	pos1 = sfile.find('\n', pos1 + 11) + 1;
+	pos1 = sfile.find('\n', pos1 + 10) + 1;
 	pos2 = sfile.find('\n', pos1);
 	while (pos2 < sfile.size())
 	{
