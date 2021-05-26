@@ -70,12 +70,14 @@ private slots:
     void on_pB_download_clicked();
     void on_pB_localmaps_clicked();
     void on_pB_convert_clicked();
+    void on_pB_correct_clicked();
     void on_pB_resume_clicked();
     void on_pB_pause_clicked();
     void on_pB_advance_clicked();
     void on_listW_bindone_itemSelectionChanged();
     void on_pB_backspace_clicked();
     void on_listW_statscan_itemSelectionChanged();
+    void on_checkB_eraser_stateChanged(int);
 
 private:
     Ui::MainWindow *ui;
@@ -85,16 +87,15 @@ private:
     const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
     int jobs_max, jobs_done, jobs_percent, advBuffer, labelMapsDx, labelMapsDy;
-    int backBuffer, downloadWindow = -1;
+    int backBuffer, downloadWindow = -1, widthEraser = 16;
     int threads_working = 0;
     int remote_controller = 0;  // 0 = run, 1 = ??, 2 = cancel, 3 = pause.
     bool begun_logging = 0;
     int qrow_title_width = 20, active_mode = 0, qnam_status = 0;
     vector<vector<int>> debugMapCoord;  // Form [TL, origin, candidate0, ... ][xCoord, yCoord]
     wstring wdrive;
-    string sdrive;
     QString qdrive;
-    string db_path;
+    string db_path, sdrive, selectedMapFolder;
     mutex m_bar, m_io;
     vector<string> sroots = { "F:", "D:" };
     vector<wstring> wroots = { L"F:", L"D:" }; //  NOTE: REMOVE HARDCODING LATER.

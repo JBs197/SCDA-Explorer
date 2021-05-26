@@ -142,6 +142,18 @@ void QTFUNC::drawLinesDebug(QPainter& qpaint, vector<vector<double>>& lines)
 	}
 	qpaint.drawPath(qPP);
 }
+void QTFUNC::eraser(QLabel*& qlabel, vector<vector<int>> TLBR)
+{
+	// TLBR is the topLeft and botRight set of coords clicked on,
+	// relative to the GUI's shifted image (starting at 0,0).
+	vector<double> reverseMapShift(3);
+	reverseMapShift[0] = -1.0 * recentMapShift[0];
+	reverseMapShift[1] = -1.0 * recentMapShift[1];
+	reverseMapShift[2] = 1.0 / recentMapShift[2];
+	vector<vector<double>> shiftedTLBR;
+	im.coordShift(TLBR, reverseMapShift, shiftedTLBR);
+	int bbq = 1;  // RESUME HERE make coordShiftRev to do stretch->slide
+}
 void QTFUNC::err(string func)
 {
 	jf.err(func);
@@ -181,6 +193,13 @@ string QTFUNC::getBranchPath(QTreeWidgetItem*& qBranch, string rootDir)
 	}
 	return sPath;
 }
+QBitmap QTFUNC::getEraser(int width)
+{
+	QPixmap qPM(width, width);
+	qPM.fill(Eraser);
+	QBitmap qBM = QBitmap::fromPixmap(qPM);
+	return qBM;
+}
 int QTFUNC::get_display_root(QTreeWidget* name)
 {
 	int index = map_display_root.value(name, -1);
@@ -219,6 +238,24 @@ vector<vector<int>> QTFUNC::loadDebugMapCoord(string& pathBin)
 		if (pos1 == pos2) { break; }
 	}
 	return DMC;
+}
+string QTFUNC::makePathTree(QTreeWidgetItem*& qBranch)
+{
+	QString qtemp = qBranch->text(0);
+	string sPath = qtemp.toStdString();
+	QTreeWidgetItem* qParent = qBranch->parent();
+	QTreeWidgetItem* qNode = nullptr;
+	while (qParent != nullptr)
+	{
+		qtemp = qParent->text(0);
+		sPath = qtemp.toStdString() + "\\" + sPath;
+		qNode = qParent;
+		qParent = qNode->parent();
+	}
+	size_t pos1 = sPath.find('\\');
+	string temp = sPath.substr(pos1);
+	sPath = sroot + temp;
+	return sPath;
 }
 QPainterPath QTFUNC::pathMakeCircle(vector<double> origin, double radius, int sides)
 {

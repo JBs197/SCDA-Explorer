@@ -624,7 +624,8 @@
      </rect>
     </property>
     <property name="text">
-     <string>Convert</string>
+     <string>Convert
+Maps</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pB_resume">
@@ -756,6 +757,20 @@
      <string>Eraser?</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pB_correct">
+    <property name="geometry">
+     <rect>
+      <x>1030</x>
+      <y>690</y>
+      <width>16</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Correct
+Maps</string>
+    </property>
+   </widget>
    <zorder>cB_drives</zorder>
    <zorder>pB_scan</zorder>
    <zorder>pB_insert</zorder>
@@ -788,6 +803,7 @@
    <zorder>pte_advance</zorder>
    <zorder>checkB_override</zorder>
    <zorder>checkB_eraser</zorder>
+   <zorder>pB_correct</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

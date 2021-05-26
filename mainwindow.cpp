@@ -97,9 +97,9 @@ void MainWindow::initialize()
     ui->label_maps2->setVisible(0);
     ui->listW_bindone->setGeometry(1035, 55, 190, 280);
     ui->listW_bindone->setVisible(0);
-    ui->checkB_override->setGeometry(1040, 435, 80, 40);
+    ui->checkB_override->setGeometry(1055, 435, 80, 40);
     ui->checkB_override->setVisible(0);
-    ui->checkB_eraser->setGeometry(1040, 485, 80, 40);
+    ui->checkB_eraser->setGeometry(1055, 485, 80, 40);
     ui->checkB_eraser->setVisible(0);
     ui->pB_resume->setGeometry(1140, 345, 81, 41);
     ui->pB_resume->setVisible(0);
@@ -110,7 +110,7 @@ void MainWindow::initialize()
     ui->pB_backspace->setGeometry(1140, 437, 80, 40);
     ui->pB_backspace->setVisible(0);
     ui->pB_backspace->setEnabled(0);
-    ui->pte_advance->setGeometry(1135, 391, 78, 41);
+    ui->pte_advance->setGeometry(1140, 391, 78, 41);
     ui->pte_advance->setPlainText("1");
     ui->pte_advance->setVisible(0);
     ui->pB_test->setGeometry(260, 690, 61, 41);
@@ -126,6 +126,8 @@ void MainWindow::initialize()
     ui->pB_localmaps->setGeometry(470, 690, 81, 41);
     ui->pB_convert->setVisible(0);
     ui->pB_convert->setGeometry(560, 690, 61, 41);
+    ui->pB_correct->setVisible(0);
+    ui->pB_correct->setGeometry(630, 690, 61, 41);
     ui->pB_mode->setGeometry(1120, 690, 61, 41);
     ui->progressBar->setGeometry(10, 660, 1241, 23);
     ui->QL_bar->setGeometry(10, 660, 1241, 23);
@@ -355,6 +357,10 @@ void MainWindow::update_mode()
         ui->pB_resume->setVisible(0);
         ui->pB_pause->setVisible(0);
         ui->pB_advance->setVisible(0);
+        ui->pB_resume->setVisible(0);
+        ui->pB_pause->setVisible(0);
+        ui->pB_advance->setVisible(0);
+        ui->pB_backspace->setVisible(0);
         ui->pte_advance->setVisible(0);
         ui->pB_usc->setVisible(0);
         ui->pB_test->setVisible(0);
@@ -365,6 +371,7 @@ void MainWindow::update_mode()
         ui->pB_viewtable->setVisible(1);
         ui->pB_localmaps->setVisible(0);
         ui->pB_convert->setVisible(0);
+        ui->pB_correct->setVisible(0);
         ui->checkB_override->setVisible(0);
         ui->checkB_eraser->setVisible(0);
         ui->pB_backspace->setVisible(0);
@@ -388,6 +395,10 @@ void MainWindow::update_mode()
         ui->listW_bindone->setVisible(1);
         ui->pte_advance->setVisible(1);
         ui->pB_advance->setEnabled(0);
+        ui->pB_resume->setVisible(1);
+        ui->pB_pause->setVisible(1);
+        ui->pB_advance->setVisible(1);
+        ui->pB_backspace->setVisible(1);
         ui->pB_usc->setVisible(1);
         ui->pB_test->setVisible(1);
         ui->pte_webinput->setVisible(1);
@@ -397,6 +408,7 @@ void MainWindow::update_mode()
         ui->pB_viewtable->setVisible(0);
         ui->pB_localmaps->setVisible(1);
         ui->pB_convert->setVisible(1);
+        ui->pB_correct->setVisible(1);
         ui->checkB_override->setVisible(1);
         ui->checkB_eraser->setVisible(1);
         int indexTab = ui->tabW_online->currentIndex();
@@ -486,6 +498,16 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
                     promptUpdate = { jf.stringifyCoord(clickCoord) };
                     qDebug() << "Click: " << QString::fromStdString(promptUpdate[0]);
                 }
+            }
+            else if (ui->checkB_eraser->isChecked())
+            {
+                clickCoord[0] += labelMapsDx;
+                clickCoord[1] += labelMapsDy;
+                vector<vector<int>> TLBR(2, vector<int>(2));
+                TLBR[0] = clickCoord;
+                TLBR[1][0] = TLBR[0][0] + widthEraser;
+                TLBR[1][1] = TLBR[0][1] + widthEraser;
+                qf.eraser(ui->label_maps, TLBR);
             }
         }
     }
@@ -2205,8 +2227,6 @@ void MainWindow::on_pB_localmaps_clicked()
     {
         qSelected = ui->treeW_maps->selectedItems();
         if (qSelected.size() < 1) { return; }
-        qDebug() << "Col0: " << qSelected[0]->text(0);
-        qDebug() << "Col1: " << qSelected[0]->text(1);
         qtemp = qSelected[0]->text(1);
         if (qtemp == "")  // Is folder.
         {
@@ -2937,6 +2957,20 @@ void MainWindow::makeTempASCII(string folderPath)
     int bbq = 1;
 }
 
+// Erase bad points on a BIN map.
+void MainWindow::on_pB_correct_clicked()
+{
+    QList<QTreeWidgetItem*> qSelected = ui->treeW_maps->selectedItems();
+    if (qSelected.size() != 1) { return; }
+    selectedMapFolder = qf.makePathTree(qSelected[0]);
+    vector<string> dirt = { "mapsPNG" };
+    vector<string> soap = { "mapsBIN" };
+    jf.clean(selectedMapFolder, dirt, soap);
+    string search = "*.bin";
+    vector<string> listBin = wf.get_file_list(selectedMapFolder, search);
+    qf.displayBinList(ui->listW_bindone, listBin);
+}
+
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
@@ -3095,30 +3129,18 @@ void MainWindow::on_tabW_online_currentChanged(int index)
     {
     case 0:
         ui->pB_download->setEnabled(0);
-        ui->pB_resume->setVisible(0);
-        ui->pB_pause->setVisible(0);
-        ui->pB_advance->setVisible(0);
-        ui->pte_advance->setVisible(0);
+        //ui->pte_advance->setVisible(0);
         //ui->checkB_override->setVisible(0);
-        ui->pB_backspace->setVisible(0);
         break;
     case 1:
         ui->pB_download->setEnabled(1);
-        ui->pB_resume->setVisible(0);
-        ui->pB_pause->setVisible(0);
-        ui->pB_advance->setVisible(0);
-        ui->pte_advance->setVisible(0);
+        //ui->pte_advance->setVisible(0);
         //ui->checkB_override->setVisible(0);
-        ui->pB_backspace->setVisible(0);
         break;
     case 2:
         ui->pB_download->setEnabled(0);
-        ui->pB_resume->setVisible(1);
-        ui->pB_pause->setVisible(1);
-        ui->pB_advance->setVisible(1);
-        ui->pte_advance->setVisible(1);
+        //ui->pte_advance->setVisible(1);
         //ui->checkB_override->setVisible(1);
-        ui->pB_backspace->setVisible(1);
         break;
     }
 }
@@ -3170,16 +3192,37 @@ void MainWindow::on_treeW_maps_itemSelectionChanged()
 void MainWindow::on_listW_bindone_itemSelectionChanged()
 {
     QString qtemp;
+    string mapBinPath;
     QList<QListWidgetItem*> qlist = ui->listW_bindone->selectedItems();
     if (qlist.size() == 1)
     {
          qtemp = qlist[0]->text();
-         qf.displayBin(ui->label_maps, qtemp);
+         mapBinPath = selectedMapFolder + "\\" + qtemp.toStdString() + ".bin";
+         qf.displayBin(ui->label_maps, mapBinPath);
     }
+    ui->tabW_online->setCurrentIndex(2);
 }
 void MainWindow::on_listW_statscan_itemSelectionChanged()
 {
     downloadWindow = 1;
+}
+void MainWindow::on_checkB_eraser_stateChanged(int iState)
+{
+    if (iState == 0)
+    {
+        QCursor qCursor = QCursor(Qt::ArrowCursor);
+        ui->label_maps->setCursor(qCursor);
+    }
+    else if (iState == 2)
+    {
+        QPixmap qPM(widthEraser, widthEraser);
+        qPM.fill(Qt::black);
+        QBitmap qBM = QBitmap::fromPixmap(qPM);
+        QBitmap qMask = QBitmap(widthEraser, widthEraser);
+        qMask.clear();
+        QCursor qCursor = QCursor(qBM, qMask, 0, 0);
+        ui->label_maps->setCursor(qCursor);
+    }
 }
 
 // DEBUG FUNCTIONS:

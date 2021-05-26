@@ -30,8 +30,11 @@ class QTFUNC
 	QPainter painter;
 	QPen pen;
 	QPixmap pmCanvas, pmPainting;
+	vector<vector<int>> recentBorder;
+	vector<double> recentMapShift;
 	QRectF rect;
 
+	QColor Eraser = QColor(233, 188, 181);
 	vector<unsigned char> Violet = { 127, 0, 255 };
 
 public:
@@ -47,13 +50,16 @@ public:
 	void drawDotsDebug(QPainter& qpaint, vector<vector<double>>& dots);
 	void drawFrame(QPixmap& pm, vector<vector<int>>& topleftBotright);
 	void drawLinesDebug(QPainter& qpaint, vector<vector<double>>& lines);
+	void eraser(QLabel*& qlabel, vector<vector<int>> TLBR);
 	void err(string);
 	int getBranchGen(QTreeWidgetItem*& qBranch);
 	string getBranchPath(QTreeWidgetItem*& qBranch, string rootDir);
 	int getLastMap() { return lastMap; }
+	QBitmap getEraser(int width);
 	int get_display_root(QTreeWidget*);
 	void initPixmap(QLabel* qlabel);
 	vector<vector<int>> loadDebugMapCoord(string& pathBin);
+	string makePathTree(QTreeWidgetItem*& qBranch);
 	QPainterPath pathMakeCircle(vector<double> origin, double radius, int sides);
 	void pmPainterReset(QLabel*& qlabel);
 	void setDebugMapPath(string spath);
@@ -298,7 +304,8 @@ public:
 			try { border[row][1] = stoi(temp); }
 			catch (invalid_argument& ia) { err("stoi-qf.displayBin"); }
 			pos1 = sfile.find(',', pos1 + 1);
-		}
+		}		
+		recentBorder = border;
 
 		// Scale and shift the coordinates to fit the display window.
 		if (pmCanvas.isNull()) { initPixmap(qlabel); }
@@ -319,6 +326,7 @@ public:
 		{
 			mapShift[2] = 1.0 / ratioWidth;
 		}
+		recentMapShift = mapShift;
 		vector<vector<double>> borderShifted;
 		im.coordShift(border, mapShift, borderShifted);
 
