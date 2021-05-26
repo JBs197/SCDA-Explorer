@@ -69,55 +69,66 @@ void MainWindow::initialize()
     qf.set_display_root(ui->treeW_csvtree, 1);
     qf.set_display_root(ui->treeW_subtables, 0);
     update_treeW_cataindb();
-    ui->tabW_catalogues->setCurrentIndex(0);
+    
 
     // Initialize mode to 'local'. 
     qtemp = QString::fromStdString(modes[active_mode]);
     ui->label_mode->setText(qtemp);
-    ui->tabW_results2->setGeometry(760, 10, 531, 481);
-    ui->tV_viewtable->setGeometry(0, 0, 531, 461);
-    ui->treeW_subtables->setGeometry(0, 0, 531, 461);
-    ui->tabW_online->setVisible(0);
-    ui->tabW_online->setGeometry(370, 10, 921, 481);
-    ui->treeW_statscan->setGeometry(0, 0, 521, 456);
-    ui->treeW_statscan->setVisible(0);
-    ui->listW_statscan->setGeometry(526, 0, 386, 456);
-    ui->listW_statscan->setVisible(0);
-    ui->treeW_maps->setGeometry(0, 0, 921, 461);
-    ui->treeW_maps->setVisible(0);
-    ui->label_maps->setGeometry(0, 0, 710, 450);
-    ui->label_maps->setVisible(0);
-    ui->label_maps2->setGeometry(720, 5, 100, 21);
-    ui->label_maps2->setVisible(0);
-    ui->listW_bindone->setGeometry(720, 25, 190, 280);
-    ui->listW_bindone->setVisible(0);
-    ui->pB_resume->setGeometry(1190, 345, 81, 41);
-    ui->pB_resume->setVisible(0);
-    ui->pB_pause->setGeometry(1100, 345, 81, 41);
-    ui->pB_pause->setVisible(0);
-    ui->pB_advance->setGeometry(1100, 391, 81, 41);
-    ui->pB_advance->setVisible(0);
-    ui->pte_advance->setGeometry(820, 355, 78, 41);
-    ui->pte_advance->setPlainText("1");
-    ui->pte_advance->setVisible(0);
-    ui->pB_usc->setVisible(0);
-    ui->pB_download->setVisible(0);
-    ui->pB_download->setEnabled(0);
-    ui->pte_webinput->setVisible(0);
-    ui->pte_webinput->setGeometry(370, 530, 241, 41);
+    ui->tabW_catalogues->setCurrentIndex(0);
+    //ui->tabW_catalogues->setGeometry(10, 10, 351, 681);
+    ui->pB_removecata->setGeometry(385, 690, 71, 41);
     ui->pte_localinput->setVisible(1);
-    ui->pte_localinput->setGeometry(810, 530, 81, 41);
-    ui->pB_localmaps->setVisible(0);
-    ui->pB_localmaps->setGeometry(720, 530, 81, 41);
-    ui->pB_search->setGeometry(990, 530, 81, 41);
-    ui->pB_convert->setVisible(0);
-    ui->pB_convert->setGeometry(990, 530, 81, 41);
-    ui->pB_mode->setGeometry(1140, 530, 81, 41);
-    ui->checkB_override->setGeometry(730, 405, 80, 40);
+    ui->pte_localinput->setGeometry(460, 690, 241, 41);
+    ui->pB_search->setGeometry(710, 690, 71, 41);
+    ui->tabW_results2->setGeometry(760, 10, 496, 641);
+    ui->tV_viewtable->setGeometry(0, 0, 486, 611);
+    ui->treeW_subtables->setGeometry(0, 0, 486, 611);
+    ui->tabW_online->setVisible(0);
+    ui->tabW_online->setGeometry(10, 10, 1241, 641);
+    ui->treeW_statscan->setGeometry(0, 0, 521, 611);
+    ui->treeW_statscan->setVisible(0);
+    ui->listW_statscan->setGeometry(526, 0, 386, 611);
+    ui->listW_statscan->setVisible(0);
+    ui->treeW_maps->setGeometry(0, 0, 911, 611);
+    ui->treeW_maps->setVisible(0);
+    ui->label_maps->setGeometry(0, 0, 910, 611);
+    ui->label_maps->setVisible(0);
+    ui->label_maps2->setGeometry(1035, 35, 100, 21);
+    ui->label_maps2->setVisible(0);
+    ui->listW_bindone->setGeometry(1035, 55, 190, 280);
+    ui->listW_bindone->setVisible(0);
+    ui->checkB_override->setGeometry(1040, 435, 80, 40);
     ui->checkB_override->setVisible(0);
-    ui->pB_backspace->setGeometry(1191, 437, 80, 40);
+    ui->checkB_eraser->setGeometry(1040, 485, 80, 40);
+    ui->checkB_eraser->setVisible(0);
+    ui->pB_resume->setGeometry(1140, 345, 81, 41);
+    ui->pB_resume->setVisible(0);
+    ui->pB_pause->setGeometry(1050, 345, 81, 41);
+    ui->pB_pause->setVisible(0);
+    ui->pB_advance->setGeometry(1050, 391, 81, 41);
+    ui->pB_advance->setVisible(0);
+    ui->pB_backspace->setGeometry(1140, 437, 80, 40);
     ui->pB_backspace->setVisible(0);
     ui->pB_backspace->setEnabled(0);
+    ui->pte_advance->setGeometry(1135, 391, 78, 41);
+    ui->pte_advance->setPlainText("1");
+    ui->pte_advance->setVisible(0);
+    ui->pB_test->setGeometry(260, 690, 61, 41);
+    ui->pB_test->setVisible(0);
+    ui->pte_webinput->setVisible(0);
+    ui->pte_webinput->setGeometry(10, 690, 241, 41);
+    ui->pB_usc->setGeometry(330, 690, 61, 41);
+    ui->pB_usc->setVisible(0);
+    ui->pB_download->setGeometry(400, 690, 61, 41);
+    ui->pB_download->setVisible(0);
+    ui->pB_download->setEnabled(0);
+    ui->pB_localmaps->setVisible(0);
+    ui->pB_localmaps->setGeometry(470, 690, 81, 41);
+    ui->pB_convert->setVisible(0);
+    ui->pB_convert->setGeometry(560, 690, 61, 41);
+    ui->pB_mode->setGeometry(1120, 690, 61, 41);
+    ui->progressBar->setGeometry(10, 660, 1241, 23);
+    ui->QL_bar->setGeometry(10, 660, 1241, 23);
 
     // Prepare mouse event offsets.
     QRect posLabelMaps = ui->tabW_online->geometry();
@@ -325,10 +336,15 @@ void MainWindow::update_mode()
     switch (active_mode)
     {
     case 0:
+        ui->cB_drives->setVisible(1);
+        ui->pB_scan->setVisible(1);
+        ui->pB_insert->setVisible(1);
+        ui->pB_cancel->setVisible(1);
+        ui->tabW_catalogues->setVisible(1);
         ui->tabW_results->setVisible(1);
         ui->tabW_results2->setVisible(1);
         ui->pB_viewcata->setVisible(1);
-        ui->pB_viewcata->setVisible(1);
+        ui->pB_removecata->setVisible(1);
         ui->tabW_online->setVisible(0);
         ui->treeW_statscan->setVisible(0);
         ui->listW_statscan->setVisible(0);
@@ -341,6 +357,7 @@ void MainWindow::update_mode()
         ui->pB_advance->setVisible(0);
         ui->pte_advance->setVisible(0);
         ui->pB_usc->setVisible(0);
+        ui->pB_test->setVisible(0);
         ui->pte_webinput->setVisible(0);
         ui->pte_localinput->setVisible(1);
         ui->pB_search->setVisible(1);
@@ -349,13 +366,19 @@ void MainWindow::update_mode()
         ui->pB_localmaps->setVisible(0);
         ui->pB_convert->setVisible(0);
         ui->checkB_override->setVisible(0);
+        ui->checkB_eraser->setVisible(0);
         ui->pB_backspace->setVisible(0);
         break;
     case 1:
+        ui->cB_drives->setVisible(0);
+        ui->pB_scan->setVisible(0);
+        ui->pB_insert->setVisible(0);
+        ui->pB_cancel->setVisible(0);
+        ui->tabW_catalogues->setVisible(0);
         ui->tabW_results->setVisible(0);
         ui->tabW_results2->setVisible(0);
         ui->pB_viewcata->setVisible(0);
-        ui->pB_viewcata->setVisible(0);
+        ui->pB_removecata->setVisible(0);
         ui->tabW_online->setVisible(1);
         ui->treeW_statscan->setVisible(1);
         ui->listW_statscan->setVisible(1);
@@ -366,6 +389,7 @@ void MainWindow::update_mode()
         ui->pte_advance->setVisible(1);
         ui->pB_advance->setEnabled(0);
         ui->pB_usc->setVisible(1);
+        ui->pB_test->setVisible(1);
         ui->pte_webinput->setVisible(1);
         ui->pte_localinput->setVisible(0);
         ui->pB_search->setVisible(0);
@@ -374,6 +398,7 @@ void MainWindow::update_mode()
         ui->pB_localmaps->setVisible(1);
         ui->pB_convert->setVisible(1);
         ui->checkB_override->setVisible(1);
+        ui->checkB_eraser->setVisible(1);
         int indexTab = ui->tabW_online->currentIndex();
         if (indexTab == 2)
         {
@@ -401,6 +426,13 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
     int inum;
     if (event->button() == Qt::LeftButton)
     {
+        pointClick = event->position().toPoint();
+        clickCoord[0] = pointClick.x();
+        clickCoord[1] = pointClick.y();
+    }
+    else if (event->button() == Qt::MiddleButton)
+    {
+        ui->checkB_override->setChecked(1);
         pointClick = event->position().toPoint();
         clickCoord[0] = pointClick.x();
         clickCoord[1] = pointClick.y();
@@ -3067,7 +3099,7 @@ void MainWindow::on_tabW_online_currentChanged(int index)
         ui->pB_pause->setVisible(0);
         ui->pB_advance->setVisible(0);
         ui->pte_advance->setVisible(0);
-        ui->checkB_override->setVisible(0);
+        //ui->checkB_override->setVisible(0);
         ui->pB_backspace->setVisible(0);
         break;
     case 1:
@@ -3076,7 +3108,7 @@ void MainWindow::on_tabW_online_currentChanged(int index)
         ui->pB_pause->setVisible(0);
         ui->pB_advance->setVisible(0);
         ui->pte_advance->setVisible(0);
-        ui->checkB_override->setVisible(0);
+        //ui->checkB_override->setVisible(0);
         ui->pB_backspace->setVisible(0);
         break;
     case 2:
@@ -3085,7 +3117,7 @@ void MainWindow::on_tabW_online_currentChanged(int index)
         ui->pB_pause->setVisible(1);
         ui->pB_advance->setVisible(1);
         ui->pte_advance->setVisible(1);
-        ui->checkB_override->setVisible(1);
+        //ui->checkB_override->setVisible(1);
         ui->pB_backspace->setVisible(1);
         break;
     }

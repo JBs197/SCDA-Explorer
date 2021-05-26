@@ -824,6 +824,20 @@ bool IMGFUNC::mapIsInit()
     if (size > 0) { return 1; }
     return 0;
 }
+vector<vector<int>> IMGFUNC::minMaxPath2D(vector<vector<int>>& path)
+{
+    vector<vector<int>> TLBR(2, vector<int>(2));
+    TLBR[0] = path[0];
+    TLBR[1] = path[0];
+    for (int ii = 1; ii < path.size(); ii++)
+    {
+        if (path[ii][0] < TLBR[0][0]) { TLBR[0][0] = path[ii][0]; }
+        else if (path[ii][0] > TLBR[1][0]) { TLBR[1][0] = path[ii][0]; }
+        if (path[ii][1] < TLBR[0][1]) { TLBR[0][1] = path[ii][1]; }
+        else if (path[ii][1] > TLBR[1][1]) { TLBR[1][1] = path[ii][1]; }
+    }
+    return TLBR;
+}
 void IMGFUNC::octogonCheckBoundary(vector<vector<int>>& octoPath, vector<int>& sourceDim, int pathSpace)
 {
     // If a proposed octogon path (plus pathSpace) would go past the source image

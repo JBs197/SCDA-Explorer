@@ -96,6 +96,7 @@ public:
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
     void loadRecentSavePoint(vector<vector<int>>& vBorderPath);
     bool mapIsInit();
+    vector<vector<int>> minMaxPath2D(vector<vector<int>>& path);
     void octogonCheckBoundary(vector<vector<int>>& octoPath, vector<int>& sourceDim, int pathSpace);
     vector<vector<int>> octogonPath(vector<int> origin, int radius);
     void pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int radius, vector<vector<int>>& candidates);
@@ -1056,28 +1057,18 @@ public:
     }
     template<> void makeMapZoneSweep< >(vector<vector<int>>& zonePath)
     {
-        if (!mapIsInit()) { initMapColours(); }
-        debugDataPNG = dataPNG;
-        vector<vector<int>> ringOuter, ringInner;
-        vector<int> sourceDim = { width, height };
-        int widthDot = 1, pathSpace = 1;
-        octogonPaint(Black, debugDataPNG, sourceDim, widthDot, zonePath, pathSpace);
-        pathSpace = -1;
-        octogonPaint(Black, debugDataPNG, sourceDim, widthDot, zonePath, pathSpace);
-        int imgSize = debugDataPNG.size();
-        int channels = 3;
-        auto bufferUC = new unsigned char[imgSize];
-        for (int ii = 0; ii < imgSize; ii++)
-        {
-            bufferUC[ii] = debugDataPNG[ii];
-        }
-        string pathImg = sroot + "\\debug\\ZoneSweepDebug.png";
-        int error = stbi_write_png(pathImg.c_str(), sourceDim[0], sourceDim[1], channels, bufferUC, 0);
-        delete[] bufferUC;
+        vector<vector<unsigned char>> Lrgb = { { 1 } };
+        makeMapZoneSweep(zonePath, Lrgb);
     }
     template<> void makeMapZoneSweep<vector<vector<unsigned char>>>(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb)
     {
-        if (zonePath.size() != Lrgb.size()) { jf.err("parameter size mismatch-im.makeMapZoneSweep"); }
+        if (zonePath.size() != Lrgb.size()) 
+        {
+            if (Lrgb.size() != 1 && Lrgb[0].size() != 1)
+            {
+                jf.err("parameter size mismatch-im.makeMapZoneSweep");
+            }
+        }
         if (!mapIsInit()) { initMapColours(); }
         debugDataPNG = dataPNG;
         vector<vector<int>> ringOuter, ringInner;
@@ -1086,19 +1077,31 @@ public:
         octogonPaint(Black, debugDataPNG, sourceDim, widthDot, zonePath, pathSpace);
         pathSpace = -1;
         octogonPaint(Black, debugDataPNG, sourceDim, widthDot, zonePath, pathSpace);
-        for (int ii = 0; ii < zonePath.size(); ii++)
+        if (Lrgb.size() > 1)
         {
-            pixelPaint(debugDataPNG, sourceDim[0], Lrgb[ii], zonePath[ii]);
+            for (int ii = 0; ii < zonePath.size(); ii++)
+            {
+                pixelPaint(debugDataPNG, sourceDim[0], Lrgb[ii], zonePath[ii]);
+            }
         }
-        int imgSize = debugDataPNG.size();
+        vector<vector<int>> TLBR = minMaxPath2D(zonePath);
+        vector<int> topLeft(2);
+        topLeft[0] = TLBR[0][0] + ((TLBR[1][0] - TLBR[0][0]) / 2);
+        topLeft[0] -= (defaultExtractDim[0] / 2);
+        if (topLeft[0] < 0) { topLeft[0] = 0; }
+        topLeft[1] = TLBR[0][1] + ((TLBR[1][1] - TLBR[0][1]) / 2);
+        topLeft[1] -= (defaultExtractDim[1] / 2);
+        if (topLeft[1] < 0) { topLeft[1] = 0; }
+        vector<unsigned char> cropped = pngExtractRectTopLeft(topLeft, debugDataPNG, sourceDim, defaultExtractDim);
+        int imgSize = cropped.size();
         int channels = 3;
         auto bufferUC = new unsigned char[imgSize];
         for (int ii = 0; ii < imgSize; ii++)
         {
-            bufferUC[ii] = debugDataPNG[ii];
+            bufferUC[ii] = cropped[ii];
         }
         string pathImg = sroot + "\\debug\\ZoneSweepDebug.png";
-        int error = stbi_write_png(pathImg.c_str(), sourceDim[0], sourceDim[1], channels, bufferUC, 0);
+        int error = stbi_write_png(pathImg.c_str(), defaultExtractDim[0], defaultExtractDim[1], channels, bufferUC, 0);
         delete[] bufferUC;
     }
 
