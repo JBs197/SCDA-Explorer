@@ -30,7 +30,8 @@ class QTFUNC
 	QPainter painter;
 	QPen pen;
 	QPixmap pmCanvas, pmPainting;
-	vector<vector<int>> recentBorder;
+	vector<vector<int>> recentBorder, frameCorners;
+	vector<vector<vector<int>>> recentBorderTemp;
 	vector<double> recentMapShift;
 	QRectF rect;
 
@@ -58,12 +59,16 @@ public:
 	QBitmap getEraser(int width);
 	int get_display_root(QTreeWidget*);
 	void initPixmap(QLabel* qlabel);
+	void loadBinMap(string& pathBin, vector<vector<int>>& frameCorners, vector<vector<int>>& border);
 	vector<vector<int>> loadDebugMapCoord(string& pathBin);
 	string makePathTree(QTreeWidgetItem*& qBranch);
+	vector<double> makeShift(QLabel*& qlabel, vector<vector<int>>& frameCorners);
 	QPainterPath pathMakeCircle(vector<double> origin, double radius, int sides);
 	void pmPainterReset(QLabel*& qlabel);
+	void printEditedMap(string& pathBin);
 	void setDebugMapPath(string spath);
 	void set_display_root(QTreeWidget*, int);
+	void undoEraser(QLabel*& qlabel);
 
 	// TEMPLATES
 	template<typename ... Args> void debugMapSelected(QLabel*& qlabel, Args ... args)
@@ -261,85 +266,18 @@ public:
 	}
 	template<> void displayBin<string>(QLabel*& qlabel, string& pathBIN)
 	{
-		jf.timerStart();
 		// Load all coordinates into memory from the bin file.
-		string sfile = jf.load(pathBIN);
-		if (sfile.size() < 1) { err("load-qf.displayBin"); }
-		size_t pos1, pos2, posStart, posStop;
-		vector<vector<int>> frameCorners, border;
-		string temp;
-		int row;
-		posStart = sfile.find("//frame");
-		posStop = sfile.find("//", posStart + 7);
-		if (posStop > sfile.size()) { posStop = sfile.size(); }
-		pos1 = sfile.find(',', posStart);
-		while (pos1 < posStop)
-		{
-			row = frameCorners.size();
-			frameCorners.push_back(vector<int>(2));
-			pos2 = sfile.find_last_not_of("1234567890", pos1 - 1) + 1;
-			temp = sfile.substr(pos2, pos1 - pos2);
-			try { frameCorners[row][0] = stoi(temp); }
-			catch (invalid_argument& ia) { err("stoi-qf.displayBin"); }
-			pos2 = sfile.find_first_not_of("1234567890", pos1 + 1);
-			temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
-			try { frameCorners[row][1] = stoi(temp); }
-			catch (invalid_argument& ia) { err("stoi-qf.displayBin"); }
-			pos1 = sfile.find(',', pos1 + 1);
-		}
-		posStart = sfile.find("//border");
-		posStop = sfile.find("//", posStart + 8);
-		if (posStop > sfile.size()) { posStop = sfile.size(); }
-		pos1 = sfile.find(',', posStart);
-		while (pos1 < posStop)
-		{
-			row = border.size();
-			border.push_back(vector<int>(2));
-			pos2 = sfile.find_last_not_of("1234567890", pos1 - 1) + 1;
-			temp = sfile.substr(pos2, pos1 - pos2);
-			try { border[row][0] = stoi(temp); }
-			catch (invalid_argument& ia) { err("stoi-qf.displayBin"); }
-			pos2 = sfile.find_first_not_of("1234567890", pos1 + 1);
-			temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
-			try { border[row][1] = stoi(temp); }
-			catch (invalid_argument& ia) { err("stoi-qf.displayBin"); }
-			pos1 = sfile.find(',', pos1 + 1);
-		}		
-		recentBorder = border;
+		vector<vector<int>> border;
+		loadBinMap(pathBIN, frameCorners, border);
 
 		// Scale and shift the coordinates to fit the display window.
-		if (pmCanvas.isNull()) { initPixmap(qlabel); }
-		vector<double> mapShift(3);
-		mapShift[0] = -1.0 * (double)frameCorners[0][0];
-		mapShift[1] = -1.0 * (double)frameCorners[0][1];
-		double widthPm = (double)pmCanvas.width();
-		double heightPm = (double)pmCanvas.height();
-		double widthFrame = (double)(frameCorners[2][0] - frameCorners[0][0]);
-		double heightFrame = (double)(frameCorners[2][1] - frameCorners[0][1]);
-		double ratioWidth = widthFrame / widthPm;
-		double ratioHeight = heightFrame / heightPm;
-		if (ratioHeight >= ratioWidth)
-		{
-			mapShift[2] = 1.0 / ratioHeight;
-		}
-		else
-		{
-			mapShift[2] = 1.0 / ratioWidth;
-		}
-		recentMapShift = mapShift;
+		vector<double> mapShift = makeShift(qlabel, frameCorners);
 		vector<vector<double>> borderShifted;
 		im.coordShift(border, mapShift, borderShifted);
 
 		// Paint the coordinates onto the GUI window.
-		pmPainterReset(qlabel);
-		pen.setWidth(5);
 		QPainterPath path = pathMake(borderShifted);
-		painter.drawPath(path);
-		qlabel->setPixmap(pmPainting);
-
-		long long timer = jf.timerStop();
-		qDebug() << "Time to displayBin from file: " << timer;
-		lastMap = 1;
+		displayBin(qlabel, path);
 	}
 	template<> void displayBin<QString>(QLabel*& qlabel, QString& qName)
 	{

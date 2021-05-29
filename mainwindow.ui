@@ -762,13 +762,54 @@ Maps</string>
      <rect>
       <x>1030</x>
       <y>690</y>
-      <width>16</width>
+      <width>21</width>
       <height>41</height>
      </rect>
     </property>
     <property name="text">
      <string>Correct
 Maps</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pB_undo">
+    <property name="geometry">
+     <rect>
+      <x>1060</x>
+      <y>690</y>
+      <width>21</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Undo</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pB_savemap">
+    <property name="geometry">
+     <rect>
+      <x>1090</x>
+      <y>690</y>
+      <width>21</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Save
+Map</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pB_deletemap">
+    <property name="geometry">
+     <rect>
+      <x>1120</x>
+      <y>690</y>
+      <width>21</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Delete
+Map</string>
     </property>
    </widget>
    <zorder>cB_drives</zorder>
@@ -804,6 +845,9 @@ Maps</string>
    <zorder>checkB_override</zorder>
    <zorder>checkB_eraser</zorder>
    <zorder>pB_correct</zorder>
+   <zorder>pB_undo</zorder>
+   <zorder>pB_savemap</zorder>
+   <zorder>pB_deletemap</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

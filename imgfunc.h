@@ -30,7 +30,7 @@ class IMGFUNC
     string defaultFont = "Sylfaen";
     int defaultLineWidth = 4;
     int defaultOctogonWidth = 3;
-    int defaultPathLengthImageDebug = 20;
+    int defaultPathLengthImageDebug = 5;
     int defaultSearchRadius = 15;
     int defaultTextSeparatorWidth = 2;
     int defaultTracksLength = 10;
@@ -81,7 +81,7 @@ public:
     int coordRGB(vector<vector<int>> startStop, string szone);
     vector<int> coordStoi(string& sCoords);
 	void drawMarker(vector<unsigned char>& img, vector<int>& vCoord);
-    vector<vector<double>> frameCorners();
+    vector<vector<int>> frameCorners();
     vector<unsigned char> getColour(string sColour);
     int getDotWidth();
     string getMapPath(int mode);
@@ -110,6 +110,7 @@ public:
     void pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN);
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinPause(SWITCHBOARD& sbgui);
+    void printBinMap(string& pathBIN, vector<vector<int>>& vBorderPath);
     void removeColourCushion(vector<vector<unsigned char>>& Lrgb, vector<unsigned char> colourCore, vector<unsigned char> colourCushion, int length);
     void saveThisPoint(vector<vector<int>>& tracks, vector<vector<int>>& candidates);
     void setExtractDim(vector<int> extractDim);
@@ -324,6 +325,24 @@ public:
         {
             listShifted[ii][0] = ((double)listCoord[ii][0] + mapShift[0]) * mapShift[2];
             listShifted[ii][1] = ((double)listCoord[ii][1] + mapShift[1]) * mapShift[2];
+        }
+    }
+
+    template<typename ... Args> void coordShiftRev(Args& ... args)
+    {
+        jf.err("coordShiftRev template-im");
+    }
+    template<> void coordShiftRev<vector<vector<int>>, vector<double>, vector<vector<double>>>(vector<vector<int>>& listCoord, vector<double>& mapShift, vector<vector<double>>& listShifted)
+    {
+        listShifted.resize(listCoord.size(), vector<double>(2));
+        vector<double> mapShiftRev = mapShift;
+        mapShiftRev[0] *= -1.0;
+        mapShiftRev[1] *= -1.0;
+        mapShiftRev[2] = 1.0 / mapShiftRev[2];
+        for (int ii = 0; ii < listCoord.size(); ii++)
+        {
+            listShifted[ii][0] = ((double)listCoord[ii][0] * mapShiftRev[2])  + mapShiftRev[0];
+            listShifted[ii][1] = ((double)listCoord[ii][1] * mapShiftRev[2])  + mapShiftRev[1];
         }
     }
 
@@ -1997,19 +2016,10 @@ public:
     template<> vector<unsigned char> pngExtractRectTopLeft< >(vector<int>& topLeft)
     {
         // Dimension vectors have form [width, height]. Also, assume 3 components (RGB).
-        vector<unsigned char> pngExtract;
         vector<int> sourceDim = { width, height };
         vector<int> extractDim = defaultExtractDim;
-        if (topLeft[0] < 0 || topLeft[0] + extractDim[0] >= width) { jf.err("xCoord out of bounds-im.pngExtractRectTopLeft"); }
-        if (topLeft[1] < 0 || topLeft[1] + extractDim[1] >= height) { jf.err("yCoord out of bounds-im.pngExtractRectTopLeft"); }
-        int bytesPerRow, offsetStart, offset;
-        bytesPerRow = extractDim[0] * numComponents;
-        offsetStart = getOffset(topLeft, sourceDim[0]);
-        for (int ii = 0; ii < defaultExtractDim[1]; ii++)  // For every row in the extracted image...
-        {
-            offset = offsetStart + (ii * width * numComponents);
-            pngExtract.insert(pngExtract.end(), dataPNG.begin() + offset, dataPNG.begin() + offset + bytesPerRow);
-        }
+        debugDataPNG = dataPNG;
+        vector<unsigned char> pngExtract = pngExtractRectTopLeft(topLeft, debugDataPNG, sourceDim, extractDim);
         return pngExtract;
     }
     template<> vector<unsigned char> pngExtractRectTopLeft<vector<unsigned char>, vector<int>, vector<int>>(vector<int>& topLeft, vector<unsigned char>& source, vector<int>& sourceDim, vector<int>& extractDim)
@@ -2017,11 +2027,24 @@ public:
         // Dimension vectors have form [width, height]. Also, assume 3 components (RGB).
         vector<unsigned char> pngExtract;
         int bytesPerRow, offsetStart, offset;
-        if (topLeft[0] < 0 || topLeft[0] + extractDim[0] >= sourceDim[0]) 
+        if (topLeft[0] < 0) 
         {
-            jf.err("xCoord out of bounds-im.pngExtractRectTopLeft");        
+            topLeft[0] = 0;
+            //jf.err("xCoord out of bounds-im.pngExtractRectTopLeft");        
         }
-        if (topLeft[1] < 0 || topLeft[1] + extractDim[1] >= sourceDim[1]) { jf.err("yCoord out of bounds-im.pngExtractRectTopLeft"); }
+        else if (topLeft[0] + extractDim[0] >= sourceDim[0])
+        {
+            topLeft[0] = sourceDim[0] - extractDim[0] - 1;
+        }
+        if (topLeft[1] < 0)
+        {
+            topLeft[1] = 0;
+            //jf.err("yCoord out of bounds-im.pngExtractRectTopLeft");        
+        }
+        else if (topLeft[1] + extractDim[1] >= sourceDim[1])
+        {
+            topLeft[1] = sourceDim[1] - extractDim[1] - 1;
+        }        
         bytesPerRow = extractDim[0] * numComponents;
         offsetStart = getOffset(topLeft, sourceDim[0]);
         for (int ii = 0; ii < extractDim[1]; ii++)  // For every row in the extracted image...

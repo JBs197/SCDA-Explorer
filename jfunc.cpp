@@ -12,7 +12,7 @@ string JFUNC::asciiToUTF8(string input)
 		if (input[ii] < 0)
 		{
 			output[ii + offset] = input[ii] - 64;
-			output.insert(output.begin() + ii, -61);
+			output.insert(output.begin() + ii + offset, -61);
 			offset++;
 		}
 		else
@@ -31,6 +31,7 @@ wstring JFUNC::asciiToUTF16(string input)
 	wchar_t* future;
 	f.in(mb, &input[0], &input[input.size()], past, &output[0], &output[output.size()], future);
 	output.resize(future - &output[0]);
+	UTF16clean(output);
 	return output;
 }
 string JFUNC::bind(string& stmt0, vector<string>& params)
@@ -222,45 +223,28 @@ vector<string> JFUNC::list_from_marker(string& input, char marker)
 	output.push_back(temp1);
 	return output;
 }
-string JFUNC::load(string file_path)
+string JFUNC::load(string filePath)
 {
 	// Load a file into memory as a string.
 
-	FILE* pFile = fopen(file_path.c_str(), "rb");
-	if (pFile == NULL) { err("fopen-jf.load"); }
-	fseek(pFile, 0, SEEK_END);
-	int sizeFile = ftell(pFile);
-	if (sizeFile < 0) { err("ftell-jf.load"); }
-	fseek(pFile, 0, SEEK_SET);
-	unsigned char* buffer = new unsigned char[sizeFile];
-	size_t numChar = fread(buffer, 1, sizeFile, pFile);
-	if (numChar != sizeFile) { err("fread-jf.load"); }
-	fclose(pFile);
-
-	int inum = 0;
-	for (int ii = 0; ii < 8; ii++)
+	wstring wFP = asciiToUTF16(filePath);
+	locale utf8 = locale("en_US.UTF8");
+	wifstream wLoad;
+	//wLoad.imbue(utf8);
+	wLoad.open(wFP, wifstream::binary);
+	auto report = wLoad.rdstate();
+	if (report) { err("wifstream open-jf.load"); }
+	wLoad.seekg(0, wLoad.end);
+	int len = wLoad.tellg();
+	wLoad.seekg(0, wLoad.beg);
+	wstring wTemp;
+	wTemp.resize(len);
+	wLoad.read(&wTemp[0], len);
+	while (wTemp[0] == 239 && wTemp[1] == 187 && wTemp[2] == 191)
 	{
-		if (buffer[ii] == 0) { inum++; }
+		wTemp.erase(wTemp.begin(), wTemp.begin() + 3);
 	}
-
-	string output;
-	if (buffer[0] + buffer[1] == 509)
-	{
-		// UTF-16
-	}
-	else if (inum == 4)
-	{
-		// UTF-16
-	}
-	else  // UTF-8 or ASCII
-	{
-		output.resize(sizeFile);
-		for (int ii = 0; ii < sizeFile; ii++)
-		{
-			output[ii] = (char)buffer[ii];
-		}
-	}
-	delete[] buffer;
+	string output = utf16to8(wTemp);
 	return output;
 }
 void JFUNC::log(string message)
@@ -697,6 +681,7 @@ void JFUNC::unzip(string& zipPath)
 }
 string JFUNC::utf16to8(wstring input)
 {
+	UTF16clean(input);
 	mbstate_t mb{};
 	locale utf8 = locale("en_US.UTF8");
 	auto& f = use_facet<codecvt<wchar_t, char, mbstate_t>>(utf8);

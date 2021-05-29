@@ -40,7 +40,7 @@ int QTFUNC::deleteLeaves(QTreeWidgetItem*& qNode)
 void QTFUNC::displayBinList(QListWidget*& qLW, vector<string>& pathBin)
 {
 	QString qtemp;
-	string temp;
+	string temp, temp8;
 	size_t pos1, pos2;
 	listPathBin = pathBin;
 	qLW->clear();
@@ -50,7 +50,8 @@ void QTFUNC::displayBinList(QListWidget*& qLW, vector<string>& pathBin)
 		if (pos2 > pathBin[ii].size()) { jf.err("Failed to locate .bin extension-qf.displayBinList"); }
 		pos1 = pathBin[ii].rfind('\\', pos2) + 1;
 		temp = pathBin[ii].substr(pos1, pos2 - pos1);
-		qtemp = QString::fromUtf8(temp);
+		temp8 = jf.asciiToUTF8(temp);
+		qtemp = QString::fromUtf8(temp8);
 		mapListPathBin.insert(qtemp, ii);
 		qLW->addItem(qtemp);
 	}
@@ -146,13 +147,31 @@ void QTFUNC::eraser(QLabel*& qlabel, vector<vector<int>> TLBR)
 {
 	// TLBR is the topLeft and botRight set of coords clicked on,
 	// relative to the GUI's shifted image (starting at 0,0).
-	vector<double> reverseMapShift(3);
-	reverseMapShift[0] = -1.0 * recentMapShift[0];
-	reverseMapShift[1] = -1.0 * recentMapShift[1];
-	reverseMapShift[2] = 1.0 / recentMapShift[2];
 	vector<vector<double>> shiftedTLBR;
-	im.coordShift(TLBR, reverseMapShift, shiftedTLBR);
-	int bbq = 1;  // RESUME HERE make coordShiftRev to do stretch->slide
+	im.coordShiftRev(TLBR, recentMapShift, shiftedTLBR);
+	vector<vector<int>> sTLBR, activeBorder;
+	jf.toInt(shiftedTLBR, sTLBR);
+	int index = recentBorderTemp.size() - 1;
+	if (index < 0)
+	{
+		activeBorder = recentBorder;
+	}
+	else
+	{
+		activeBorder = recentBorderTemp[index];
+	}
+	for (int ii = activeBorder.size() - 1; ii >= 0; ii--)
+	{
+		if (activeBorder[ii][0] < sTLBR[0][0] || activeBorder[ii][0] > sTLBR[1][0]) { continue; }
+		if (activeBorder[ii][1] < sTLBR[0][1] || activeBorder[ii][1] > sTLBR[1][1]) { continue; }
+		activeBorder.erase(activeBorder.begin() + ii);
+	}
+	recentBorderTemp.push_back(activeBorder);
+	vector<vector<double>> borderShifted;
+	im.coordShift(activeBorder, recentMapShift, borderShifted);
+	QPainterPath path = pathMake(borderShifted);
+	displayBin(qlabel, path);
+	int bbq = 1;  
 }
 void QTFUNC::err(string func)
 {
@@ -212,6 +231,54 @@ void QTFUNC::initPixmap(QLabel* qlabel)
 	pmCanvas = QPixmap(width, height);
 	pmCanvas.fill();
 }
+void QTFUNC::loadBinMap(string& pathBin, vector<vector<int>>& frameCorners, vector<vector<int>>& border)
+{
+	// Load all coordinates into memory from the bin file.
+	recentBorderTemp.clear();
+	frameCorners.clear();
+	border.clear();
+	string sfile = jf.load(pathBin), temp;
+	if (sfile.size() < 1) { err("load-qf.loadBinMap"); }
+	size_t pos1, pos2, posStart, posStop;
+	int row;
+	posStart = sfile.find("//frame");
+	posStop = sfile.find("//", posStart + 7);
+	if (posStop > sfile.size()) { posStop = sfile.size(); }
+	pos1 = sfile.find(',', posStart);
+	while (pos1 < posStop)
+	{
+		row = frameCorners.size();
+		frameCorners.push_back(vector<int>(2));
+		pos2 = sfile.find_last_not_of("1234567890.", pos1 - 1) + 1;
+		temp = sfile.substr(pos2, pos1 - pos2);
+		try { frameCorners[row][0] = stoi(temp); }
+		catch (invalid_argument& ia) { err("stoi-qf.loadBinMap"); }
+		pos2 = sfile.find_first_not_of("1234567890.", pos1 + 1);
+		temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
+		try { frameCorners[row][1] = stoi(temp); }
+		catch (invalid_argument& ia) { err("stoi-qf.loadBinMap"); }
+		pos1 = sfile.find(',', pos1 + 1);
+	}
+	posStart = sfile.find("//border");
+	posStop = sfile.find("//", posStart + 8);
+	if (posStop > sfile.size()) { posStop = sfile.size(); }
+	pos1 = sfile.find(',', posStart);
+	while (pos1 < posStop)
+	{
+		row = border.size();
+		border.push_back(vector<int>(2));
+		pos2 = sfile.find_last_not_of("1234567890", pos1 - 1) + 1;
+		temp = sfile.substr(pos2, pos1 - pos2);
+		try { border[row][0] = stoi(temp); }
+		catch (invalid_argument& ia) { err("stoi-qf.loadBinMap"); }
+		pos2 = sfile.find_first_not_of("1234567890", pos1 + 1);
+		temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
+		try { border[row][1] = stoi(temp); }
+		catch (invalid_argument& ia) { err("stoi-qf.loadBinMap"); }
+		pos1 = sfile.find(',', pos1 + 1);
+	}
+	recentBorder = border;
+}
 vector<vector<int>> QTFUNC::loadDebugMapCoord(string& pathBin)
 {
 	vector<vector<int>> DMC(2, vector<int>(2));
@@ -257,6 +324,31 @@ string QTFUNC::makePathTree(QTreeWidgetItem*& qBranch)
 	sPath = sroot + temp;
 	return sPath;
 }
+vector<double> QTFUNC::makeShift(QLabel*& qlabel, vector<vector<int>>& frameCorners)
+{
+	// Return a vector of the form [xShift, yShift, stretchFactor].
+	if (pmCanvas.isNull()) { initPixmap(qlabel); }
+	if (frameCorners.size() != 4) { err("frameCorners size-qf.makeShift"); }
+	vector<double> mapShift(3);
+	mapShift[0] = -1.0 * (double)frameCorners[0][0];
+	mapShift[1] = -1.0 * (double)frameCorners[0][1];
+	double widthPm = (double)pmCanvas.width();
+	double heightPm = (double)pmCanvas.height();
+	double widthFrame = (double)(frameCorners[2][0] - frameCorners[0][0]);
+	double heightFrame = (double)(frameCorners[2][1] - frameCorners[0][1]);
+	double ratioWidth = widthFrame / widthPm;
+	double ratioHeight = heightFrame / heightPm;
+	if (ratioHeight >= ratioWidth)
+	{
+		mapShift[2] = 1.0 / ratioHeight;
+	}
+	else
+	{
+		mapShift[2] = 1.0 / ratioWidth;
+	}
+	recentMapShift = mapShift;
+	return mapShift;
+}
 QPainterPath QTFUNC::pathMakeCircle(vector<double> origin, double radius, int sides)
 {
 	double angleInc = 6.283185307 / (double)sides;
@@ -292,6 +384,26 @@ void QTFUNC::pmPainterReset(QLabel*& qlabel)
 	brush.setStyle(Qt::SolidPattern);
 
 }
+void QTFUNC::printEditedMap(string& pathBin)
+{
+	int sizeRBT = recentBorderTemp.size();
+	if (sizeRBT < 1) { return; }
+	ofstream sPrinter(pathBin.c_str(), ios::trunc);
+	auto report = sPrinter.rdstate();
+	sPrinter << "//frame" << endl;
+	for (int ii = 0; ii < frameCorners.size(); ii++)
+	{
+		sPrinter << to_string(frameCorners[ii][0]) << "," << to_string(frameCorners[ii][1]) << endl;
+	}
+	sPrinter << endl;
+
+	sPrinter << "//border" << endl;
+	for (int ii = 0; ii < recentBorderTemp[sizeRBT - 1].size(); ii++)
+	{
+		sPrinter << to_string(recentBorderTemp[sizeRBT - 1][ii][0]) << "," << to_string(recentBorderTemp[sizeRBT - 1][ii][1]) << endl;
+	}
+	sPrinter.close();
+}
 void QTFUNC::setDebugMapPath(string spath)
 {
 	defaultDebugMapPath = spath;
@@ -302,4 +414,23 @@ void QTFUNC::set_display_root(QTreeWidget* name, int val)
 {
 	map_display_root.insert(name, val);
 }
-
+void QTFUNC::undoEraser(QLabel*& qlabel)
+{
+	vector<vector<double>> borderShifted;
+	vector<vector<int>> activeBorder;
+	int sizeRBT = recentBorderTemp.size();
+	if (sizeRBT == 0) { return; }
+	else if (sizeRBT == 1)
+	{
+		recentBorderTemp.clear();
+		activeBorder = recentBorder;
+	}
+	else
+	{
+		recentBorderTemp.pop_back();
+		activeBorder = recentBorderTemp[sizeRBT - 2];
+	}
+	im.coordShift(activeBorder, recentMapShift, borderShifted);
+	QPainterPath path = pathMake(borderShifted);
+	displayBin(qlabel, path);
+}

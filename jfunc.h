@@ -14,6 +14,7 @@
 #include <mutex>
 #include <cmath>
 #include <zip.h>
+#include <filesystem>
 
 using namespace std;
 extern mutex m_err;
@@ -685,8 +686,7 @@ public:
 	template<> void printer<string>(string path, string& sfile)
 	{
 		wstring wfile = utf8to16(sfile);
-		wstring wpath = utf8to16(path);
-		UTF16clean(wpath);
+		wstring wpath = asciiToUTF16(path);
 		wofstream WPR;
 		WPR.imbue(locale(locale::empty(), new codecvt_utf8<wchar_t, 0x10ffff, generate_header>));
 		WPR.open(wpath, wofstream::binary, wofstream::trunc);

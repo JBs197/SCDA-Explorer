@@ -113,6 +113,15 @@ void MainWindow::initialize()
     ui->pte_advance->setGeometry(1140, 391, 78, 41);
     ui->pte_advance->setPlainText("1");
     ui->pte_advance->setVisible(0);
+    ui->pB_undo->setGeometry(1140, 482, 80, 40);
+    ui->pB_undo->setVisible(0);
+    ui->pB_undo->setEnabled(0);
+    ui->pB_savemap->setGeometry(1140, 527, 80, 40);
+    ui->pB_savemap->setVisible(0);
+    ui->pB_savemap->setEnabled(0);
+    ui->pB_deletemap->setGeometry(1050, 527, 80, 40);
+    ui->pB_deletemap->setVisible(0);
+    ui->pB_deletemap->setEnabled(0);
     ui->pB_test->setGeometry(260, 690, 61, 41);
     ui->pB_test->setVisible(0);
     ui->pte_webinput->setVisible(0);
@@ -293,6 +302,95 @@ vector<string> MainWindow::notDownloaded(string syear, string sname)
     return listCSV;
 }
 
+// Mouse functions.
+void MainWindow::mousePressEvent(QMouseEvent* event)
+{
+    QPoint pointClick;
+    vector<int> clickCoord(2);
+    vector<string> promptUpdate;
+    double dist;
+    int inum;
+    if (event->button() == Qt::LeftButton)
+    {
+        pointClick = event->position().toPoint();
+        clickCoord[0] = pointClick.x();
+        clickCoord[1] = pointClick.y();
+    }
+    else if (event->button() == Qt::MiddleButton)
+    {
+        ui->checkB_override->setChecked(1);
+        pointClick = event->position().toPoint();
+        clickCoord[0] = pointClick.x();
+        clickCoord[1] = pointClick.y();
+    }
+    if (active_mode == 1)  // Online mode.
+    {
+        if (ui->tabW_online->currentIndex() == 2)
+        {
+            if (remote_controller == 3 && debugMapCoord.size() > 0)
+            {
+                inum = qf.getLastMap();
+                if (inum == 0)
+                {
+                    clickCoord[0] += labelMapsDx + debugMapCoord[0][0];
+                    clickCoord[1] += labelMapsDy + debugMapCoord[0][1];
+                    if (ui->checkB_override->isChecked())
+                    {
+                        qf.debugMapSelected(ui->label_maps, clickCoord, debugMapCoord);
+                        promptUpdate = { "", "", jf.stringifyCoord(clickCoord) };
+                        sb.set_prompt(promptUpdate);
+                        advBuffer = 1;
+                        remote_controller = 1;
+                        ui->pB_pause->setEnabled(1);
+                        ui->pB_resume->setEnabled(0);
+                        ui->pB_backspace->setEnabled(0);
+                        ui->checkB_override->setChecked(0);
+                    }
+                    else
+                    {
+                        for (int ii = 1; ii < debugMapCoord.size(); ii++)
+                        {
+                            dist = jf.coordDist(clickCoord, debugMapCoord[ii]);
+                            if (dist < 5.0)
+                            {
+                                qf.debugMapSelected(ui->label_maps, ii, debugMapCoord);
+                                promptUpdate = { "", jf.stringifyCoord(debugMapCoord[ii]) };
+                                sb.set_prompt(promptUpdate);
+                                remote_controller = 0;
+                                ui->pB_pause->setEnabled(1);
+                                ui->pB_resume->setEnabled(0);
+                                ui->pB_backspace->setEnabled(0);
+                                break;
+                            }
+                        }
+                    }
+                }
+                else if (inum == 1)
+                {
+                    clickCoord[0] += labelMapsDx;
+                    clickCoord[1] += labelMapsDy;
+                    promptUpdate = { jf.stringifyCoord(clickCoord) };
+                    qDebug() << "Click: " << QString::fromStdString(promptUpdate[0]);
+                }
+            }
+            else if (ui->checkB_eraser->isChecked())
+            {
+                clickCoord[0] += labelMapsDx;
+                clickCoord[1] += labelMapsDy;
+                vector<vector<int>> TLBR(2, vector<int>(2));
+                TLBR[0] = clickCoord;
+                TLBR[1][0] = TLBR[0][0] + widthEraser;
+                TLBR[1][1] = TLBR[0][1] + widthEraser;
+                qf.eraser(ui->label_maps, TLBR);
+                countEraser++;
+                ui->pB_undo->setEnabled(1);
+                ui->pB_savemap->setEnabled(1);
+            }
+        }
+    }
+}
+
+
 // GUI UPDATE FUNCTIONS
 void MainWindow::update_treeW_cataindb()
 {
@@ -362,6 +460,9 @@ void MainWindow::update_mode()
         ui->pB_advance->setVisible(0);
         ui->pB_backspace->setVisible(0);
         ui->pte_advance->setVisible(0);
+        ui->pB_undo->setVisible(0);
+        ui->pB_savemap->setVisible(0);
+        ui->pB_deletemap->setVisible(0);
         ui->pB_usc->setVisible(0);
         ui->pB_test->setVisible(0);
         ui->pte_webinput->setVisible(0);
@@ -399,6 +500,9 @@ void MainWindow::update_mode()
         ui->pB_pause->setVisible(1);
         ui->pB_advance->setVisible(1);
         ui->pB_backspace->setVisible(1);
+        ui->pB_undo->setVisible(1);
+        ui->pB_savemap->setVisible(1);
+        ui->pB_deletemap->setVisible(1);
         ui->pB_usc->setVisible(1);
         ui->pB_test->setVisible(1);
         ui->pte_webinput->setVisible(1);
@@ -427,91 +531,6 @@ void MainWindow::update_mode()
 
 
 // GUI-SPECIFIC FUNCTIONS, WITH ASSOCIATED MANAGER AND WORKER FUNCTIONS:
-
-// Mouse functions.
-void MainWindow::mousePressEvent(QMouseEvent* event)
-{
-    QPoint pointClick;
-    vector<int> clickCoord(2);
-    vector<string> promptUpdate;
-    double dist;
-    int inum;
-    if (event->button() == Qt::LeftButton)
-    {
-        pointClick = event->position().toPoint();
-        clickCoord[0] = pointClick.x();
-        clickCoord[1] = pointClick.y();
-    }
-    else if (event->button() == Qt::MiddleButton)
-    {
-        ui->checkB_override->setChecked(1);
-        pointClick = event->position().toPoint();
-        clickCoord[0] = pointClick.x();
-        clickCoord[1] = pointClick.y();
-    }
-    if (active_mode == 1)
-    {
-        if (ui->tabW_online->currentIndex() == 2)
-        {
-            if (remote_controller == 3 && debugMapCoord.size() > 0)
-            {
-                inum = qf.getLastMap();
-                if (inum == 0)
-                {
-                    clickCoord[0] += labelMapsDx + debugMapCoord[0][0];
-                    clickCoord[1] += labelMapsDy + debugMapCoord[0][1];
-                    if (ui->checkB_override->isChecked())
-                    {
-                        qf.debugMapSelected(ui->label_maps, clickCoord, debugMapCoord);
-                        promptUpdate = { "", "", jf.stringifyCoord(clickCoord) };
-                        sb.set_prompt(promptUpdate);
-                        advBuffer = 1;
-                        remote_controller = 1;
-                        ui->pB_pause->setEnabled(1);
-                        ui->pB_resume->setEnabled(0);
-                        ui->pB_backspace->setEnabled(0);
-                        ui->checkB_override->setChecked(0);
-                    }
-                    else
-                    {
-                        for (int ii = 1; ii < debugMapCoord.size(); ii++)
-                        {
-                            dist = jf.coordDist(clickCoord, debugMapCoord[ii]);
-                            if (dist < 5.0)
-                            {
-                                qf.debugMapSelected(ui->label_maps, ii, debugMapCoord);
-                                promptUpdate = { "", jf.stringifyCoord(debugMapCoord[ii]) };
-                                sb.set_prompt(promptUpdate);
-                                remote_controller = 0;
-                                ui->pB_pause->setEnabled(1);
-                                ui->pB_resume->setEnabled(0);
-                                ui->pB_backspace->setEnabled(0);
-                                break;
-                            }
-                        }
-                    }
-                }
-                else if (inum == 1)
-                {
-                    clickCoord[0] += labelMapsDx;
-                    clickCoord[1] += labelMapsDy;
-                    promptUpdate = { jf.stringifyCoord(clickCoord) };
-                    qDebug() << "Click: " << QString::fromStdString(promptUpdate[0]);
-                }
-            }
-            else if (ui->checkB_eraser->isChecked())
-            {
-                clickCoord[0] += labelMapsDx;
-                clickCoord[1] += labelMapsDy;
-                vector<vector<int>> TLBR(2, vector<int>(2));
-                TLBR[0] = clickCoord;
-                TLBR[1][0] = TLBR[0][0] + widthEraser;
-                TLBR[1][1] = TLBR[0][1] + widthEraser;
-                qf.eraser(ui->label_maps, TLBR);
-            }
-        }
-    }
-}
 
 // For the given local drive, display (as a tree widget) the available catalogues, organized by year.
 void MainWindow::on_pB_scan_clicked()
@@ -2333,6 +2352,7 @@ void MainWindow::on_pB_convert_clicked()
     QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
     QTreeWidgetItem* qNode = nullptr, *qParent = nullptr;
     if (qlist.size() < 1) { return; }
+    selectedMapFolder = qf.makePathTree(qlist[0]);
     QString qtemp = qlist[0]->text(1), qMessage;
     string temp, folderPath;
     if (qtemp == "")  // Folder selected.
@@ -2895,7 +2915,7 @@ void MainWindow::makeTempASCII(string folderPath)
     {
         temp = jf.load(hearthstonePath.c_str());
         hearthstoneFile = jf.utf8ToAscii(temp);
-        pos1 = 3;  // BOM!
+        pos1 = hearthstoneFile.find_first_of("QWERTYUIOPASDFGHJKLZXCVBNM");
         pos2 = hearthstoneFile.find('$', pos1);
         while (pos2 < hearthstoneFile.size())
         {
@@ -2970,6 +2990,50 @@ void MainWindow::on_pB_correct_clicked()
     vector<string> listBin = wf.get_file_list(selectedMapFolder, search);
     qf.displayBinList(ui->listW_bindone, listBin);
 }
+void MainWindow::on_pB_undo_clicked()
+{
+    qf.undoEraser(ui->label_maps);
+    countEraser--;
+    if (countEraser < 1)
+    {
+        ui->pB_undo->setEnabled(0);
+        ui->pB_savemap->setEnabled(0);
+    }
+    ui->tabW_online->setCurrentIndex(2);
+}
+void MainWindow::on_pB_savemap_clicked()
+{
+    QString qtemp;
+    string mapBinPath, temp;
+    vector<string> dirt = { "mapsPNG" };
+    vector<string> soap = { "mapsBIN" };
+    QList<QListWidgetItem*> qlist = ui->listW_bindone->selectedItems();
+    if (qlist.size() == 1)
+    {
+        qtemp = qlist[0]->text();
+        temp = qtemp.toUtf8();
+        mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
+        jf.clean(mapBinPath, dirt, soap);
+        qf.printEditedMap(mapBinPath);
+    }
+}
+void MainWindow::on_pB_deletemap_clicked()
+{
+    QString qtemp;
+    string mapBinPath, temp;
+    vector<string> dirt = { "mapsPNG" };
+    vector<string> soap = { "mapsBIN" };
+    QList<QListWidgetItem*> qlist = ui->listW_bindone->selectedItems();
+    if (qlist.size() == 1)
+    {
+        qtemp = qlist[0]->text();
+        temp = qtemp.toUtf8();
+        mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
+        jf.clean(mapBinPath, dirt, soap);
+        wf.delete_file(mapBinPath);
+        on_pB_correct_clicked();
+    }
+}
 
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
@@ -3033,6 +3097,33 @@ void MainWindow::on_pB_test_clicked()
             }         
         }
         int bbq = 1;
+        break;
+    }
+    case 3:  // For every bin map in the selected folder, convert frame coords to ints.
+    {
+        QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
+        if (qlist.size() != 1) { return; }
+        string folderPath = qf.getBranchPath(qlist[0], sroot);
+        string search = "*.bin", pathBin, sfile;
+        vector<string> listBinName = wf.get_file_list(folderPath, search);
+        size_t pos1, pos2;
+        for (int ii = 0; ii < listBinName.size(); ii++)
+        {
+            pathBin = folderPath + "\\" + listBinName[ii];
+            sfile = jf.load(pathBin);
+            pos1 = 0;
+            for (int jj = 0; jj < 4; jj++)
+            {
+                pos1 = sfile.find('.', pos1 + 1);
+                if (pos1 > sfile.size()) { break; }
+                pos2 = sfile.find(',', pos1);
+                sfile.erase(pos1, pos2 - pos1);
+                pos1 = sfile.find('.', pos1);
+                pos2 = sfile.find_first_of("\r\n", pos1);
+                sfile.erase(pos1, pos2 - pos1);
+            }
+            jf.printer(pathBin, sfile);
+        }
         break;
     }
     }
@@ -3192,15 +3283,23 @@ void MainWindow::on_treeW_maps_itemSelectionChanged()
 void MainWindow::on_listW_bindone_itemSelectionChanged()
 {
     QString qtemp;
-    string mapBinPath;
+    string mapBinPath, temp;
+    vector<string> dirt = { "mapsPNG" };
+    vector<string> soap = { "mapsBIN" };
     QList<QListWidgetItem*> qlist = ui->listW_bindone->selectedItems();
     if (qlist.size() == 1)
     {
          qtemp = qlist[0]->text();
-         mapBinPath = selectedMapFolder + "\\" + qtemp.toStdString() + ".bin";
+         temp = qtemp.toUtf8();
+         mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
+         jf.clean(mapBinPath, dirt, soap);
          qf.displayBin(ui->label_maps, mapBinPath);
     }
+    countEraser = 0;
     ui->tabW_online->setCurrentIndex(2);
+    ui->pB_undo->setEnabled(0);
+    ui->pB_savemap->setEnabled(0);
+    ui->pB_deletemap->setEnabled(1);
 }
 void MainWindow::on_listW_statscan_itemSelectionChanged()
 {

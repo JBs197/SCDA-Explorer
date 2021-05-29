@@ -450,11 +450,11 @@ void IMGFUNC::drawMarker(vector<unsigned char>& img, vector<int>& vCoord)
         }
     }
 }
-vector<vector<double>> IMGFUNC::frameCorners()
+vector<vector<int>> IMGFUNC::frameCorners()
 {
     vector<string> sZones = { "white", "black" };
     vector<string> sZonesReverse = { "black", "white" };
-    vector<vector<double>> corners(4, vector<double>(2));
+    vector<vector<int>> corners(4, vector<int>(2));
     vector<vector<int>> vVictor(2, vector<int>(2));
     vVictor[0] = { 0, height / 2 };
     vVictor[1] = { 1, 0 };
@@ -462,23 +462,19 @@ vector<vector<double>> IMGFUNC::frameCorners()
     vVictor[0] = { vvTemp[1][0], height / 2 };
     vVictor[1] = { 0, -1 };
     vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
-    corners[0][0] = (double)vvTemp[0][0];
-    corners[0][1] = (double)vvTemp[0][1];
+    corners[0] = vvTemp[0];
     vVictor[0] = vvTemp[0];
     vVictor[1] = { 1, 0 };
     vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
-    corners[1][0] = (double)vvTemp[0][0];
-    corners[1][1] = (double)vvTemp[0][1];
+    corners[1] = vvTemp[0];
     vVictor[0] = vvTemp[0];
     vVictor[1] = { 0, 1 };
     vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
-    corners[2][0] = (double)vvTemp[0][0];
-    corners[2][1] = (double)vvTemp[0][1];
+    corners[2] = vvTemp[0];
     vVictor[0] = vvTemp[0];
     vVictor[1] = { -1, 0 };
     vvTemp = zoneChangeLinear(sZonesReverse, vVictor);
-    corners[3][0] = (double)vvTemp[0][0];
-    corners[3][1] = (double)vvTemp[0][1];
+    corners[3] = vvTemp[0];
     return corners;
 }
 vector<unsigned char> IMGFUNC::getColour(string sColour)
@@ -1119,18 +1115,15 @@ void IMGFUNC::pngLoad(string& pathPNG)
 }
 void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
 {
-    // Returns the border path generated, for easy display/human review.
+    // Creates a "bin map" file, which is a list of coordinates describing a region border.
     if (!mapIsInit()) { initMapColours(); }
     pngLoad(pathPNG);
-    string temp;
     string pathMapPTB = sroot + "\\debug\\PTB.png";
     string pathMapPTBdebug = sroot + "\\debug\\PTBdebug.png";
     vector<string> vsTemp;
     vector<int> viTemp;
-    vector<vector<double>> corners = frameCorners();
-    vector<vector<int>> vBorderPath(1, vector<int>());
+    vector<vector<int>> vBorderPath(1, vector<int>()), tracks, commGui;
     vBorderPath[0] = borderFindStart();
-    vector<vector<int>> tracks, commGui;
     thread::id myid = this_thread::get_id();
     vector<int> myComm = sbgui.getMyComm(myid);
     int inum;
@@ -1222,22 +1215,7 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
             pathMapDebug = pathMapPTBdebug;
         }
     }
-
-    ofstream sPrinter(pathBIN.c_str(), ios::trunc);
-    auto report = sPrinter.rdstate();
-    sPrinter << "//frame" << endl;
-    for (int ii = 0; ii < corners.size(); ii++)
-    {
-        sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
-    }
-    sPrinter << endl;
-
-    sPrinter << "//border" << endl;
-    for (int ii = 0; ii < vBorderPath.size(); ii++)
-    {
-        sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
-    }
-    sPrinter.close();
+    printBinMap(pathBIN, vBorderPath);
 }
 void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
 {
@@ -1251,7 +1229,9 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
 
     if (!mapIsInit()) { initMapColours(); }
     pngLoad(prompt[0]);
-    vector<vector<double>> corners = frameCorners();
+    vector<vector<int>> corners = frameCorners();
+    vector<vector<double>> cornersD;
+    jf.toDouble(corners, cornersD);
     size_t pos1 = prompt[2].find(',');
     string temp = prompt[2].substr(0, pos1);
     string temp2 = prompt[2].substr(pos1 + 1);
@@ -1275,7 +1255,7 @@ void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
     success = sbgui.push(myid);
     if (success)
     {
-        border = corners;
+        border = cornersD;
         border.push_back({ stretchFactor });
         success = sbgui.done(myid);
         if (!success) { jf.err("sbgui.done-im.pngToBinLive"); }
@@ -1374,6 +1354,25 @@ void IMGFUNC::pngToBinPause(SWITCHBOARD& sbgui)
     }
     myComm[0] = 0;
     sbgui.update(myid, myComm);
+}
+void IMGFUNC::printBinMap(string& pathBIN, vector<vector<int>>& vBorderPath)
+{
+    vector<vector<int>> corners = frameCorners();
+    ofstream sPrinter(pathBIN.c_str(), ios::trunc);
+    auto report = sPrinter.rdstate();
+    sPrinter << "//frame" << endl;
+    for (int ii = 0; ii < corners.size(); ii++)
+    {
+        sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
+    }
+    sPrinter << endl;
+
+    sPrinter << "//border" << endl;
+    for (int ii = 0; ii < vBorderPath.size(); ii++)
+    {
+        sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
+    }
+    sPrinter.close();
 }
 void IMGFUNC::removeColourCushion(vector<vector<unsigned char>>& Lrgb, vector<unsigned char> colourCore, vector<unsigned char> colourCushion, int length)
 {
