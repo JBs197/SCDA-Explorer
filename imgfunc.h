@@ -72,6 +72,7 @@ class IMGFUNC
 public:
 	explicit IMGFUNC() {}
 	~IMGFUNC() {}
+    int areaRect(vector<vector<int>> TLBR);
 	vector<int> borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks);
 	vector<int> borderFindStart();
     void buildFont(string filePath);
@@ -84,9 +85,14 @@ public:
     vector<vector<int>> frameCorners();
     vector<unsigned char> getColour(string sColour);
     int getDotWidth();
+    vector<vector<int>> getFrame(vector<vector<int>> vVictor, vector<string> inOut);
     string getMapPath(int mode);
+    double getPPKM(string& pathTXT, int scalePixels);
     int getQuadrant(vector<vector<int>>& startStop);
+    int getScalePixels(vector<vector<int>> TLBR);
+    vector<int> getSourceDim();
     double getStretchFactor(string& widthHeight);
+    vector<vector<int>> getTLBR(vector<vector<int>> corners);
     void initGlyph(string& filePath, int ascii);
 	void initMapColours();
 	bool isInit();
@@ -97,16 +103,17 @@ public:
     void loadRecentSavePoint(vector<vector<int>>& vBorderPath);
     bool mapIsInit();
     vector<vector<int>> minMaxPath2D(vector<vector<int>>& path);
+    vector<int> normalForce(vector<int> origin, string sZone);
     void octogonCheckBoundary(vector<vector<int>>& octoPath, vector<int>& sourceDim, int pathSpace);
     vector<vector<int>> octogonPath(vector<int> origin, int radius);
     void pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int radius, vector<vector<int>>& candidates);
     string pixelDecToHex(vector<unsigned char>& rgb);
 	void pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsigned char> rgb, vector<int> coord);
-	vector<unsigned char> pixelRGB(vector<int>& coord);
 	string pixelZone(vector<unsigned char>& rgb);
     vector<unsigned char> pngBlankCanvas(vector<int>& dim);
     vector<unsigned char> pngExtractRow(int row, vector<unsigned char>& img, vector<int>& sourceDim);
 	void pngLoad(string& pathPNG);
+    vector<vector<vector<int>>> pngThreeFrames();
     void pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN);
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinPause(SWITCHBOARD& sbgui);
@@ -125,7 +132,6 @@ public:
     vector<int> testZoneLength(vector<vector<int>>& pastPresent, vector<vector<int>>& candidates, string sZone);
     int testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate);
     void thrMakeMapPTB(vector<vector<int>> vBorderPath, string outputPath, vector<unsigned char> source, vector<int> sourceDim);
-    //void thrMakeMapPTBdebug(vector<unsigned char>& source, vector<vector<int>> tracks, int radius, vector<vector<int>> candidates, string pathImg);
     vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
     double zoneSweepPercentage(string sZone, vector<vector<unsigned char>>& Lrgb);
 
@@ -1903,6 +1909,29 @@ public:
         {
             dotPaint(path[ii], rgb, img, sourceDim[0], widthPixel);
         }
+    }
+
+    template<typename ... Args> vector<unsigned char> pixelRGB(vector<int> coord, Args& ... args)
+    {
+        jf.err("pixelRGB template-im");
+    }
+    template<> vector<unsigned char> pixelRGB< >(vector<int> coord)
+    {
+        vector<int> sourceDim = { width, height };
+        vector<unsigned char> rgb = pixelRGB(coord, dataPNG, sourceDim);
+        return rgb;
+    }
+    template<> vector<unsigned char> pixelRGB<vector<unsigned char>, vector<int>>(vector<int> coord, vector<unsigned char>& sourceImg, vector<int>& sourceDim)
+    {
+        if (sourceImg.size() < 1) { jf.err("No supplied image-im.pixelRGB"); }
+        if (coord[0] < 0 || coord[0] >= sourceDim[0]) { jf.err("xCoord out of bounds-im.pixelRGB"); }
+        if (coord[1] < 0 || coord[1] >= sourceDim[1]) { jf.err("yCoord out of bounds-im.pixelRGB"); }
+        vector<unsigned char> rgb(3);
+        int offset = getOffset(coord, sourceDim[0]);
+        rgb[0] = sourceImg[offset + 0];
+        rgb[1] = sourceImg[offset + 1];
+        rgb[2] = sourceImg[offset + 2];
+        return rgb;
     }
 
     template<typename ... Args> void pngAppendText(Args& ... args)

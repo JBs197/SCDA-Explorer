@@ -11,9 +11,10 @@ string JFUNC::asciiToUTF8(string input)
 	{
 		if (input[ii] < 0)
 		{
-			output[ii + offset] = input[ii] - 64;
-			output.insert(output.begin() + ii + offset, -61);
+			output[ii + offset] = -61;
+			output[ii + offset + 1] = input[ii] - 64;
 			offset++;
+			output.resize(sizeInput + offset);
 		}
 		else
 		{
@@ -228,9 +229,7 @@ string JFUNC::load(string filePath)
 	// Load a file into memory as a string.
 
 	wstring wFP = asciiToUTF16(filePath);
-	locale utf8 = locale("en_US.UTF8");
 	wifstream wLoad;
-	//wLoad.imbue(utf8);
 	wLoad.open(wFP, wifstream::binary);
 	auto report = wLoad.rdstate();
 	if (report) { err("wifstream open-jf.load"); }
@@ -240,6 +239,7 @@ string JFUNC::load(string filePath)
 	wstring wTemp;
 	wTemp.resize(len);
 	wLoad.read(&wTemp[0], len);
+	wLoad.close();
 	while (wTemp[0] == 239 && wTemp[1] == 187 && wTemp[2] == 191)
 	{
 		wTemp.erase(wTemp.begin(), wTemp.begin() + 3);
@@ -532,6 +532,35 @@ string JFUNC::timestamper()
 	}
 	return timestamp;
 }
+void JFUNC::turnClockwise(vector<int>& dxdy)
+{
+	int magnitude;
+	if (dxdy[1] < 0)  // Normal force is northward, so travel eastward.
+	{
+		if (dxdy[0] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		magnitude = -1 * dxdy[1];
+		dxdy = { magnitude, 0 };
+	}
+	else if (dxdy[0] > 0)  // Normal force is eastward, so travel southward.
+	{
+		if (dxdy[1] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		magnitude = dxdy[0];
+		dxdy = { 0, magnitude };
+	}
+	else if (dxdy[1] > 0)  // Normal force is southward, so travel westward.
+	{
+		if (dxdy[0] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		magnitude = dxdy[1];
+		dxdy = { -1 * magnitude, 0 };
+	}
+	else if (dxdy[0] < 0)  // Normal force is westward, so travel northward.
+	{
+		if (dxdy[1] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		magnitude = dxdy[0];
+		dxdy = { 0, magnitude };
+	}
+	else { err("Cannot determine input direction-jf.turnClockwise"); }
+}
 int JFUNC::tree_from_marker(vector<vector<int>>& tree_st, vector<string>& tree_pl)
 {
 	// Starting from a list of strings containing separation markers, parse each line of that list into
@@ -734,23 +763,30 @@ string JFUNC::utf8ToAscii(string input)
 void JFUNC::UTF16clean(wstring& ws)
 {
 	wchar_t wChar;
-	size_t len = 2;
+	bool fixme = 0;
+	size_t len = 2, sample = 4;
 	wstring wTemp;
 	for (size_t ii = 0; ii < ws.size() - 1; ii++)
 	{
 		if (ws[ii] == 195)
 		{
-			wTemp.assign(ws.begin() + ii, ws.begin() + ii + 5);
-			if (wTemp[2] == 194)
+			if (ii + sample >= ws.size()) 
+			{
+				sample = ws.size() - ii - 1; 
+				fixme = 1;
+			}
+			wTemp.assign(ws.begin() + ii, ws.begin() + ii + sample);
+			if (fixme == 0 && wTemp[2] == 194)
 			{
 				ws[ii] = wTemp[3] + 64;
-				ws.erase(ws.begin() + ii + 1, ws.begin() + ii + 4);
+				ws.erase(ws.begin() + ii + 1, ws.begin() + ii + sample);
 			}
 			else
 			{
 				ws[ii] = ws[ii + 1] + 64;
 				ws.erase(ws.begin() + ii + 1);
 			}
+			if (fixme) { sample = 4; fixme = 0; }
 		}
 	}
 }

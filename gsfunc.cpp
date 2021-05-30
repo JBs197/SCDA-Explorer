@@ -28,4 +28,14 @@ void GSFUNC::pdfToPng(string& pdfPath, string& pngPath)
 	int oGS = (int)openGS;
 	int bbq = 1;
 }
+void GSFUNC::pdfToTxt(string& pdfPath, string& txtPath)
+{
+	wstring wPDF = jf.asciiToUTF16(pdfPath);
+	wstring wTXT = jf.asciiToUTF16(txtPath);
+	wstring params = L"-dNOPAUSE -sDEVICE=txtwrite ";
+	params += L"-o \"" + wTXT + L"\" \"" + wPDF + L"\"";
+	HINSTANCE openGS = ShellExecuteW(NULL, L"open", gsPath.c_str(), params.c_str(), NULL, SW_SHOWNORMAL);
+	int oGS = (int)openGS;
+	int bbq = 1;
+}
 

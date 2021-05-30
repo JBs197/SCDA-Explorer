@@ -69,6 +69,7 @@ public:
 	long long timerRestart();
 	long long timerStop();
 	string timestamper();
+	void turnClockwise(vector<int>& dxdy);
 	int tree_from_marker(vector<vector<int>>&, vector<string>&);
 	void unzip(string& zipPath);
 	string utf16to8(wstring);
@@ -145,32 +146,15 @@ public:
 	template<> int clean(string& bbq, vector<string> dirt)
 	{
 		int count = 0;
-		size_t pos1, pos2;
+		size_t pos1, len;
 		for (int ii = 0; ii < dirt.size(); ii++)
 		{
-			if (dirt[ii].size() == 1)
+			len = dirt[ii].size();
+			pos1 = bbq.find(dirt[ii]);
+			while (pos1 < bbq.size())
 			{
-				pos1 = bbq.find(dirt[ii][0]);
-				while (pos1 < bbq.size())
-				{
-					bbq.erase(pos1, 1);
-					pos1 = bbq.find(dirt[ii][0], pos1);
-				}
-			}
-			else if (dirt[ii].size() == 2)
-			{
-				pos1 = bbq.find(dirt[ii][0]);
-				while (pos1 < bbq.size())
-				{
-					pos2 = bbq.find(dirt[ii][1], pos1 + 1);
-					if (pos2 > bbq.size())
-					{
-						cerr << "ERROR: no closing parameter to delete interval-clean: " << dirt[ii] << endl;
-						cin.get();
-					}
-					bbq.erase(pos1, pos2 - pos1 + 1);
-					pos1 = bbq.find(dirt[ii][0], pos1);
-				}
+				bbq.erase(pos1, len);
+				pos1 = bbq.find(dirt[ii], pos1);
 			}
 		}
 

@@ -3038,7 +3038,7 @@ void MainWindow::on_pB_deletemap_clicked()
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 0;
+    int mode = 6;
 
     switch (mode)
     {
@@ -3124,6 +3124,124 @@ void MainWindow::on_pB_test_clicked()
             }
             jf.printer(pathBin, sfile);
         }
+        break;
+    }
+    case 4:  // For every bin map in the selected folder, update its frames to include scale and position.
+    {
+        QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
+        if (qlist.size() != 1) { return; }
+        string folderPath = qf.getBranchPath(qlist[0], sroot);
+        string search = "*.bin", pathBin, pathPng, sfileOld, sfileNew, temp;
+        vector<string> dirt = { "mapsBIN", ".bin" };
+        vector<string> soap = { "mapsPNG", ".png" };
+        vector<string> otherDirt = { "\r", "\u00E9", "\u00CE", "\u00C9" };
+        vector<string> listBinName = wf.get_file_list(folderPath, search);
+        string folderPathPNG = folderPath;
+        jf.clean(folderPathPNG, dirt, soap);
+        makeTempASCII(folderPathPNG);
+        size_t pos1, pos2;
+        vector<vector<vector<int>>> threeFrames;
+        for (int ii = 0; ii < listBinName.size(); ii++)
+        {
+            pathBin = folderPath + "\\" + listBinName[ii];
+            sfileOld = jf.load(pathBin);
+            pos1 = sfileOld.find("//frames");
+            if (pos1 < sfileOld.size()) { continue; }
+            pathPng = pathBin;
+            jf.clean(pathPng, dirt, soap);
+            temp = jf.asciiToUTF8(pathPng);
+            jf.clean(temp, otherDirt);
+            pathPng = jf.utf8ToAscii(temp);
+            im.pngLoad(pathPng);
+            threeFrames = im.pngThreeFrames();
+            sfileNew = "//frames\n";
+            for (int jj = 0; jj < 3; jj++)
+            {
+                sfileNew += to_string(threeFrames[jj][0][0]) + ",";
+                sfileNew += to_string(threeFrames[jj][0][1]) + "@";
+                sfileNew += to_string(threeFrames[jj][1][0]) + ",";
+                sfileNew += to_string(threeFrames[jj][1][1]) + "\n";
+            }
+            sfileNew += "\n";
+            pos1 = sfileOld.find("//border");
+            pos2 = sfileOld.rfind(',');
+            pos2 = sfileOld.find("\n", pos2) + 1;
+            temp = sfileOld.substr(pos1, pos2 - pos1);
+            sfileNew.append(temp);
+            jf.printer(pathBin, sfileNew);
+        }
+        makeTempASCII(folderPathPNG);
+        break;
+    }
+    case 5:  // For every pdf map in the selected folder, extract its text. 
+    {
+        QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
+        if (qlist.size() != 1) { return; }
+        string folderPath = qf.getBranchPath(qlist[0], sroot);
+        string search = "*.pdf", pathPdf, pathTxt, sfileOld, sfileNew, temp;
+        vector<string> dirt = { ".pdf" };
+        vector<string> soap = { ".txt" };
+        vector<string> otherDirt = { "\r", "\u00E9", "\u00CE", "\u00C9" };
+        vector<string> listPdfName = wf.get_file_list(folderPath, search);
+        for (int ii = 0; ii < listPdfName.size(); ii++)
+        {
+            pathPdf = folderPath + "\\" + listPdfName[ii];
+            pathTxt = pathPdf;
+            jf.clean(pathTxt, dirt, soap);
+            gf.pdfToTxt(pathPdf, pathTxt);
+        }
+        break;
+    }
+    case 6:  // For every bin map in the selected folder, add a section for scale (pixels per kilometer).
+    {
+        QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
+        if (qlist.size() != 1) { return; }
+        string folderPath = qf.getBranchPath(qlist[0], sroot);
+        string search = "*.bin", pathBIN, pathPNG, pathTXT, sfileOld, sfileNew, temp, utf8;
+        vector<string> listBinName = wf.get_file_list(folderPath, search), dirt, soap;
+        size_t pos1, pos2;
+        int scalePixels;
+        double PPKM;
+        vector<string> otherDirt = { "\u00E9", "\u00CE", "\u00C9", "\u00E8" };
+        vector<vector<vector<int>>> threeFrames;
+        for (int ii = 0; ii < listBinName.size(); ii++)
+        {
+            pathBIN = folderPath + "\\" + listBinName[ii];
+            sfileOld = jf.load(pathBIN);
+            pos1 = sfileOld.find("//frames(");
+            if (pos1 < sfileOld.size()) { continue; }
+            sfileNew = "//frames(topLeft@botRight, showing 'maps', 'scale', 'position')\n";
+            pos1 = sfileOld.find("//frames") + 8;
+            pos1 = sfileOld.find_first_of("1234567890", pos1);
+            pos2 = sfileOld.find("//", pos1);
+            pos2 = sfileOld.find_last_of("1234567890", pos2) + 1;
+            temp = sfileOld.substr(pos1, pos2 - pos1);
+            sfileNew += temp + "\n\n";
+            sfileNew += "//scale(pixels per km)\n";
+            dirt = { "mapsBIN", ".bin" };
+            soap = { "mapsPNG", ".png" };
+            pathPNG = pathBIN;
+            jf.clean(pathPNG, dirt, soap);
+            utf8 = jf.asciiToUTF8(pathPNG);
+            jf.clean(utf8, otherDirt);
+            pathPNG = jf.utf8ToAscii(utf8);
+            im.pngLoad(pathPNG);
+            threeFrames = im.pngThreeFrames();
+            scalePixels = im.getScalePixels(threeFrames[1]);
+            soap = { "mapsPDF", ".txt" };
+            pathTXT = pathBIN;
+            jf.clean(pathTXT, dirt, soap);
+            PPKM = im.getPPKM(pathTXT, scalePixels);
+            sfileNew += to_string(PPKM) + "\n\n";
+            sfileNew += "//border\n";
+            pos1 = sfileOld.find("//border");
+            pos1 = sfileOld.find_first_of("1234567890", pos1);
+            pos2 = sfileOld.find_last_of("1234567890") + 1;
+            sfileNew += sfileOld.substr(pos1, pos2 - pos1);
+            sfileNew += "\n";
+            jf.printer(pathBIN, sfileNew);
+        }
+
         break;
     }
     }

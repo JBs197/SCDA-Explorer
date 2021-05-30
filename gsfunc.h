@@ -15,6 +15,6 @@ public:
 	~GSFUNC() {}
 	void folderConvert(string& dirPDF);
 	void pdfToPng(string& pdfPath, string& pngPath);
-
+	void pdfToTxt(string& pdfPath, string& txtPath);
 };
 

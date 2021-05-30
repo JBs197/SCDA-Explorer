@@ -1,5 +1,11 @@
 #include "imgfunc.h"
 
+int IMGFUNC::areaRect(vector<vector<int>> TLBR)
+{
+    int area = (TLBR[1][0] - TLBR[0][0]) * (TLBR[1][1] - TLBR[0][1]);
+    if (area < 0) { jf.err("Negative area-im.areaRect"); }
+    return area;
+}
 vector<int> IMGFUNC::borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks)
 {
     string pathImg = sroot + "\\debug\\borderFindNextDebug.png";
@@ -497,6 +503,45 @@ int IMGFUNC::getDotWidth()
 {
     return defaultDotWidth;
 }
+vector<vector<int>> IMGFUNC::getFrame(vector<vector<int>> vVictor, vector<string> inOut)
+{
+    // Returns the TLBR for the frame coloured inOut[1] against a background of inOut[0]. 
+    // Travels along the path vVictor, which has form [origin, direction][coords].
+    vector<string> outIn = { inOut[1], inOut[1] };
+    vector<vector<int>> crossing = zoneChangeLinear(inOut, vVictor);
+    string sZone = "white";
+    vector<int> dxdy = normalForce(crossing[1], sZone);
+    if (dxdy[0] > 0) { dxdy[0] = 1; }
+    else if (dxdy[0] < 0) { dxdy[0] = -1; }
+    if (dxdy[1] > 0) { dxdy[1] = 1; }
+    else if (dxdy[1] < 0) { dxdy[1] = -1; }
+    jf.turnClockwise(dxdy);
+    vVictor[0] = crossing[1];
+    vVictor[1] = dxdy;
+    int inum;
+    vector<unsigned char> rgb;
+    vector<vector<int>> corners(4, vector<int>(2));
+    for (int ii = 0; ii < 4; ii++)
+    {
+        crossing = zoneChangeLinear(outIn, vVictor);
+        rgb = pixelRGB(crossing[1]);
+        inum = rgb[0] + rgb[1] + rgb[2];
+        if (inum > 382)  // Closer to white than black.
+        {
+            corners[ii] = crossing[0];
+        }
+        else  // Closer to black than white.
+        {
+            corners[ii] = crossing[1];
+        }
+        vVictor[0] = corners[ii];
+        jf.turnClockwise(vVictor[1]);
+        vVictor[0][0] += (2 * vVictor[1][0]);  // Jump over 2 pixels to avoid 
+        vVictor[0][1] += (2 * vVictor[1][1]);  // antialiasing problems.
+    }
+    vector<vector<int>> TLBR = getTLBR(corners);
+    return TLBR;
+}
 string IMGFUNC::getMapPath(int mode)
 {
     // Modes: 0 = cropped debug.
@@ -508,6 +553,42 @@ string IMGFUNC::getMapPath(int mode)
         break;
     }
     return path;
+}
+double IMGFUNC::getPPKM(string& pathTXT, int scalePixels)
+{
+    // Read a map's scale bar, and return the number of pixels per kilometer.
+    string sfile = jf.load(pathTXT), temp;
+    size_t pos2 = sfile.rfind("km"), pos1;
+    if (pos2 > sfile.size())
+    {
+    FTL1:
+        pos2 = sfile.rfind('m');
+        while (pos2 < sfile.size())
+        {
+            pos1 = sfile.find_last_not_of("1234567890", pos2 - 1) + 1;
+            if (pos2 - pos1 > 0) { break; }
+            pos2 = sfile.rfind('m', pos2 - 1);
+        }
+        if (pos2 > sfile.size()) { jf.err("Cannot find kilometer-im.getPPKM"); }
+        temp = sfile.substr(pos1, pos2 - pos1);
+    }
+    else
+    {
+        while (pos2 < sfile.size())
+        {
+            pos1 = sfile.find_last_not_of("1234567890", pos2 - 1) + 1;
+            if (pos2 - pos1 > 0) { break; }
+            pos2 = sfile.rfind("km", pos2 - 1);
+        }
+        if (pos2 > sfile.size()) { goto FTL1; }
+        temp = sfile.substr(pos1, pos2 - pos1);
+    }
+
+    int iKM;
+    try { iKM = stoi(temp); }
+    catch (invalid_argument& ia) { jf.err("stoi-im.getPPKM"); }    
+    double PPKM = (double)scalePixels / (double)iKM;  // Pixels Per Kilometer.
+    return PPKM;
 }
 int IMGFUNC::getQuadrant(vector<vector<int>>& startStop)
 {
@@ -539,6 +620,65 @@ int IMGFUNC::getQuadrant(vector<vector<int>>& startStop)
     }
     return -1;
 }
+int IMGFUNC::getScalePixels(vector<vector<int>> TLBR)
+{
+    // Determine the length (in pixels) that spans the scaling bar. 
+    int scaleLength, thickness = 0, count = 0;
+    bool black = 0;
+    vector<int> sourceDim = { width, height };
+    vector<int> extractDim = { TLBR[1][0] - TLBR[0][0], TLBR[1][1] - TLBR[0][1] };
+    vector<unsigned char> scaleFrame = pngExtractRectTopLeft(TLBR[0], dataPNG, sourceDim, extractDim);
+    vector<int> coord = { 0, extractDim[1] / 2 };
+    vector<unsigned char> rgb = pixelRGB(coord, scaleFrame, extractDim);
+    string sZone = pixelZone(rgb);
+    if (sZone != "black") { jf.err("Failed to measure wall thickness-im.getScalePixels"); }
+    while (sZone == "black")
+    {
+        thickness++;
+        coord[0]++;
+        rgb = pixelRGB(coord, scaleFrame, extractDim);
+        sZone = pixelZone(rgb);
+    }
+    thickness += 2;  // Compensating for antialiasing...
+    vector<int> olympicJump = { -1, -1 };  // Form [greatest length in pixels, row index].
+    for (int ii = thickness; ii < extractDim[1] - thickness; ii++)
+    {  // Thickness is here to exclude the black frame wall from the search.
+        for (int jj = 0; jj < extractDim[0]; jj++)
+        {
+            coord = { jj, ii };
+            rgb = pixelRGB(coord, scaleFrame, extractDim);
+            sZone = pixelZone(rgb);
+            if (sZone == "black")
+            {
+                if (black) { count++; }
+                else
+                {
+                    black = 1;
+                    count = 1;
+                }
+            }
+            else
+            {
+                if (black)
+                {
+                    black = 0;
+                    if (count > olympicJump[0])
+                    {
+                        olympicJump[0] = count;
+                        olympicJump[1] = ii;
+                    }
+                }
+            }
+        }
+    }
+    olympicJump[0] -= 2;  // Measuring from the 'middle' of each black notch on the scale bar.
+    return olympicJump[0];
+}
+vector<int> IMGFUNC::getSourceDim()
+{
+    vector<int> sd = { width, height };
+    return sd;
+}
 double IMGFUNC::getStretchFactor(string& widthHeight)
 {
     size_t pos1 = widthHeight.find(',');
@@ -562,6 +702,53 @@ double IMGFUNC::getStretchFactor(string& widthHeight)
         stretchFactor = 1.0 / heightDemSup;
     }
     return stretchFactor;
+}
+vector<vector<int>> IMGFUNC::getTLBR(vector<vector<int>> corners)
+{
+    vector<vector<int>> TLBR(2, vector<int>(2));
+    vector<int> minMax = { 2147483647, 2147483647 };
+    int index = -1;
+    for (int ii = 0; ii < 4; ii++)
+    {
+        if (corners[ii][0] < minMax[0])
+        {
+            minMax[0] = corners[ii][0]; 
+            minMax[1] = corners[ii][1];
+            index = ii;
+        }
+        else if (corners[ii][0] == minMax[0])
+        {
+            if (corners[ii][1] < minMax[1])
+            {
+                minMax[1] = corners[ii][1];
+                index = ii;
+            }
+        }
+    }
+    TLBR[0] = corners[index];
+    
+    minMax = { 0, 0 };
+    index = -1;
+    for (int ii = 0; ii < 4; ii++)
+    {
+        if (corners[ii][0] > minMax[0])
+        {
+            minMax[0] = corners[ii][0];
+            minMax[1] = corners[ii][1];
+            index = ii;
+        }
+        else if (corners[ii][0] == minMax[0])
+        {
+            if (corners[ii][1] > minMax[1])
+            {
+                minMax[1] = corners[ii][1];
+                index = ii;
+            }
+        }
+    }
+    TLBR[1] = corners[index];
+
+    return TLBR;
 }
 void IMGFUNC::initGlyph(string& filePath, int ascii)
 {
@@ -834,6 +1021,41 @@ vector<vector<int>> IMGFUNC::minMaxPath2D(vector<vector<int>>& path)
     }
     return TLBR;
 }
+vector<int> IMGFUNC::normalForce(vector<int> origin, string sZone)
+{
+    // Return the cardinal (N, E, S, W) direction { +- X, +- Y }
+    // along which we find the first sZone from origin. 
+    vector<int> compassDir = { 0, 0 };
+    vector<vector<int>> neswCoord(4, vector<int>(2));
+    vector<unsigned char> rgb;
+    int radius = 0;
+    string szone;
+    bool found = 0;
+    while (!found)
+    {
+        radius++;
+        neswCoord[0][0] = origin[0];
+        neswCoord[0][1] = origin[1] - radius;
+        neswCoord[1][0] = origin[0] + radius;
+        neswCoord[1][1] = origin[1];
+        neswCoord[2][0] = origin[0];
+        neswCoord[2][1] = origin[1] + radius;
+        neswCoord[3][0] = origin[0] - radius;
+        neswCoord[3][1] = origin[1];
+        for (int ii = 0; ii < 4; ii++)
+        {
+            rgb = pixelRGB(neswCoord[ii]);
+            szone = pixelZone(rgb);
+            if (szone == sZone)
+            {
+                found = 1;
+                compassDir[0] += neswCoord[ii][0] - origin[0];
+                compassDir[1] += neswCoord[ii][1] - origin[1];
+            }
+        }
+    }
+    return compassDir;
+}
 void IMGFUNC::octogonCheckBoundary(vector<vector<int>>& octoPath, vector<int>& sourceDim, int pathSpace)
 {
     // If a proposed octogon path (plus pathSpace) would go past the source image
@@ -1060,18 +1282,6 @@ void IMGFUNC::pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsign
     img[offset + 1] = rgb[1];
     img[offset + 2] = rgb[2];
 }
-vector<unsigned char> IMGFUNC::pixelRGB(vector<int>& coord)
-{
-	if (dataPNG.size() < 1) { jf.err("No loaded image-im.pixelRGB"); } 
-	if (coord[0] < 0 || coord[0] >= width) { jf.err("xCoord out of bounds-im.pixelRGB"); }
-    if (coord[1] < 0 || coord[1] >= height) { jf.err("yCoord out of bounds-im.pixelRGB"); }
-    vector<unsigned char> rgb(3);
-    int offset = getOffset(coord);
-	rgb[0] = dataPNG[offset + 0];
-	rgb[1] = dataPNG[offset + 1];
-	rgb[2] = dataPNG[offset + 2];
-	return rgb;
-}
 string IMGFUNC::pixelZone(vector<unsigned char>& rgb)
 {
     string szone;
@@ -1101,6 +1311,7 @@ vector<unsigned char> IMGFUNC::pngExtractRow(int row, vector<unsigned char>& img
 }
 void IMGFUNC::pngLoad(string& pathPNG)
 {
+    if (!mapIsInit()) { initMapColours(); }
 	unsigned char* dataTemp = stbi_load(pathPNG.c_str(), &width, &height, &numComponents, 0);
     if (dataTemp == NULL)
     {
@@ -1113,10 +1324,81 @@ void IMGFUNC::pngLoad(string& pathPNG)
     pathActivePNG = pathPNG;
     pauseVBP = defaultPathLengthImageDebug;
 }
+vector<vector<vector<int>>> IMGFUNC::pngThreeFrames()
+{
+    // For the active PNG map, extract the TLBR of its three frames 
+    // (map, scale, position). These frames always have a size hierarchy 
+    // map > scale > position. Output has form ...
+    // [map frame, scale frame, position frame][topLeft, botRight][coords].
+    
+    vector<vector<vector<int>>> threeFrames(3, vector<vector<int>>(2, vector<int>(2)));
+    vector<vector<vector<int>>> fourFrames(4, vector<vector<int>>(2, vector<int>(2)));
+    vector<vector<int>> vVictor;
+    vector<int> viTemp;
+    vector<vector<int>> areaFrame(4, vector<int>(2));  // Form [frame][area, index in threeFrames].
+    vector<string> inOut = { "white", "black" };
+    for (int ii = 0; ii < 4; ii++)
+    {
+        switch (ii)
+        {
+        case 0:
+            vVictor = { { 0, 0 }, { 1, 1 } };
+            break;
+        case 1:
+            vVictor = { { width - 1, 0 }, { -1, 1 } };
+            break;
+        case 2:
+            vVictor = { { width - 1, height - 1 }, { -1, -1 } };
+            break;
+        case 3:
+            vVictor = { { 0, height - 1 }, { 1, -1 } };
+            break;
+        }
+        fourFrames[ii] = getFrame(vVictor, inOut);
+        areaFrame[ii][0] = areaRect(fourFrames[ii]);
+        areaFrame[ii][1] = ii;
+    }
+    
+    // Sort the frames into the form [map, scale, position], and note the unwanted frame duplicate.
+    int count = 1;
+    while (count > 0)
+    {
+        count = 0;
+        for (int ii = 0; ii < 3; ii++)
+        {
+            if (areaFrame[ii + 1][0] > areaFrame[ii][0])
+            {
+                viTemp = areaFrame[ii];
+                areaFrame[ii] = areaFrame[ii + 1];
+                areaFrame[ii + 1] = viTemp;
+                count++;
+            }
+        }
+    }
+    int diff = 2147483647, index = -1;
+    for (int ii = 0; ii < 3; ii++)
+    {
+        if (areaFrame[ii][0] - areaFrame[ii + 1][0] < diff)
+        {
+            diff = areaFrame[ii][0] - areaFrame[ii + 1][0];
+            index = ii + 1;
+        }
+    }
+    if (index < 1 || index > 3) { jf.err("bad index-im.pngThreeFrames"); }
+
+    // Build and return the (map, scale, position) frame list.
+    count = 0;
+    for (int ii = 0; ii < 4; ii++)
+    {
+        if (ii == index) { continue; }
+        threeFrames[count] = fourFrames[areaFrame[ii][1]];
+        count++;
+    }
+    return threeFrames;
+}
 void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
 {
     // Creates a "bin map" file, which is a list of coordinates describing a region border.
-    if (!mapIsInit()) { initMapColours(); }
     pngLoad(pathPNG);
     string pathMapPTB = sroot + "\\debug\\PTB.png";
     string pathMapPTBdebug = sroot + "\\debug\\PTBdebug.png";
@@ -1214,7 +1496,7 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
             //ptb.detach();
             pathMapDebug = pathMapPTBdebug;
         }
-    }
+    }   
     printBinMap(pathBIN, vBorderPath);
 }
 void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
@@ -1357,22 +1639,29 @@ void IMGFUNC::pngToBinPause(SWITCHBOARD& sbgui)
 }
 void IMGFUNC::printBinMap(string& pathBIN, vector<vector<int>>& vBorderPath)
 {
-    vector<vector<int>> corners = frameCorners();
-    ofstream sPrinter(pathBIN.c_str(), ios::trunc);
-    auto report = sPrinter.rdstate();
-    sPrinter << "//frame" << endl;
-    for (int ii = 0; ii < corners.size(); ii++)
+    // Gather the data to be printed.
+    vector<vector<vector<int>>> threeFrames = pngThreeFrames();  // [map, scale, position][topLeft, botRight][coords].
+    int scalePixels = getScalePixels(threeFrames[1]);
+    vector<string> dirt = { "mapsBIN", ".bin" };
+    vector<string> soap = { "mapsPDF", ".txt" };
+    string pathTXT = pathBIN;
+    jf.clean(pathTXT, dirt, soap);
+    double PPKM = getPPKM(pathTXT, scalePixels);
+    
+    // Write the BIN map.
+    string mapBIN = "//frames(topLeft@botRight, showing 'maps', 'scale', 'position')\n";
+    for (int ii = 0; ii < threeFrames.size(); ii++)
     {
-        sPrinter << to_string(corners[ii][0]) << "," << to_string(corners[ii][1]) << endl;
+        mapBIN += to_string(threeFrames[ii][0][0]) + "," + to_string(threeFrames[ii][0][1]) + "@" + to_string(threeFrames[ii][1][0]) + "," + to_string(threeFrames[ii][1][1]) + "\n";
     }
-    sPrinter << endl;
-
-    sPrinter << "//border" << endl;
+    mapBIN += "\n//scale(pixels per km)\n";
+    mapBIN += to_string(PPKM) + "\n";
+    mapBIN += "\n//border\n";
     for (int ii = 0; ii < vBorderPath.size(); ii++)
     {
-        sPrinter << to_string(vBorderPath[ii][0]) << "," << to_string(vBorderPath[ii][1]) << endl;
+        mapBIN += to_string(vBorderPath[ii][0]) + "," + to_string(vBorderPath[ii][1]) + "\n";
     }
-    sPrinter.close();
+    jf.printer(pathBIN, mapBIN);
 }
 void IMGFUNC::removeColourCushion(vector<vector<unsigned char>>& Lrgb, vector<unsigned char> colourCore, vector<unsigned char> colourCushion, int length)
 {
@@ -1901,9 +2190,13 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
     // Form(ivec): [0][starting xCoord, starting yCoord], [1][delta x, delta y]. Note: delta can be negative, but coords cannot be.
     // Form(return): [0][final pre-border xCoord, final pre-border yCoord], [1][first post-border xCoord, first post-border yCoord].
     // The szone "known" counts as every saved szone except "unknown". 
+    // If the same szone is given as pre and post, then the post-border szone is 
+    // defined to be any szone (including "unknown") EXCEPT the given szone.
 
     vector<vector<int>> vBorder(2, vector<int>(2));
-    bool coord = 1;
+    bool coord = 1, anythingBut;
+    if (szones[0] == szones[1]) { anythingBut = 1; }
+    else { anythingBut = 0; }
     int dx = ivec[1][0];
     int dy = ivec[1][1];
     vector<int> coordA = ivec[0];
@@ -1917,40 +2210,62 @@ vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vec
     rgb = pixelRGB(coordB);
     while (rgb.size() == 3)
     {
-        // We ignore the nonconformant colours produced by antialiasing.
-        temp = pixelZone(rgb);
-        if (temp != zoneNew && temp != "unknown")
+        if (anythingBut)
         {
-            // New zone!
-            zoneOld = zoneNew;
-            zoneNew = temp;
-            if (szones[1] == "known" || (zoneOld == szones[0] && zoneNew == szones[1]))
+            temp = pixelZone(rgb);
+            if (temp != zoneNew)
             {
-                // Objective found!
-                vBorder[0] = coordOld;
+                // New zone! Objective found!
                 if (coord)
                 {
+                    vBorder[0] = coordA;
                     vBorder[1] = coordB;
                 }
                 else
                 {
+                    vBorder[0] = coordB;
                     vBorder[1] = coordA;
                 }
                 return vBorder;
-            } 
-        }
-
-        // Same zone as before, or the new zone is not the goal. Record the coords, 
-        // hoping each time the next leap will be the leap home... 
-        if (temp != "unknown")
-        {
-            if (coord)
-            {
-                coordOld = coordB;
             }
-            else
+        }
+        else
+        {
+            // We ignore the nonconformant colours produced by antialiasing.
+            temp = pixelZone(rgb);
+            if (temp != zoneNew && temp != "unknown")
             {
-                coordOld = coordA;
+                // New zone!
+                zoneOld = zoneNew;
+                zoneNew = temp;
+                if (szones[1] == "known" || (zoneOld == szones[0] && zoneNew == szones[1]))
+                {
+                    // Objective found!
+                    vBorder[0] = coordOld;
+                    if (coord)
+                    {
+                        vBorder[1] = coordB;
+                    }
+                    else
+                    {
+                        vBorder[1] = coordA;
+                    }
+                    return vBorder;
+                }
+            }
+
+            // Same zone as before, or the new zone is not the goal. Record the coords, 
+            // hoping each time the next leap will be the leap home... 
+            if (temp != "unknown")
+            {
+                if (coord)
+                {
+                    coordOld = coordB;
+                }
+                else
+                {
+                    coordOld = coordA;
+                }
             }
         }
 
