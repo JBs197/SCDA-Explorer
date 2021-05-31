@@ -143,6 +143,8 @@ void MainWindow::initialize()
     ui->pB_correct->setGeometry(630, 690, 61, 41);
     ui->pB_pos->setVisible(0);
     ui->pB_pos->setGeometry(700, 690, 81, 41);
+    ui->pB_insertmap->setVisible(0);
+    ui->pB_insertmap->setGeometry(790, 690, 61, 41);
     ui->pB_mode->setGeometry(1120, 690, 61, 41);
     ui->progressBar->setGeometry(10, 660, 1241, 23);
     ui->QL_bar->setGeometry(10, 660, 1241, 23);
@@ -481,6 +483,7 @@ void MainWindow::update_mode()
         ui->pB_convert->setVisible(0);
         ui->pB_correct->setVisible(0);
         ui->pB_pos->setVisible(0);
+        ui->pB_insertmap->setVisible(0);
         ui->checkB_override->setVisible(0);
         ui->checkB_eraser->setVisible(0);
         ui->pB_backspace->setVisible(0);
@@ -523,6 +526,7 @@ void MainWindow::update_mode()
         ui->pB_convert->setVisible(1);
         ui->pB_correct->setVisible(1);
         ui->pB_pos->setVisible(1);
+        ui->pB_insertmap->setVisible(1);
         ui->checkB_override->setVisible(1);
         ui->checkB_eraser->setVisible(1);
         int indexTab = ui->tabW_online->currentIndex();
@@ -3195,10 +3199,61 @@ void MainWindow::on_pB_pos_clicked()
     }
 }
 
+// Load BIN maps from local storage and insert them into the SQL database.
+void MainWindow::on_pB_insertmaps_clicked()
+{
+    QList<QTreeWidgetItem*> qSelected = ui->treeW_maps->selectedItems();
+    if (qSelected.size() != 1) { return; }
+    selectedMapFolder = qf.makePathTree(qSelected[0]);
+    QString qtemp;
+    string search = "*.bin";
+    vector<string> listBin = wf.get_file_list(selectedMapFolder, search);
+    if (listBin.size() < 1)
+    {
+        qtemp = "There are 0 BIN maps in that folder.";
+        ui->pte_webinput->setPlainText(qtemp);
+        return;
+    }
+    listBin.push_back(selectedMapFolder);
+
+    thread::id myid = this_thread::get_id();
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0].assign(comm_length, 0);
+    sb.start_call(myid, 1, comm[0]);
+    sb.set_prompt(listBin);
+    std::thread thr(&MainWindow::insertMapsWorker, this, ref(sb), ref(sf));
+    thr.detach();
+    //
+}
+void MainWindow::insertMapsWorker(SWITCHBOARD& sbgui, SQLFUNC& sf)
+{
+    vector<int> mycomm;
+    vector<vector<int>> comm_gui;
+    thread::id myid = this_thread::get_id();
+    sbgui.answer_call(myid, mycomm);
+    vector<string> nameList = sbgui.get_prompt();
+    vector<vector<vector<int>>> frames;
+    vector<vector<int>> border;
+    vector<double> position;
+    double scale;
+    string sParent8, binPath;
+
+    string folderPath = nameList[nameList.size() - 1];
+    nameList.pop_back();
+    for (int ii = 0; ii < nameList.size(); ii++)
+    {
+        binPath = folderPath + "\\" + nameList[ii];
+        qf.loadBinMap(binPath, frames, scale, position, sParent8, border);
+        sf.insertBinMap(binPath, frames, scale, position, sParent8, border);
+
+    }
+
+}
+
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 7;
+    int mode = 10;
 
     switch (mode)
     {
@@ -3240,22 +3295,12 @@ void MainWindow::on_pB_test_clicked()
             }
         }
     }
-    case 2:  // For every file in the given folder, convert the filename to UTF8.
+    case 2:  // For every file in the given folder, force the file name into ASCII.
     {
-        QString qtemp = ui->pte_webinput->toPlainText();
-        string folderPath = qtemp.toStdString();
-        string search = "*.png", oldPath, newPath, temp;
-        vector<string> fileNameList = wf.get_file_list(folderPath, search);
-        for (int ii = 0; ii < fileNameList.size(); ii++)
-        {
-            oldPath = folderPath + "\\" + fileNameList[ii];
-            temp = jf.asciiToUTF8(fileNameList[ii]);
-            newPath = folderPath + "\\" + temp;
-            if (oldPath != newPath)
-            {
-                wf.renameFile(oldPath, newPath);
-            }         
-        }
+        QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
+        if (qlist.size() != 1) { return; }
+        string folderPath = qf.getBranchPath(qlist[0], sroot);
+        makeTempASCII(folderPath);
         int bbq = 1;
         break;
     }
@@ -3297,8 +3342,7 @@ void MainWindow::on_pB_test_clicked()
         vector<string> otherDirt = { "\r", "\u00E9", "\u00CE", "\u00C9" };
         vector<string> listBinName = wf.get_file_list(folderPath, search);
         string folderPathPNG = folderPath;
-        jf.clean(folderPathPNG, dirt, soap);
-        makeTempASCII(folderPathPNG);
+        //makeTempASCII(folderPathPNG);
         size_t pos1, pos2;
         vector<vector<vector<int>>> threeFrames;
         for (int ii = 0; ii < listBinName.size(); ii++)
@@ -3306,12 +3350,12 @@ void MainWindow::on_pB_test_clicked()
             pathBin = folderPath + "\\" + listBinName[ii];
             sfileOld = jf.load(pathBin);
             pos1 = sfileOld.find("//frames");
+            pos1 = sfileOld.find('\n', pos1);
+            pos1 = sfileOld.find('@', pos1);
             if (pos1 < sfileOld.size()) { continue; }
-            pathPng = pathBin;
+            temp = jf.asciiOnly(listBinName[ii]);           
+            pathPng = folderPathPNG + "\\" + temp;
             jf.clean(pathPng, dirt, soap);
-            temp = jf.asciiToUTF8(pathPng);
-            jf.clean(temp, otherDirt);
-            pathPng = jf.utf8ToAscii(temp);
             im.pngLoad(pathPng);
             threeFrames = im.pngThreeFrames();
             sfileNew = "//frames\n";
@@ -3330,7 +3374,7 @@ void MainWindow::on_pB_test_clicked()
             sfileNew.append(temp);
             jf.printer(pathBin, sfileNew);
         }
-        makeTempASCII(folderPathPNG);
+        //makeTempASCII(folderPathPNG);
         break;
     }
     case 5:  // For every pdf map in the selected folder, extract its text. 
@@ -3339,10 +3383,13 @@ void MainWindow::on_pB_test_clicked()
         if (qlist.size() != 1) { return; }
         string folderPath = qf.getBranchPath(qlist[0], sroot);
         string search = "*.pdf", pathPdf, pathTxt, sfileOld, sfileNew, temp;
-        vector<string> dirt = { ".pdf" };
-        vector<string> soap = { ".txt" };
+        vector<string> dirt = { "mapsBIN", ".bin" };
+        vector<string> soap = { "mapsPDF", ".pdf" };
         vector<string> otherDirt = { "\r", "\u00E9", "\u00CE", "\u00C9" };
+        jf.clean(folderPath, dirt, soap);
         vector<string> listPdfName = wf.get_file_list(folderPath, search);
+        dirt = { ".pdf" };
+        soap = { ".txt" };
         for (int ii = 0; ii < listPdfName.size(); ii++)
         {
             pathPdf = folderPath + "\\" + listPdfName[ii];
@@ -3364,12 +3411,21 @@ void MainWindow::on_pB_test_clicked()
         double PPKM;
         vector<string> otherDirt = { "\u00E9", "\u00CE", "\u00C9", "\u00E8" };
         vector<vector<vector<int>>> threeFrames;
+        string status = "Updating BIN map : ";
+        reset_bar(listBinName.size(), status);
         for (int ii = 0; ii < listBinName.size(); ii++)
         {
+            temp = status + listBinName[ii];
+            barMessage(temp);
             pathBIN = folderPath + "\\" + listBinName[ii];
             sfileOld = jf.load(pathBIN);
             pos1 = sfileOld.find("//frames(");
-            if (pos1 < sfileOld.size()) { continue; }
+            if (pos1 < sfileOld.size()) 
+            { 
+                jobs_done++;
+                update_bar();
+                continue; 
+            }
             sfileNew = "//frames(topLeft@botRight, showing 'maps', 'scale', 'position')\n";
             pos1 = sfileOld.find("//frames") + 8;
             pos1 = sfileOld.find_first_of("1234567890", pos1);
@@ -3400,6 +3456,9 @@ void MainWindow::on_pB_test_clicked()
             sfileNew += sfileOld.substr(pos1, pos2 - pos1);
             sfileNew += "\n";
             jf.printer(pathBIN, sfileNew);
+            jobs_done++;
+            update_bar();
+            QCoreApplication::processEvents();
         }
 
         break;
@@ -3740,7 +3799,7 @@ void MainWindow::on_listW_bindone_itemSelectionChanged()
     vector<string> dirt = { "mapsPNG" };
     vector<string> soap = { "mapsBIN" };
     QList<QListWidgetItem*> qlist = ui->listW_bindone->selectedItems();
-    if (qlist.size() == 1)
+    if (qlist.size() == 2)
     {
         index = ui->tabW_online->currentIndex();
         switch (index)

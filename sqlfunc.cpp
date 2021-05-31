@@ -66,6 +66,37 @@ void SQLFUNC::init(string db_path)
     int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
     if (error) { sqlerr("open-init"); }
 }
+void SQLFUNC::insertBinMap(string& binPath, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent8, vector<vector<int>>& border)
+{
+    // Make the table name root.
+    vector<string> directory;
+    size_t pos1 = binPath.rfind(".bin");
+    string temp = binPath.substr(0, pos1);
+    pos1 = temp.find("mapsBIN");
+    pos1 = temp.find('\\', pos1) + 1;
+    size_t pos2 = temp.find('\\', pos1);
+    while (pos2 < temp.size())
+    {
+        directory.push_back(temp.substr(pos1, pos2 - pos1));
+        pos1 = pos2 + 1;
+        pos2 = temp.find('\\', pos1);
+    }
+    directory.push_back(temp.substr(pos1));
+    string tname0 = "TMap$", tname;
+    for (int ii = 0; ii < directory.size(); ii++)
+    {
+        tname0 += directory[ii] + "$";
+    }
+
+    // Make and insert the tables for frames.
+    tname = tname0 + "frames";
+    vector<string> columnTitles = { "map", "scale", "position" };
+    vector<int> columnTypes = { 1, 1, 1 };
+    create_table(tname, columnTitles, columnTypes);
+
+
+
+}
 void SQLFUNC::insert_tg_existing(string tname)
 {
     // Still needed???

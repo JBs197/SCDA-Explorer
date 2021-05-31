@@ -231,54 +231,91 @@ void QTFUNC::initPixmap(QLabel* qlabel)
 	pmCanvas = QPixmap(width, height);
 	pmCanvas.fill();
 }
-void QTFUNC::loadBinMap(string& pathBin, vector<vector<int>>& frameCorners, vector<vector<int>>& border)
+void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent8, vector<vector<int>>& border)
 {
-	// Load all coordinates into memory from the bin file.
-	recentBorderTemp.clear();
-	frameCorners.clear();
+	// Load all data into memory from the bin file.
+	frames.clear();
+	position.clear();
 	border.clear();
-	string sfile = jf.load(pathBin), temp;
+	string sfile = jf.load(pathBin), temp, temp2, temp3, temp4;
 	if (sfile.size() < 1) { err("load-qf.loadBinMap"); }
-	size_t pos1, pos2, posStart, posStop;
-	int row;
+	size_t pos1, pos2, posStart;
+	int row, index;
 	posStart = sfile.find("//frame");
-	posStop = sfile.find("//", posStart + 7);
-	if (posStop > sfile.size()) { posStop = sfile.size(); }
-	pos1 = sfile.find('\n', posStart);
-	pos1 = sfile.find(',', pos1);
-	while (pos1 < posStop)
+	if (posStart > sfile.size()) { jf.err("Missing header-qf.loadBinMap"); }
+	pos2 = sfile.find('\n', posStart);
+	frames.resize(3, vector<vector<int>>(2, vector<int>(2)));
+	for (int ii = 0; ii < 3; ii++)
 	{
-		row = frameCorners.size();
-		frameCorners.push_back(vector<int>(2));
-		pos2 = sfile.find_last_not_of("1234567890.", pos1 - 1) + 1;
-		temp = sfile.substr(pos2, pos1 - pos2);
-		try { frameCorners[row][0] = stoi(temp); }
-		catch (invalid_argument& ia) { err("stoi-qf.loadBinMap"); }
-		pos2 = sfile.find_first_not_of("1234567890.", pos1 + 1);
-		temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
-		try { frameCorners[row][1] = stoi(temp); }
-		catch (invalid_argument& ia) { err("stoi-qf.loadBinMap"); }
-		pos1 = sfile.find(',', pos1 + 1);
+		pos1 = pos2 + 1;
+		pos2 = sfile.find(',', pos1);
+		temp = sfile.substr(pos1, pos2 - pos1);
+		pos1 = pos2 + 1;
+		pos2 = sfile.find('@', pos1);
+		temp2 = sfile.substr(pos1, pos2 - pos1);
+		pos1 = pos2 + 1;
+		pos2 = sfile.find(',', pos1);
+		temp3 = sfile.substr(pos1, pos2 - pos1);
+		pos1 = pos2 + 1;
+		pos2 = sfile.find('\n', pos1);
+		temp4 = sfile.substr(pos1, pos2 - pos1);
+		try
+		{
+			frames[ii][0][0] = stoi(temp);
+			frames[ii][0][1] = stoi(temp2);
+			frames[ii][1][0] = stoi(temp3);
+			frames[ii][1][1] = stoi(temp4);
+		}
+		catch (invalid_argument& ia) { jf.err("stoi-qf.loadBinMap"); }
 	}
+
+	posStart = sfile.find("//scale");
+	if (posStart > sfile.size()) { jf.err("Missing header-qf.loadBinMap"); }
+	pos1 = sfile.find('\n', posStart) + 1;
+	pos2 = sfile.find('\n', pos1);
+	temp = sfile.substr(pos1, pos2 - pos1);
+
+	position.resize(2);
+	posStart = sfile.find("//position");
+	if (posStart > sfile.size()) { jf.err("Missing header-qf.loadBinMap"); }
+	pos1 = sfile.find('\n', posStart) + 1;
+	pos2 = sfile.find(',', pos1);
+	temp2 = sfile.substr(pos1, pos2 - pos1);
+	pos1 = pos2 + 1;
+	pos2 = sfile.find('\n', pos1);
+	temp3 = sfile.substr(pos1, pos2 - pos1);
+	try
+	{
+		scale = stod(temp);
+		position[0] = stod(temp2);
+		position[1] = stod(temp3);
+	}
+	catch (invalid_argument& ia) { jf.err("stod-qf.loadBinMap"); }
+
+	pos1 = sfile.find('(', posStart) + 1;
+	pos2 = sfile.find(')', pos1);
+	sParent8 = sfile.substr(pos1, pos2 - pos1);
+
 	posStart = sfile.find("//border");
-	posStop = sfile.find("//", posStart + 8);
-	if (posStop > sfile.size()) { posStop = sfile.size(); }
-	pos1 = sfile.find(',', posStart);
-	while (pos1 < posStop)
+	pos1 = sfile.find('\n', posStart) + 1;
+	pos2 = sfile.find(',', pos1);
+	while (pos2 < sfile.size())
 	{
-		row = border.size();
+		index = border.size();
 		border.push_back(vector<int>(2));
-		pos2 = sfile.find_last_not_of("1234567890", pos1 - 1) + 1;
-		temp = sfile.substr(pos2, pos1 - pos2);
-		try { border[row][0] = stoi(temp); }
-		catch (invalid_argument& ia) { err("stoi-qf.loadBinMap"); }
-		pos2 = sfile.find_first_not_of("1234567890", pos1 + 1);
-		temp = sfile.substr(pos1 + 1, pos2 - pos1 - 1);
-		try { border[row][1] = stoi(temp); }
-		catch (invalid_argument& ia) { err("stoi-qf.loadBinMap"); }
-		pos1 = sfile.find(',', pos1 + 1);
+		temp = sfile.substr(pos1, pos2 - pos1);
+		pos1 = pos2 + 1;
+		pos2 = sfile.find('\n', pos1);
+		temp2 = sfile.substr(pos1, pos2 - pos1);
+		try
+		{
+			border[index][0] = stoi(temp);
+			border[index][1] = stoi(temp2);
+		}
+		catch (invalid_argument& ia) { jf.err("stoi-qf.loadBinMap"); }
+		pos1 = pos2 + 1;
+		pos2 = sfile.find(',', pos1);
 	}
-	recentBorder = border;
 }
 vector<vector<int>> QTFUNC::loadDebugMapCoord(string& pathBin)
 {

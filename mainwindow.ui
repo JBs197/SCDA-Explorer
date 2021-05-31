@@ -610,7 +610,7 @@
      <rect>
       <x>740</x>
       <y>690</y>
-      <width>71</width>
+      <width>21</width>
       <height>41</height>
      </rect>
     </property>
@@ -844,6 +844,20 @@ Map</string>
 Maps</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pB_insertmap">
+    <property name="geometry">
+     <rect>
+      <x>790</x>
+      <y>690</y>
+      <width>21</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Insert
+Map</string>
+    </property>
+   </widget>
    <zorder>cB_drives</zorder>
    <zorder>pB_scan</zorder>
    <zorder>pB_insert</zorder>
@@ -881,6 +895,7 @@ Maps</string>
    <zorder>pB_savemap</zorder>
    <zorder>pB_deletemap</zorder>
    <zorder>pB_pos</zorder>
+   <zorder>pB_insertmap</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

@@ -27,6 +27,7 @@ public:
 	~SQLFUNC() {}
     void create_table(string, vector<string>&, vector<int>&);
     void init(string);
+    void insertBinMap(string& binPath, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent8, vector<vector<int>>& border);
     void insert_tg_existing(string);
     void insert_prepared(vector<string>&);
     string insert_stmt(string, vector<string>&, vector<string>&);

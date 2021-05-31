@@ -73,6 +73,7 @@ private slots:
     void on_pB_convert_clicked();
     void on_pB_correct_clicked();
     void on_pB_pos_clicked();
+    void on_pB_insertmaps_clicked();
     void on_pB_resume_clicked();
     void on_pB_pause_clicked();
     void on_pB_advance_clicked();
@@ -132,6 +133,7 @@ private:
     int fetchGeoList(int iYear, string sCata, vector<string>& geoLayers, string& geoPage, string geoURL);
     int getCataStatus(string sYear, string sName, vector<string>& csvLocal, vector<string>& csvOnline);
     void initImgFont(string fontName);
+    void insertMapsWorker(SWITCHBOARD& sbgui, SQLFUNC& sf);
     void makeTempASCII(string folderPath);
     void mousePressEvent(QMouseEvent* event) override;
     void populateQtree(JTREE&, QTreeWidgetItem*&, string);
