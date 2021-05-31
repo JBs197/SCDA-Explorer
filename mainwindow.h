@@ -59,6 +59,7 @@ private slots:
     void on_treeW_gid_itemSelectionChanged();
     void on_treeW_statscan_itemSelectionChanged();
     void on_treeW_maps_itemSelectionChanged();
+    void on_listW_search_itemSelectionChanged();
     void on_pB_viewtable_clicked();
     void on_pB_removecata_clicked();
     void on_tabW_catalogues_currentChanged(int);
@@ -71,6 +72,7 @@ private slots:
     void on_pB_localmaps_clicked();
     void on_pB_convert_clicked();
     void on_pB_correct_clicked();
+    void on_pB_pos_clicked();
     void on_pB_resume_clicked();
     void on_pB_pause_clicked();
     void on_pB_advance_clicked();

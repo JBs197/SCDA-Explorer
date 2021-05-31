@@ -41,10 +41,12 @@ void MainWindow::initialize()
         qdrives.append(qtemp);
         pos1 = wdrives.find(L"\\", pos1 + 1);
     } while (pos1 < wdrives.size());
-    for (int ii = 0; ii < qdrives.size(); ii++)
+    int numDrives = qdrives.size();
+    for (int ii = 0; ii < numDrives; ii++)
     {
         ui->cB_drives->addItem(qdrives[ii]);
     }
+    ui->cB_drives->setCurrentIndex(numDrives - 1);
     viewcata_data.assign(2, "");
 
     // Open the database from an existing local db file, or (failing that) make a new one.
@@ -70,16 +72,16 @@ void MainWindow::initialize()
     qf.set_display_root(ui->treeW_subtables, 0);
     update_treeW_cataindb();
     
-
     // Initialize mode to 'local'. 
     qtemp = QString::fromStdString(modes[active_mode]);
-    ui->label_mode->setText(qtemp);
+    ui->label_mode->setText(qtemp);   
     ui->tabW_catalogues->setCurrentIndex(0);
     //ui->tabW_catalogues->setGeometry(10, 10, 351, 681);
     ui->pB_removecata->setGeometry(385, 690, 71, 41);
     ui->pte_localinput->setVisible(1);
     ui->pte_localinput->setGeometry(460, 690, 241, 41);
     ui->pB_search->setGeometry(710, 690, 71, 41);
+    ui->pB_viewtable->setGeometry(790, 690, 71, 41);
     ui->tabW_results2->setGeometry(760, 10, 496, 641);
     ui->tV_viewtable->setGeometry(0, 0, 486, 611);
     ui->treeW_subtables->setGeometry(0, 0, 486, 611);
@@ -93,6 +95,8 @@ void MainWindow::initialize()
     ui->treeW_maps->setVisible(0);
     ui->label_maps->setGeometry(0, 0, 910, 611);
     ui->label_maps->setVisible(0);
+    ui->label_pos->setGeometry(0, 0, 910, 611);
+    ui->label_pos->setVisible(0);
     ui->label_maps2->setGeometry(1035, 35, 100, 21);
     ui->label_maps2->setVisible(0);
     ui->listW_bindone->setGeometry(1035, 55, 190, 280);
@@ -137,6 +141,8 @@ void MainWindow::initialize()
     ui->pB_convert->setGeometry(560, 690, 61, 41);
     ui->pB_correct->setVisible(0);
     ui->pB_correct->setGeometry(630, 690, 61, 41);
+    ui->pB_pos->setVisible(0);
+    ui->pB_pos->setGeometry(700, 690, 81, 41);
     ui->pB_mode->setGeometry(1120, 690, 61, 41);
     ui->progressBar->setGeometry(10, 660, 1241, 23);
     ui->QL_bar->setGeometry(10, 660, 1241, 23);
@@ -450,6 +456,7 @@ void MainWindow::update_mode()
         ui->listW_statscan->setVisible(0);
         ui->treeW_maps->setVisible(0);
         ui->label_maps->setVisible(0);
+        ui->label_pos->setVisible(0);
         ui->label_maps2->setVisible(0);
         ui->listW_bindone->setVisible(0);
         ui->pB_resume->setVisible(0);
@@ -473,6 +480,7 @@ void MainWindow::update_mode()
         ui->pB_localmaps->setVisible(0);
         ui->pB_convert->setVisible(0);
         ui->pB_correct->setVisible(0);
+        ui->pB_pos->setVisible(0);
         ui->checkB_override->setVisible(0);
         ui->checkB_eraser->setVisible(0);
         ui->pB_backspace->setVisible(0);
@@ -492,6 +500,7 @@ void MainWindow::update_mode()
         ui->listW_statscan->setVisible(1);
         ui->treeW_maps->setVisible(1);
         ui->label_maps->setVisible(1);
+        ui->label_pos->setVisible(1);
         ui->label_maps2->setVisible(1);
         ui->listW_bindone->setVisible(1);
         ui->pte_advance->setVisible(1);
@@ -513,6 +522,7 @@ void MainWindow::update_mode()
         ui->pB_localmaps->setVisible(1);
         ui->pB_convert->setVisible(1);
         ui->pB_correct->setVisible(1);
+        ui->pB_pos->setVisible(1);
         ui->checkB_override->setVisible(1);
         ui->checkB_eraser->setVisible(1);
         int indexTab = ui->tabW_online->currentIndex();
@@ -988,6 +998,7 @@ void MainWindow::insert_csvs(vector<vector<vector<string>>>& all_queue, SWITCHBO
     string cata_name = scjudi.get_cata_name();
     vector<string> column_titles = scjudi.get_column_titles();
     mycomm[2] = top - bot + 1;
+    size_t finalTextVar;
     int tally = 0;
     bool success;
 
@@ -1008,9 +1019,10 @@ void MainWindow::insert_csvs(vector<vector<vector<string>>>& all_queue, SWITCHBO
         paperwork.push_back(vector<string>());
         gid = scjudi.get_gid(ii);
         csv_path = scjudi.make_csv_path(ii);
-        sfile = jfcsv.load(csv_path);
-        text_vars = scjudi.extract_text_vars(sfile);
-        data_rows = scjudi.extract_rows(sfile, damaged_csv);
+        temp1 = jfcsv.load(csv_path);
+        sfile = jfcsv.utf8ToAscii(temp1);
+        text_vars = scjudi.extract_text_vars(sfile, finalTextVar);
+        data_rows = scjudi.extract_rows(sfile, damaged_csv, finalTextVar);
         linearized_titles = scjudi.linearize_row_titles(data_rows, column_titles);
         if (damaged_csv == 0)
         {
@@ -1279,10 +1291,7 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
             csv_list.push_back(table_list[ii]);
         }
     }
-    for (int ii = 0; ii < csv_list.size(); ii++)
-    {
-        sf.remove(csv_list[ii], mode);
-    }
+    sf.remove(mode, csv_list);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove CSV tables: " << timer.restart();
@@ -1309,7 +1318,8 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
 
     // Remove entries from TDamaged.
     vector<string> conditions = {"[Catalogue Name] = '" + prompt[1] + "'"};
-    sf.remove("TDamaged", conditions);
+    tname = "TDamaged";
+    sf.remove(tname, conditions);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove entries from TDamaged: " << timer.restart();
@@ -1337,24 +1347,41 @@ void MainWindow::on_pB_viewtable_clicked()
 {
     int tab_index = ui->tabW_results->currentIndex();
     int row, kids;
+    wstring wTemp;
     string temp, gid, tname, row_title, result;
     vector<string> row_split, search, conditions;
     QList<QTreeWidgetItem*> qcurrent;
     QTreeWidgetItem* qitem;
     QString qtemp;
 
-    // Obtain the CSV table name.
-    qcurrent = ui->treeW_gid->selectedItems();
-    if (qcurrent.size() < 1) { return; }
-    qtemp = qcurrent[0]->text(0);
-    temp = qtemp.toStdString();
-    string temp2 = "'";
-    jf.clean(temp, { "" }, temp2);
-    search = { "GID" };
-    tname = "TG_Region$" + viewcata_data[1];
-    conditions = { "[Region Name] = '" + temp + "'" };
-    sf.select(search, tname, gid, conditions);
-    tname = viewcata_data[1] + "$" + gid;
+    switch (tab_index)
+    {
+    case 0:
+    {
+        // Obtain the CSV table name.
+        qcurrent = ui->treeW_gid->selectedItems();
+        if (qcurrent.size() < 1) { return; }
+        qtemp = qcurrent[0]->text(0);
+        wTemp = qtemp.toStdWString();
+        temp = qtemp.toStdString();
+        string temp2 = "'";
+        jf.clean(temp, { "" }, temp2);
+        search = { "GID" };
+        tname = "TG_Region$" + viewcata_data[1];
+        conditions = { "[Region Name] = '" + temp + "'" };
+        sf.select(search, tname, gid, conditions);
+        tname = viewcata_data[1] + "$" + gid;
+        break;
+    }
+    case 3:
+    {
+        QList<QListWidgetItem*> qSelected = ui->listW_search->selectedItems();
+        if (qSelected.size() != 1) { return; }
+        qtemp = qSelected[0]->text();
+        tname = qtemp.toStdString();
+        break;
+    }
+    }
 
     display_table(tname);
 }
@@ -2175,10 +2202,37 @@ void MainWindow::on_pB_mode_clicked()
 void MainWindow::on_pB_search_clicked()
 {
     QString qtemp = ui->pte_localinput->toPlainText();
-    string tname = qtemp.toStdString();
+    string tname = qtemp.toStdString(), temp;
+    size_t pos1 = tname.find("delete");
     vector<string> results;
     QStringList qlist;
-    if (sf.table_exist(tname))
+    if (pos1 == 0)
+    {
+        temp = tname.substr(6);
+        sf.all_tables(results);
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            pos1 = results[ii].find(temp);
+            if (pos1 < results[ii].size())
+            {
+                sf.remove(results[ii]);
+            }
+        }
+    }
+    else if (tname == "all")
+    {
+        sf.get_table_list(results);
+        for (int ii = 0; ii < results.size(); ii++)
+        {
+            qtemp = QString::fromStdString(results[ii]);
+            ui->listW_search->addItem(qtemp);
+        }
+        ui->tabW_results->setCurrentIndex(3);
+        temp = "Search returned " + to_string(results.size()) + " results.";
+        qtemp = QString::fromStdString(temp);
+        ui->pte_localinput->setPlainText(qtemp);
+    }
+    else if (sf.table_exist(tname))
     {
         display_table(tname);
     }
@@ -2280,9 +2334,14 @@ void MainWindow::on_pB_localmaps_clicked()
         else if (temp == "mapsPNG") { search = ".png"; }
         else if (temp == "mapsPDF") { search = ".pdf"; }
         else { err("Failed to locate mapsX folder-MainWindow.on_pB_localmaps_clicked"); }
-        numFile = wf.get_file_path_number(pathSelected, search);
+        search = "*" + search;
+        listName = wf.get_file_list(pathSelected, search);
+        selectedMapFolder = pathSelected;
+        numFile = listName.size();
         nameLeaf = temp.substr(4);
         nameLeaf += " Maps";
+
+        qf.displayBinList(ui->listW_bindone, listName);
 
         jtMaps.addChild(nameLeaf, numFile, pathSelected);
         qtemp = QString::fromStdString(nameLeaf);
@@ -3035,10 +3094,111 @@ void MainWindow::on_pB_deletemap_clicked()
     }
 }
 
+// Draw a BIN map over its parent region, and adjust position/rotation.
+void MainWindow::on_pB_pos_clicked()
+{
+    QList<QListWidgetItem*> qlist = ui->listW_bindone->selectedItems();
+    if (qlist.size() != 1) { return; }
+    QString qtemp = qlist[0]->text();
+    string binName8 = qtemp.toStdString();  // UTF8
+    string binName = jf.utf8ToAscii(binName8), geoLayersFile, temp;
+    if (selectedMapFolder.size() < 1) { err("selectedMapFolder-MainWindow.on_pB_pos_clicked"); }
+    string binPath = selectedMapFolder + "\\" + binName + ".bin";
+    vector<string> dirt = { "mapsPNG", "mapsPDF" };
+    vector<string> soap = { "mapsBIN", "mapsBIN" };
+    jf.clean(binPath, dirt, soap);
+    string binFile = jf.load(binPath), geoLayersPath, sNum, sParent;
+    size_t pos1 = binFile.find("//position"), pos2, posGeo1, posGeo2;
+    int inum;
+    vector<double> binPos;
+    vector<unsigned char> rgbTarget;
+    string pngParentPath, pngGrandparentPath, myLayer, newBin, pngGPathASCII, pngPPathASCII;
+    if (pos1 > binFile.size())  // Update the BIN map from the 'geo layers' file.
+    {
+        // Obtain the parent region's name.
+        pos1 = binPath.rfind('\\');
+        geoLayersPath = binPath.substr(0, pos1) + "\\geo layers.txt";       
+        if (wf.file_exist(geoLayersPath))
+        {
+            geoLayersFile = jf.load(geoLayersPath);
+            temp = "$" + binName8 + "$";
+            pos1 = geoLayersFile.find(temp) + 1;
+            if (pos1 > geoLayersFile.size()) { err("Cannot locate region name-MainWindow.on_pB_pos_clicked"); }
+            pos1 = geoLayersFile.find('$', pos1) + 1;
+            pos2 = geoLayersFile.find('\n', pos1);
+            temp = geoLayersFile.substr(pos1, pos2 - pos1);
+            try { inum = stoi(temp); }
+            catch (invalid_argument& ia) { err("stoi-MainWindow.on_pB_pos_clicked"); }
+            if (inum < 1) { err("No geo parent-MainWindow.on_pB_pos_clicked"); }
+            
+            posGeo1 = geoLayersFile.rfind("@@Geo Layers");
+            posGeo1 = geoLayersFile.find('\n', posGeo1) + 1;
+            for (int ii = 0; ii < inum; ii++)
+            {
+                posGeo1 = geoLayersFile.find('\n', posGeo1) + 1;
+            }
+            posGeo2 = geoLayersFile.find('\n', posGeo1);
+            myLayer = geoLayersFile.substr(posGeo1, posGeo2 - posGeo1);
+
+            inum--;
+            sNum = to_string(inum);
+            while (pos2 < geoLayersFile.size())
+            {
+                pos2 = geoLayersFile.rfind('\n', pos2 - 1);
+                pos1 = geoLayersFile.rfind('$', pos2) + 1;
+                temp = geoLayersFile.substr(pos1, pos2 - pos1);
+                if (temp == sNum)
+                {
+                    pos2 = pos1 - 1;
+                    pos1 = geoLayersFile.rfind('$', pos2 - 1) + 1;
+                    sParent = geoLayersFile.substr(pos1, pos2 - pos1);
+                    break;
+                }
+            }
+        }
+        else { err("Missing geo layers.txt-MainWindow.on_pB_pos_clicked"); }
+
+        // Determine this region's position within the parent region.
+        dirt = { "mapsBIN", ".bin" };
+        soap = { "pos", ".png" };
+        pngParentPath = binPath;
+        jf.clean(pngParentPath, dirt, soap);
+        if (!wf.file_exist(pngParentPath))
+        {
+            pos1 = pngParentPath.rfind('\\');
+            temp = pngParentPath.substr(0, pos1);
+            wf.makeDir(temp);
+            dirt = { "\\pos\\" };
+            soap = { "\\mapsPNG\\" };
+            pngGrandparentPath = pngParentPath;
+            jf.clean(pngGrandparentPath, dirt, soap);
+            pngGPathASCII = jf.asciiOnly(pngGrandparentPath);
+            if (!wf.file_exist(pngGPathASCII)) { err("Missing PNG map-MainWindow.on_pB_pos_clicked"); }
+            pngPPathASCII = jf.asciiOnly(pngParentPath);
+            im.makePositionPNG(pngGPathASCII, pngPPathASCII);
+        }
+        if (myLayer == "province") { rgbTarget = { 255, 255, 255 }; }
+        else { rgbTarget = { 0, 112, 255 }; }
+        binPos = im.getPosition(pngParentPath, rgbTarget);
+
+        // Print the updated BIN map.
+        pos1 = binFile.find("//scale");
+        if (pos1 > binFile.size()) { err("//scale not found-MainWindow.on_pB_pos_clicked"); }
+        pos1 = binFile.find('\n', pos1 + 1);
+        pos1 = binFile.find('\n', pos1 + 1);
+        newBin = binFile.substr(0, pos1);
+        newBin += "\n\n//position(" + sParent + ")\n";
+        newBin += to_string(binPos[0]) + "," + to_string(binPos[1]) + "\n\n";
+        pos1 = binFile.find("//border");
+        newBin += binFile.substr(pos1);
+        jf.printer(binPath, newBin);
+    }
+}
+
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 6;
+    int mode = 7;
 
     switch (mode)
     {
@@ -3244,6 +3404,174 @@ void MainWindow::on_pB_test_clicked()
 
         break;
     }
+    case 7:  // For every CSV in all subfolders, rewrite it as UTF8 if it is UTF16.
+    {
+        QString qYear = ui->pte_webinput->toPlainText();
+        string sYear = qYear.toStdString(), temp;
+        vector<string> dirt = { "/" };
+        vector<string> soap = { "or" };
+        int iYear, count, index;
+        size_t pos1, pos2, len, pos0;
+        try { iYear = stoi(sYear); }
+        catch (invalid_argument& ia)
+        {
+            qYear = "Not a valid year.";
+            ui->pte_webinput->setPlainText(qYear);
+            return;
+        }
+        string rootDir = sroot + "\\" + sYear;
+        vector<vector<int>> treeST;
+        vector<string> treePL, listCSVname;
+        string search = "*", cataPath, csvPath, sfile, utf8, nameInside, nameOutside;
+        wf.make_tree_local(treeST, treePL, 1, rootDir, 2, search);
+        search = "*.csv";
+        string status = "Converting UTF16 to UTF8 : ";
+        reset_bar(treePL.size(), status);
+        for (int ii = 1; ii < treePL.size(); ii++)
+        {
+            temp = status + treePL[ii];
+            barMessage(temp);
+            cataPath = rootDir + "\\" + treePL[ii];
+            listCSVname = wf.get_file_list(cataPath, search);
+            for (int jj = 0; jj < listCSVname.size(); jj++)
+            {
+                csvPath = cataPath + "\\" + listCSVname[jj];
+                sfile = jf.load(csvPath);
+                count = 0;
+                for (int kk = 0; kk < 8; kk++)
+                {
+                    if (sfile[kk] == 0) { count++; }
+                }
+                if (count == 4)  // UTF16...
+                {
+                    utf8.clear();
+                    utf8.resize(sfile.size() + 3);
+                    index = 0;
+                    for (int kk = 0; kk < sfile.size(); kk++)
+                    {
+                        if (sfile[kk] != 0)
+                        {
+                            utf8[index] = sfile[kk];
+                            index++;
+                        }
+                    }
+                    utf8.resize(index);
+                    jf.printer(csvPath, utf8);
+                }
+
+                /*
+                else   // FML...
+                {
+                    for (int ii = sfile.size() - 2; ii >= 0; ii--)
+                    {
+                        if (sfile[ii] != 0)
+                        {
+                            sfile.resize(ii + 1);
+                            break;
+                        }
+                    }
+                    pos1 = sfile.find("Geography = ");
+                    if (pos1 > sfile.size()) { err("FML-mw.test7"); }
+                    pos1 += 12;
+                    pos0 = pos1;
+                    pos2 = sfile.find_first_of("[\"", pos1);
+                    while (sfile[pos2 - 1] == ' ') { pos2--; }
+                    nameInside = sfile.substr(pos1, pos2 - pos1);
+                    len = nameInside.size();
+                    jf.clean(nameInside, dirt, soap);
+                    pos1 = csvPath.find(nameInside);
+                    if (pos1 > csvPath.size())
+                    {
+                        pos1 = csvPath.find(')') + 2;
+                        pos2 = csvPath.rfind(".csv");
+                        nameOutside = csvPath.substr(pos1, pos2 - pos1);
+                        jf.clean(nameOutside, soap, dirt);
+                        utf8 = jf.asciiToUTF8(nameOutside);
+                        sfile.replace(pos0, len, utf8);
+                    }
+                    jf.printer(csvPath, sfile);
+                }
+                */
+
+            }
+            jobs_done++;
+            update_bar();
+            QCoreApplication::processEvents();
+        }
+        int bbq = 1;
+        break;
+    }
+    case 8:  // For a given catalogue folder path, delete all CSVs with non-ASCII names.
+    {
+        QString qtemp = ui->pte_webinput->toPlainText();
+        string folderPath = qtemp.toStdString();
+        string search = "*.csv";
+        vector<string> listCSVname = wf.get_file_list(folderPath, search);
+        int numCSV = listCSVname.size();
+        search = "Deleting files ...";
+        reset_bar(numCSV, search);
+        for (int ii = 0; ii < numCSV; ii++)
+        {
+            for (int jj = 0; jj < listCSVname[ii].size(); jj++)
+            {
+                if (listCSVname[ii][jj] < 0)
+                {
+                    search = folderPath + "\\" + listCSVname[ii];
+                    wf.delete_file(search);
+                    break;
+                }
+            }
+            jobs_done++;
+            update_bar();
+        }
+    }
+    case 9:  // For a selected BIN map, slide it upward/leftward to reduce empty space.
+    {
+        QList<QListWidgetItem*> qSel = ui->listW_bindone->selectedItems();
+        if (qSel.size() != 1) { return; }
+        QString qtemp = qSel[0]->text();
+        wstring wTemp = qtemp.toStdWString();
+        string temp = jf.utf16to8(wTemp);
+        string mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
+        vector<vector<int>> frameCorners, border, TLBR;
+        qf.loadBinMap(mapBinPath, frameCorners, border);
+        TLBR = im.makeBox(border);
+
+        string sfile = jf.load(mapBinPath);
+        size_t pos1 = sfile.find("//border");
+        pos1 = sfile.find('\n', pos1) + 1;
+        string newFile = sfile.substr(0, pos1);
+
+        int Dx, Dy, cushion = 120;
+        Dx = TLBR[0][0] - cushion;
+        Dy = TLBR[0][1] - cushion;
+        for (int ii = 0; ii < border.size(); ii++)
+        {
+            border[ii][0] -= Dx;
+            border[ii][1] -= Dy;
+            newFile += to_string(border[ii][0]) + "," + to_string(border[ii][1]) + "\n";
+        }
+        jf.printer(mapBinPath, newFile);
+        int bbq = 1;
+        break;
+    }
+    case 10: // Update a folder's worth of BIN maps to include position.
+    {
+        int numBin = ui->listW_bindone->count();
+        if (numBin < 1) { return; }
+        string temp = "test 10";
+        reset_bar(numBin, temp);
+        for (int ii = 0; ii < numBin; ii++)
+        {
+            ui->listW_bindone->setCurrentRow(ii, QItemSelectionModel::Select);
+            on_pB_pos_clicked();
+            ui->listW_bindone->setCurrentRow(ii, QItemSelectionModel::Deselect);
+            jobs_done++;
+            update_bar();
+            QCoreApplication::processEvents();
+        }
+        break;
+    }
     }
 
     int bbq = 1;
@@ -3305,6 +3633,12 @@ void MainWindow::on_treeW_gid_itemSelectionChanged()
     {
         ui->pB_viewtable->setEnabled(0);
     }
+}
+void MainWindow::on_listW_search_itemSelectionChanged()
+{
+    QList<QListWidgetItem*> qSelected = ui->listW_search->selectedItems();
+    if (qSelected.size() != 1) { return; }
+    ui->pB_viewtable->setEnabled(1);
 }
 void MainWindow::on_tabW_catalogues_currentChanged(int index)
 {
@@ -3400,6 +3734,7 @@ void MainWindow::on_treeW_maps_itemSelectionChanged()
 }
 void MainWindow::on_listW_bindone_itemSelectionChanged()
 {
+    int index;
     QString qtemp;
     string mapBinPath, temp;
     vector<string> dirt = { "mapsPNG" };
@@ -3407,11 +3742,25 @@ void MainWindow::on_listW_bindone_itemSelectionChanged()
     QList<QListWidgetItem*> qlist = ui->listW_bindone->selectedItems();
     if (qlist.size() == 1)
     {
-         qtemp = qlist[0]->text();
-         temp = qtemp.toUtf8();
-         mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
-         jf.clean(mapBinPath, dirt, soap);
-         qf.displayBin(ui->label_maps, mapBinPath);
+        index = ui->tabW_online->currentIndex();
+        switch (index)
+        {
+        case 2:
+        {
+            qtemp = qlist[0]->text();
+            temp = qtemp.toUtf8();
+            mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
+            jf.clean(mapBinPath, dirt, soap);
+            qf.displayBin(ui->label_maps, mapBinPath);
+            break;
+        }
+        case 3:
+        {
+
+            break;
+        }
+        }
+
     }
     countEraser = 0;
     ui->tabW_online->setCurrentIndex(2);

@@ -87,6 +87,7 @@ public:
     int getDotWidth();
     vector<vector<int>> getFrame(vector<vector<int>> vVictor, vector<string> inOut);
     string getMapPath(int mode);
+    vector<double> getPosition(string pathPNGpos, vector<unsigned char> rgb);
     double getPPKM(string& pathTXT, int scalePixels);
     int getQuadrant(vector<vector<int>>& startStop);
     int getScalePixels(vector<vector<int>> TLBR);
@@ -101,6 +102,7 @@ public:
     vector<vector<int>> linePathToEdge(vector<vector<int>>& startMid);
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
     void loadRecentSavePoint(vector<vector<int>>& vBorderPath);
+    void makePositionPNG(string& pngPath, string& pngFramePath);
     bool mapIsInit();
     vector<vector<int>> minMaxPath2D(vector<vector<int>>& path);
     vector<int> normalForce(vector<int> origin, string sZone);
@@ -740,6 +742,51 @@ public:
             }
         }
         coord = { -1, -1 };
+    }
+
+    template<typename ... Args> vector<vector<int>> makeBox(Args& ... args)
+    {
+        // Return a TLBR for the given path, assuming the tightest rectangle is drawn.
+        jf.err("makeBox template-im");
+    }
+    template<> vector<vector<int>> makeBox<vector<vector<int>>>(vector<vector<int>>& vBorderPath)
+    {
+        vector<vector<int>> TLBR(2, vector<int>(2));
+        TLBR[0] = { 2147483647, 2147483647 };
+        TLBR[1] = { 0, 0 };
+        for (int ii = 0; ii < vBorderPath.size(); ii++)
+        {
+            if (vBorderPath[ii][0] < TLBR[0][0]) { TLBR[0][0] = vBorderPath[ii][0]; }
+            else if (vBorderPath[ii][0] > TLBR[1][0]) { TLBR[1][0] = vBorderPath[ii][0]; }
+            if (vBorderPath[ii][1] < TLBR[0][1]) { TLBR[0][1] = vBorderPath[ii][1]; }
+            else if (vBorderPath[ii][1] > TLBR[1][1]) { TLBR[1][1] = vBorderPath[ii][1]; }
+        }
+        return TLBR;
+    }
+    template<> vector<vector<int>> makeBox<vector<unsigned char>, vector<int>, vector<unsigned char>>(vector<unsigned char>& sourceImg, vector<int>& sourceDim, vector<unsigned char>& rgbTarget)
+    {
+        vector<vector<int>> TLBR(2, vector<int>(2));
+        TLBR[0] = { 2147483647, 2147483647 };
+        TLBR[1] = { 0, 0 };
+        vector<unsigned char> rgb;
+        vector<int> coord(2);
+        for (int ii = 0; ii < sourceDim[1]; ii++)
+        {
+            coord[1] = ii;
+            for (int jj = 0; jj < sourceDim[0]; jj++)
+            {
+                coord[0] = jj;
+                rgb = pixelRGB(coord, sourceImg, sourceDim);
+                if (rgb == rgbTarget)
+                {
+                    if (coord[0] < TLBR[0][0]) { TLBR[0][0] = coord[0]; }
+                    else if (coord[0] > TLBR[1][0]) { TLBR[1][0] = coord[0]; }
+                    if (coord[1] < TLBR[0][1]) { TLBR[0][1] = coord[1]; }
+                    else if (coord[1] > TLBR[1][1]) { TLBR[1][1] = coord[1]; }
+                }
+            }
+        }
+        return TLBR;
     }
 
     template<typename ... Args> void makeLegendV(vector<unsigned char>& legend, vector<int>& legendDim, vector<string>& listText, Args& ... args)

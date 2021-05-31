@@ -4,13 +4,13 @@ using namespace std;
 
 int STATSCAN::cata_init(string& sample_csv)
 {
-    size_t pos1 = cata_path.rfind('\\');
+    size_t pos1 = cata_path.rfind('\\'), finalTextVar;
     cata_name = cata_path.substr(pos1 + 1);
     cata_desc = extract_description(sample_csv);
-    text_vars = extract_text_vars(sample_csv);
+    text_vars = extract_text_vars(sample_csv, finalTextVar);
     column_titles = extract_column_titles(sample_csv);
     int damaged_val;  // Unneeded for init.
-    rows = extract_rows(sample_csv, damaged_val);
+    rows = extract_rows(sample_csv, damaged_val, finalTextVar);
     linearized_titles = linearize_row_titles(rows, column_titles);
 
     insert_primary_template = make_insert_primary_template(cata_name, text_vars, linearized_titles);
@@ -217,25 +217,22 @@ vector<string> STATSCAN::extract_column_titles(string& sfile)
 {
     vector<string> column_titles;
     string temp1;
-    size_t pos1, pos2, pos_nl1, pos_nl2;
+    size_t pos1, pos2, pos_nl1, pos_nl2, finalTextVar;
     int spaces, indent;
     vector<int> space_history = { 0 };
     char math;
 
-    if (final_text_var == 0)
+    pos1 = 0;
+    while (1)
     {
-        pos1 = 0;
-        while (1)
-        {
-            pos1 = sfile.find('=', pos1 + 1);
-            if (pos1 > sfile.size()) { break; }  // Loop exit.
-            math = sfile[pos1 - 1];
-            if (math == '<' || math == '>') { continue; }  // Ignore cases where '=' is used in row titles.
-            final_text_var = pos1;
-        }
+        pos1 = sfile.find('=', pos1 + 1);
+        if (pos1 > sfile.size()) { break; }  // Loop exit.
+        math = sfile[pos1 - 1];
+        if (math == '<' || math == '>') { continue; }  // Ignore cases where '=' is used in row titles.
+        finalTextVar = pos1;
     }
 
-    pos_nl1 = sfile.find('\n', final_text_var);
+    pos_nl1 = sfile.find('\n', finalTextVar);
     pos_nl2 = sfile.find('\n', pos_nl1 + 1);
     pos1 = sfile.find('"', pos_nl1);
     do
@@ -307,7 +304,7 @@ void STATSCAN::extract_gid_list(vector<string>& file_list)
         gid_list[ii] = file_list[ii].substr(pos1 + 1, pos2 - pos1 - 1);
     }
 }
-vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
+vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged, size_t& finalTextVar)
 {
     // Returns a 2D vector of the form [row index][row title, row val1, row val2, ...].
 
@@ -317,7 +314,7 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
     char math;
     damaged = 0;
 
-    if (final_text_var == 0)
+    if (finalTextVar == 0)
     {
         pos1 = 0;
         while (1)
@@ -326,11 +323,11 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
             if (pos1 > sfile.size()) { break; }  // Loop exit.
             math = sfile[pos1 - 1];
             if (math == '<' || math == '>') { continue; }  // Ignore cases where '=' is used in row titles.
-            final_text_var = pos1;
+            finalTextVar = pos1;
         }
     }
     
-    pos_nl1 = sfile.find('\n', final_text_var);
+    pos_nl1 = sfile.find('\n', finalTextVar);
     pos_nl2 = sfile.find('\n', pos_nl1 + 1);    
     if (multi_column)
     {
@@ -465,7 +462,7 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged)
     
     return rows;
 }
-vector<vector<string>> STATSCAN::extract_text_vars(string& sfile)
+vector<vector<string>> STATSCAN::extract_text_vars(string& sfile, size_t& finalTextVar)
 {
 	vector<vector<string>> text_vars;
 	size_t pos1, pos2;
@@ -480,7 +477,7 @@ vector<vector<string>> STATSCAN::extract_text_vars(string& sfile)
 		math = sfile[pos1 - 1];
 		if (math == '<' || math == '>') { continue; }  // Ignore cases where '=' is used in row titles.
 		
-        final_text_var = pos1;
+        finalTextVar = pos1;
         text_vars.push_back(vector<string>(2));
 		pos2 = sfile.rfind('"', pos1);
 		temp1 = sfile.substr(pos2 + 1, pos1 - pos2 - 1);

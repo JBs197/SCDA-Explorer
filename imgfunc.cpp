@@ -554,6 +554,19 @@ string IMGFUNC::getMapPath(int mode)
     }
     return path;
 }
+vector<double> IMGFUNC::getPosition(string pathPNGpos, vector<unsigned char> rgb)
+{
+    // Returns the center of rgb's containing box, as a percentage of the overall image (width, height).
+    pngLoad(pathPNGpos);
+    vector<int> sourceDim = { width, height };
+    vector<vector<int>> boxTLBR = makeBox(dataPNG, sourceDim, rgb);
+    int centerX = ((boxTLBR[1][0] - boxTLBR[0][0]) / 2) + boxTLBR[0][0];
+    int centerY = ((boxTLBR[1][1] - boxTLBR[0][1]) / 2) + boxTLBR[0][1];
+    vector<double> output(2);
+    output[0] = (double)centerX / (double)sourceDim[0];
+    output[1] = (double)centerY / (double)sourceDim[1];
+    return output;
+}
 double IMGFUNC::getPPKM(string& pathTXT, int scalePixels)
 {
     // Read a map's scale bar, and return the number of pixels per kilometer.
@@ -1001,6 +1014,25 @@ void IMGFUNC::loadRecentSavePoint(vector<vector<int>>& vBorderPath)
     vBorderPath.push_back(pointRight);
     pauseVBP = sizeVBP + 1;
 }
+void IMGFUNC::makePositionPNG(string& pngPath, string& pngFramePath)
+{
+    pngLoad(pngPath);
+    vector<vector<vector<int>>> threeFrames = pngThreeFrames();
+    vector<int> sourceDim = { width, height };
+    vector<int> extractDim = { threeFrames[2][1][0] - threeFrames[2][0][0], threeFrames[2][1][1] - threeFrames[2][0][1] };
+    vector<unsigned char> posFrameImg = pngExtractRectTopLeft(threeFrames[2][0], dataPNG, sourceDim, extractDim);
+    int imgSize = posFrameImg.size();
+    int channels = 3;
+    auto bufferUC = new unsigned char[imgSize];
+    for (int ii = 0; ii < imgSize; ii++)
+    {
+        bufferUC[ii] = posFrameImg[ii];
+    }
+    string pngFramePathASCII = jf.asciiOnly(pngFramePath);
+    int success = stbi_write_png(pngFramePathASCII.c_str(), extractDim[0], extractDim[1], channels, bufferUC, 0);
+    delete[] bufferUC;
+    if (!success) { jf.err("stbi_write_png-im.makePositionPNG"); }
+}
 bool IMGFUNC::mapIsInit()
 {
     size_t size = mapColour.size();
@@ -1312,11 +1344,13 @@ vector<unsigned char> IMGFUNC::pngExtractRow(int row, vector<unsigned char>& img
 void IMGFUNC::pngLoad(string& pathPNG)
 {
     if (!mapIsInit()) { initMapColours(); }
+    string pathASCII;
 	unsigned char* dataTemp = stbi_load(pathPNG.c_str(), &width, &height, &numComponents, 0);
     if (dataTemp == NULL)
     {
-        auto errorSTB = stbi_failure_reason();
-        int bbq = 1;
+        pathASCII = jf.asciiOnly(pathPNG);
+        dataTemp = stbi_load(pathASCII.c_str(), &width, &height, &numComponents, 0);
+        if (dataTemp == NULL) { jf.err("stbi_load-im.pngLoad"); }
     }
     int sizeTemp = width * height * numComponents;
 	dataPNG.resize(sizeTemp);

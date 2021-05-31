@@ -432,7 +432,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>3</number>
     </property>
     <widget class="QWidget" name="tab">
      <attribute name="title">
@@ -532,6 +532,24 @@
         <y>0</y>
         <width>151</width>
         <height>451</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tab_6">
+     <attribute name="title">
+      <string>Superposition</string>
+     </attribute>
+     <widget class="QLabel" name="label_pos">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>161</width>
+        <height>171</height>
        </rect>
       </property>
       <property name="text">
@@ -812,6 +830,20 @@ Map</string>
 Map</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pB_pos">
+    <property name="geometry">
+     <rect>
+      <x>1150</x>
+      <y>690</y>
+      <width>21</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Superimpose
+Maps</string>
+    </property>
+   </widget>
    <zorder>cB_drives</zorder>
    <zorder>pB_scan</zorder>
    <zorder>pB_insert</zorder>
@@ -848,6 +880,7 @@ Map</string>
    <zorder>pB_undo</zorder>
    <zorder>pB_savemap</zorder>
    <zorder>pB_deletemap</zorder>
+   <zorder>pB_pos</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

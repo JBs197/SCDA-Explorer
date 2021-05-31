@@ -53,7 +53,7 @@ void SQLFUNC::create_table(string tname, vector<string>& titles, vector<int>& ty
 }
 void SQLFUNC::err(string func)
 {
-    jfsf.err(func);
+    jf.err(func);
 }
 int SQLFUNC::get_num_col(string tname)
 {
@@ -73,7 +73,7 @@ void SQLFUNC::insert_tg_existing(string tname)
     // Convenience function to facilitate the insertion of tables into TGenealogy. 
     // This function is only valid if the table in question already exists in the database.
     
-    vector<string> row_data = jfsf.list_from_marker(tname, '$');
+    vector<string> row_data = jf.list_from_marker(tname, '$');
     safe_col("TGenealogy", row_data.size());
     insert("TGenealogy", row_data);
 }
@@ -400,7 +400,7 @@ vector<string> SQLFUNC::test_cata(string cata_name)
     all_tables(tall);
     for (int ii = 0; ii < tall.size(); ii++)
     {
-        vtemp = jfsf.list_from_marker(tall[ii], '$');
+        vtemp = jf.list_from_marker(tall[ii], '$');
         if (vtemp[1] == cata_name && vtemp.size() > 2)
         {
             results1.push_back(vtemp[0]);

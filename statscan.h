@@ -18,7 +18,7 @@ class STATSCAN
 	string create_csv_table_template;
 	vector<string> csv_branches;
 	vector<vector<int>> csv_tree;  // Form [row_index][ancestor1's row_index, ... , (neg) row_index, child1's row_index, ...].
-	size_t final_text_var = 0;
+	//size_t final_text_var = 0;
 	vector<string> gid_list;
 	string insert_csv_row_template;
 	string insert_primary_template;
@@ -48,8 +48,8 @@ public:
 	string extract_description(string&);
 	void extract_csv_branches(vector<string>&);
 	void extract_gid_list(vector<string>&);
-	vector<vector<string>> extract_text_vars(string&);
-	vector<vector<string>> extract_rows(string&, int&);
+	vector<vector<string>> extract_text_vars(string& sfile, size_t& finalTextVar);
+	vector<vector<string>> extract_rows(string& sfile, int& damaged, size_t& finalTextVar);
 	string geoLinkToRegionUrl(string& urlGeoList, string& geoLink);
 	vector<string> getLayerSelected(string& sfile);
 	string get_cata_desc();

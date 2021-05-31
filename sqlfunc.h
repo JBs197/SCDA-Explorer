@@ -11,7 +11,7 @@ using namespace std;
 
 class SQLFUNC 
 {
-    JFUNC jfsf;
+    JFUNC jf;
 	sqlite3* db;
     ofstream ERR;
     string error_path = sroot + "\\SCDA Error Log.txt";
@@ -397,7 +397,7 @@ public:
         string svalue;
         int iextra = 0;
 
-        while (error == 100)
+        while (error == 100)  // Output text should be UTF8.
         {
             col_count = sqlite3_column_count(statement);
             results.push_back(vector<string>(col_count));
@@ -421,11 +421,26 @@ public:
                     svalue.resize(size);
                     for (int ii = 0; ii < size; ii++)
                     {
-                        if (buffer[ii] > 127)
+                        if (buffer[ii] > 127 && buffer[ii] != 195)
                         {
-                            svalue[ii + iextra] = -61;
-                            iextra++;
-                            svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                            if (ii == 0) 
+                            {
+                                svalue[ii + iextra] = -61;
+                                iextra++;
+                                svalue.insert(svalue.begin() + ii + iextra, buffer[ii] - 64);
+                                svalue.push_back(0);
+                            }
+                            else if (buffer[ii - 1] == 195)
+                            {
+                                svalue[ii + iextra] = buffer[ii];
+                            }
+                            else
+                            {
+                                svalue[ii + iextra] = -61;
+                                iextra++;
+                                svalue.insert(svalue.begin() + ii + iextra, buffer[ii] - 64);
+                                svalue.push_back(0);
+                            }
                         }
                         else
                         {
@@ -560,7 +575,7 @@ public:
     template<> void get_table_list<string>(vector<string>& results, string& search)
     {
         results.clear();
-        vector<string> search_split = jfsf.list_from_marker(search, '$');
+        vector<string> search_split = jf.list_from_marker(search, '$');
         vector<string> chaff_split;
         vector<string> chaff;
         string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
@@ -569,7 +584,7 @@ public:
         size_t pos1, pos2;
         for (int ii = 0; ii < chaff.size(); ii++)
         {
-            chaff_split = jfsf.list_from_marker(chaff[ii], '$');
+            chaff_split = jf.list_from_marker(chaff[ii], '$');
             if (chaff_split.size() < search_split.size()) { continue; }
             for (int jj = 1; jj < search_split.size(); jj++)
             {
@@ -674,6 +689,7 @@ public:
         // If an integer reference is given, then (mode = 1) will bypass the existance check.
         // If a list is also given, then that list serves as boolean conditions from which 
         // TRUE rows within the table will be deleted.
+        jf.err("remove template-sf");
     }
     template<> void remove<int, vector<string>>(int& mode, vector<string>& death_row)
     {
@@ -705,16 +721,15 @@ public:
     }
     template<> void remove<string>(string& tname)
     {
-        string stmt = "DELETE FROM [" + tname + "];";
+        string stmt = "DROP TABLE IF EXISTS [" + tname + "];";
         if (table_exist(tname))
         {
             executor(stmt);
         }
         else
         {
-            jfsf.log("Could not delete " + tname + " : could not find.");
-        }
-        
+            jf.log("Could not delete " + tname + " : could not find.");
+        }        
     }
     template<> void remove<string, vector<string>>(string& tname, vector<string>& conditions)
     {
@@ -730,7 +745,7 @@ public:
         }
         else
         {
-            jfsf.log("Could not delete " + tname + " : could not find.");
+            jf.log("Could not delete " + tname + " : could not find.");
         }
     }
 

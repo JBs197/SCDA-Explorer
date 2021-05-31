@@ -2,6 +2,22 @@
 
 using namespace std;
 
+string JFUNC::asciiOnly(string& input)
+{
+	string ascii;
+	ascii.resize(input.size());
+	int index = 0;
+	for (int ii = 0; ii < input.size(); ii++)
+	{
+		if (input[ii] >= 0) 
+		{
+			ascii[index] = input[ii];
+			index++;
+		}
+	}
+	ascii.resize(index);
+	return ascii;
+}
 string JFUNC::asciiToUTF8(string input)
 {
 	string output;
@@ -51,12 +67,7 @@ string JFUNC::bind(string& stmt0, vector<string>& params)
 	}
 	if (count != (int)params.size())
 	{
-		temp = "ERROR: parameter count mismatch-bind";
-		cerr << temp << endl;
-		cerr << "Given params: " << to_string(params.size()) << endl;
-		cerr << "Counted '?' params: " << to_string(count) << endl;
-		cin.get();
-		return temp;
+		err("ERROR: parameter count mismatch-bind");
 	}
 
 	pos1 = 0;

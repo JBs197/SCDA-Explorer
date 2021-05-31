@@ -39,6 +39,7 @@ public:
 	atomic_ullong stopwatch = 0;  // Max timer ticks is 1.8e19.
 	atomic_int stopwatch_control = 0;
 
+	string asciiOnly(string& input);
 	string asciiToUTF8(string input);
 	wstring asciiToUTF16(string aFile);
 	string bind(string&, vector<string>&);
