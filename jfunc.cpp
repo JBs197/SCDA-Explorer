@@ -258,6 +258,33 @@ string JFUNC::load(string filePath)
 	string output = utf16to8(wTemp);
 	return output;
 }
+string JFUNC::loadDebug(string filePath)
+{
+	// Load a file into memory as a string. 
+	// If the file path cannot be opened, pause and ask the user for guidance.
+	wstring wFP = asciiToUTF16(filePath);
+	wifstream wLoad;
+	wLoad.open(wFP, wifstream::binary);
+	auto report = wLoad.rdstate();
+	if (report) 
+	{
+		filePath = "ERROR: " + filePath;
+		return filePath;
+	}
+	wLoad.seekg(0, wLoad.end);
+	int len = wLoad.tellg();
+	wLoad.seekg(0, wLoad.beg);
+	wstring wTemp;
+	wTemp.resize(len);
+	wLoad.read(&wTemp[0], len);
+	wLoad.close();
+	while (wTemp[0] == 239 && wTemp[1] == 187 && wTemp[2] == 191)
+	{
+		wTemp.erase(wTemp.begin(), wTemp.begin() + 3);
+	}
+	string output = utf16to8(wTemp);
+	return output;
+}
 void JFUNC::log(string message)
 {
 	lock_guard<mutex> lock(m_err);

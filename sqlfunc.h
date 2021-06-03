@@ -31,6 +31,8 @@ public:
     void insert_tg_existing(string);
     void insert_prepared(vector<string>&);
     string insert_stmt(string, vector<string>&, vector<string>&);
+    int getNumRows(string tname);
+    vector<string> getTableListFromRoot(string& root);
     int get_num_col(string);
     void makeANSI(string&);
     void safe_col(string, int);

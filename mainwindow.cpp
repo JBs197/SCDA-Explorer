@@ -82,6 +82,8 @@ void MainWindow::initialize()
     ui->pte_localinput->setGeometry(460, 690, 241, 41);
     ui->pB_search->setGeometry(710, 690, 71, 41);
     ui->pB_viewtable->setGeometry(790, 690, 71, 41);
+    ui->pB_deletetable->setGeometry(870, 690, 71, 41);
+    ui->pB_deletetable->setEnabled(0);
     ui->tabW_results2->setGeometry(760, 10, 496, 641);
     ui->tV_viewtable->setGeometry(0, 0, 486, 611);
     ui->treeW_subtables->setGeometry(0, 0, 486, 611);
@@ -439,6 +441,102 @@ void MainWindow::update_treeW_cataindb()
     ui->treeW_cataindb->clear();
     ui->treeW_cataindb->addTopLevelItems(qlist);
 }
+void MainWindow::update_treeW_mapindb()
+{
+    string nameRoot = "TMap";
+    QString qtemp = "TMap";
+    QTreeWidgetItem* qRoot = new QTreeWidgetItem();
+    qRoot->setText(0, qtemp);
+    auto item_flags = qRoot->flags();
+    item_flags.setFlag(Qt::ItemIsSelectable, false);
+    qRoot->setFlags(item_flags);
+    vector<string> TMapList = sf.getTableListFromRoot(nameRoot);
+
+
+    ui->treeW_mapindb->clear();
+
+    if (numRoots == 0)  // Populate the QTree with all the map folders.
+    {
+        jtMaps.init(nameRoot, pathRoot);
+        treeST = { { 0 } };
+        treePL = { pathRoot };
+        search = "maps*";
+        wf.getLayerFolder(0, treeST, treePL, search);
+        numFolder = treePL.size();
+        for (int ii = 1; ii < numFolder; ii++)
+        {
+            wf.getTreeFolder(ii, treeST, treePL);
+        }
+        treeiPL.assign(treeST.size(), -1);  // Folders always get an iValue of -1.
+        jtMaps.inputTreeSTPL(treeST, treePL, treeiPL);
+        qnode = new QTreeWidgetItem();
+        qtemp = QString::fromStdString(nameRoot);
+        qnode->setText(0, qtemp);
+        qnode->setText(1, "");
+        populateQTree(jtMaps, qnode, nameRoot);
+        ui->treeW_maps->addTopLevelItem(qnode);
+    }
+    else
+    {
+        qSelected = ui->treeW_maps->selectedItems();
+        if (qSelected.size() < 1) { return; }
+        qtemp = qSelected[0]->text(1);
+        if (qtemp == "")  // Is folder.
+        {
+            qtemp = qSelected[0]->text(0);
+            qf.deleteLeaves(qSelected[0]);
+        }
+        else  // Is leaf.
+        {
+            qtemp = qSelected[0]->parent()->text(0);
+            qnode = qSelected[0]->parent();
+            qf.deleteLeaves(qnode);
+        }
+        nameSelected = qtemp.toStdString();
+        jtMaps.deleteLeaves(nameSelected);
+
+        pathSelected = nameSelected;
+        qParent = qSelected[0]->parent();
+        while (qParent != nullptr)
+        {
+            qtemp = qParent->text(0);
+            pathSelected = qtemp.toStdString() + "\\" + pathSelected;
+            qnode = qParent;
+            qParent = qnode->parent();
+        }
+        pos1 = pathSelected.find('\\');
+        temp = pathSelected.substr(pos1);
+        pathSelected = pathRoot + temp;
+        temp.push_back('\\');
+        pos1 = temp.find('\\', 1);
+        temp = temp.substr(1, pos1 - 1);
+        if (temp == "mapsBIN") { search = ".bin"; }
+        else if (temp == "mapsPNG") { search = ".png"; }
+        else if (temp == "mapsPDF") { search = ".pdf"; }
+        else { err("Failed to locate mapsX folder-MainWindow.on_pB_localmaps_clicked"); }
+        search = "*" + search;
+        listName = wf.get_file_list(pathSelected, search);
+        selectedMapFolder = pathSelected;
+        numFile = listName.size();
+        nameLeaf = temp.substr(4);
+        nameLeaf += " Maps";
+
+        qf.displayBinList(ui->listW_bindone, listName);
+
+        jtMaps.addChild(nameLeaf, numFile, pathSelected);
+        qtemp = QString::fromStdString(nameLeaf);
+        qnode = new QTreeWidgetItem(qSelected[0]);
+        qnode->setText(0, qtemp);
+        qtemp.setNum(numFile);
+        qnode->setText(1, qtemp);
+        qnode->setExpanded(1);
+    }
+    ui->tabW_online->setCurrentIndex(1);
+    qParent = ui->treeW_maps->topLevelItem(0);
+    qParent->setExpanded(1);
+    qnode = qParent->child(2);
+    qnode->setExpanded(1);
+}
 void MainWindow::update_mode()
 {
     switch (active_mode)
@@ -479,6 +577,7 @@ void MainWindow::update_mode()
         ui->pB_search->setVisible(1);
         ui->pB_download->setVisible(0);
         ui->pB_viewtable->setVisible(1);
+        ui->pB_deletetable->setVisible(1);
         ui->pB_localmaps->setVisible(0);
         ui->pB_convert->setVisible(0);
         ui->pB_correct->setVisible(0);
@@ -522,6 +621,7 @@ void MainWindow::update_mode()
         ui->pB_search->setVisible(0);
         ui->pB_download->setVisible(1);
         ui->pB_viewtable->setVisible(0);
+        ui->pB_deletetable->setVisible(0);
         ui->pB_localmaps->setVisible(1);
         ui->pB_convert->setVisible(1);
         ui->pB_correct->setVisible(1);
@@ -1449,6 +1549,53 @@ void MainWindow::display_table(string tname)
         ui->tV_viewtable->setRowHeight(row_heights[ii][0], row_heights[ii][1]);
     }
     ui->tabW_results2->setCurrentIndex(0);
+}
+
+// Remove the selected table from the database. 
+void MainWindow::on_pB_deletetable_clicked()
+{
+    int tab_index = ui->tabW_results->currentIndex();
+    int row, kids;
+    wstring wTemp;
+    string temp, gid, tname, row_title, result;
+    vector<string> row_split, search, conditions;
+    QList<QTreeWidgetItem*> qcurrent;
+    QTreeWidgetItem* qitem;
+    QString qtemp;
+
+    // Get the table name. 
+    switch (tab_index)
+    {
+    case 0:
+    {
+        // Obtain the CSV table name.
+        qcurrent = ui->treeW_gid->selectedItems();
+        if (qcurrent.size() < 1) { return; }
+        qtemp = qcurrent[0]->text(0);
+        wTemp = qtemp.toStdWString();
+        temp = qtemp.toStdString();
+        string temp2 = "'";
+        jf.clean(temp, { "" }, temp2);
+        search = { "GID" };
+        tname = "TG_Region$" + viewcata_data[1];
+        conditions = { "[Region Name] = '" + temp + "'" };
+        sf.select(search, tname, gid, conditions);
+        tname = viewcata_data[1] + "$" + gid;
+        break;
+    }
+    case 3:
+    {
+        QList<QListWidgetItem*> qSelected = ui->listW_search->selectedItems();
+        if (qSelected.size() != 1) { return; }
+        qtemp = qSelected[0]->text();
+        tname = qtemp.toStdString();
+        break;
+    }
+    }
+
+    // Delete.
+    sf.remove(tname);
+
 }
 
 // Query Statistics Canada for information.
@@ -3200,7 +3347,7 @@ void MainWindow::on_pB_pos_clicked()
 }
 
 // Load BIN maps from local storage and insert them into the SQL database.
-void MainWindow::on_pB_insertmaps_clicked()
+void MainWindow::on_pB_insertmap_clicked()
 {
     QList<QTreeWidgetItem*> qSelected = ui->treeW_maps->selectedItems();
     if (qSelected.size() != 1) { return; }
@@ -3219,13 +3366,31 @@ void MainWindow::on_pB_insertmaps_clicked()
     thread::id myid = this_thread::get_id();
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);
+    comm[0][2] = listBin.size() - 1;
     sb.start_call(myid, 1, comm[0]);
     sb.set_prompt(listBin);
-    std::thread thr(&MainWindow::insertMapsWorker, this, ref(sb), ref(sf));
+    std::thread thr(&MainWindow::insertMapWorker, this, ref(sb), ref(sf));
     thr.detach();
-    //
+    string status = "Inserting BIN maps for " + selectedMapFolder + " ...";
+    reset_bar(comm[0][2], status);
+    while (comm[0][0] == 0)
+    {
+        Sleep(gui_sleep);
+        comm = sb.update(myid, comm[0]);
+        if (comm.size() < 2) { continue; }
+        if (comm[1][1] > comm[0][1])
+        {
+            comm[0][1] = comm[1][1];
+            jobs_done = comm[0][1];
+            update_bar();
+        }
+        if (comm[1][0] == 1) { comm[0][0] = 1; }
+        QCoreApplication::processEvents();
+    }
+    status += " done!";
+    barMessage(status);
 }
-void MainWindow::insertMapsWorker(SWITCHBOARD& sbgui, SQLFUNC& sf)
+void MainWindow::insertMapWorker(SWITCHBOARD& sbgui, SQLFUNC& sf)
 {
     vector<int> mycomm;
     vector<vector<int>> comm_gui;
@@ -3242,18 +3407,20 @@ void MainWindow::insertMapsWorker(SWITCHBOARD& sbgui, SQLFUNC& sf)
     nameList.pop_back();
     for (int ii = 0; ii < nameList.size(); ii++)
     {
-        binPath = folderPath + "\\" + nameList[ii];
+        binPath = folderPath + "\\" + nameList[ii];  // If exists, no row. BATCH
         qf.loadBinMap(binPath, frames, scale, position, sParent8, border);
         sf.insertBinMap(binPath, frames, scale, position, sParent8, border);
-
+        mycomm[1]++;
+        sbgui.update(myid, mycomm);
     }
-
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
 }
 
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 10;
+    int mode = 0;
 
     switch (mode)
     {
@@ -3593,7 +3760,7 @@ void MainWindow::on_pB_test_clicked()
         string temp = jf.utf16to8(wTemp);
         string mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
         vector<vector<int>> frameCorners, border, TLBR;
-        qf.loadBinMap(mapBinPath, frameCorners, border);
+        //qf.loadBinMap(mapBinPath, frameCorners, border);
         TLBR = im.makeBox(border);
 
         string sfile = jf.load(mapBinPath);
@@ -3687,10 +3854,12 @@ void MainWindow::on_treeW_gid_itemSelectionChanged()
     if (region_selected.size() > 0)
     {
         ui->pB_viewtable->setEnabled(1);
+        ui->pB_deletetable->setEnabled(1);
     }
     else
     {
         ui->pB_viewtable->setEnabled(0);
+        ui->pB_deletetable->setEnabled(0);
     }
 }
 void MainWindow::on_listW_search_itemSelectionChanged()
@@ -3698,6 +3867,7 @@ void MainWindow::on_listW_search_itemSelectionChanged()
     QList<QListWidgetItem*> qSelected = ui->listW_search->selectedItems();
     if (qSelected.size() != 1) { return; }
     ui->pB_viewtable->setEnabled(1);
+    ui->pB_deletetable->setEnabled(1);
 }
 void MainWindow::on_tabW_catalogues_currentChanged(int index)
 {

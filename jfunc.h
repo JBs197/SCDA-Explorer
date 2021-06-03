@@ -54,6 +54,7 @@ public:
 	vector<string> ivectorToSvector(vector<int>&);
 	vector<string> list_from_marker(string&, char);
 	string load(string);
+	string loadDebug(string);
 	void log(string message);
 	void logTime(string func, long long timer);
 	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);

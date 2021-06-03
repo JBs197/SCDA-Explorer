@@ -62,7 +62,7 @@ public:
 	void loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent, vector<vector<int>>& border);
 	vector<vector<int>> loadDebugMapCoord(string& pathBin);
 	string makePathTree(QTreeWidgetItem*& qBranch);
-	vector<double> makeShift(QLabel*& qlabel, vector<vector<int>>& frameCorners);
+	vector<double> makeShift(QLabel*& qlabel, vector<vector<int>>& frameBorderTLBR);
 	QPainterPath pathMakeCircle(vector<double> origin, double radius, int sides);
 	void pmPainterReset(QLabel*& qlabel);
 	void printEditedMap(string& pathBin);
@@ -267,11 +267,15 @@ public:
 	template<> void displayBin<string>(QLabel*& qlabel, string& pathBIN)
 	{
 		// Load all coordinates into memory from the bin file.
+		vector<vector<vector<int>>> frames;
+		double scale;
+		vector<double> position;
+		string sParent8;
 		vector<vector<int>> border;
-		loadBinMap(pathBIN, frameCorners, border);
+		loadBinMap(pathBIN, frames, scale, position, sParent8, border);
 
 		// Scale and shift the coordinates to fit the display window.
-		vector<double> mapShift = makeShift(qlabel, frameCorners);
+		vector<double> mapShift = makeShift(qlabel, frames[0]);
 		vector<vector<double>> borderShifted;
 		im.coordShift(border, mapShift, borderShifted);
 

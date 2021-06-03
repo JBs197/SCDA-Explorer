@@ -568,7 +568,7 @@ void WINFUNC::renameFile(string oldPath, string newPath)
 	if (!yesno) 
 	{ 
 		GLE = GetLastError(); 
-		int bbq = 1;
+		winerr("MoveFileA-wf.renameFile");
 	}
 }
 void WINFUNC::set_error_path(string errpath)

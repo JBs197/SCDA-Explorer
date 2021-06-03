@@ -230,7 +230,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="catas_db">
      <attribute name="title">
@@ -311,6 +311,29 @@
       </column>
      </widget>
     </widget>
+    <widget class="QWidget" name="tab_7">
+     <attribute name="title">
+      <string>Maps in Database</string>
+     </attribute>
+     <widget class="QTreeWidget" name="treeW_mapindb">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>344</width>
+        <height>611</height>
+       </rect>
+      </property>
+      <attribute name="headerVisible">
+       <bool>false</bool>
+      </attribute>
+      <column>
+       <property name="text">
+        <string notr="true">1</string>
+       </property>
+      </column>
+     </widget>
+    </widget>
    </widget>
    <widget class="QPushButton" name="pB_viewtable">
     <property name="enabled">
@@ -320,7 +343,7 @@
      <rect>
       <x>590</x>
       <y>690</y>
-      <width>61</width>
+      <width>21</width>
       <height>41</height>
      </rect>
     </property>
@@ -339,7 +362,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="tab_4">
      <attribute name="title">
@@ -432,7 +455,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>3</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="tab">
      <attribute name="title">
@@ -858,6 +881,20 @@ Maps</string>
 Map</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pB_deletetable">
+    <property name="geometry">
+     <rect>
+      <x>620</x>
+      <y>690</y>
+      <width>21</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Delete
+Table</string>
+    </property>
+   </widget>
    <zorder>cB_drives</zorder>
    <zorder>pB_scan</zorder>
    <zorder>pB_insert</zorder>
@@ -896,6 +933,7 @@ Map</string>
    <zorder>pB_deletemap</zorder>
    <zorder>pB_pos</zorder>
    <zorder>pB_insertmap</zorder>
+   <zorder>pB_deletetable</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">

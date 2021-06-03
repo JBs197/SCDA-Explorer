@@ -55,6 +55,30 @@ void SQLFUNC::err(string func)
 {
     jf.err(func);
 }
+int SQLFUNC::getNumRows(string tname)
+{
+    string stmt = "SELECT COUNT(*) FROM [";
+    stmt += tname + "];";
+    string result;
+    executor(stmt, result);
+    int numRows;
+    try { numRows = stoi(result); }
+    catch (invalid_argument& ia) { jf.err("stoi-sf.getNumRows"); }
+    return numRows;
+}
+vector<string> SQLFUNC::getTableListFromRoot(string& root)
+{
+    vector<string> tList;
+    all_tables(tList);
+    size_t pos1;
+    for (int ii = tList.size() - 1; ii >= 0; ii--)
+    {
+        pos1 = tList[ii].rfind(root, 1);
+        if (pos1 == 0) { continue; }
+        tList.erase(tList.begin() + ii);
+    }
+    return tList;
+}
 int SQLFUNC::get_num_col(string tname)
 {
     vector<string> column_titles;
@@ -72,30 +96,108 @@ void SQLFUNC::insertBinMap(string& binPath, vector<vector<vector<int>>>& frames,
     vector<string> directory;
     size_t pos1 = binPath.rfind(".bin");
     string temp = binPath.substr(0, pos1);
-    pos1 = temp.find("mapsBIN");
-    pos1 = temp.find('\\', pos1) + 1;
-    size_t pos2 = temp.find('\\', pos1);
-    while (pos2 < temp.size())
+    string binPath8 = jf.asciiToUTF8(temp);
+    pos1 = binPath8.find("mapsBIN");
+    pos1 = binPath8.find('\\', pos1) + 1;
+    size_t pos2 = binPath8.find('\\', pos1);
+    while (pos2 < binPath8.size())
     {
-        directory.push_back(temp.substr(pos1, pos2 - pos1));
+        directory.push_back(binPath8.substr(pos1, pos2 - pos1));
         pos1 = pos2 + 1;
-        pos2 = temp.find('\\', pos1);
+        pos2 = binPath8.find('\\', pos1);
     }
-    directory.push_back(temp.substr(pos1));
-    string tname0 = "TMap$", tname;
+    directory.push_back(binPath8.substr(pos1));
+    string tname0 = "TMap$", tname, stmt;
     for (int ii = 0; ii < directory.size(); ii++)
     {
         tname0 += directory[ii] + "$";
     }
 
-    // Make and insert the tables for frames.
+    // Make and insert the table for frames.
     tname = tname0 + "frames";
-    vector<string> columnTitles = { "map", "scale", "position" };
+    vector<string> columnTitles = { "map", "scale", "position" }, rowData(3);
     vector<int> columnTypes = { 1, 1, 1 };
+    int indexTLBR, indexXY, numRows, error;
     create_table(tname, columnTitles, columnTypes);
+    numRows = getNumRows(tname);
+    if (!numRows)
+    {
+        for (int ii = 0; ii < 4; ii++)
+        {
+            if (ii < 2) { indexTLBR = 0; }
+            else { indexTLBR = 1; }
+            indexXY = ii % 2;
+            for (int jj = 0; jj < 3; jj++)
+            {
+                rowData[jj] = to_string(frames[jj][indexTLBR][indexXY]);
+            }
+            stmt = insert_stmt(tname, columnTitles, rowData);
+            executor(stmt);
+        }
+    }
 
+    // Make and insert the table for scale.
+    tname = tname0 + "scale";
+    columnTitles = { "Pixels Per km" };
+    columnTypes = { 1 };
+    create_table(tname, columnTitles, columnTypes);
+    numRows = getNumRows(tname);
+    if (!numRows)
+    {
+        rowData = { to_string(scale) };
+        stmt = insert_stmt(tname, columnTitles, rowData);
+        executor(stmt);
+    }
 
+    // Make and insert the table for position (minimap).
+    tname = tname0 + "position";
+    columnTitles = { "WH Fraction" };
+    columnTypes = { 1 };
+    create_table(tname, columnTitles, columnTypes);
+    numRows = getNumRows(tname);
+    if (!numRows)
+    {
+        for (int ii = 0; ii < 2; ii++)
+        {
+            rowData = { to_string(position[ii]) };
+            stmt = insert_stmt(tname, columnTitles, rowData);
+            executor(stmt);
+        }
+    }
 
+    // Make and insert the table for parent.
+    tname = tname0 + "parent";
+    columnTitles = { "Region Name" };
+    columnTypes = { 0 };
+    create_table(tname, columnTitles, columnTypes);
+    numRows = getNumRows(tname);
+    if (!numRows)
+    {
+        rowData = { sParent8 };
+        stmt = insert_stmt(tname, columnTitles, rowData);
+        executor(stmt);
+    }
+
+    // Make and insert the table for border. Inserted via transaction.
+    tname = tname0 + "border";
+    columnTitles = { "xCoord", "yCoord" };
+    columnTypes = { 1, 1 };
+    create_table(tname, columnTitles, columnTypes);
+    numRows = getNumRows(tname);
+    if (!numRows)
+    {
+        error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+        if (error) { sqlerr("begin transaction-sf.insertBinMaps"); }
+        for (int ii = 0; ii < border.size(); ii++)
+        {
+            rowData = { to_string(border[ii][0]), to_string(border[ii][1]) };
+            stmt = insert_stmt(tname, columnTitles, rowData);
+            executor(stmt);
+        }
+        error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+        if (error) { sqlerr("commit transaction-sf.insertBinMaps"); }
+    }
+    
 }
 void SQLFUNC::insert_tg_existing(string tname)
 {
@@ -134,6 +236,7 @@ void SQLFUNC::insert_prepared(vector<string>& stmts)
 }
 string SQLFUNC::insert_stmt(string tname, vector<string>& column_titles, vector<string>& row_data)
 {
+    if (column_titles.size() != row_data.size()) { jf.err("Parameter size mismatch-sf.insert_stmt"); }
     string stmt = "INSERT INTO [" + tname + "] (";
     for (int ii = 0; ii < column_titles.size(); ii++)
     {

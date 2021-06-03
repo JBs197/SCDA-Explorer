@@ -35,7 +35,7 @@ public:
     GSFUNC gf;
     IMGFUNC im;
     JFUNC jf;
-    JTREE jt, jtMaps, jtStatsCan;
+    JTREE jt, jtMaps, jtMapsDB, jtStatsCan;
     QTFUNC qf;
     SWITCHBOARD sb;
     SQLFUNC sf;
@@ -61,6 +61,7 @@ private slots:
     void on_treeW_maps_itemSelectionChanged();
     void on_listW_search_itemSelectionChanged();
     void on_pB_viewtable_clicked();
+    void on_pB_deletetable_clicked();
     void on_pB_removecata_clicked();
     void on_tabW_catalogues_currentChanged(int);
     void on_tabW_results_currentChanged(int);
@@ -73,7 +74,7 @@ private slots:
     void on_pB_convert_clicked();
     void on_pB_correct_clicked();
     void on_pB_pos_clicked();
-    void on_pB_insertmaps_clicked();
+    void on_pB_insertmap_clicked();
     void on_pB_resume_clicked();
     void on_pB_pause_clicked();
     void on_pB_advance_clicked();
@@ -133,7 +134,7 @@ private:
     int fetchGeoList(int iYear, string sCata, vector<string>& geoLayers, string& geoPage, string geoURL);
     int getCataStatus(string sYear, string sName, vector<string>& csvLocal, vector<string>& csvOnline);
     void initImgFont(string fontName);
-    void insertMapsWorker(SWITCHBOARD& sbgui, SQLFUNC& sf);
+    void insertMapWorker(SWITCHBOARD& sbgui, SQLFUNC& sf);
     void makeTempASCII(string folderPath);
     void mousePressEvent(QMouseEvent* event) override;
     void populateQtree(JTREE&, QTreeWidgetItem*&, string);
@@ -141,6 +142,7 @@ private:
     vector<string> notDownloaded(string syear, string sname);
     void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
     void update_treeW_cataindb();
+    void update_treeW_mapindb();
     void update_mode();
 
 
