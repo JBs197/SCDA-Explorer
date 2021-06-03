@@ -198,6 +198,20 @@ void SQLFUNC::insertBinMap(string& binPath, vector<vector<vector<int>>>& frames,
         if (error) { sqlerr("commit transaction-sf.insertBinMaps"); }
     }
     
+    // Insert a new row in TMapIndex, if necessary.
+    pos1 = tname0.find('$') + 1;
+    string myCoreDir = tname0.substr(pos1);
+    myCoreDir.pop_back();  // Remove trailing '$'.
+    vector<string> vSearch = { "coreDir" };
+    tname = "TMapIndex";
+    vector<string> conditions = { "coreDir LIKE " + myCoreDir };
+    temp.clear();
+    select(vSearch, tname, temp, conditions);
+    if (temp.size() < 1)  // This row does not exist yet.
+    {
+        insertTMI(myCoreDir);
+    }
+
 }
 void SQLFUNC::insert_tg_existing(string tname)
 {
@@ -237,7 +251,7 @@ void SQLFUNC::insert_prepared(vector<string>& stmts)
 string SQLFUNC::insert_stmt(string tname, vector<string>& column_titles, vector<string>& row_data)
 {
     if (column_titles.size() != row_data.size()) { jf.err("Parameter size mismatch-sf.insert_stmt"); }
-    string stmt = "INSERT INTO [" + tname + "] (";
+    string stmt = "INSERT OR IGNORE INTO [" + tname + "] (";
     for (int ii = 0; ii < column_titles.size(); ii++)
     {
         stmt += "[" + column_titles[ii];
@@ -260,6 +274,29 @@ string SQLFUNC::insert_stmt(string tname, vector<string>& column_titles, vector<
 
     bind(stmt, row_data);
     return stmt;
+}
+void SQLFUNC::insertTMI(string myCoreDir)
+{
+    sclean(myCoreDir, 1);
+    vector<string> params = jf.list_from_marker(myCoreDir, '$');
+    int numParams = params.size() - 1;
+    string tname = "TMapIndex";
+    string stmt = "INSERT OR IGNORE INTO TMapIndex (coreDir, numParams, ";
+    stmt += "param1, param2, param3, param4) VALUES ('";
+    stmt += myCoreDir + "', '" + to_string(numParams);
+    for (int ii = 1; ii <= 4; ii++)
+    {
+        if (ii <= numParams)
+        {
+            stmt += "', '" + params[ii];
+        }
+        else
+        {
+            stmt += "', '";
+        }
+    }
+    stmt += "');";
+    executor(stmt);
 }
 void SQLFUNC::makeANSI(string& task)
 {
@@ -556,4 +593,11 @@ vector<string> SQLFUNC::test_cata(string cata_name)
         }
     }
     return test_results;
+}
+vector<vector<string>> SQLFUNC::getTMapIndex()
+{
+    vector<vector<string>> TMI;
+    string stmt = "SELECT * FROM TMapIndex ORDER BY numParams ASC NULLS LAST;";
+    executor(stmt, TMI);
+    return TMI;
 }

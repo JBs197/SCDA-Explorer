@@ -33,8 +33,10 @@ public:
     string insert_stmt(string, vector<string>&, vector<string>&);
     int getNumRows(string tname);
     vector<string> getTableListFromRoot(string& root);
+    vector<vector<string>> getTMapIndex();
     int get_num_col(string);
     void makeANSI(string&);
+    void insertTMI(string myCoreDir);
     void safe_col(string, int);
     void select_tree2(string tname, vector<vector<int>>& tree_st, vector<wstring>& tree_pl);
     vector<string> select_years();
@@ -268,11 +270,26 @@ public:
                     svalue.resize(size);
                     for (int ii = 0; ii < size; ii++)
                     {
-                        if (buffer[ii] > 127)
+                        if (buffer[ii] > 127 && buffer[ii] != 195)
                         {
-                            svalue[ii + iextra] = -61;
-                            iextra++;
-                            svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                            if (ii == 0)
+                            {
+                                svalue[ii + iextra] = -61;
+                                iextra++;
+                                svalue[ii + iextra] = buffer[ii] - 64;
+                                svalue.push_back(0);
+                            }
+                            else if (buffer[ii - 1] == 195)
+                            {
+                                svalue[ii + iextra] = buffer[ii];
+                            }
+                            else
+                            {
+                                svalue[ii + iextra] = -61;
+                                iextra++;
+                                svalue[ii + iextra] = buffer[ii] - 64;
+                                svalue.push_back(0);
+                            }
                         }
                         else
                         {
@@ -518,7 +535,7 @@ public:
             sqlerr("step-executor2");
         }
     }
-   
+    
     template<typename ... Args> void get_col_titles(string, Args& ... args) 
     {
         // Referencing a 1D vector will output [name 1, name 2, ...].
@@ -845,10 +862,11 @@ public:
     }
     template<> int select<string, vector<string>>(vector<string> search, string tname, string& result, vector<string>& conditions)
     {
-        string stmt = "SELECT " + search[0] + " FROM [" + tname + "] WHERE (";
+        string stmt = "SELECT " + search[0] + " FROM [" + tname + "] WHERE ('";
         for (int ii = 0; ii < conditions.size(); ii++)
         {
-            stmt += conditions[ii] + " ";
+            sclean(conditions[ii], 1);  // Double apostraphes.
+            stmt += conditions[ii] + "' ";
         }
         stmt += ");";
         executor(stmt, result);

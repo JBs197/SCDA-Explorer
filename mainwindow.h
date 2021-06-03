@@ -117,6 +117,7 @@ private:
     void initialize();
     void create_cata_index_table();
     void create_damaged_table();
+    void createMapIndexTable();
     void judicator(SQLFUNC&, SWITCHBOARD&, WINFUNC&);
     void insert_csvs(vector<vector<vector<string>>>&, SWITCHBOARD&, STATSCAN&);
     static int sql_callback(void*, int, char**, char**);

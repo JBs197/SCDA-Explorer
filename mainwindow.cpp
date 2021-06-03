@@ -62,6 +62,7 @@ void MainWindow::initialize()
     // Create (if necessary) these system-wide tables. 
     create_cata_index_table();  
     create_damaged_table();
+    createMapIndexTable();
     
     // Load a font into the IMGFUNC object.
     initImgFont("Sylfaen");
@@ -71,6 +72,7 @@ void MainWindow::initialize()
     qf.set_display_root(ui->treeW_csvtree, 1);
     qf.set_display_root(ui->treeW_subtables, 0);
     update_treeW_cataindb();
+    update_treeW_mapindb();
     
     // Initialize mode to 'local'. 
     qtemp = QString::fromStdString(modes[active_mode]);
@@ -286,6 +288,32 @@ void MainWindow::create_damaged_table()
     stmt += "GID INT, [Number of Errors] INT);";
     sf.executor(stmt);
 }
+void MainWindow::createMapIndexTable()
+{
+    // Create the table, if necessary.
+    string stmt = "CREATE TABLE IF NOT EXISTS TMapIndex ";
+    stmt += "(coreDir TEXT, numParams INTEGER, param1 TEXT, ";
+    stmt += "param2 TEXT, param3 TEXT, param4 TEXT, ";
+    stmt += "UNIQUE(coreDir, param1, param2, param3, param4) );";
+    sf.executor(stmt);
+
+    // Initialize the table with the subfolders in "mapsBIN", if necessary.
+    vector<string> dirt = { "\\" };
+    vector<string> soap = { "$" };
+    vector<string> treePL = { sroot + "\\mapsBIN" };
+    vector<vector<int>> treeST = { {0} };
+    wf.getTreeFolder(0, treeST, treePL);
+    string coreDir, temp;
+    size_t pos1;
+    for (int ii = 1; ii < treePL.size(); ii++)
+    {
+        pos1 = treePL[ii].find("mapsBIN");
+        pos1 = treePL[ii].find('\\', pos1 + 6) + 1;
+        coreDir = treePL[ii].substr(pos1);
+        jf.clean(coreDir, dirt, soap);
+        sf.insertTMI(coreDir);
+    }
+}
 
 // If the tree widget has 'max' or fewer elements, then expand those elements in the GUI.
 void MainWindow::auto_expand(QTreeWidget*& qtree, int max)
@@ -443,99 +471,58 @@ void MainWindow::update_treeW_cataindb()
 }
 void MainWindow::update_treeW_mapindb()
 {
-    string nameRoot = "TMap";
+    jf.timerStart();
+
+    // Make the root.
+    string nameRoot = "TMap", coreDir, temp;
     QString qtemp = "TMap";
-    QTreeWidgetItem* qRoot = new QTreeWidgetItem();
+    QTreeWidgetItem* qRoot = new QTreeWidgetItem(), *qBranch, *qParent;
     qRoot->setText(0, qtemp);
     auto item_flags = qRoot->flags();
     item_flags.setFlag(Qt::ItemIsSelectable, false);
     qRoot->setFlags(item_flags);
-    vector<string> TMapList = sf.getTableListFromRoot(nameRoot);
 
+    // Make branches for folders.
+    int params, index, indexParent;
+    size_t pos1, pos2;
+    vector<vector<string>> TMapIndex = sf.getTMapIndex();
+    QList<QTreeWidgetItem*> qBranches;
+    unordered_map<string, int> mapTMap;
+    for (int ii = 0; ii < TMapIndex.size(); ii++)
+    {
+        try { params = stoi(TMapIndex[ii][1]); }
+        catch (invalid_argument& ia) { err("stoi-MainWindow.update_treeW_mapindb"); }
+        if (params == 1)
+        {
+            index = qBranches.size();
+            mapTMap.emplace(TMapIndex[ii][0], index);
+            qtemp = QString::fromStdString(TMapIndex[ii][params + 1]);
+            qBranch = new QTreeWidgetItem(qRoot);
+            qBranch->setText(0, qtemp);
+            qBranches.append(qBranch);
+        }
+        else
+        {
+            pos1 = TMapIndex[ii][0].rfind('$');
+            temp = TMapIndex[ii][0].substr(0, pos1);
+            try { indexParent = mapTMap.at(temp); }
+            catch (out_of_range& oor) { err("mapTMap-MainWindow.update_treeW_mapindb"); }
+            index = qBranches.size();
+            mapTMap.emplace(TMapIndex[ii][0], index);
+            qtemp = QString::fromStdString(TMapIndex[ii][params + 1]);
+            qBranch = new QTreeWidgetItem(qBranches[indexParent]);
+            qBranch->setText(0, qtemp);
+            qBranches.append(qBranch);
+        }
+    }
 
+    // Update the GUI.
     ui->treeW_mapindb->clear();
+    ui->treeW_mapindb->addTopLevelItem(qRoot);
+    ui->treeW_mapindb->expandItem(qRoot);
 
-    if (numRoots == 0)  // Populate the QTree with all the map folders.
-    {
-        jtMaps.init(nameRoot, pathRoot);
-        treeST = { { 0 } };
-        treePL = { pathRoot };
-        search = "maps*";
-        wf.getLayerFolder(0, treeST, treePL, search);
-        numFolder = treePL.size();
-        for (int ii = 1; ii < numFolder; ii++)
-        {
-            wf.getTreeFolder(ii, treeST, treePL);
-        }
-        treeiPL.assign(treeST.size(), -1);  // Folders always get an iValue of -1.
-        jtMaps.inputTreeSTPL(treeST, treePL, treeiPL);
-        qnode = new QTreeWidgetItem();
-        qtemp = QString::fromStdString(nameRoot);
-        qnode->setText(0, qtemp);
-        qnode->setText(1, "");
-        populateQTree(jtMaps, qnode, nameRoot);
-        ui->treeW_maps->addTopLevelItem(qnode);
-    }
-    else
-    {
-        qSelected = ui->treeW_maps->selectedItems();
-        if (qSelected.size() < 1) { return; }
-        qtemp = qSelected[0]->text(1);
-        if (qtemp == "")  // Is folder.
-        {
-            qtemp = qSelected[0]->text(0);
-            qf.deleteLeaves(qSelected[0]);
-        }
-        else  // Is leaf.
-        {
-            qtemp = qSelected[0]->parent()->text(0);
-            qnode = qSelected[0]->parent();
-            qf.deleteLeaves(qnode);
-        }
-        nameSelected = qtemp.toStdString();
-        jtMaps.deleteLeaves(nameSelected);
-
-        pathSelected = nameSelected;
-        qParent = qSelected[0]->parent();
-        while (qParent != nullptr)
-        {
-            qtemp = qParent->text(0);
-            pathSelected = qtemp.toStdString() + "\\" + pathSelected;
-            qnode = qParent;
-            qParent = qnode->parent();
-        }
-        pos1 = pathSelected.find('\\');
-        temp = pathSelected.substr(pos1);
-        pathSelected = pathRoot + temp;
-        temp.push_back('\\');
-        pos1 = temp.find('\\', 1);
-        temp = temp.substr(1, pos1 - 1);
-        if (temp == "mapsBIN") { search = ".bin"; }
-        else if (temp == "mapsPNG") { search = ".png"; }
-        else if (temp == "mapsPDF") { search = ".pdf"; }
-        else { err("Failed to locate mapsX folder-MainWindow.on_pB_localmaps_clicked"); }
-        search = "*" + search;
-        listName = wf.get_file_list(pathSelected, search);
-        selectedMapFolder = pathSelected;
-        numFile = listName.size();
-        nameLeaf = temp.substr(4);
-        nameLeaf += " Maps";
-
-        qf.displayBinList(ui->listW_bindone, listName);
-
-        jtMaps.addChild(nameLeaf, numFile, pathSelected);
-        qtemp = QString::fromStdString(nameLeaf);
-        qnode = new QTreeWidgetItem(qSelected[0]);
-        qnode->setText(0, qtemp);
-        qtemp.setNum(numFile);
-        qnode->setText(1, qtemp);
-        qnode->setExpanded(1);
-    }
-    ui->tabW_online->setCurrentIndex(1);
-    qParent = ui->treeW_maps->topLevelItem(0);
-    qParent->setExpanded(1);
-    qnode = qParent->child(2);
-    qnode->setExpanded(1);
+    long long timer = jf.timerStop();
+    qDebug() << "Time to update mapindb: " << timer;
 }
 void MainWindow::update_mode()
 {
@@ -2369,6 +2356,9 @@ void MainWindow::on_pB_search_clicked()
                 sf.remove(results[ii]);
             }
         }
+        tname = "Deleted " + temp + " !";
+        qtemp = QString::fromStdString(tname);
+        ui->pte_localinput->setPlainText(qtemp);
     }
     else if (tname == "all")
     {
@@ -2505,7 +2495,10 @@ void MainWindow::on_pB_localmaps_clicked()
     ui->tabW_online->setCurrentIndex(1);
     qParent = ui->treeW_maps->topLevelItem(0);
     qParent->setExpanded(1);
-    qnode = qParent->child(2);
+    qnode = qParent->child(0);
+    qnode->setExpanded(1);
+    qParent = qnode;
+    qnode = qParent->child(1);
     qnode->setExpanded(1);
 }
 void MainWindow::populateQTree(JTREE& jtx, QTreeWidgetItem*& qMe, string myName)
@@ -3387,6 +3380,7 @@ void MainWindow::on_pB_insertmap_clicked()
         if (comm[1][0] == 1) { comm[0][0] = 1; }
         QCoreApplication::processEvents();
     }
+    update_treeW_mapindb();
     status += " done!";
     barMessage(status);
 }
@@ -3407,7 +3401,7 @@ void MainWindow::insertMapWorker(SWITCHBOARD& sbgui, SQLFUNC& sf)
     nameList.pop_back();
     for (int ii = 0; ii < nameList.size(); ii++)
     {
-        binPath = folderPath + "\\" + nameList[ii];  // If exists, no row. BATCH
+        binPath = folderPath + "\\" + nameList[ii]; 
         qf.loadBinMap(binPath, frames, scale, position, sParent8, border);
         sf.insertBinMap(binPath, frames, scale, position, sParent8, border);
         mycomm[1]++;

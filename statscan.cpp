@@ -573,7 +573,6 @@ string STATSCAN::get_subtable_name_template(int index)
 {
     return subtable_names_template[index];
 }
-
 void STATSCAN::initGeo()
 {
     string empty;
