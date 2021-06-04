@@ -44,7 +44,7 @@ public:
 	void downloadGeoList(string sYear, string sName, string& geoPage);
 	void downloadMaps(SWITCHBOARD& sbgui);
 	void err(string);
-	vector<string> extract_column_titles(string&);
+	vector<string> extract_column_titles(string&, size_t& finalTextVar);
 	string extract_description(string&);
 	void extract_csv_branches(vector<string>&);
 	void extract_gid_list(vector<string>&);
@@ -64,6 +64,7 @@ public:
 	int get_num_subtables();
 	string get_subtable_name_template(int);
 	void initGeo();
+	void loadGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
 	vector<string> linearize_row_titles(vector<vector<string>>&, vector<string>&);
 	vector<string> makeGeoLayers(string& lineGeo);
 	string makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLayers, string geoURL);

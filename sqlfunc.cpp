@@ -213,6 +213,53 @@ void SQLFUNC::insertBinMap(string& binPath, vector<vector<vector<int>>>& frames,
     }
 
 }
+void SQLFUNC::insertGeo(string cataName, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers)
+{
+    if (geoLayers[0] == "") { geoLayers[0] = "canada"; }
+    if (layerList[0] == "") { layerList[0] = "canada"; }
+
+    // Make and fill the Geo_Layers table.
+    string tname = cataName + "$Geo_Layers";
+    vector<string> colTitles = { "Layer" }, stmts, row(3), vsTemp;
+    int myError = 0;
+    string stmt = "CREATE TABLE [" + tname + "] (Layer TEXT);";
+    executor(stmt, myError);
+    if (!myError)
+    {
+        for (int ii = 0; ii < geoLayers.size(); ii++)
+        {
+            vsTemp = { geoLayers[ii] };
+            stmt = insert_stmt(tname, colTitles, vsTemp);
+            executor(stmt);
+        }
+    }
+
+
+    // Make and fill the Geo table.
+    tname = cataName + "$Geo";
+    stmt = "CREATE TABLE [" + tname + "] (";
+    stmt += "GID INTEGER PRIMARY KEY, [Region Name] TEXT, ";
+    stmt += "Layer TEXT);";
+    myError = 0;
+    executor(stmt, myError);
+    if (!myError)
+    {
+        string stmt0 = "INSERT INTO [" + tname + "] (GID, [Region Name], Layer)";
+        stmt0 += " VALUES (?, ?, ?);";
+        stmts.resize(gidList.size());
+        //int error = sqlite3_exec(db, "BEGIN DEFERRED TRANSACTION", NULL, NULL, NULL);
+        //if (error) { sqlerr("begin transaction-insertGeo"); }
+        for (int ii = 0; ii < gidList.size(); ii++)
+        {
+            row = { to_string(gidList[ii]), regionList[ii], layerList[ii] };
+            stmt = stmt0;
+            bind(stmt, row);
+            executor(stmt);
+        }
+        //error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+        //if (error) { sqlerr("commit transaction-insertGeo"); }
+    }
+}
 void SQLFUNC::insert_tg_existing(string tname)
 {
     // Still needed???
@@ -487,6 +534,18 @@ void SQLFUNC::sqlerr(string func)
     ERR << message << endl;
     ERR.close();
     exit(EXIT_FAILURE);
+}
+string SQLFUNC::sqlErrMsg()
+{
+    const char* errmsg = sqlite3_errmsg(db);
+    string output;
+    int index = 0;
+    while (errmsg[index] != 0)
+    {
+        output.push_back(errmsg[index]);
+        index++;
+    }
+    return output;
 }
 int SQLFUNC::statusCata(string sname)
 {

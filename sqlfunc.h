@@ -18,7 +18,6 @@ class SQLFUNC
     
     void bind(string&, vector<string>&);
     void err(string);
-    int sclean(string&, int);
 	void sqlerr(string);
 	string timestamper();
 
@@ -36,11 +35,14 @@ public:
     vector<vector<string>> getTMapIndex();
     int get_num_col(string);
     void makeANSI(string&);
+    void insertGeo(string cataName, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
     void insertTMI(string myCoreDir);
     void safe_col(string, int);
+    int sclean(string&, int);
     void select_tree2(string tname, vector<vector<int>>& tree_st, vector<wstring>& tree_pl);
     vector<string> select_years();
     void set_error_path(string);
+    string sqlErrMsg();
     int statusCata(string sname);
     bool table_exist(string);
     vector<string> test_cata(string);
@@ -77,6 +79,23 @@ public:
 			sqlerr("step-executor0"); 
 		}
 	}
+    template<> void executor<int>(string stmt, int& myError)
+    {
+        sqlite3_stmt* statement;
+        int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+        if (error == 1)
+        {
+            string errMsg = sqlErrMsg();
+            size_t pos1 = errMsg.find("already exists");
+            if (pos1 < errMsg.size()) { myError = -1; return; }
+        }
+        else if (error) { sqlerr("prepare-executor0"); }
+        error = sqlite3_step(statement);
+        if (error > 0 && error != 100 && error != 101)
+        {
+            sqlerr("step-executor0");
+        }
+    }
     template<> void executor<string>(string stmt, string& result)
     {
         // Note that this variant of the executor function will only return the first result.
@@ -520,6 +539,7 @@ public:
                     {
                         wvalue[ii] = (wchar_t)buffer[ii];
                     }
+                    jf.UTF16clean(wvalue);
                     results[results.size() - 1][ii] = wvalue;
                     break;
                 }
@@ -862,11 +882,10 @@ public:
     }
     template<> int select<string, vector<string>>(vector<string> search, string tname, string& result, vector<string>& conditions)
     {
-        string stmt = "SELECT " + search[0] + " FROM [" + tname + "] WHERE ('";
+        string stmt = "SELECT " + search[0] + " FROM [" + tname + "] WHERE (";
         for (int ii = 0; ii < conditions.size(); ii++)
         {
-            sclean(conditions[ii], 1);  // Double apostraphes.
-            stmt += conditions[ii] + "' ";
+            stmt += conditions[ii] + " ";
         }
         stmt += ");";
         executor(stmt, result);

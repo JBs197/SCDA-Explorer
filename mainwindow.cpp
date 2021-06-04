@@ -195,12 +195,6 @@ void MainWindow::update_bar()
             warn(L"Progress bar single increase exceeded 15%");
         }
         ui->progressBar->setValue(jobs_percent);
-        if (jobs_percent == 100 && jump > 0)
-        {
-            pb_text = ui->QL_bar->text();
-            pb_text.append(" ... done!");
-            ui->QL_bar->setText(pb_text);
-        }
     }
     else
     {
@@ -284,9 +278,10 @@ void MainWindow::create_cata_index_table()
 }
 void MainWindow::create_damaged_table()
 {
-    string stmt = "CREATE TABLE IF NOT EXISTS TDamaged ([Catalogue Name] TEXT, ";
+    int bbq = 0;
+    string stmt = "CREATE TABLE TDamaged ([Catalogue Name] TEXT, ";
     stmt += "GID INT, [Number of Errors] INT);";
-    sf.executor(stmt);
+    sf.executor(stmt, bbq);
 }
 void MainWindow::createMapIndexTable()
 {
@@ -746,8 +741,7 @@ void MainWindow::on_pB_insert_clicked()
     QString qyear, qname;
     string syear, sname, stmt;
     int mode, error, sb_index;
-    vector<vector<int>> comm(1, vector<int>());
-    comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
+    vector<vector<int>> comm;
     
     thread::id myid = this_thread::get_id();
     ui->tabW_catalogues->setCurrentIndex(0);
@@ -763,6 +757,9 @@ void MainWindow::on_pB_insert_clicked()
         qname = catas_to_do[ii]->text(1);
         sname = qname.toStdString();
         prompt[1] = sname;
+        comm.resize(1);
+        comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
+
 
         // Determine that catalogue's current status in the database.
         search = { "Description" };
@@ -822,7 +819,7 @@ void MainWindow::on_pB_insert_clicked()
                     {
                         comm[0][2] = comm[1][2];
                         comm[0][1] = comm[1][1];
-                        reset_bar(comm[1][2], "Inserting catalogue  " + sname);  // ... initialize the progress bar.
+                        reset_bar(comm[0][2], "Inserting catalogue  " + sname);  // ... initialize the progress bar.
                         jobs_done = comm[0][1];
                         update_bar();
                     }
@@ -857,11 +854,11 @@ void MainWindow::on_pB_insert_clicked()
 }
 void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
 {
-    vector<int> mycomm;
+    vector<int> mycomm, gidList;
     vector<vector<int>> comm_gui;
     thread::id myid = this_thread::get_id();
     sb.answer_call(myid, mycomm);
-    vector<string> prompt = sb.get_prompt();
+    vector<string> prompt = sb.get_prompt(), regionList, layerList, geoLayers;
     string cata_path = sroot + "\\" + prompt[0] + "\\" + prompt[1];
     int num_gid = wf.get_file_path_number(cata_path, ".csv");
     mycomm[2] = num_gid;
@@ -1042,6 +1039,11 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
         }
     }
 
+    // Insert the geo list data.
+    string geoPath = cata_path + "\\" + prompt[1] + " geo list.bin";
+    sc.loadGeo(geoPath, gidList, regionList, layerList, geoLayers);
+    sf.insertGeo(prompt[1], gidList, regionList, layerList, geoLayers);
+
     // Update catalogue's description, if the insertion completed successfully.
     vector<string> test_results;
     if (mycomm[0] == 1)
@@ -1178,6 +1180,7 @@ void MainWindow::insert_csvs(vector<vector<vector<string>>>& all_queue, SWITCHBO
     mycomm[0] = 1;
     sbjudi.update(myid, mycomm);
 }
+//void MainWindow::insertGeo()
 
 // Display the 'tabbed data' for the selected catalogue.
 void MainWindow::on_pB_viewcata_clicked()
@@ -2340,9 +2343,10 @@ void MainWindow::on_pB_mode_clicked()
 void MainWindow::on_pB_search_clicked()
 {
     QString qtemp = ui->pte_localinput->toPlainText();
-    string tname = qtemp.toStdString(), temp;
+    string tname = qtemp.toStdString(), temp, sYear, sName, filePath;
     size_t pos1 = tname.find("delete");
-    vector<string> results;
+    vector<string> results, regionList, layerList, geoLayers;
+    vector<int> gidList;
     QStringList qlist;
     if (pos1 == 0)
     {
@@ -2362,6 +2366,7 @@ void MainWindow::on_pB_search_clicked()
     }
     else if (tname == "all")
     {
+        ui->listW_search->clear();
         sf.get_table_list(results);
         for (int ii = 0; ii < results.size(); ii++)
         {
@@ -2372,6 +2377,19 @@ void MainWindow::on_pB_search_clicked()
         temp = "Search returned " + to_string(results.size()) + " results.";
         qtemp = QString::fromStdString(temp);
         ui->pte_localinput->setPlainText(qtemp);
+    }
+    else if (tname == "insertGeo")
+    {
+        QList<QTreeWidgetItem*> qSel = ui->treeW_cataindb->selectedItems();
+        if (qSel.size() != 1) { return; }
+        qtemp = qSel[0]->text(0);
+        sYear = qtemp.toStdString();
+        qtemp = qSel[0]->text(1);
+        sName = qtemp.toStdString();
+        filePath = sroot + "\\" + sYear + "\\" + sName + "\\" + sName + " geo list.bin";
+        sc.loadGeo(filePath, gidList, regionList, layerList, geoLayers);
+        sf.insertGeo(sName, gidList, regionList, layerList, geoLayers);
+        barMessage(sName + " done!");
     }
     else if (sf.table_exist(tname))
     {

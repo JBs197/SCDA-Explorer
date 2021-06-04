@@ -8,7 +8,7 @@ int STATSCAN::cata_init(string& sample_csv)
     cata_name = cata_path.substr(pos1 + 1);
     cata_desc = extract_description(sample_csv);
     text_vars = extract_text_vars(sample_csv, finalTextVar);
-    column_titles = extract_column_titles(sample_csv);
+    column_titles = extract_column_titles(sample_csv, finalTextVar);
     int damaged_val;  // Unneeded for init.
     rows = extract_rows(sample_csv, damaged_val, finalTextVar);
     linearized_titles = linearize_row_titles(rows, column_titles);
@@ -213,24 +213,13 @@ void STATSCAN::err(string func)
 {
     jf.err(func);
 }
-vector<string> STATSCAN::extract_column_titles(string& sfile)
+vector<string> STATSCAN::extract_column_titles(string& sfile, size_t& finalTextVar)
 {
     vector<string> column_titles;
     string temp1;
-    size_t pos1, pos2, pos_nl1, pos_nl2, finalTextVar;
+    size_t pos1, pos2, pos_nl1, pos_nl2;
     int spaces, indent;
     vector<int> space_history = { 0 };
-    char math;
-
-    pos1 = 0;
-    while (1)
-    {
-        pos1 = sfile.find('=', pos1 + 1);
-        if (pos1 > sfile.size()) { break; }  // Loop exit.
-        math = sfile[pos1 - 1];
-        if (math == '<' || math == '>') { continue; }  // Ignore cases where '=' is used in row titles.
-        finalTextVar = pos1;
-    }
 
     pos_nl1 = sfile.find('\n', finalTextVar);
     pos_nl2 = sfile.find('\n', pos_nl1 + 1);
@@ -439,6 +428,13 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged, size_
                     rows[rindex].push_back("..");
                     break;
                 }
+                pos3 = line.find('x', pos1 + 1);  // ... check for a damaged value.
+                if (pos3 < line.size())
+                {
+                    damaged++;
+                    rows[rindex].push_back("x");
+                    break;
+                }
 
                 pos3 = line.find_last_of("1234567890") + 1;
                 pos1 = line.find_last_of(" ,", pos3 - 1) + 1;
@@ -448,7 +444,8 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged, size_
             else
             {
                 temp1 = line.substr(pos1 + 1, pos2 - pos1 - 1);
-                if (temp1 == "..") { damaged++; }
+                if (temp1 == ".." || temp1 == "...") { damaged++; }
+                else if (temp1 == "x") { damaged++; }
                 else if (jf.is_numeric(temp1))
                 {
                     rows[rindex].push_back(temp1);
@@ -476,7 +473,11 @@ vector<vector<string>> STATSCAN::extract_text_vars(string& sfile, size_t& finalT
 		if (pos1 > sfile.size()) { break; }  // Loop exit.
 		math = sfile[pos1 - 1];
 		if (math == '<' || math == '>') { continue; }  // Ignore cases where '=' is used in row titles.
-		
+        pos2 = sfile.rfind('"', pos1);
+        temp1 = sfile.substr(pos2, pos1 - pos2);
+        pos2 = temp1.find_first_of("[]");
+        if (pos2 < temp1.size()) { continue; }
+
         finalTextVar = pos1;
         text_vars.push_back(vector<string>(2));
 		pos2 = sfile.rfind('"', pos1);
@@ -597,6 +598,59 @@ void STATSCAN::initGeo()
     }
 }
 
+void STATSCAN::loadGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers)
+{
+    gidList.clear();
+    regionList.clear();
+    layerList.clear();
+    geoLayers.clear();
+    string sfile = jf.load(filePath), temp, sGid, region, sIndent;
+    size_t pos1, pos2, pos3;
+    int inum, iGid, iIndent;
+    pos3 = sfile.rfind("@@Geo URL");
+    pos3 = sfile.find_last_not_of('\n', pos3 - 1) + 1;
+    pos2 = sfile.rfind("@@Geo Layers");
+    pos2 = sfile.find('\n', pos2 + 11);
+    pos1 = pos2 + 1;
+    pos2 = sfile.find('\n', pos1);
+    while (pos2 <= pos3)
+    {
+        if (pos2 == pos1) { geoLayers.push_back(""); }
+        else
+        {
+            temp = sfile.substr(pos1, pos2 - pos1);
+            geoLayers.push_back(temp);
+        }
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('\n', pos1);
+    }
+
+    pos3 = sfile.rfind("@@Geo Layers", pos3);
+    pos1 = 0;
+    pos2 = sfile.find('$', pos1);
+    while (pos2 < pos3)
+    {
+        sGid = sfile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('$', pos1);
+        region = sfile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('\n', pos1);
+        sIndent = sfile.substr(pos1, pos2 - pos1);
+        try
+        {
+            iGid = stoi(sGid);
+            iIndent = stoi(sIndent);
+        }
+        catch (invalid_argument) { jf.err("stoi-sc.loadGeo"); }
+        if (iIndent >= geoLayers.size()) { jf.err("geoLayers-sc.loadGeo"); }
+        gidList.push_back(iGid);
+        regionList.push_back(region);
+        layerList.push_back(geoLayers[iIndent]);
+        pos1 = pos2 + 1;
+        pos2 = sfile.find('$', pos1);
+    }
+}
 vector<string> STATSCAN::linearize_row_titles(vector<vector<string>>& rows, vector<string>& column_titles)
 {
     // Produces a list of unique titles from the indented row titles which do not include ancestors.
@@ -858,7 +912,7 @@ void STATSCAN::make_insert_primary_statement(string& stmt0, string gid, vector<v
     }
     for (int ii = 0; ii < rows.size(); ii++)
     {
-        for (int jj = 1; jj < rows[0].size(); jj++)
+        for (int jj = 1; jj < rows[ii].size(); jj++)
         {
             params.push_back(rows[ii][jj]);
         }
@@ -1364,6 +1418,8 @@ bool STATSCAN::testGeoList(string& filePath)
     if (pos > sfile.size()) { return 0; }
     pos = sfile.find("@@Geo URL");
     if (pos > sfile.size()) { return 0; }
+    pos = sfile.find("gc.caor", pos);
+    if (pos < sfile.size()) { return 0; }
     return 1;
 }
 
