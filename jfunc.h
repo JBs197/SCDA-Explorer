@@ -44,6 +44,7 @@ public:
 	wstring asciiToUTF16(string aFile);
 	string bind(string&, vector<string>&);
 	vector<int> destringifyCoord(string& sCoord);
+	vector<double> destringifyCoordD(string& sCoord);
 	void err(string);
 	string get_error_path();
 	void isort_slist(vector<string>&);

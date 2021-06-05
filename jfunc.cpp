@@ -103,6 +103,25 @@ vector<int> JFUNC::destringifyCoord(string& sCoord)
 	catch (invalid_argument& ia) { err("stoi-jf.destringifyCoord"); }
 	return coord;
 }
+vector<double> JFUNC::destringifyCoordD(string& sCoord)
+{
+	vector<double> coord;
+	size_t pos1 = sCoord.find(','), pos2 = 0;
+	if (pos1 > sCoord.size()) { err("No comma-jf.destringifyCoordD"); }
+	string temp;
+	while (pos1 < sCoord.size())
+	{
+		temp = sCoord.substr(pos2, pos1 - pos2);
+		try { coord.push_back(stod(temp)); }
+		catch (invalid_argument) { err("stod-jf.destringifyCoordD"); }
+		pos2 = pos1 + 1;
+		pos1 = sCoord.find(',', pos2);
+	}
+	temp = sCoord.substr(pos2);
+	try { coord.push_back(stod(temp)); }
+	catch (invalid_argument) { err("stod-jf.destringifyCoordD"); }
+	return coord;
+}
 void JFUNC::err(string func)
 {
 	lock_guard<mutex> lock(m_err);

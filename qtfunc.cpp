@@ -241,6 +241,10 @@ void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, do
 	if (sfile.size() < 1) { err("load-qf.loadBinMap"); }
 	size_t pos1, pos2, posStart;
 	int row, index;
+	pos1 = pathBin.rfind('\\') + 1;
+	pos2 = pathBin.rfind('.');
+	string sName = pathBin.substr(pos1, pos2 - pos1);
+
 	posStart = sfile.find("//frame");
 	if (posStart > sfile.size()) { jf.err("Missing header-qf.loadBinMap"); }
 	pos2 = sfile.find('\n', posStart);
@@ -275,26 +279,28 @@ void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, do
 	pos2 = sfile.find('\n', pos1);
 	temp = sfile.substr(pos1, pos2 - pos1);
 
-	position.resize(2);
-	posStart = sfile.find("//position");
-	if (posStart > sfile.size()) { jf.err("Missing header-qf.loadBinMap"); }
-	pos1 = sfile.find('\n', posStart) + 1;
-	pos2 = sfile.find(',', pos1);
-	temp2 = sfile.substr(pos1, pos2 - pos1);
-	pos1 = pos2 + 1;
-	pos2 = sfile.find('\n', pos1);
-	temp3 = sfile.substr(pos1, pos2 - pos1);
-	try
+	if (sName != "Canada")
 	{
-		scale = stod(temp);
-		position[0] = stod(temp2);
-		position[1] = stod(temp3);
+		position.resize(2);
+		posStart = sfile.find("//position");
+		if (posStart > sfile.size()) { jf.err("Missing header-qf.loadBinMap"); }
+		pos1 = sfile.find('\n', posStart) + 1;
+		pos2 = sfile.find(',', pos1);
+		temp2 = sfile.substr(pos1, pos2 - pos1);
+		pos1 = pos2 + 1;
+		pos2 = sfile.find('\n', pos1);
+		temp3 = sfile.substr(pos1, pos2 - pos1);
+		try
+		{
+			scale = stod(temp);
+			position[0] = stod(temp2);
+			position[1] = stod(temp3);
+		}
+		catch (invalid_argument& ia) { jf.err("stod-qf.loadBinMap"); }
+		pos1 = sfile.find('(', posStart) + 1;
+		pos2 = sfile.find(')', pos1);
+		sParent8 = sfile.substr(pos1, pos2 - pos1);
 	}
-	catch (invalid_argument& ia) { jf.err("stod-qf.loadBinMap"); }
-
-	pos1 = sfile.find('(', posStart) + 1;
-	pos2 = sfile.find(')', pos1);
-	sParent8 = sfile.substr(pos1, pos2 - pos1);
 
 	posStart = sfile.find("//border");
 	pos1 = sfile.find('\n', posStart) + 1;

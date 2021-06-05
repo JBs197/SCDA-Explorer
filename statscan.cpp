@@ -12,6 +12,7 @@ int STATSCAN::cata_init(string& sample_csv)
     int damaged_val;  // Unneeded for init.
     rows = extract_rows(sample_csv, damaged_val, finalTextVar);
     linearized_titles = linearize_row_titles(rows, column_titles);
+    if (text_vars.size() + linearized_titles.size() >= columnLimit) { return -1; }
 
     insert_primary_template = make_insert_primary_template(cata_name, text_vars, linearized_titles);
     create_csv_table_template = make_create_csv_table_template(column_titles);
@@ -435,6 +436,13 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged, size_
                     rows[rindex].push_back("x");
                     break;
                 }
+                pos3 = line.find('F', pos1 + 1);  // ... check for a damaged value.
+                if (pos3 < line.size())
+                {
+                    damaged++;
+                    rows[rindex].push_back("F");
+                    break;
+                }
 
                 pos3 = line.find_last_of("1234567890") + 1;
                 pos1 = line.find_last_of(" ,", pos3 - 1) + 1;
@@ -445,7 +453,7 @@ vector<vector<string>> STATSCAN::extract_rows(string& sfile, int& damaged, size_
             {
                 temp1 = line.substr(pos1 + 1, pos2 - pos1 - 1);
                 if (temp1 == ".." || temp1 == "...") { damaged++; }
-                else if (temp1 == "x") { damaged++; }
+                else if (temp1 == "x" || temp1 == "F") { damaged++; }
                 else if (jf.is_numeric(temp1))
                 {
                     rows[rindex].push_back(temp1);

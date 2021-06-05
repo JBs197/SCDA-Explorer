@@ -56,6 +56,9 @@ void MainWindow::initialize()
     // Populate the navSearch matrix.
     navSearch = sc.navAsset();
 
+    // Initialize the switchboard's error path.
+    sb.setErrorPath(sroot + "\\SCDA SWITCHBOARD Error Log.txt");
+
     // Initialize JTREE objects.
     jtStatsCan.init("Statistics Canada Census Data", sroot);
 
@@ -734,12 +737,13 @@ void MainWindow::scan_drive(SWITCHBOARD& sb, WINFUNC& wf, QList<QTreeWidgetItem*
 void MainWindow::on_pB_insert_clicked()
 {
     QList<QTreeWidgetItem*> catas_to_do = ui->treeW_cataondrive->selectedItems();
+    QList<QTreeWidgetItem*> qSel;
     QTreeWidgetItem* qitem;
     vector<string> prompt(3);  // syear, sname, desc, mode.
     vector<string> results1, search, conditions, vtemp;
     vector<vector<string>> results;
-    QString qyear, qname;
-    string syear, sname, stmt;
+    QString qyear, qname, qtemp;
+    string syear, sname, stmt, sPath, search0 = "*.zip";
     int mode, error, sb_index;
     vector<vector<int>> comm;
     
@@ -757,6 +761,9 @@ void MainWindow::on_pB_insert_clicked()
         qname = catas_to_do[ii]->text(1);
         sname = qname.toStdString();
         prompt[1] = sname;
+        sPath = sroot + "\\" + syear + "\\" + sname;
+        results1 = wf.get_file_list(sPath, search0);
+        if (results1.size() > 0) { continue; } // Cannot parse these yet - so ignore.
         comm.resize(1);
         comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
 
@@ -767,6 +774,7 @@ void MainWindow::on_pB_insert_clicked()
             "Year = '" + syear + "'",
             "AND Name = '" + sname + "'"
         };
+        results1.clear();
         sf.select(search, "TCatalogueIndex", results1, conditions);
         if (results1.size() < 1)
         {
@@ -836,13 +844,26 @@ void MainWindow::on_pB_insert_clicked()
                 err("sb.update-mainwindow");
             }
             
-            if (comm[1][0] == 1 || comm[1][0] == -2)
+            if (comm[1][0] == 1)  // Task completed.
             {
                 error = sb.end_call(myid);
                 if (error) { errnum("sb.end_call-on_pB_insert", error); }
                 jobs_done = comm[0][2];
                 update_bar();
                 break;           // Manager reports task finished/cancelled.
+            }
+            else if (comm[1][0] == -2)  // Error: too many columns.
+            {
+                error = sb.end_call(myid);
+                if (error) { errnum("sb.end_call-on_pB_insert", error); }
+                removeCataTemp.resize(3);
+                removeCataTemp[0] = syear;
+                removeCataTemp[1] = sname;
+                removeCataTemp[2] = "Incomplete";
+                on_pB_removecata_clicked();
+                qtemp = qname + " was aborted: TOO MANY COLUMNS.";
+                ui->pte_localinput->setPlainText(qtemp);
+                break;
             }
         }
     }
@@ -875,7 +896,13 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
     string temp = cata_path + "\\" + csv_list[0];
     string sample_csv = jfjudi.load(temp);
     STATSCAN scjudi(cata_path);
-    scjudi.cata_init(sample_csv);    
+    error = scjudi.cata_init(sample_csv);    
+    if (error == -1)
+    {
+        mycomm[0] = -2;
+        sb.update(myid, mycomm);
+        return;
+    }
     scjudi.extract_gid_list(csv_list);
     scjudi.extract_csv_branches(csv_list);
     qDebug() << "Judicator timer, STATSCAN object: " << timer.restart();
@@ -919,6 +946,7 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
 
     // Launch the worker threads, which will iterate through the CSVs.
     SWITCHBOARD sbjudi;
+    sbjudi.setErrorPath(sroot + "\\SCDA SBjudi Error Log.txt");
     int workload = num_gid / cores;
     int bot = 0;
     int top = workload - 1;
@@ -993,6 +1021,17 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
         comm_csv = sbjudi.update(myid, mycomm);
         if (comm_csv.size() == cores + 1)
         {
+            inum = 0;
+            for (int ii = 1; ii <= cores; ii++)
+            {
+                if (comm_csv[ii][0] == 2) { inum++; }
+            }
+            if (inum == cores)
+            {
+                mycomm[0] = -2;
+                sb.update(myid, mycomm);
+                return;
+            }
             for (int ii = 1; ii <= cores; ii++)
             {
                 if (comm_csv[ii][0] == 0)  // If the thread is still working, let it work. 
@@ -1117,6 +1156,12 @@ void MainWindow::insert_csvs(vector<vector<vector<string>>>& all_queue, SWITCHBO
         text_vars = scjudi.extract_text_vars(sfile, finalTextVar);
         data_rows = scjudi.extract_rows(sfile, damaged_csv, finalTextVar);
         linearized_titles = scjudi.linearize_row_titles(data_rows, column_titles);
+        if (linearized_titles.size() > 2000)  // SQLITE column limit.
+        {
+            mycomm[0] = 2;
+            sbjudi.update(myid, mycomm);
+            return;
+        }
         if (damaged_csv == 0)
         {
             // Insert this CSV's row in the primary table.
@@ -1180,7 +1225,6 @@ void MainWindow::insert_csvs(vector<vector<vector<string>>>& all_queue, SWITCHBO
     mycomm[0] = 1;
     sbjudi.update(myid, mycomm);
 }
-//void MainWindow::insertGeo()
 
 // Display the 'tabbed data' for the selected catalogue.
 void MainWindow::on_pB_viewcata_clicked()
@@ -1304,12 +1348,25 @@ void MainWindow::on_pB_removecata_clicked()
 {
     QList<QTreeWidgetItem*> cata_to_do = ui->treeW_cataindb->selectedItems();  // Only 1 catalogue can be selected.
     vector<string> prompt(3);  // syear, sname, desc.
-    QString qtemp = cata_to_do[0]->text(0);
-    prompt[0] = qtemp.toStdString();
-    qtemp = cata_to_do[0]->text(1);
-    prompt[1] = qtemp.toStdString();
-    qtemp = cata_to_do[0]->text(2);
-    prompt[2] = qtemp.toStdString();
+    QString qtemp;
+    if (removeCataTemp.size() > 0)
+    {
+        if (removeCataTemp.size() == 3)
+        {
+            prompt = removeCataTemp;
+            removeCataTemp.clear();
+        }
+        else { err("removeCataTemp-MainWindow.on_pB_removecata_clicked"); }
+    }
+    else
+    {
+        qtemp = cata_to_do[0]->text(0);
+        prompt[0] = qtemp.toStdString();
+        qtemp = cata_to_do[0]->text(1);
+        prompt[1] = qtemp.toStdString();
+        qtemp = cata_to_do[0]->text(2);
+        prompt[2] = qtemp.toStdString();
+    }
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max columns].
     thread::id myid = this_thread::get_id();
@@ -3271,7 +3328,7 @@ void MainWindow::on_pB_pos_clicked()
     jf.clean(binPath, dirt, soap);
     string binFile = jf.load(binPath), geoLayersPath, sNum, sParent;
     size_t pos1 = binFile.find("//position"), pos2, posGeo1, posGeo2;
-    int inum;
+    int inum, numLayers = 0;
     vector<double> binPos;
     vector<unsigned char> rgbTarget;
     string pngParentPath, pngGrandparentPath, myLayer, newBin, pngGPathASCII, pngPPathASCII;
@@ -3283,6 +3340,16 @@ void MainWindow::on_pB_pos_clicked()
         if (wf.file_exist(geoLayersPath))
         {
             geoLayersFile = jf.load(geoLayersPath);
+            pos2 = geoLayersFile.rfind("@@Geo URL");
+            pos2 = geoLayersFile.find_last_not_of('\n', pos2 - 1) + 1;
+            pos1 = geoLayersFile.rfind("@@Geo Layers");
+            pos1 = geoLayersFile.find('\n', pos1) + 1;
+            while (pos1 < pos2)
+            {
+                numLayers++;
+                pos1 = geoLayersFile.find('\n', pos1) + 1;
+            }
+
             temp = "$" + binName8 + "$";
             pos1 = geoLayersFile.find(temp) + 1;
             if (pos1 > geoLayersFile.size()) { err("Cannot locate region name-MainWindow.on_pB_pos_clicked"); }
@@ -3291,7 +3358,7 @@ void MainWindow::on_pB_pos_clicked()
             temp = geoLayersFile.substr(pos1, pos2 - pos1);
             try { inum = stoi(temp); }
             catch (invalid_argument& ia) { err("stoi-MainWindow.on_pB_pos_clicked"); }
-            if (inum < 1) { err("No geo parent-MainWindow.on_pB_pos_clicked"); }
+            if (inum < 0 || inum >= numLayers) { err("No geo parent-MainWindow.on_pB_pos_clicked"); }
             
             posGeo1 = geoLayersFile.rfind("@@Geo Layers");
             posGeo1 = geoLayersFile.find('\n', posGeo1) + 1;
@@ -3300,7 +3367,14 @@ void MainWindow::on_pB_pos_clicked()
                 posGeo1 = geoLayersFile.find('\n', posGeo1) + 1;
             }
             posGeo2 = geoLayersFile.find('\n', posGeo1);
-            myLayer = geoLayersFile.substr(posGeo1, posGeo2 - posGeo1);
+            if (posGeo1 == posGeo2)
+            {
+                myLayer = "canada";
+            }
+            else
+            {
+                myLayer = geoLayersFile.substr(posGeo1, posGeo2 - posGeo1);
+            }
 
             inum--;
             sNum = to_string(inum);
@@ -3323,9 +3397,9 @@ void MainWindow::on_pB_pos_clicked()
         // Determine this region's position within the parent region.
         dirt = { "mapsBIN", ".bin" };
         soap = { "pos", ".png" };
-        pngParentPath = binPath;
-        jf.clean(pngParentPath, dirt, soap);
-        if (!wf.file_exist(pngParentPath))
+        pngParentPath = binPath;                   // pngParent refers to the small 
+        jf.clean(pngParentPath, dirt, soap);       // "minimap" png from which we 
+        if (!wf.file_exist(pngParentPath))         // derive position for the bin map.
         {
             pos1 = pngParentPath.rfind('\\');
             temp = pngParentPath.substr(0, pos1);

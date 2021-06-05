@@ -1,6 +1,30 @@
 #include "switchboard.h"
 
-using namespace std;
+// Error-related functions.
+void SWITCHBOARD::err(string func)
+{
+	lock_guard<mutex> lock(m_err);
+	ofstream ERR;
+	string message;
+	QString qfunc;
+	if (errorPath.size() > 0)
+	{
+		ERR.open(errorPath, ofstream::app);
+		message = "Switchboard error within " + func;
+		ERR << message << endl << endl;
+		ERR.close();
+	}
+	else
+	{
+		qfunc = QString::fromStdString(func);
+		qDebug() << "Switchboard error within " + qfunc;
+	}
+	exit(EXIT_FAILURE);
+}
+void SWITCHBOARD::setErrorPath(string errPath)
+{
+	errorPath = errPath;
+}
 
 // Manager thread creates a new job on the switchboard, specifying the number of workers.
 int SWITCHBOARD::start_call(thread::id id, int worker_num, vector<int>& comm)
@@ -66,7 +90,9 @@ int SWITCHBOARD::terminateCall(thread::id id, int pindex)
 vector<vector<int>> SWITCHBOARD::update(thread::id id, vector<int>& comm)
 {
 	lock_guard<mutex> addrem(m_sb);
-	int phone_index = map_phone.at(id);
+	int phone_index;
+	try { phone_index = map_phone.at(id); }
+	catch (out_of_range) { err("map_phone-sb.update"); }
 	phone_lines[phone_index] = comm;
 	return phone_lines;
 }

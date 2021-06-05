@@ -110,7 +110,7 @@ private:
     vector<string> modes = { "LOCAL \n MODE ", "ONLINE \n MODE " };
     vector<vector<string>> navSearch;
     vector<string> viewcata_data;  // Hold essential information for the catalogue being viewed. Form [syear, sname].
-    vector<string> viewcata_gid_list;
+    vector<string> viewcata_gid_list, removeCataTemp;
 
     void update_bar();
     void reset_bar(int, string);

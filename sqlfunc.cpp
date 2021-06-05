@@ -149,34 +149,70 @@ void SQLFUNC::insertBinMap(string& binPath, vector<vector<vector<int>>>& frames,
         executor(stmt);
     }
 
-    // Make and insert the table for position (minimap).
-    tname = tname0 + "position";
-    columnTitles = { "WH Fraction" };
-    columnTypes = { 1 };
-    create_table(tname, columnTitles, columnTypes);
-    numRows = getNumRows(tname);
-    if (!numRows)
+    // Make and insert the table for position (minimap). Maybe.
+    size_t sizePos = position.size();
+    if (sizePos == 2)
     {
-        for (int ii = 0; ii < 2; ii++)
+        tname = tname0 + "position";
+        columnTitles = { "WH Fraction" };
+        columnTypes = { 1 };
+        create_table(tname, columnTitles, columnTypes);
+        numRows = getNumRows(tname);
+        if (!numRows)
         {
-            rowData = { to_string(position[ii]) };
+            for (int ii = 0; ii < 2; ii++)
+            {
+                rowData = { to_string(position[ii]) };
+                stmt = insert_stmt(tname, columnTitles, rowData);
+                executor(stmt);
+            }
+        }
+    }
+    else
+    {
+        tname = tname0 + "position";
+        columnTitles = { "WH Fraction" };
+        columnTypes = { 1 };
+        create_table(tname, columnTitles, columnTypes);
+        numRows = getNumRows(tname);
+        if (!numRows)
+        {
+            rowData = { "-1.0" };
             stmt = insert_stmt(tname, columnTitles, rowData);
             executor(stmt);
         }
     }
 
     // Make and insert the table for parent.
-    tname = tname0 + "parent";
-    columnTitles = { "Region Name" };
-    columnTypes = { 0 };
-    create_table(tname, columnTitles, columnTypes);
-    numRows = getNumRows(tname);
-    if (!numRows)
+    if (sParent8.size() > 0)
     {
-        rowData = { sParent8 };
-        stmt = insert_stmt(tname, columnTitles, rowData);
-        executor(stmt);
+        tname = tname0 + "parent";
+        columnTitles = { "Region Name" };
+        columnTypes = { 0 };
+        create_table(tname, columnTitles, columnTypes);
+        numRows = getNumRows(tname);
+        if (!numRows)
+        {
+            rowData = { sParent8 };
+            stmt = insert_stmt(tname, columnTitles, rowData);
+            executor(stmt);
+        }
     }
+    else
+    {
+        tname = tname0 + "parent";
+        columnTitles = { "Region Name" };
+        columnTypes = { 0 };
+        create_table(tname, columnTitles, columnTypes);
+        numRows = getNumRows(tname);
+        if (!numRows)
+        {
+            rowData = { "None" };
+            stmt = insert_stmt(tname, columnTitles, rowData);
+            executor(stmt);
+        }
+    }
+
 
     // Make and insert the table for border. Inserted via transaction.
     tname = tname0 + "border";
