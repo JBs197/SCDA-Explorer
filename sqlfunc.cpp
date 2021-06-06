@@ -89,6 +89,13 @@ void SQLFUNC::init(string db_path)
 {
     int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
     if (error) { sqlerr("open-init"); }
+    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+    vector<string> table_list;
+    executor(stmt, table_list);
+    for (int ii = 0; ii < table_list.size(); ii++)
+    {
+        tableList.emplace(table_list[ii]);
+    }
 }
 void SQLFUNC::insertBinMap(string& binPath, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent8, vector<vector<int>>& border)
 {
@@ -238,9 +245,10 @@ void SQLFUNC::insertBinMap(string& binPath, vector<vector<vector<int>>>& frames,
     pos1 = tname0.find('$') + 1;
     string myCoreDir = tname0.substr(pos1);
     myCoreDir.pop_back();  // Remove trailing '$'.
+    if (myCoreDir == "Canada") { return; }
     vector<string> vSearch = { "coreDir" };
     tname = "TMapIndex";
-    vector<string> conditions = { "coreDir LIKE " + myCoreDir };
+    vector<string> conditions = { "coreDir LIKE '" + myCoreDir + "'" };
     temp.clear();
     select(vSearch, tname, temp, conditions);
     if (temp.size() < 1)  // This row does not exist yet.
@@ -514,44 +522,27 @@ void SQLFUNC::select_tree2(string tname, vector<vector<int>>& tree_st, vector<ws
 
     return;
 }
-vector<string> SQLFUNC::select_years()
+vector<string> SQLFUNC::selectYears()
 {
+
     // Returns the list of (ascending, unique) years represented in the database.
-    vector<string> results;
-    string stmt = "SELECT DISTINCT Year FROM TCatalogueIndex";
+    vector<string> results, sYears;
+    string stmt = "SELECT Year FROM TCatalogueIndex";
     executor(stmt, results);
-    vector<int> iresults(results.size());
+    unordered_map<string, int> mapYear;
+    int index = 0, inum;
     for (int ii = 0; ii < results.size(); ii++)
     {
-        try
+        try { inum = mapYear.at(results[ii]); }
+        catch (out_of_range)
         {
-            iresults[ii] = stoi(results[ii]);
-        }
-        catch (invalid_argument& ia)
-        {
-            err("stoi-sf.select_years");
+            sYears.push_back(results[ii]);
+            mapYear.emplace(results[ii], index);
+            index++;
         }
     }
-    int count, itemp;
-    string temp;
-    do
-    {
-        count = 0;
-        for (int ii = 0; ii < iresults.size() - 1; ii++)
-        {
-            if (iresults[ii + 1] < iresults[ii])
-            {
-                itemp = iresults[ii + 1];
-                temp = results[ii + 1];
-                iresults[ii + 1] = iresults[ii];
-                results[ii + 1] = results[ii];
-                iresults[ii] = itemp;
-                results[ii] = temp;
-                count++;
-            }
-        }
-    } while (count > 0);
-    return results;
+    jf.isort_slist(sYears);
+    return sYears;
 }
 void SQLFUNC::set_error_path(string errpath)
 {
@@ -594,18 +585,11 @@ int SQLFUNC::statusCata(string sname)
     else if (result == "Incomplete") { return 1; }  // Catalogue incomplete.
     return 2;  // Catalogue ready.
 }
-bool SQLFUNC::table_exist(string tname)
+size_t SQLFUNC::table_exist(string tname)
 {
     // Returns TRUE or FALSE as to the existance of a given table within the database.
 
-    string stmt = "SELECT name FROM sqlite_master WHERE type='table' AND name='" + tname + "';";
-    vector<string> results1;
-    executor(stmt, results1);
-    if (results1.size() > 0)
-    {
-        return 1;
-    }
-    return 0;
+    return tableList.count(tname);
 }
 string SQLFUNC::timestamper()
 {

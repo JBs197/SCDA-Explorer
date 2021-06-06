@@ -4,6 +4,7 @@
 #include <vector>
 #include <chrono>
 #include <fstream>
+#include <unordered_set>
 #include <sqlite3.h>
 #include "jfunc.h"
 
@@ -15,6 +16,7 @@ class SQLFUNC
 	sqlite3* db;
     ofstream ERR;
     string error_path = sroot + "\\SCDA Error Log.txt";
+    unordered_set<string> tableList;
     
     void bind(string&, vector<string>&);
     void err(string);
@@ -40,11 +42,11 @@ public:
     void safe_col(string, int);
     int sclean(string&, int);
     void select_tree2(string tname, vector<vector<int>>& tree_st, vector<wstring>& tree_pl);
-    vector<string> select_years();
+    vector<string> selectYears();
     void set_error_path(string);
     string sqlErrMsg();
     int statusCata(string sname);
-    bool table_exist(string);
+    size_t table_exist(string);
     vector<string> test_cata(string);
 
 	// TEMPLATES
@@ -808,47 +810,77 @@ public:
         // 
         // The formal return integer is the maximum number of columns present in the results.
 
+        jf.err("select template-sf");
         return 0;
     }
     template<> int select<string>(vector<string> search, string tname, string& result)
     {
-        string stmt = "SELECT " + search[0] + " FROM [" + tname + "];";
+        string stmt = "SELECT ";
+        if (search[0] == "*" && search.size() == 1)
+        {
+            stmt += "* FROM \"" + tname + "\"";
+        }
+        else
+        {
+            stmt += "\"" + search[0] + "\" FROM \"" + tname + "\"";
+        }
         executor(stmt, result);
         return 1;
     }
     template<> int select<vector<string>>(vector<string> search, string tname, vector<string>& results)
     {
         string stmt = "SELECT ";
-        for (int ii = 0; ii < search.size(); ii++)
+        if (search[0] == "*" && search.size() == 1)
         {
-            stmt += "" + search[ii] + ", ";
+            stmt += "* FROM \"" + tname + "\"";
         }
-        stmt.erase(stmt.size() - 2, 2);
-        stmt += " FROM [" + tname + "];";
+        else
+        {
+            for (int ii = 0; ii < search.size(); ii++)
+            {
+                stmt += "\"" + search[ii] + "\", ";
+            }
+            stmt.erase(stmt.size() - 2, 2);
+            stmt += " FROM \"" + tname + "\"";
+        }
         executor(stmt, results);
         return results.size();
     }
     template<> int select<vector<wstring>>(vector<string> search, string tname, vector<wstring>& results)
     {
         string stmt = "SELECT ";
-        for (int ii = 0; ii < search.size(); ii++)
+        if (search[0] == "*" && search.size() == 1)
         {
-            stmt += "" + search[ii] + ", ";
+            stmt += "* FROM \"" + tname + "\"";
         }
-        stmt.erase(stmt.size() - 2, 2);
-        stmt += " FROM [" + tname + "];";
+        else
+        {
+            for (int ii = 0; ii < search.size(); ii++)
+            {
+                stmt += "\"" + search[ii] + "\", ";
+            }
+            stmt.erase(stmt.size() - 2, 2);
+            stmt += " FROM \"" + tname + "\"";
+        }
         executor(stmt, results);
         return results.size();
     }
     template<> int select<vector<vector<string>>>(vector<string> search, string tname, vector<vector<string>>& results)
     {
         string stmt = "SELECT ";
-        for (int ii = 0; ii < search.size(); ii++)
+        if (search[0] == "*" && search.size() == 1)
         {
-            stmt += "" + search[ii] + ", ";
+            stmt += "* FROM \"" + tname + "\"";
         }
-        stmt.erase(stmt.size() - 2, 2);
-        stmt += " FROM [" + tname + "];";
+        else
+        {
+            for (int ii = 0; ii < search.size(); ii++)
+            {
+                stmt += "\"" + search[ii] + "\", ";
+            }
+            stmt.erase(stmt.size() - 2, 2);
+            stmt += " FROM \"" + tname + "\"";
+        }
         executor(stmt, results);
         int max_col = 0;
         for (int ii = 0; ii < results.size(); ii++)
@@ -863,12 +895,19 @@ public:
     template<> int select<vector<vector<wstring>>>(vector<string> search, string tname, vector<vector<wstring>>& results)
     {
         string stmt = "SELECT ";
-        for (int ii = 0; ii < search.size(); ii++)
+        if (search[0] == "*" && search.size() == 1)
         {
-            stmt += "" + search[ii] + ", ";
+            stmt += "* FROM \"" + tname + "\"";
         }
-        stmt.erase(stmt.size() - 2, 2);
-        stmt += " FROM [" + tname + "];";
+        else
+        {
+            for (int ii = 0; ii < search.size(); ii++)
+            {
+                stmt += "\"" + search[ii] + "\", ";
+            }
+            stmt.erase(stmt.size() - 2, 2);
+            stmt += " FROM \"" + tname + "\"";
+        }
         executor(stmt, results);
         int max_col = 0;
         for (int ii = 0; ii < results.size(); ii++)
@@ -882,7 +921,16 @@ public:
     }
     template<> int select<string, vector<string>>(vector<string> search, string tname, string& result, vector<string>& conditions)
     {
-        string stmt = "SELECT " + search[0] + " FROM [" + tname + "] WHERE (";
+        string stmt = "SELECT ";
+        if (search[0] == "*" && search.size() == 1)
+        {
+            stmt += "* FROM \"" + tname + "\"";
+        }
+        else
+        {
+            stmt += "\"" + search[0] + "\" FROM \"" + tname + "\"";
+        } 
+        stmt += " WHERE (";
         for (int ii = 0; ii < conditions.size(); ii++)
         {
             stmt += conditions[ii] + " ";
@@ -893,7 +941,16 @@ public:
     }
     template<> int select<wstring, vector<string>>(vector<string> search, string tname, wstring& result, vector<string>& conditions)
     {
-        string stmt = "SELECT " + search[0] + " FROM [" + tname + "] WHERE (";
+        string stmt = "SELECT ";
+        if (search[0] == "*" && search.size() == 1)
+        {
+            stmt += "* FROM \"" + tname + "\"";
+        }
+        else
+        {
+            stmt += "\"" + search[0] + "\" FROM \"" + tname + "\"";
+        }
+        stmt += " WHERE (";
         for (int ii = 0; ii < conditions.size(); ii++)
         {
             stmt += conditions[ii] + " ";
@@ -905,12 +962,19 @@ public:
     template<> int select<vector<string>, vector<string>>(vector<string> search, string tname, vector<string>& results, vector<string>& conditions)
     {
         string stmt = "SELECT ";
-        for (int ii = 0; ii < search.size(); ii++)
+        if (search[0] == "*" && search.size() == 1)
         {
-            stmt += "" + search[ii] + ", ";
+            stmt += "* FROM \"" + tname + "\" WHERE (";
         }
-        stmt.erase(stmt.size() - 2, 2);
-        stmt += " FROM [" + tname + "] WHERE (";
+        else
+        {
+            for (int ii = 0; ii < search.size(); ii++)
+            {
+                stmt += "\"" + search[ii] + "\", ";
+            }
+            stmt.erase(stmt.size() - 2, 2);
+            stmt += " FROM \"" + tname + "\" WHERE (";
+        }
         for (int ii = 0; ii < conditions.size(); ii++)
         {
             stmt += conditions[ii] + " ";
@@ -922,12 +986,19 @@ public:
     template<> int select<vector<vector<string>>, vector<string>>(vector<string> search, string tname, vector<vector<string>>& results, vector<string>& conditions)
     {
         string stmt = "SELECT ";
-        for (int ii = 0; ii < search.size(); ii++)
+        if (search[0] == "*" && search.size() == 1)
         {
-            stmt += "" + search[ii] + ", ";
+            stmt += "* FROM \"" + tname + "\" WHERE (";
         }
-        stmt.erase(stmt.size() - 2, 2);
-        stmt += " FROM [" + tname + "] WHERE (";
+        else
+        {
+            for (int ii = 0; ii < search.size(); ii++)
+            {
+                stmt += "\"" + search[ii] + "\", ";
+            }
+            stmt.erase(stmt.size() - 2, 2);
+            stmt += " FROM \"" + tname + "\" WHERE (";
+        }
         for (int ii = 0; ii < conditions.size(); ii++)
         {
             stmt += conditions[ii] + " ";
@@ -947,12 +1018,19 @@ public:
     template<> int select<vector<vector<wstring>>, vector<string>>(vector<string> search, string tname, vector<vector<wstring>>& results, vector<string>& conditions)
     {
         string stmt = "SELECT ";
-        for (int ii = 0; ii < search.size(); ii++)
+        if (search[0] == "*" && search.size() == 1)
         {
-            stmt += "" + search[ii] + ", ";
+            stmt += "* FROM \"" + tname + "\" WHERE (";
         }
-        stmt.erase(stmt.size() - 2, 2);
-        stmt += " FROM [" + tname + "] WHERE (";
+        else
+        {
+            for (int ii = 0; ii < search.size(); ii++)
+            {
+                stmt += "\"" + search[ii] + "\", ";
+            }
+            stmt.erase(stmt.size() - 2, 2);
+            stmt += " FROM \"" + tname + "\" WHERE (";
+        }
         for (int ii = 0; ii < conditions.size(); ii++)
         {
             stmt += conditions[ii] + " ";

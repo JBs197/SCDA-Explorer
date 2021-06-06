@@ -63,9 +63,9 @@ void MainWindow::initialize()
     jtStatsCan.init("Statistics Canada Census Data", sroot);
 
     // Create (if necessary) these system-wide tables. 
-    create_cata_index_table();  
-    create_damaged_table();
-    createMapIndexTable();
+    if (!sf.table_exist("TCatalogueIndex")) { create_cata_index_table(); }
+    if (!sf.table_exist("TDamaged")) { create_damaged_table(); }
+    if (!sf.table_exist("TMapIndex")) { createMapIndexTable(); }    
     
     // Load a font into the IMGFUNC object.
     initImgFont("Sylfaen");
@@ -168,6 +168,7 @@ void MainWindow::initialize()
     // Reset the log file.
     wf.delete_file(sroot + "\\SCDA Process Log.txt");
     log("MainWindow initialized.");
+
 }
 void MainWindow::initImgFont(string fontName)
 {
@@ -275,7 +276,7 @@ void MainWindow::bind(string& stmt, vector<string>& param)
 // Functions for the meta-tables.
 void MainWindow::create_cata_index_table()
 {
-    string stmt = "CREATE TABLE IF NOT EXISTS TCatalogueIndex (Year TEXT, ";
+    string stmt = "CREATE TABLE TCatalogueIndex (Year TEXT, ";
     stmt += "Name TEXT, Description TEXT);";
     sf.executor(stmt);
 }
@@ -289,7 +290,7 @@ void MainWindow::create_damaged_table()
 void MainWindow::createMapIndexTable()
 {
     // Create the table, if necessary.
-    string stmt = "CREATE TABLE IF NOT EXISTS TMapIndex ";
+    string stmt = "CREATE TABLE TMapIndex ";
     stmt += "(coreDir TEXT, numParams INTEGER, param1 TEXT, ";
     stmt += "param2 TEXT, param3 TEXT, param4 TEXT, ";
     stmt += "UNIQUE(coreDir, param1, param2, param3, param4) );";
@@ -2405,6 +2406,8 @@ void MainWindow::on_pB_search_clicked()
     vector<string> results, regionList, layerList, geoLayers;
     vector<int> gidList;
     QStringList qlist;
+    long long timer;
+    jf.timerStart();
     if (pos1 == 0)
     {
         temp = tname.substr(6);
@@ -2450,7 +2453,11 @@ void MainWindow::on_pB_search_clicked()
     }
     else if (sf.table_exist(tname))
     {
+        timer = jf.timerRestart();
+        qDebug() << "pB_search to table_exist: " << timer;
         display_table(tname);
+        timer = jf.timerStop();
+        qDebug() << "display_table: " << timer;
     }
     else
     {

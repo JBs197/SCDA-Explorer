@@ -301,6 +301,11 @@ void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, do
 		pos2 = sfile.find(')', pos1);
 		sParent8 = sfile.substr(pos1, pos2 - pos1);
 	}
+	else
+	{
+		try { scale = stod(temp); }
+		catch (invalid_argument) { jf.err("stod-qf.loadBinMap"); }
+	}
 
 	posStart = sfile.find("//border");
 	pos1 = sfile.find('\n', posStart) + 1;
