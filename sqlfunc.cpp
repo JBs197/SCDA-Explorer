@@ -85,6 +85,13 @@ int SQLFUNC::get_num_col(string tname)
     get_col_titles(tname, column_titles);
     return column_titles.size();
 }
+vector<vector<string>> SQLFUNC::getTMapIndex()
+{
+    vector<vector<string>> TMI;
+    string stmt = "SELECT * FROM TMapIndex ORDER BY numParams ASC NULLS LAST;";
+    executor(stmt, TMI);
+    return TMI;
+}
 void SQLFUNC::init(string db_path)
 {
     int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
@@ -191,6 +198,9 @@ void SQLFUNC::insertBinMap(string& binPath, vector<vector<vector<int>>>& frames,
     }
 
     // Make and insert the table for parent.
+    pos1 = tname0.rfind('$');
+    pos1 = tname0.rfind('$', pos1 - 1);
+    pos2 = tname0.find("(Canada)", pos1);
     if (sParent8.size() > 0)
     {
         tname = tname0 + "parent";
@@ -214,7 +224,8 @@ void SQLFUNC::insertBinMap(string& binPath, vector<vector<vector<int>>>& frames,
         numRows = getNumRows(tname);
         if (!numRows)
         {
-            rowData = { "None" };
+            if (pos2 > tname0.size()) { rowData = { "None" }; }
+            else { rowData = { "Canada" }; }
             stmt = insert_stmt(tname, columnTitles, rowData);
             executor(stmt);
         }
@@ -673,10 +684,4 @@ vector<string> SQLFUNC::test_cata(string cata_name)
     }
     return test_results;
 }
-vector<vector<string>> SQLFUNC::getTMapIndex()
-{
-    vector<vector<string>> TMI;
-    string stmt = "SELECT * FROM TMapIndex ORDER BY numParams ASC NULLS LAST;";
-    executor(stmt, TMI);
-    return TMI;
-}
+

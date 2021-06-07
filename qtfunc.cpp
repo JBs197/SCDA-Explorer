@@ -279,7 +279,8 @@ void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, do
 	pos2 = sfile.find('\n', pos1);
 	temp = sfile.substr(pos1, pos2 - pos1);
 
-	if (sName != "Canada")
+	pos1 = sName.find("Canada");
+	if (pos1 > sName.size())
 	{
 		position.resize(2);
 		posStart = sfile.find("//position");
@@ -377,7 +378,7 @@ vector<double> QTFUNC::makeShift(QLabel*& qlabel, vector<vector<int>>& frameCorn
 {
 	// Return a vector of the form [xShift, yShift, stretchFactor].
 	if (pmCanvas.isNull()) { initPixmap(qlabel); }
-	if (frameCorners.size() != 6) { err("frameCorners size-qf.makeShift"); }
+	if (frameCorners.size() != 6 && frameCorners.size() != 2) { err("frameCorners size-qf.makeShift"); }
 	vector<double> mapShift(3);
 	mapShift[0] = -1.0 * (double)frameCorners[0][0];
 	mapShift[1] = -1.0 * (double)frameCorners[0][1];

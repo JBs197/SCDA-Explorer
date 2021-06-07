@@ -3115,6 +3115,27 @@ void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorde
     mycomm[0] = 1;
     sbgui.update(myid, mycomm);
 }
+void MainWindow::convertSingle(SWITCHBOARD& sbgui)
+{
+    vector<int> mycomm, windowDim(2);
+    vector<vector<int>> comm_gui;
+    thread::id myid = this_thread::get_id();
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form ["width,height", "startX,startY", pngPath, binPath].
+    size_t pos1 = prompt[0].find(',');
+    string sWidth = prompt[0].substr(0, pos1);
+    string sHeight = prompt[0].substr(pos1 + 1);
+    try
+    {
+        windowDim[0] = stoi(sWidth);
+        windowDim[1] = stoi(sHeight);
+    }
+    catch (invalid_argument) { jf.err("stoi-MainWindow.convertSingle"); }
+    im.setExtractDim(windowDim);
+    im.pngToBin(sbgui, prompt[2], prompt[3]);
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+}
 void MainWindow::on_pB_resume_clicked()
 {
     remote_controller = 0;
@@ -3262,7 +3283,7 @@ void MainWindow::makeTempASCII(string folderPath)
     int bbq = 1;
 }
 
-// Erase bad points on a BIN map.
+// Erase bad points on a BIN map.  
 void MainWindow::on_pB_correct_clicked()
 {
     QList<QTreeWidgetItem*> qSelected = ui->treeW_maps->selectedItems();
@@ -3513,7 +3534,7 @@ void MainWindow::insertMapWorker(SWITCHBOARD& sbgui, SQLFUNC& sf)
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 0;
+    int mode = 11;
 
     switch (mode)
     {
@@ -3891,6 +3912,161 @@ void MainWindow::on_pB_test_clicked()
         }
         break;
     }
+    case 11: // For a given [pngPath \n binPath], make a single bin map.
+    {
+        QString qtemp = ui->pte_webinput->toPlainText(), qMessage;
+        string temp = qtemp.toStdString(), temp8;
+        string sfile = jf.load(temp);
+        thread::id myid = this_thread::get_id();
+        vector<vector<int>> comm(1, vector<int>());
+
+        vector<string> prompt(4);  // Form ["width,height", "startX,startY", pngPath, binPath].
+        int inum = ui->label_maps->width(), error;
+        prompt[0] += to_string(inum) + ",";
+        inum = ui->label_maps->height();
+        prompt[0] += to_string(inum);
+
+        size_t pos1 = sfile.find("//pathPNG");
+        pos1 = sfile.find('\n', pos1) + 1;
+        size_t pos2 = sfile.find('\r', pos1);
+        prompt[2] = sfile.substr(pos1, pos2 - pos1);
+
+        vector<string> listBIN, listCoord, debugPath, bagOfAir, vsTemp;
+        size_t pos3 = sfile.find("//pathBIN");
+        pos1 = sfile.find('\n', pos3) + 1;
+        pos2 = sfile.find('\r', pos1);
+        pos3 = sfile.find("\r\n\r\n", pos3);
+        while (pos1 < pos3)
+        {
+            temp8 = sfile.substr(pos1, pos2 - pos1);
+            temp = jf.utf8ToAscii(temp8);
+            listBIN.push_back(temp);
+            pos1 = pos2 + 2;
+            pos2 = sfile.find('\r', pos1);
+        }
+        pos3 = sfile.find("//borderStart");
+        pos1 = sfile.find('\n', pos3) + 1;
+        pos2 = sfile.find('\r', pos1);
+        pos3 = sfile.find("\r\n\r\n", pos3);
+        while (pos1 < pos3)
+        {
+            temp8 = sfile.substr(pos1, pos2 - pos1);
+            temp = jf.utf8ToAscii(temp8);
+            listCoord.push_back(temp);
+            pos1 = pos2 + 2;
+            pos2 = sfile.find('\r', pos1);
+        }
+
+        ui->tabW_online->setCurrentIndex(2);
+        qf.initPixmap(ui->label_maps);
+        for (int ii = 0; ii < listBIN.size(); ii++)
+        {
+            if (wf.file_exist(listBIN[ii])) { continue; }
+            prompt[1] = listCoord[ii];
+            prompt[3] = listBIN[ii];
+            comm.resize(1);
+            comm[0].assign(comm_length, 0);
+            error = sb.start_call(myid, 1, comm[0]);
+            if (error) { errnum("start_call-MainWindow.test11", error); }
+            sb.set_prompt(prompt);
+            std::thread thr(&MainWindow::convertSingle, this, ref(sb));
+            thr.detach();
+            while (comm.size() < 2)
+            {
+                Sleep(gui_sleep);
+                comm = sb.update(myid, comm[0]);
+            }
+            while (comm[0][0] == 0)
+            {
+                Sleep(gui_sleep);
+                QCoreApplication::processEvents();
+                comm = sb.update(myid, comm[0]);
+                if (comm[1][0] == 1)
+                {
+                    error = sb.end_call(myid);
+                    if (error) { errnum("sb.end_call-test11", error); }
+                    comm[0][0] = 1;
+                }
+                else if (comm[1][0] == 3)
+                {
+                    debugPath = sb.get_prompt();
+                    sb.set_prompt(bagOfAir);
+                    qf.displayDebug(ui->label_maps, debugPath, debugMapCoord);
+                    if (debugPath.size() > 1)
+                    {
+                        try
+                        {
+                            inum = stoi(debugPath[1]);
+                            qMessage = "Center point index: ";
+                            qMessage.append(debugPath[1].c_str());
+                            if (debugPath.size() > 2)
+                            {
+                                pos1 = debugPath[2].rfind('\\') + 1;
+                                temp = debugPath[2].substr(pos1);
+                                qtemp = QString::fromStdString(temp);
+                                qMessage.append("\n");
+                                qMessage.append(qtemp);
+                            }
+                            ui->pte_webinput->setPlainText(qMessage);
+                        }
+                        catch (invalid_argument) {}
+                    }
+                    ui->pB_resume->setEnabled(1);
+                    ui->pB_pause->setEnabled(0);
+                    ui->pB_advance->setEnabled(1);
+                    ui->pB_backspace->setEnabled(1);
+                    remote_controller = 3;
+                    while (1)
+                    {
+                        comm[0][0] = 3;
+                        QCoreApplication::processEvents();
+                        comm = sb.update(myid, comm[0]);
+                        if (remote_controller == 1 && comm[0][0] == 3)
+                        {
+                            vsTemp = sb.get_prompt();
+                            if (vsTemp.size() == 3)  // Keep coords in vsTemp[2].
+                            {
+                                vsTemp[0] = to_string(advBuffer);
+                            }
+                            else
+                            {
+                                vsTemp = { to_string(advBuffer) };
+                            }
+                            advBuffer = -1;
+                            sb.set_prompt(vsTemp);
+                            comm[0][0] = 0;
+                            sb.update(myid, comm[0]);
+                        }
+                        else if (remote_controller == 4 && comm[0][0] == 3)
+                        {
+                            vsTemp = { to_string(-1 * backBuffer) };
+                            backBuffer = -1;
+                            sb.set_prompt(vsTemp);
+                            comm[0][0] = 0;
+                            sb.update(myid, comm[0]);
+                        }
+                        if (comm[1][0] == 0)
+                        {
+                            if (remote_controller == 4) { remote_controller = 1; }
+                            ui->checkB_override->setChecked(0);
+                            break;
+                        }
+                        else if (comm[1][0] == 1)
+                        {
+                            remote_controller = 0;
+                            comm[0][0] = 1;
+                            break;
+                        }
+                        Sleep(50);
+                    }
+                }
+            }
+            sb.end_call(myid);
+        }
+        qtemp = "Done!";
+        ui->pte_webinput->setPlainText(qtemp);
+        break;
+    }
     }
 
     int bbq = 1;
@@ -4062,7 +4238,7 @@ void MainWindow::on_listW_bindone_itemSelectionChanged()
     vector<string> dirt = { "mapsPNG" };
     vector<string> soap = { "mapsBIN" };
     QList<QListWidgetItem*> qlist = ui->listW_bindone->selectedItems();
-    if (qlist.size() == 2)
+    if (qlist.size() == 1)
     {
         index = ui->tabW_online->currentIndex();
         switch (index)

@@ -1436,10 +1436,20 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
     pngLoad(pathPNG);
     string pathMapPTB = sroot + "\\debug\\PTB.png";
     string pathMapPTBdebug = sroot + "\\debug\\PTBdebug.png";
-    vector<string> vsTemp;
+    vector<string> vsTemp, prompt = sbgui.get_prompt();
+    bool single = 0;
+    if (prompt.size() == 4) 
+    { 
+        single = 1; 
+        pointOfOrigin = jf.destringifyCoord(prompt[1]);
+    }
     vector<int> viTemp;
     vector<vector<int>> vBorderPath(1, vector<int>()), tracks, commGui;
-    vBorderPath[0] = borderFindStart();
+    if (!single) { vBorderPath[0] = borderFindStart(); }
+    else 
+    { 
+        vBorderPath[0] = jf.destringifyCoord(prompt[1]);
+    }
     thread::id myid = this_thread::get_id();
     vector<int> myComm = sbgui.getMyComm(myid);
     int inum;
@@ -1526,12 +1536,11 @@ void IMGFUNC::pngToBin(SWITCHBOARD& sbgui, string& pathPNG, string& pathBIN)
         if (sizeVBP == pauseVBP)
         {
             viTemp = { width, height };
-            //std::thread ptb(&IMGFUNC::thrMakeMapPTB, this, vBorderPath, pathMapPTB, dataPNG, viTemp);
-            //ptb.detach();
             pathMapDebug = pathMapPTBdebug;
         }
-    }   
-    printBinMap(pathBIN, vBorderPath);
+    }
+    if (!single) { printBinMap(pathBIN, vBorderPath); }
+    else { printBinMapSingle(pathBIN, vBorderPath); }
 }
 void IMGFUNC::pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border)
 {
@@ -1690,6 +1699,24 @@ void IMGFUNC::printBinMap(string& pathBIN, vector<vector<int>>& vBorderPath)
     }
     mapBIN += "\n//scale(pixels per km)\n";
     mapBIN += to_string(PPKM) + "\n";
+    mapBIN += "\n//border\n";
+    for (int ii = 0; ii < vBorderPath.size(); ii++)
+    {
+        mapBIN += to_string(vBorderPath[ii][0]) + "," + to_string(vBorderPath[ii][1]) + "\n";
+    }
+    jf.printer(pathBIN, mapBIN);
+}
+void IMGFUNC::printBinMapSingle(string& pathBIN, vector<vector<int>>& vBorderPath)
+{
+    // Load frames and scale from the parent map.
+    string parentPath = "F:\\mapsBIN\\Canada.bin";
+    string parentBin = jf.load(parentPath);
+    size_t pos1 = parentBin.find("//scale");
+    pos1 = parentBin.find('\n', pos1) + 1;
+    pos1 = parentBin.find('\n', pos1) + 1;
+    string mapBIN = parentBin.substr(0, pos1);
+
+    // Write the new BIN map.
     mapBIN += "\n//border\n";
     for (int ii = 0; ii < vBorderPath.size(); ii++)
     {

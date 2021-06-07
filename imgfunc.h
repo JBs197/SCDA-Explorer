@@ -120,6 +120,7 @@ public:
     void pngToBinLive(SWITCHBOARD& sbgui, vector<vector<double>>& border);
     void pngToBinPause(SWITCHBOARD& sbgui);
     void printBinMap(string& pathBIN, vector<vector<int>>& vBorderPath);
+    void printBinMapSingle(string& pathBIN, vector<vector<int>>& vBorderPath);
     void removeColourCushion(vector<vector<unsigned char>>& Lrgb, vector<unsigned char> colourCore, vector<unsigned char> colourCushion, int length);
     void saveThisPoint(vector<vector<int>>& tracks, vector<vector<int>>& candidates);
     void setExtractDim(vector<int> extractDim);

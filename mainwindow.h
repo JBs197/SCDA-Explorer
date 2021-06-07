@@ -125,6 +125,7 @@ private:
     void barMessage(string message);
     void bind(string&, vector<string>&);
     void convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorder, vector<string>& pathBIN);
+    void convertSingle(SWITCHBOARD& sbgui);
     void delete_cata(SWITCHBOARD&, SQLFUNC&);
     void displayDiscrepancies(string& folderPath, QListWidget*& qlist);
     void display_catalogue(SQLFUNC&, SWITCHBOARD&, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
