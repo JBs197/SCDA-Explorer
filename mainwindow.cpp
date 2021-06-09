@@ -2451,6 +2451,31 @@ void MainWindow::on_pB_search_clicked()
         sf.insertGeo(sName, gidList, regionList, layerList, geoLayers);
         barMessage(sName + " done!");
     }
+    else if (tname == "TG_Row")
+    {
+        QList<QTreeWidgetItem*> qSel = ui->treeW_cataindb->selectedItems();
+        if (qSel.size() != 1) { return; }
+        qtemp = qSel[0]->text(0);
+        sYear = qtemp.toStdString();
+        qtemp = qSel[0]->text(1);
+        sName = qtemp.toStdString();
+        string folderPath = sroot + "\\" + sYear + "\\" + sName;
+        string search = "*.csv";
+        vector<string> nameList = wf.get_file_list(folderPath, search);
+        string csvPath = folderPath + "\\" + nameList[0];
+        sc.set_path(csvPath);
+        string sfile = jf.load(csvPath);
+        sc.cata_init(sfile);
+        temp = "TG_Row$" + sName;
+        sf.remove(temp);
+        vector<string> tgRowStmts;
+        sc.make_tgrow_statements(tgRowStmts);
+        for (int ii = 0; ii < tgRowStmts.size(); ii++)
+        {
+            sf.executor(tgRowStmts[ii]);
+        }
+        int bbq = 1;
+    }
     else if (sf.table_exist(tname))
     {
         timer = jf.timerRestart();

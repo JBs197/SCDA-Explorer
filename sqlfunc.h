@@ -32,6 +32,7 @@ public:
     void insert_tg_existing(string);
     void insert_prepared(vector<string>&);
     string insert_stmt(string, vector<string>&, vector<string>&);
+    string getLinearizedTitle(string& cataName, string& rowTitle, string& colTitle);
     int getNumRows(string tname);
     vector<string> getTableListFromRoot(string& root);
     vector<vector<string>> getTMapIndex();

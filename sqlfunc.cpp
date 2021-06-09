@@ -55,6 +55,14 @@ void SQLFUNC::err(string func)
 {
     jf.err(func);
 }
+string SQLFUNC::getLinearizedTitle(string& cataName, string& rowTitle, string& colTitle)
+{
+    vector<string> columnTitles;
+    get_col_titles(cataName, columnTitles);
+    int count = 0;
+    while (rowTitle[count] == '+') { count++; }
+    return columnTitles[0];
+}
 int SQLFUNC::getNumRows(string tname)
 {
     string stmt = "SELECT COUNT(*) FROM [";

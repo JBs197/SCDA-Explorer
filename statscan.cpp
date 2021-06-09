@@ -5,6 +5,8 @@ using namespace std;
 int STATSCAN::cata_init(string& sample_csv)
 {
     size_t pos1 = cata_path.rfind('\\'), finalTextVar;
+    size_t pos2 = cata_path.rfind('\\', pos1 - 1) + 1;
+    cataName = cata_path.substr(pos2, pos1 - pos2);
     cata_name = cata_path.substr(pos1 + 1);
     cata_desc = extract_description(sample_csv);
     text_vars = extract_text_vars(sample_csv, finalTextVar);
@@ -1129,7 +1131,7 @@ int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
     }
 
     tgrow_stmts.resize(num_rows + 1);
-    string stmt = "CREATE TABLE IF NOT EXISTS [TG_Row$" + cata_name + "] (";
+    string stmt = "CREATE TABLE IF NOT EXISTS [TG_Row$" + cataName + "] (";
     stmt += "[Row Index] INTEGER PRIMARY KEY, [Row Title] TEXT, ";
     for (int ii = 2; ii < tg_row_col; ii++)
     {
@@ -1142,7 +1144,7 @@ int STATSCAN::make_tgrow_statements(vector<string>& tgrow_stmts)
 
     for (int ii = 0; ii < num_rows; ii++)
     {
-        stmt = "INSERT OR IGNORE INTO [TG_Row$" + cata_name + "] ([Row Index], [Row Title], ";
+        stmt = "INSERT OR IGNORE INTO [TG_Row$" + cataName + "] ([Row Index], [Row Title], ";
         for (int jj = 2; jj < tgrow[ii].size(); jj++)
         {
             temp = "param" + to_string(jj);

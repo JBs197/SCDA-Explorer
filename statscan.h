@@ -11,7 +11,7 @@ class STATSCAN
 	JFUNC jf;
 	WINFUNC wf;
 
-	string cata_path, cata_name, cata_desc;
+	string cata_path, cata_name, cata_desc, cataName;
 	int columnLimit = 2000;
 	vector<string> column_titles;
 	string create_csv_table_template;
