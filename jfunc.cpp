@@ -1,6 +1,5 @@
 #include "jfunc.h"
 
-using namespace std;
 
 string JFUNC::asciiOnly(string& input)
 {
@@ -82,6 +81,239 @@ string JFUNC::bind(string& stmt0, vector<string>& params)
 	}
 
 	return stmt0;
+}
+int JFUNC::clean(string& bbq, vector<string> dirt)
+{
+	int count = 0;
+	size_t pos1, len;
+	for (int ii = 0; ii < dirt.size(); ii++)
+	{
+		len = dirt[ii].size();
+		pos1 = bbq.find(dirt[ii]);
+		while (pos1 < bbq.size())
+		{
+			bbq.erase(pos1, len);
+			pos1 = bbq.find(dirt[ii], pos1);
+		}
+	}
+
+	while (1)
+	{
+		if (bbq.front() == ' ') { bbq.erase(0, 1); count++; }
+		else { break; }
+	}
+	while (1)
+	{
+		if (bbq.back() == ' ') { bbq.erase(bbq.size() - 1, 1); }
+		else { break; }
+	}
+	return count;
+}
+int JFUNC::clean(string& bbq, vector<string> dirt, string twins)
+{
+	int count = 0;
+	size_t pos1, pos2;
+	for (int ii = 0; ii < dirt.size(); ii++)
+	{
+		if (dirt[ii].size() == 1)
+		{
+			pos1 = bbq.find(dirt[ii][0]);
+			while (pos1 < bbq.size())
+			{
+				bbq.erase(pos1, 1);
+				pos1 = bbq.find(dirt[ii][0], pos1);
+			}
+		}
+		else if (dirt[ii].size() == 2)
+		{
+			pos1 = bbq.find(dirt[ii][0]);
+			while (pos1 < bbq.size())
+			{
+				pos2 = bbq.find(dirt[ii][1], pos1 + 1);
+				if (pos2 > bbq.size())
+				{
+					err("find second dirt-jf.clean");
+				}
+				bbq.erase(pos1, pos2 - pos1 + 1);
+				pos1 = bbq.find(dirt[ii][0], pos1);
+			}
+		}
+	}
+
+	string temp;
+	for (int ii = 0; ii < twins.length(); ii++)
+	{
+		temp.assign(2, twins[ii]);
+		pos1 = bbq.find(twins[ii]);
+		while (pos1 < bbq.size())
+		{
+			bbq.replace(pos1, 1, temp);
+			pos1 = bbq.find(twins[ii], pos1 + 2);
+		}
+	}
+
+	while (1)
+	{
+		if (bbq.front() == ' ') { bbq.erase(0, 1); count++; }
+		else { break; }
+	}
+	while (1)
+	{
+		if (bbq.back() == ' ') { bbq.erase(bbq.size() - 1, 1); }
+		else { break; }
+	}
+	return count;
+}
+int JFUNC::clean(string& bbq, vector<string> dirt, vector<string> soap)
+{
+	if (dirt.size() != soap.size()) { err("size mismatch-jf.clean"); }
+	size_t pos1;
+	for (int ii = 0; ii < dirt.size(); ii++)
+	{
+		pos1 = bbq.find(dirt[ii]);
+		while (pos1 < bbq.size())
+		{
+			bbq.replace(pos1, dirt[ii].size(), soap[ii]);
+			pos1 = bbq.find(dirt[ii], pos1 + soap[ii].size());
+		}
+	}
+	return 0;
+}
+vector<vector<string>> JFUNC::compareList(vector<string>& list0, vector<string>& list1)
+{
+	vector<vector<string>> difference(2, vector<string>());
+	vector<bool> checked;
+	if (list0.size() < 1)
+	{
+		difference[1] = list1;
+		return difference;
+	}
+	else if (list1.size() < 1)
+	{
+		difference[0] = list0;
+		return difference;
+	}
+	checked.assign(list1.size(), 0);
+	for (int ii = 0; ii < list0.size(); ii++)
+	{
+		for (int jj = 0; jj < list1.size(); jj++)
+		{
+			if (list0[ii] == list1[jj])
+			{
+				checked[jj] = 1;
+				break;
+			}
+			else if (jj == list1.size() - 1)
+			{
+				difference[0].push_back(list0[ii]);
+			}
+		}
+	}
+	for (int ii = 0; ii < checked.size(); ii++)
+	{
+		if (!checked[ii])
+		{
+			difference[1].push_back(list1[ii]);
+		}
+	}
+	return difference;
+}
+vector<vector<string>> JFUNC::compareList(vector<vector<string>>& list0, vector<vector<string>>& list1, vector<int>& activeColumn)
+{
+	vector<vector<string>> difference(2, vector<string>());
+	vector<bool> checked;
+	if (list0.size() < 1)
+	{
+		difference[1].resize(list1.size());
+		for (int ii = 0; ii < list1.size(); ii++)
+		{
+			difference[1][ii] = list1[ii][activeColumn[1]];
+		}
+		return difference;
+	}
+	else if (list1.size() < 1)
+	{
+		difference[0].resize(list0.size());
+		for (int ii = 0; ii < list0.size(); ii++)
+		{
+			difference[0][ii] = list0[ii][activeColumn[0]];
+		}
+		return difference;
+	}
+	checked.assign(list1.size(), 0);
+	for (int ii = 0; ii < list0.size(); ii++)
+	{
+		for (int jj = 0; jj < list1.size(); jj++)
+		{
+			if (list0[ii][activeColumn[0]] == list1[jj][activeColumn[1]])
+			{
+				checked[jj] = 1;
+				break;
+			}
+			else if (jj == list1.size() - 1)
+			{
+				difference[0].push_back(list0[ii][activeColumn[0]]);
+			}
+		}
+	}
+	for (int ii = 0; ii < checked.size(); ii++)
+	{
+		if (!checked[ii])
+		{
+			difference[1].push_back(list1[ii][activeColumn[1]]);
+		}
+	}
+	return difference;
+}
+string JFUNC::decToHex(int& idec)
+{
+	string shex;
+	vector<int> remainders = { idec % 16 };
+	vector<int> quotients = { idec / 16 };
+	int index = 0;
+	while (quotients[index] > 0)
+	{
+		remainders.push_back(quotients[index] % 16);
+		quotients.push_back(quotients[index] / 16);
+		index++;
+	}
+	for (int ii = index; ii >= 0; ii--)
+	{
+		if (remainders[ii] < 10)
+		{
+			shex.append(to_string(remainders[ii]));
+		}
+		else
+		{
+			shex.push_back(remainders[ii] + 55);
+		}
+	}
+	return shex;
+}
+string JFUNC::decToHex(unsigned char& ucdec)
+{
+	string shex;
+	vector<int> remainders = { ucdec % 16 };
+	vector<int> quotients = { ucdec / 16 };
+	int index = 0;
+	while (quotients[index] > 0)
+	{
+		remainders.push_back(quotients[index] % 16);
+		quotients.push_back(quotients[index] / 16);
+		index++;
+	}
+	for (int ii = index; ii >= 0; ii--)
+	{
+		if (remainders[ii] < 10)
+		{
+			shex.append(to_string(remainders[ii]));
+		}
+		else
+		{
+			shex.push_back(remainders[ii] + 55);
+		}
+	}
+	return shex;
 }
 vector<int> JFUNC::destringifyCoord(string& sCoord)
 {
@@ -254,54 +486,45 @@ vector<string> JFUNC::list_from_marker(string& input, char marker)
 	output.push_back(temp1);
 	return output;
 }
-string JFUNC::load(string filePath)
+string JFUNC::load(string file_path)
 {
 	// Load a file into memory as a string.
 
-	wstring wFP = asciiToUTF16(filePath);
-	wifstream wLoad;
-	wLoad.open(wFP, wifstream::binary);
-	auto report = wLoad.rdstate();
-	if (report) { err("wifstream open-jf.load"); }
-	wLoad.seekg(0, wLoad.end);
-	int len = wLoad.tellg();
-	wLoad.seekg(0, wLoad.beg);
-	wstring wTemp;
-	wTemp.resize(len);
-	wLoad.read(&wTemp[0], len);
-	wLoad.close();
-	while (wTemp[0] == 239 && wTemp[1] == 187 && wTemp[2] == 191)
+	FILE* pFile = fopen(file_path.c_str(), "rb");
+	if (pFile == NULL) { err("fopen-jf.load"); }
+	fseek(pFile, 0, SEEK_END);
+	int sizeFile = ftell(pFile);
+	if (sizeFile < 0) { err("ftell-jf.load"); }
+	fseek(pFile, 0, SEEK_SET);
+	unsigned char* buffer = new unsigned char[sizeFile];
+	size_t numChar = fread(buffer, 1, sizeFile, pFile);
+	if (numChar != sizeFile) { err("fread-jf.load"); }
+	fclose(pFile);
+
+	int inum = 0;
+	for (int ii = 0; ii < 8; ii++)
 	{
-		wTemp.erase(wTemp.begin(), wTemp.begin() + 3);
+		if (buffer[ii] == 0) { inum++; }
 	}
-	string output = utf16to8(wTemp);
-	return output;
-}
-string JFUNC::loadDebug(string filePath)
-{
-	// Load a file into memory as a string. 
-	// If the file path cannot be opened, pause and ask the user for guidance.
-	wstring wFP = asciiToUTF16(filePath);
-	wifstream wLoad;
-	wLoad.open(wFP, wifstream::binary);
-	auto report = wLoad.rdstate();
-	if (report) 
+
+	string output;
+	if (buffer[0] + buffer[1] == 509)
 	{
-		filePath = "ERROR: " + filePath;
-		return filePath;
+		// UTF-16
 	}
-	wLoad.seekg(0, wLoad.end);
-	int len = wLoad.tellg();
-	wLoad.seekg(0, wLoad.beg);
-	wstring wTemp;
-	wTemp.resize(len);
-	wLoad.read(&wTemp[0], len);
-	wLoad.close();
-	while (wTemp[0] == 239 && wTemp[1] == 187 && wTemp[2] == 191)
+	else if (inum == 4)
 	{
-		wTemp.erase(wTemp.begin(), wTemp.begin() + 3);
+		// UTF-16
 	}
-	string output = utf16to8(wTemp);
+	else  // UTF-8 or ASCII
+	{
+		output.resize(sizeFile);
+		for (int ii = 0; ii < sizeFile; ii++)
+		{
+			output[ii] = (char)buffer[ii];
+		}
+	}
+	delete[] buffer;
 	return output;
 }
 void JFUNC::log(string message)
@@ -320,6 +543,35 @@ void JFUNC::logTime(string func, long long timer)
 	output += to_string(timer) + "ms.";
 	LOG << output << endl << endl;
 	LOG.close();
+}
+int JFUNC::maxNumCol(vector<vector<wstring>>& task)
+{
+	int count = 0;
+	for (int ii = 0; ii < task.size(); ii++)
+	{
+		if (task[ii].size() > count) { count = task[ii].size(); }
+	}
+	return count;
+}
+vector<int> JFUNC::minMax(vector<double>& dList)
+{
+	vector<int> result = { 0, 0 };
+	double min = dList[0];
+	double max = dList[0];
+	for (int ii = 1; ii < dList.size(); ii++)
+	{
+		if (dList[ii] < min)
+		{
+			min = dList[ii];
+			result[0] = ii;
+		}
+		else if (dList[ii] > max)
+		{
+			max = dList[ii];
+			result[1] = ii;
+		}
+	}
+	return result;
 }
 void JFUNC::navigator(vector<vector<int>>& tree_st, vector<string>& tree_pl, vector<string>& tree_url, string& webpage, int id)
 {
@@ -439,6 +691,29 @@ string JFUNC::parent_from_marker(string& child, char marker)
 void JFUNC::pngRead(string& pathPNG)
 {
 	int bbq = 1;
+}
+void JFUNC::printer(string path, string& sfile)
+{
+	ofstream WPR;
+	locale utf8 = locale("en_US.UTF8");
+	WPR.imbue(locale(utf8, new codecvt_utf8<wchar_t, 0x10ffff, generate_header>));
+	WPR.open(path, ios_base::binary | ios_base::trunc);
+	WPR << sfile << endl;
+	WPR.close();
+}
+void JFUNC::printer(string path, wstring& wfile)
+{
+	string sfile = utf16to8(wfile);
+	printer(path, sfile);
+}
+void JFUNC::printer(string path, vector<unsigned char>& binFile)
+{
+	size_t count = binFile.size();
+	FILE* pFile = fopen(path.c_str(), "wb");
+	if (!pFile) { err("fopen-jf.printer"); }
+	size_t numBytes = fwrite(&binFile[0], 1, count, pFile);
+	if (numBytes != count) { err("fwrite-jf.printer"); }
+	fclose(pFile);
 }
 void JFUNC::quicksort(vector<int>& v1, int low, int high)
 {
@@ -577,11 +852,10 @@ long long JFUNC::timerStop()
 }
 string JFUNC::timestamper()
 {
-	char buffer[26];
 	string timestamp;
 	chrono::system_clock::time_point today = chrono::system_clock::now();
 	time_t tt = chrono::system_clock::to_time_t(today);
-	ctime_s(buffer, 26, &tt);
+	char* buffer = ctime(&tt);
 	for (int ii = 0; ii < 26; ii++)
 	{
 		if (buffer[ii] == '\0') { break; }
@@ -589,34 +863,51 @@ string JFUNC::timestamper()
 	}
 	return timestamp;
 }
-void JFUNC::turnClockwise(vector<int>& dxdy)
+void JFUNC::toDouble(vector<int>& input, vector<double>& output)
 {
-	int magnitude;
-	if (dxdy[1] < 0)  // Normal force is northward, so travel eastward.
+	output.resize(input.size());
+	for (int ii = 0; ii < input.size(); ii++)
 	{
-		if (dxdy[0] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
-		magnitude = -1 * dxdy[1];
-		dxdy = { magnitude, 0 };
+		output[ii] = (double)input[ii];
 	}
-	else if (dxdy[0] > 0)  // Normal force is eastward, so travel southward.
+}
+void JFUNC::toDouble(vector<vector<int>>& input, vector<vector<double>>& output)
+{
+	int length;
+	output.clear();
+	output.resize(input.size(), vector<double>());
+	for (int ii = 0; ii < input.size(); ii++)
 	{
-		if (dxdy[1] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
-		magnitude = dxdy[0];
-		dxdy = { 0, magnitude };
+		length = input[ii].size();
+		output[ii].resize(length);
+		for (int jj = 0; jj < length; jj++)
+		{
+			output[ii][jj] = (double)input[ii][jj];
+		}
 	}
-	else if (dxdy[1] > 0)  // Normal force is southward, so travel westward.
+}
+void JFUNC::toInt(vector<double>& input, vector<int>& output)
+{
+	output.resize(input.size());
+	for (int ii = 0; ii < input.size(); ii++)
 	{
-		if (dxdy[0] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
-		magnitude = dxdy[1];
-		dxdy = { -1 * magnitude, 0 };
+		output[ii] = int(round(input[ii]));
 	}
-	else if (dxdy[0] < 0)  // Normal force is westward, so travel northward.
+}
+void JFUNC::toInt(vector<vector<double>>& input, vector<vector<int>>& output)
+{
+	int length;
+	output.clear();
+	output.resize(input.size(), vector<int>());
+	for (int ii = 0; ii < input.size(); ii++)
 	{
-		if (dxdy[1] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
-		magnitude = dxdy[0];
-		dxdy = { 0, magnitude };
+		length = input[ii].size();
+		output[ii].resize(length);
+		for (int jj = 0; jj < length; jj++)
+		{
+			output[ii][jj] = int(round(input[ii][jj]));
+		}
 	}
-	else { err("Cannot determine input direction-jf.turnClockwise"); }
 }
 int JFUNC::tree_from_marker(vector<vector<int>>& tree_st, vector<string>& tree_pl)
 {

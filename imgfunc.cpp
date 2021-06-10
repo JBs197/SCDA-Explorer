@@ -2243,6 +2243,35 @@ void IMGFUNC::thrMakeMapPTB(vector<vector<int>> vBorderPath, string outputPath, 
     }
     pngPrint(source, sourceDim, outputPath);
 }
+void IMGFUNC::turnClockwise(vector<int>& dxdy)
+{
+	int magnitude;
+	if (dxdy[1] < 0)  // Normal force is northward, so travel eastward.
+	{
+		if (dxdy[0] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		magnitude = -1 * dxdy[1];
+		dxdy = { magnitude, 0 };
+	}
+	else if (dxdy[0] > 0)  // Normal force is eastward, so travel southward.
+	{
+		if (dxdy[1] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		magnitude = dxdy[0];
+		dxdy = { 0, magnitude };
+	}
+	else if (dxdy[1] > 0)  // Normal force is southward, so travel westward.
+	{
+		if (dxdy[0] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		magnitude = dxdy[1];
+		dxdy = { -1 * magnitude, 0 };
+	}
+	else if (dxdy[0] < 0)  // Normal force is westward, so travel northward.
+	{
+		if (dxdy[1] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		magnitude = dxdy[0];
+		dxdy = { 0, magnitude };
+	}
+	else { err("Cannot determine input direction-jf.turnClockwise"); }
+}
 vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec)
 {
     // This function returns the coordinates of the specified zone change,

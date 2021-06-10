@@ -135,7 +135,8 @@ public:
     vector<int> testZoneLength(vector<vector<int>>& pastPresent, vector<vector<int>>& candidates, string sZone);
     int testZoneSweepLetters(vector<vector<int>>& zonePath, vector<vector<unsigned char>>& Lrgb, vector<vector<int>>& candidates, unordered_map<string, int>& mapIndexCandidate);
     void thrMakeMapPTB(vector<vector<int>> vBorderPath, string outputPath, vector<unsigned char> source, vector<int> sourceDim);
-    vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
+    void turnClockwise(vector<int>& dxdy);
+	vector<vector<int>> zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec);
     double zoneSweepPercentage(string sZone, vector<vector<unsigned char>>& Lrgb);
 
 	// TEMPLATES
