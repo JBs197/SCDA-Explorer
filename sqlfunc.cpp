@@ -2,6 +2,12 @@
 
 using namespace std;
 
+void SQLFUNC::all_tables(vector<string>& table_list)
+{
+    table_list.clear();
+    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+    executor(stmt, table_list);
+}
 void SQLFUNC::bind(string& stmt, vector<string>& param)
 {
     // Replaces SQL placeholders ('?') with parameter strings. Automatically adds single quotes.
@@ -51,9 +57,280 @@ void SQLFUNC::create_table(string tname, vector<string>& titles, vector<int>& ty
 
     executor(stmt);
 }
-void SQLFUNC::err(string func)
+void SQLFUNC::executor(string stmt)
 {
-    jf.err(func);
+    sqlite3_stmt* statement;
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerr("prepare-executor0"); }
+    error = sqlite3_step(statement);
+    if (error > 0 && error != 100 && error != 101) { sqlerr("step-executor0"); }
+}
+void SQLFUNC::executor(string stmt, string& result)
+{
+    // Note that this variant of the executor function will only return the first result.
+    int type, size;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_stmt* statement;
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerr("prepare-executor0.5"); }
+    error = sqlite3_step(statement);
+    int ivalue;
+    double dvalue;
+    string svalue;
+    int iextra = 0;
+
+    if (error == 100)
+    {
+        type = sqlite3_column_type(statement, 0);
+        switch (type)
+        {
+        case 1:
+            ivalue = sqlite3_column_int(statement, 0);
+            result += to_string(ivalue);
+            break;
+        case 2:
+            dvalue = sqlite3_column_double(statement, 0);
+            result += to_string(dvalue);
+            break;
+        case 3:
+        {
+            size = sqlite3_column_bytes(statement, 0);
+            const unsigned char* buffer = sqlite3_column_text(statement, 0);
+            svalue.resize(size);
+            for (int ii = 0; ii < size; ii++)
+            {
+                if (buffer[ii] > 127)
+                {
+                    svalue[ii + iextra] = -61;
+                    iextra++;
+                    svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                }
+                else
+                {
+                    svalue[ii + iextra] = buffer[ii];
+                }
+            }
+            result += svalue;
+            break;
+        }
+        case 5:
+            result += "";
+            break;
+        }
+        return;
+    }
+    else if (error > 0 && error != 101) { sqlerr("step-executor0.5"); }
+}
+void SQLFUNC::executor(string stmt, vector<string>& results)
+{
+    // Note that this variant of the executor function can accomodate either a column or a row as the result.
+    int type, size;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_stmt* statement;
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerr("prepare-executor1"); }
+    error = sqlite3_step(statement);
+    int ivalue, inum;
+    double dvalue;
+    string svalue;
+    int col_count = -1;
+    int iextra = 0;
+
+    while (error == 100)
+    {
+        if (col_count < 0)
+        {
+            col_count = sqlite3_column_count(statement);
+        }
+        if (col_count > 1)  // Returned vector will be a row.
+        {
+            inum = results.size();
+            results.resize(inum + col_count);
+            for (int ii = 0; ii < col_count; ii++)
+            {
+                type = sqlite3_column_type(statement, ii);
+                switch (type)
+                {
+                case 1:
+                    ivalue = sqlite3_column_int(statement, ii);
+                    results[inum + ii] = to_string(ivalue);
+                    break;
+                case 2:
+                    dvalue = sqlite3_column_double(statement, ii);
+                    results[inum + ii] = to_string(dvalue);
+                    break;
+                case 3:
+                {
+                    size = sqlite3_column_bytes(statement, 0);
+                    const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                    svalue.resize(size);
+                    for (int ii = 0; ii < size; ii++)
+                    {
+                        if (buffer[ii] > 127)
+                        {
+                            svalue[ii + iextra] = -61;
+                            iextra++;
+                            svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                        }
+                        else
+                        {
+                            svalue[ii + iextra] = buffer[ii];
+                        }
+                    }
+                    results[inum + ii] = svalue;
+                    iextra = 0;
+                    break;
+                }
+                case 5:
+                    results[inum + ii] = "";
+                    break;
+                }
+            }
+            return;
+        }
+        else  // Returned result will be a column.
+        {
+            type = sqlite3_column_type(statement, 0);
+            switch (type)
+            {
+            case 1:
+                ivalue = sqlite3_column_int(statement, 0);
+                results.push_back(to_string(ivalue));
+                break;
+            case 2:
+                dvalue = sqlite3_column_double(statement, 0);
+                results.push_back(to_string(dvalue));
+                break;
+            case 3:
+            {
+                size = sqlite3_column_bytes(statement, 0);
+                const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                svalue.resize(size);
+                for (int ii = 0; ii < size; ii++)
+                {
+                    if (buffer[ii] > 127 && buffer[ii] != 195)
+                    {
+                        if (ii == 0)
+                        {
+                            svalue[ii + iextra] = -61;
+                            iextra++;
+                            svalue[ii + iextra] = buffer[ii] - 64;
+                            svalue.push_back(0);
+                        }
+                        else if (buffer[ii - 1] == 195)
+                        {
+                            svalue[ii + iextra] = buffer[ii];
+                        }
+                        else
+                        {
+                            svalue[ii + iextra] = -61;
+                            iextra++;
+                            svalue[ii + iextra] = buffer[ii] - 64;
+                            svalue.push_back(0);
+                        }
+                    }
+                    else
+                    {
+                        svalue[ii + iextra] = buffer[ii];
+                    }
+                }
+                results.push_back(svalue);
+                iextra = 0;
+                break;
+            }
+            case 5:
+                results.push_back("");
+                break;
+            }
+        }
+        error = sqlite3_step(statement);
+    }
+    if (error > 0 && error != 101) { sqlerr("step-executor1"); }
+}
+void SQLFUNC::executor(string stmt, vector<vector<string>>& results)
+{
+    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_stmt* statement;
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerr("prepare-executor2"); }
+    error = sqlite3_step(statement);
+    int ivalue;
+    double dvalue;
+    string svalue;
+    int iextra = 0;
+
+    while (error == 100)  // Output text should be UTF8.
+    {
+        col_count = sqlite3_column_count(statement);
+        results.push_back(vector<string>(col_count));
+        for (int ii = 0; ii < col_count; ii++)
+        {
+            type = sqlite3_column_type(statement, ii);
+            switch (type)
+            {
+            case 1:
+                ivalue = sqlite3_column_int(statement, ii);
+                results[results.size() - 1][ii] = to_string(ivalue);
+                break;
+            case 2:
+                dvalue = sqlite3_column_double(statement, ii);
+                results[results.size() - 1][ii] = to_string(dvalue);
+                break;
+            case 3:
+            {
+                size = sqlite3_column_bytes(statement, ii);
+                const unsigned char* buffer = sqlite3_column_text(statement, ii);
+                svalue.resize(size);
+                for (int ii = 0; ii < size; ii++)
+                {
+                    if (buffer[ii] > 127 && buffer[ii] != 195)
+                    {
+                        if (ii == 0)
+                        {
+                            svalue[ii + iextra] = -61;
+                            iextra++;
+                            svalue.insert(svalue.begin() + ii + iextra, buffer[ii] - 64);
+                            svalue.push_back(0);
+                        }
+                        else if (buffer[ii - 1] == 195)
+                        {
+                            svalue[ii + iextra] = buffer[ii];
+                        }
+                        else
+                        {
+                            svalue[ii + iextra] = -61;
+                            iextra++;
+                            svalue.insert(svalue.begin() + ii + iextra, buffer[ii] - 64);
+                            svalue.push_back(0);
+                        }
+                    }
+                    else
+                    {
+                        svalue[ii + iextra] = buffer[ii];
+                    }
+                }
+                results[results.size() - 1][ii] = svalue;
+                iextra = 0;
+                break;
+            }
+            case 5:
+                results[results.size() - 1].push_back("");
+                break;
+            }
+        }
+        error = sqlite3_step(statement);
+    }
+    if (error > 0 && error != 101) { sqlerr("step-executor2"); }
+}
+void SQLFUNC::get_col_titles(string tname, vector<string>& titles)
+{
+    string temp1;
+    vector<vector<string>> results;
+    string stmt = "PRAGMA table_info('" + tname + "');";
+    executor(stmt, results);
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        temp1 = results[ii][1];
+        titles.push_back(temp1);
+    }
 }
 string SQLFUNC::getLinearizedTitle(string& cataName, string& rowTitle, string& colTitle)
 {
@@ -93,6 +370,30 @@ int SQLFUNC::get_num_col(string tname)
     get_col_titles(tname, column_titles);
     return column_titles.size();
 }
+void SQLFUNC::get_table_list(vector<string>& results, string& search)
+{
+    results.clear();
+    vector<string> search_split = jf.list_from_marker(search, '$');
+    vector<string> chaff_split;
+    vector<string> chaff;
+    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
+    executor(stmt, chaff);
+    string cheddar;
+    size_t pos1, pos2;
+    for (int ii = 0; ii < chaff.size(); ii++)
+    {
+        chaff_split = jf.list_from_marker(chaff[ii], '$');
+        if (chaff_split.size() < search_split.size()) { continue; }
+        for (int jj = 1; jj < search_split.size(); jj++)
+        {
+            if (search_split[jj] != chaff_split[jj]) { break; }
+            else if (jj == search_split.size() - 1)
+            {
+                results.push_back(chaff[ii]);
+            }
+        }
+    }
+}
 vector<vector<string>> SQLFUNC::getTMapIndex()
 {
     vector<vector<string>> TMI;
@@ -111,6 +412,87 @@ void SQLFUNC::init(string db_path)
     {
         tableList.emplace(table_list[ii]);
     }
+}
+void SQLFUNC::insert(string tname, vector<string>& row_data)
+{
+    vector<string> column_titles;
+    get_col_titles(tname, column_titles);
+    if (column_titles.size() > row_data.size())
+    {
+        column_titles.resize(row_data.size());
+    }
+    else if (column_titles.size() < row_data.size())
+    {
+        safe_col(tname, row_data.size());
+    }
+    string stmt0 = "INSERT INTO [" + tname + "] (";
+    for (int ii = 0; ii < column_titles.size(); ii++)
+    {
+        stmt0 += "[" + column_titles[ii];
+        if (ii < column_titles.size() - 1)
+        {
+            stmt0 += "], ";
+        }
+        else
+        {
+            stmt0 += "]) VALUES (";
+        }
+    }
+    for (int ii = 0; ii < column_titles.size(); ii++)
+    {
+        stmt0 += "?, ";
+    }
+    stmt0.pop_back();
+    stmt0.pop_back();
+    stmt0 += ");";
+
+    bind(stmt0, row_data);
+    executor(stmt0);
+}
+void SQLFUNC::insert(string tname, vector<vector<string>>& row_data)
+{
+    vector<string> column_titles;
+    get_col_titles(tname, column_titles);
+    if (column_titles.size() > row_data.size())
+    {
+        column_titles.resize(row_data.size());
+    }
+    else if (column_titles.size() < row_data.size())
+    {
+        safe_col(tname, row_data.size());
+    }
+    string stmt0 = "INSERT INTO [" + tname + "] (";
+    for (int ii = 0; ii < column_titles.size(); ii++)
+    {
+        stmt0 += "[" + column_titles[ii];
+        if (ii < column_titles.size() - 1)
+        {
+            stmt0 += "], ";
+        }
+        else
+        {
+            stmt0 += "]) VALUES (";
+        }
+    }
+    for (int ii = 0; ii < column_titles.size(); ii++)
+    {
+        stmt0 += "?, ";
+    }
+    stmt0.pop_back();
+    stmt0.pop_back();
+    stmt0 += ");";
+
+    string stmt;
+    int error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+    if (error) { sqlerr("begin transaction-insert_rows"); }
+    for (int ii = 0; ii < row_data.size(); ii++)
+    {
+        stmt = stmt0;
+        bind(stmt, row_data[ii]);
+        executor(stmt);
+    }
+    error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+    if (error) { sqlerr("commit transaction-insert_rows"); }
 }
 void SQLFUNC::insertBinMap(string& binPath, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent8, vector<vector<int>>& border)
 {
@@ -284,44 +666,32 @@ void SQLFUNC::insertGeo(string cataName, vector<int>& gidList, vector<string>& r
     // Make and fill the Geo_Layers table.
     string tname = cataName + "$Geo_Layers";
     vector<string> colTitles = { "Layer" }, stmts, row(3), vsTemp;
-    int myError = 0;
     string stmt = "CREATE TABLE [" + tname + "] (Layer TEXT);";
-    executor(stmt, myError);
-    if (!myError)
+    executor(stmt);
+    for (int ii = 0; ii < geoLayers.size(); ii++)
     {
-        for (int ii = 0; ii < geoLayers.size(); ii++)
-        {
-            vsTemp = { geoLayers[ii] };
-            stmt = insert_stmt(tname, colTitles, vsTemp);
-            executor(stmt);
-        }
+        vsTemp = { geoLayers[ii] };
+        stmt = insert_stmt(tname, colTitles, vsTemp);
+        executor(stmt);
     }
-
 
     // Make and fill the Geo table.
     tname = cataName + "$Geo";
     stmt = "CREATE TABLE [" + tname + "] (";
     stmt += "GID INTEGER PRIMARY KEY, [Region Name] TEXT, ";
     stmt += "Layer TEXT);";
-    myError = 0;
-    executor(stmt, myError);
-    if (!myError)
+    executor(stmt);
+    string stmt0 = "INSERT INTO [" + tname + "] (GID, [Region Name], Layer)";
+    stmt0 += " VALUES (?, ?, ?);";
+    stmts.resize(gidList.size());
+    for (int ii = 0; ii < gidList.size(); ii++)
     {
-        string stmt0 = "INSERT INTO [" + tname + "] (GID, [Region Name], Layer)";
-        stmt0 += " VALUES (?, ?, ?);";
-        stmts.resize(gidList.size());
-        //int error = sqlite3_exec(db, "BEGIN DEFERRED TRANSACTION", NULL, NULL, NULL);
-        //if (error) { sqlerr("begin transaction-insertGeo"); }
-        for (int ii = 0; ii < gidList.size(); ii++)
-        {
-            row = { to_string(gidList[ii]), regionList[ii], layerList[ii] };
-            stmt = stmt0;
-            bind(stmt, row);
-            executor(stmt);
-        }
-        //error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
-        //if (error) { sqlerr("commit transaction-insertGeo"); }
+        row = { to_string(gidList[ii]), regionList[ii], layerList[ii] };
+        stmt = stmt0;
+        bind(stmt, row);
+        executor(stmt);
     }
+
 }
 void SQLFUNC::insert_tg_existing(string tname)
 {
@@ -419,6 +789,35 @@ void SQLFUNC::makeANSI(string& task)
         }
     }
 }
+void SQLFUNC::remove(string& tname)
+{
+    string stmt = "DROP TABLE IF EXISTS [" + tname + "];";
+    if (table_exist(tname))
+    {
+        executor(stmt);
+    }
+    else
+    {
+        jf.log("Could not delete " + tname + " : could not find.");
+    }
+}
+void SQLFUNC::remove(string& tname, vector<string>& conditions)
+{
+    string stmt = "DELETE FROM [" + tname + "] WHERE (";
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        stmt += conditions[ii] + " ";
+    }
+    stmt += ");";
+    if (table_exist(tname))
+    {
+        executor(stmt);
+    }
+    else
+    {
+        jf.log("Could not delete " + tname + " : could not find.");
+    }
+}
 void SQLFUNC::safe_col(string tname, int num_col)
 {
     // For a given table name, if it has fewer columns than 'num_col', then append a sufficient
@@ -470,18 +869,152 @@ int SQLFUNC::sclean(string& bbq, int mode)
     }
     return count;
 }
-void SQLFUNC::select_tree2(string tname, vector<vector<int>>& tree_st, vector<wstring>& tree_pl)
+int SQLFUNC::select(vector<string> search, string tname, string& result)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\"";
+    }
+    else
+    {
+        stmt += "\"" + search[0] + "\" FROM \"" + tname + "\"";
+    }
+    executor(stmt, result);
+    return 1;
+}
+int SQLFUNC::select(vector<string> search, string tname, vector<string>& results)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\"";
+    }
+    else
+    {
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "\"" + search[ii] + "\", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM \"" + tname + "\"";
+    }
+    executor(stmt, results);
+    return results.size();
+}
+int SQLFUNC::select(vector<string> search, string tname, vector<vector<string>>& results)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\"";
+    }
+    else
+    {
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "\"" + search[ii] + "\", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM \"" + tname + "\"";
+    }
+    executor(stmt, results);
+    int max_col = 0;
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        if (results[ii].size() > max_col)
+        {
+            max_col = results[ii].size();
+        }
+    }
+    return max_col;
+}
+int SQLFUNC::select(vector<string> search, string tname, string& result, vector<string>& conditions)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\"";
+    }
+    else
+    {
+        stmt += "\"" + search[0] + "\" FROM \"" + tname + "\"";
+    }
+    stmt += " WHERE (";
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        stmt += conditions[ii] + " ";
+    }
+    stmt += ");";
+    executor(stmt, result);
+    return 1;
+}
+int SQLFUNC::select(vector<string> search, string tname, vector<string>& results, vector<string>& conditions)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\" WHERE (";
+    }
+    else
+    {
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "\"" + search[ii] + "\", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM \"" + tname + "\" WHERE (";
+    }
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        stmt += conditions[ii] + " ";
+    }
+    stmt += ");";
+    executor(stmt, results);
+    return results.size();
+}
+int SQLFUNC::select(vector<string> search, string tname, vector<vector<string>>& results, vector<string>& conditions)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\" WHERE (";
+    }
+    else
+    {
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "\"" + search[ii] + "\", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM \"" + tname + "\" WHERE (";
+    }
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        stmt += conditions[ii] + " ";
+    }
+    stmt += ");";
+    executor(stmt, results);
+    int max_col = 0;
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        if (results[ii].size() > max_col)
+        {
+            max_col = results[ii].size();
+        }
+    }
+    return max_col;
+}
+void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl)
 {
     // Produce a tree structure and tree payload for the given table name as root. 
     // Certain table name parameters have special forks within the function.
 
-    //vector<string> tname_params = jfsf.list_from_marker(tname, '$');
-    vector<vector<wstring>> results;
-    unordered_map<wstring, int> registry;
+    vector<vector<string>> results;
+    unordered_map<string, int> registry;
     vector<vector<int>> kids;
     vector<int> ivtemp;
     vector<string> vtemp;
-    vector<string> search = { "GID", "[Region Name]" };
     string temp, sparent, stmt;
     int pl_index, iparent, pivot, inum;
     tree_pl.clear();
@@ -498,7 +1031,7 @@ void SQLFUNC::select_tree2(string tname, vector<vector<int>>& tree_st, vector<ws
     {
         for (int jj = 0; jj < results[ii].size(); jj++)
         {
-            if (results[ii][jj] == L"")
+            if (results[ii][jj] == "")
             {
                 results[ii].erase(results[ii].begin() + jj, results[ii].end());
                 break;
@@ -520,7 +1053,7 @@ void SQLFUNC::select_tree2(string tname, vector<vector<int>>& tree_st, vector<ws
             }
             catch (out_of_range& oor)
             {
-                err("iparent registry-sf.select_tree");
+                jf.err("iparent registry-sf.select_tree");
             }
         }
         if (results[ii].size() > 2)
@@ -574,7 +1107,7 @@ void SQLFUNC::sqlerr(string func)
     int errcode = sqlite3_errcode(db);
     const char* errmsg = sqlite3_errmsg(db);
     string serrmsg(errmsg);
-    string message = timestamper() + " SQL ERROR #" + to_string(errcode) + ", in ";
+    string message = jf.timestamper() + " SQL ERROR #" + to_string(errcode) + ", in ";
     message += func + serrmsg + "\r\n";
     ERR.open(error_path, ofstream::app);
     ERR << message << endl;
@@ -609,21 +1142,6 @@ size_t SQLFUNC::table_exist(string tname)
     // Returns TRUE or FALSE as to the existance of a given table within the database.
 
     return tableList.count(tname);
-}
-string SQLFUNC::timestamper()
-{
-    // Return a timestamp from the system clock.
-    char buffer[26];
-    string timestampA;
-    chrono::system_clock::time_point today = chrono::system_clock::now();
-    time_t tt = chrono::system_clock::to_time_t(today);
-    ctime_s(buffer, 26, &tt);
-    for (int ii = 0; ii < 26; ii++)
-    {
-        if (buffer[ii] == '\0') { break; }
-        else { timestampA.push_back(buffer[ii]); }
-    }
-    return timestampA;
 }
 vector<string> SQLFUNC::test_cata(string cata_name)
 {
