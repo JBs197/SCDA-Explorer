@@ -285,7 +285,7 @@ void MainWindow::create_damaged_table()
     int bbq = 0;
     string stmt = "CREATE TABLE TDamaged ([Catalogue Name] TEXT, ";
     stmt += "GID INT, [Number of Errors] INT);";
-    sf.executor(stmt, bbq);
+    sf.executor(stmt);
 }
 void MainWindow::createMapIndexTable()
 {
@@ -387,7 +387,7 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
                     {
                         for (int ii = 1; ii < debugMapCoord.size(); ii++)
                         {
-                            dist = jf.coordDist(clickCoord, debugMapCoord[ii]);
+                            dist = mf.coordDist(clickCoord, debugMapCoord[ii]);
                             if (dist < 5.0)
                             {
                                 qf.debugMapSelected(ui->label_maps, ii, debugMapCoord);
@@ -1425,7 +1425,7 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
     thread::id myid = this_thread::get_id();
     sb.answer_call(myid, mycomm);
     vector<string> prompt = sb.get_prompt();  // syear, sname, desc.
-    mycomm[2] = 6;
+    mycomm[2] = 9;
     sb.update(myid, mycomm);
     QElapsedTimer timer;
 
@@ -1443,7 +1443,10 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
             csv_list.push_back(table_list[ii]);
         }
     }
-    sf.remove(mode, csv_list);
+    for (int ii = 0; ii < csv_list.size(); ii++)
+    {
+        sf.remove(csv_list[ii]);
+    }
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove CSV tables: " << timer.restart();
@@ -1454,19 +1457,40 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
     sb.update(myid, mycomm);
     qDebug() << "Time to remove the primary table: " << timer.restart();
 
-    // Remove TG_Region.
+    // Remove the catalogue's TG_Region.
     string tname = "TG_Region$" + prompt[1];
     sf.remove(tname);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove TG_Region: " << timer.restart();
 
-    // Remove TG_Row.
+    // Remove the catalogue's TG_Row.
     tname = "TG_Row$" + prompt[1];
     sf.remove(tname);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove TG_Row: " << timer.restart();
+
+    // Remove the catalogue's TMap.
+    tname = "TMap$" + prompt[1];
+    sf.remove(tname);
+    mycomm[1]++;
+    sb.update(myid, mycomm);
+    qDebug() << "Time to remove TMap: " << timer.restart();
+
+    // Remove the catalogue's Geo.
+    tname = prompt[1] + "$Geo";
+    sf.remove(tname);
+    mycomm[1]++;
+    sb.update(myid, mycomm);
+    qDebug() << "Time to remove Geo: " << timer.restart();
+
+    // Remove the catalogue's Geo_Layers.
+    tname = prompt[1] + "$Geo_Layers";
+    sf.remove(tname);
+    mycomm[1]++;
+    sb.update(myid, mycomm);
+    qDebug() << "Time to remove Geo_Layers: " << timer.restart();
 
     // Remove entries from TDamaged.
     vector<string> conditions = {"[Catalogue Name] = '" + prompt[1] + "'"};
@@ -1805,14 +1829,10 @@ void MainWindow::populateQtree(JTREE& jtx, QTreeWidgetItem*& qparent, string spa
     bool maps = 0;
     vector<int> ikids;
     vector<string> skids; 
-    jtx.listChildren(sparent, skids);
+    jtx.listChildren(sparent, ikids, skids);
     if (skids.size() < 1) { return; }  // Leaf node.
     string temp = "Local CSVs";
-    if (skids[0] == temp)
-    {
-        jtx.listChildren(sparent, ikids);
-        twig = 1;
-    }
+    if (skids[0] == temp) { twig = 1; }
     //string rootName = jtx.getRootName();
     string rootName;
     temp = "Local Maps";
@@ -2427,7 +2447,7 @@ void MainWindow::on_pB_search_clicked()
     else if (tname == "all")
     {
         ui->listW_search->clear();
-        sf.get_table_list(results);
+        sf.all_tables(results);
         for (int ii = 0; ii < results.size(); ii++)
         {
             qtemp = QString::fromStdString(results[ii]);
@@ -2615,9 +2635,8 @@ void MainWindow::populateQTree(JTREE& jtx, QTreeWidgetItem*& qMe, string myName)
     wstring wtemp;
     vector<int> ikids;
     vector<string> skids;
-    jtx.listChildren(myName, skids);
+    jtx.listChildren(myName, ikids, skids);
     if (skids.size() < 1) { return; }  // Leaf node.
-    jtx.listChildren(myName, ikids);
 
     size_t pos1;
     QString qtemp;

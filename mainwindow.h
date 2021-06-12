@@ -20,6 +20,8 @@
 #include "imgfunc.h"
 #include "statscan.h"
 #include "switchboard.h"
+#include "mathfunc.h"
+#include "zipfunc.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -36,11 +38,13 @@ public:
     IMGFUNC im;
     JFUNC jf;
     JTREE jt, jtMaps, jtMapsDB, jtStatsCan;
+    MATHFUNC mf;
     QTFUNC qf;
     SWITCHBOARD sb;
     SQLFUNC sf;
     STATSCAN sc;
     WINFUNC wf;
+    ZIPFUNC zf;
 
 signals:
 
