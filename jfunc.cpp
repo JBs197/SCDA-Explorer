@@ -747,6 +747,31 @@ void JFUNC::quicksort(vector<int>& v1, int low, int high)
 		quicksort(v1, pivotindex + 1, high);
 	}
 }
+void JFUNC::removeBlanks(vector<string>& task)
+{
+	for (int ii = 0; ii < task.size(); ii++)
+	{
+		if (task[ii] == "") 
+		{ 
+			task.erase(task.begin() + ii);
+			ii--;
+		}
+	}
+}
+void JFUNC::removeBlanks(vector<vector<wstring>>& task)
+{
+	for (int ii = 0; ii < task.size(); ii++)
+	{
+		for (int jj = 0; jj < task[ii].size(); jj++)
+		{
+			if (task[ii][jj] == L"")
+			{
+				task[ii].erase(task[ii].begin() + jj);
+				jj--;
+			}
+		}
+	}
+}
 void JFUNC::set_navigator_asset_path(string& path)
 {
 	navigator_asset_path = path;

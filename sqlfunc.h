@@ -25,8 +25,10 @@ public:
     void create_table(string, vector<string>&, vector<int>&);
     void executor(string stmt);
     void executor(string stmt, string& result);
+    void executor(string stmt, wstring& result);
     void executor(string stmt, vector<string>& results);
     void executor(string stmt, vector<vector<string>>& results);
+    void executor(string stmt, vector<vector<wstring>>& results);
     void get_col_titles(string tname, vector<string>& titles);
     void get_table_list(vector<string>& results, string& search);
     void init(string);
@@ -51,9 +53,12 @@ public:
     int select(vector<string> search, string tname, string& result);
     int select(vector<string> search, string tname, vector<string>& results);
     int select(vector<string> search, string tname, vector<vector<string>>& results);
+    int select(vector<string> search, string tname, vector<vector<wstring>>& results);
     int select(vector<string> search, string tname, string& result, vector<string>& conditions);
+    int select(vector<string> search, string tname, wstring& result, vector<string>& conditions);
     int select(vector<string> search, string tname, vector<string>& results, vector<string>& conditions);
     int select(vector<string> search, string tname, vector<vector<string>>& results, vector<string>& conditions);
+    int select(vector<string> search, string tname, vector<vector<wstring>>& results, vector<string>& conditions);
     void select_tree(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl);
     vector<string> selectYears();
     void set_error_path(string);

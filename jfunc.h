@@ -14,7 +14,6 @@
 #include <atomic>
 #include <mutex>
 #include <cmath>
-#include <filesystem>
 
 using namespace std;
 extern mutex m_err;
@@ -36,8 +35,8 @@ public:
 	explicit JFUNC() {}
 	~JFUNC() {}
 
-	atomic_ullong stopwatch = 0;  // Max timer ticks is 1.8e19.
-	atomic_int stopwatch_control = 0;
+	atomic_ullong stopwatch{0};  // Max timer ticks is 1.8e19.
+	atomic_int stopwatch_control{0};
 
 	string asciiOnly(string& input);
 	string asciiToUTF8(string input);
@@ -74,6 +73,8 @@ public:
 	void printer(string path, wstring& wfile);
 	void printer(string path, vector<unsigned char>& binFile);
 	void quicksort(vector<int>&, int, int);
+	void removeBlanks(vector<string>& task);
+	void removeBlanks(vector<vector<wstring>>& task);
 	void set_navigator_asset_path(string&);
 	string stringifyCoord(vector<int>& coord);
 	vector<int> svectorToIvector(vector<string>&);

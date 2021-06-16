@@ -120,6 +120,62 @@ void SQLFUNC::executor(string stmt, string& result)
     }
     else if (error > 0 && error != 101) { sqlerr("step-executor0.5"); }
 }
+void SQLFUNC::executor(string stmt, wstring& result)
+{
+    // Note that this variant of the executor function will only return the first result.
+    int type, size;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_stmt* statement;
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerr("prepare-executor0.5"); }
+    error = sqlite3_step(statement);
+    int ivalue;
+    double dvalue;
+    wstring wvalue;
+    int iextra = 0;
+
+    if (error == 100)
+    {
+        type = sqlite3_column_type(statement, 0);
+        switch (type)
+        {
+        case 1:
+            ivalue = sqlite3_column_int(statement, 0);
+            result += to_wstring(ivalue);
+            break;
+        case 2:
+            dvalue = sqlite3_column_double(statement, 0);
+            result += to_wstring(dvalue);
+            break;
+        case 3:
+        {
+            size = sqlite3_column_bytes(statement, 0);
+            const unsigned char* buffer = sqlite3_column_text(statement, 0);
+            wvalue.resize(size);
+            for (int ii = 0; ii < size; ii++)
+            {
+                if (buffer[ii] == 195)
+                {
+                    wvalue[ii + iextra] = (wchar_t)(buffer[ii + 1] + 64);
+                    iextra--;
+                    ii++;
+                    wvalue.pop_back();
+                }
+                else
+                {
+                    wvalue[ii + iextra] = (wchar_t)buffer[ii];
+                }
+            }
+            result += wvalue;
+            break;
+        }
+        case 5:
+            result += L"";
+            break;
+        }
+        return;
+    }
+    else if (error > 0 && error != 101) { sqlerr("step-executor0.5"); }
+}
 void SQLFUNC::executor(string stmt, vector<string>& results)
 {
     // Note that this variant of the executor function can accomodate either a column or a row as the result.
@@ -320,6 +376,67 @@ void SQLFUNC::executor(string stmt, vector<vector<string>>& results)
     }
     if (error > 0 && error != 101) { sqlerr("step-executor2"); }
 }
+void SQLFUNC::executor(string stmt, vector<vector<wstring>>& results)
+{
+    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_stmt* statement;
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerr("prepare-executor2"); }
+    error = sqlite3_step(statement);
+    int ivalue;
+    double dvalue;
+    wstring wvalue;
+    int iextra = 0;
+
+    while (error == 100)  // Output text should be UTF16.
+    {
+        col_count = sqlite3_column_count(statement);
+        results.push_back(vector<wstring>(col_count));
+        for (int ii = 0; ii < col_count; ii++)
+        {
+            type = sqlite3_column_type(statement, ii);
+            switch (type)
+            {
+            case 1:
+                ivalue = sqlite3_column_int(statement, ii);
+                results[results.size() - 1][ii] = to_wstring(ivalue);
+                break;
+            case 2:
+                dvalue = sqlite3_column_double(statement, ii);
+                results[results.size() - 1][ii] = to_wstring(dvalue);
+                break;
+            case 3:
+            {
+                size = sqlite3_column_bytes(statement, ii);
+                const unsigned char* buffer = sqlite3_column_text(statement, ii);
+                wvalue.resize(size);
+                for (int ii = 0; ii < size; ii++)
+                {
+                    if (buffer[ii] == 195)
+                    {
+                        wvalue[ii + iextra] = (wchar_t)(buffer[ii + 1] + 64);
+                        iextra--;
+                        ii++;
+                        wvalue.pop_back();
+                    }
+                    else
+                    {
+                        wvalue[ii + iextra] = (wchar_t)buffer[ii];
+                    }
+                }
+                results[results.size() - 1][ii] = wvalue;
+                iextra = 0;
+                break;
+            }
+            case 5:
+                results[results.size() - 1].push_back(L"");
+                break;
+            }
+        }
+        error = sqlite3_step(statement);
+    }
+    if (error > 0 && error != 101) { sqlerr("step-executor2"); }
+}
 void SQLFUNC::get_col_titles(string tname, vector<string>& titles)
 {
     string temp1;
@@ -405,13 +522,8 @@ void SQLFUNC::init(string db_path)
 {
     int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
     if (error) { sqlerr("open-init"); }
-    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
-    vector<string> table_list;
-    executor(stmt, table_list);
-    for (int ii = 0; ii < table_list.size(); ii++)
-    {
-        tableList.emplace(table_list[ii]);
-    }
+    string stmt = "PRAGMA optimize;";
+    executor(stmt);
 }
 void SQLFUNC::insert(string tname, vector<string>& row_data)
 {
@@ -929,7 +1041,54 @@ int SQLFUNC::select(vector<string> search, string tname, vector<vector<string>>&
     }
     return max_col;
 }
+int SQLFUNC::select(vector<string> search, string tname, vector<vector<wstring>>& results)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\"";
+    }
+    else
+    {
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "\"" + search[ii] + "\", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM \"" + tname + "\"";
+    }
+    executor(stmt, results);
+    int max_col = 0;
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        if (results[ii].size() > max_col)
+        {
+            max_col = results[ii].size();
+        }
+    }
+    return max_col;
+}
 int SQLFUNC::select(vector<string> search, string tname, string& result, vector<string>& conditions)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\"";
+    }
+    else
+    {
+        stmt += "\"" + search[0] + "\" FROM \"" + tname + "\"";
+    }
+    stmt += " WHERE (";
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        stmt += conditions[ii] + " ";
+    }
+    stmt += ");";
+    executor(stmt, result);
+    return 1;
+}
+int SQLFUNC::select(vector<string> search, string tname, wstring& result, vector<string>& conditions)
 {
     string stmt = "SELECT ";
     if (search[0] == "*" && search.size() == 1)
@@ -974,6 +1133,38 @@ int SQLFUNC::select(vector<string> search, string tname, vector<string>& results
     return results.size();
 }
 int SQLFUNC::select(vector<string> search, string tname, vector<vector<string>>& results, vector<string>& conditions)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\" WHERE (";
+    }
+    else
+    {
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "\"" + search[ii] + "\", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM \"" + tname + "\" WHERE (";
+    }
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        stmt += conditions[ii] + " ";
+    }
+    stmt += ");";
+    executor(stmt, results);
+    int max_col = 0;
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        if (results[ii].size() > max_col)
+        {
+            max_col = results[ii].size();
+        }
+    }
+    return max_col;
+}
+int SQLFUNC::select(vector<string> search, string tname, vector<vector<wstring>>& results, vector<string>& conditions)
 {
     string stmt = "SELECT ";
     if (search[0] == "*" && search.size() == 1)
@@ -1076,7 +1267,6 @@ void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<str
 }
 vector<string> SQLFUNC::selectYears()
 {
-
     // Returns the list of (ascending, unique) years represented in the database.
     vector<string> results, sYears;
     string stmt = "SELECT Year FROM TCatalogueIndex";
