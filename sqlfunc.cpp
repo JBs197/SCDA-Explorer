@@ -215,16 +215,29 @@ void SQLFUNC::executor(string stmt, vector<string>& results)
                     break;
                 case 3:
                 {
-                    size = sqlite3_column_bytes(statement, 0);
-                    const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                    size = sqlite3_column_bytes(statement, ii);
+                    const unsigned char* buffer = sqlite3_column_text(statement, ii);
                     svalue.resize(size);
                     for (int ii = 0; ii < size; ii++)
                     {
-                        if (buffer[ii] > 127)
+                        if (buffer[ii] > 127 && buffer[ii] != 195)
                         {
-                            svalue[ii + iextra] = -61;
-                            iextra++;
-                            svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                            if (ii == 0)
+                            {
+                                svalue[ii + iextra] = -61;
+                                iextra++;
+                                svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                            }
+                            else if (buffer[ii - 1] != 195)
+                            {
+                                svalue[ii + iextra] = -61;
+                                iextra++;
+                                svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                            }
+                            else
+                            {
+                                svalue[ii + iextra] = buffer[ii];
+                            }
                         }
                         else
                         {

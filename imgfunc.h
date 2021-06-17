@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <string>
 #include <vector>
-#include "jfunc.h"
+#include "mathfunc.h"
 #include "switchboard.h"
 
 using namespace std;
@@ -44,6 +44,7 @@ class IMGFUNC
     vector<unsigned char> legendColourBox;
 	unordered_map<string, string> mapColour;
     unordered_map<int, int> mapFontWidth;  // Input ascii, output glyph width (pixels).  
+    MATHFUNC mf;
     string pathActivePNG, pathMapDebug, bufferTempASCII;
     int pauseVBP, sizeVBP;
     vector<int> pointOfOrigin, revisedExtractDim;
@@ -395,7 +396,7 @@ public:
             pPF[0] = { origin[0], origin[1] + defaultSearchRadius };  // Points north.
             pPF[1] = origin;
             pPF[2] = octoPath[textFound[ii]];
-            starterAngle = jf.angleBetweenVectors(pPF);  // [0.0, 360.0)
+            starterAngle = mf.angleBetweenVectors(pPF);  // [0.0, 360.0)
 
             minAngle = starterAngle;
             do
@@ -411,7 +412,7 @@ public:
             while (1)
             {
                 pPF[2] = octoPath[currentIndex];
-                currentAngle = jf.angleBetweenVectors(pPF);
+                currentAngle = mf.angleBetweenVectors(pPF);
                 if (abs(currentAngle - minAngle) < angleDiff)
                 {
                     angleDiff = abs(currentAngle - minAngle);
@@ -438,7 +439,7 @@ public:
             while (1)
             {
                 pPF[2] = octoPath[currentIndex];
-                currentAngle = jf.angleBetweenVectors(pPF);
+                currentAngle = mf.angleBetweenVectors(pPF);
                 if (abs(currentAngle - maxAngle) < angleDiff)
                 {
                     angleDiff = abs(currentAngle - maxAngle);
@@ -736,7 +737,7 @@ public:
         vector<unsigned char> rgbTemp;
         for (int radius = 1; radius <= maxRadius; radius++)
         {
-            jf.coordOnCircle(origin, radius, angle, coord);
+            mf.coordOnCircle(origin, radius, angle, coord);
             rgbTemp = pixelRGB(coord);
             if (rgbTemp == rgb) 
             {
@@ -1597,13 +1598,13 @@ public:
                 if (candidateLong[2] >= candidateRelativeLengthMin)
                 {
                     pastPresentFuture.push_back({ candidateLong[0], candidateLong[1] });
-                    theta = jf.angleBetweenVectors(pastPresentFuture);
+                    theta = mf.angleBetweenVectors(pastPresentFuture);
                     return;
                 }
                 else if (candidateWide[2] >= candidateRelativeWidthMin)
                 {
                     pastPresentFuture.push_back({ candidateWide[0], candidateWide[1] });
-                    theta = jf.angleBetweenVectors(pastPresentFuture);
+                    theta = mf.angleBetweenVectors(pastPresentFuture);
                     return;
                 }
             }
@@ -1612,13 +1613,13 @@ public:
                 if (candidateWide[2] >= candidateRelativeWidthMin)
                 {
                     pastPresentFuture.push_back({ candidateWide[0], candidateWide[1] });
-                    theta = jf.angleBetweenVectors(pastPresentFuture);
+                    theta = mf.angleBetweenVectors(pastPresentFuture);
                     return;
                 }
                 else if (candidateLong[2] >= candidateRelativeLengthMin)
                 {
                     pastPresentFuture.push_back({ candidateLong[0], candidateLong[1] });
-                    theta = jf.angleBetweenVectors(pastPresentFuture);
+                    theta = mf.angleBetweenVectors(pastPresentFuture);
                     return;
                 }
             }
@@ -1638,7 +1639,7 @@ public:
         if (numCandidates == 1)
         {
             pastPresentFuture.push_back(candidates[0]);
-            theta = jf.angleBetweenVectors(pastPresentFuture);
+            theta = mf.angleBetweenVectors(pastPresentFuture);
             sCandidate = to_string(candidates[0][0]) + "," + to_string(candidates[0][1]);
             try { iWidth = mapWidth.at(sCandidate); }
             catch (out_of_range& oor) { jf.err("mapWidth-im.octogonBearing"); }
@@ -1659,7 +1660,7 @@ public:
         for (int ii = 0; ii < numCandidates; ii++)
         {
             pastPresentFuture[2] = lightHouse[ii];
-            theta.push_back(jf.angleBetweenVectors(pastPresentFuture));
+            theta.push_back(mf.angleBetweenVectors(pastPresentFuture));
         }
     }
 

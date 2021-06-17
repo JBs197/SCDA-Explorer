@@ -515,7 +515,7 @@ vector<vector<int>> IMGFUNC::getFrame(vector<vector<int>> vVictor, vector<string
     else if (dxdy[0] < 0) { dxdy[0] = -1; }
     if (dxdy[1] > 0) { dxdy[1] = 1; }
     else if (dxdy[1] < 0) { dxdy[1] = -1; }
-    jf.turnClockwise(dxdy);
+    turnClockwise(dxdy);
     vVictor[0] = crossing[1];
     vVictor[1] = dxdy;
     int inum;
@@ -535,7 +535,7 @@ vector<vector<int>> IMGFUNC::getFrame(vector<vector<int>> vVictor, vector<string
             corners[ii] = crossing[1];
         }
         vVictor[0] = corners[ii];
-        jf.turnClockwise(vVictor[1]);
+        turnClockwise(vVictor[1]);
         vVictor[0][0] += (2 * vVictor[1][0]);  // Jump over 2 pixels to avoid 
         vVictor[0][1] += (2 * vVictor[1][1]);  // antialiasing problems.
     }
@@ -990,7 +990,7 @@ void IMGFUNC::loadRecentSavePoint(vector<vector<int>>& vBorderPath)
             savePoints[ii].erase(savePoints[ii].begin() + savePoints[ii].size() - 1);
             for (int jj = 2; jj < savePoints[ii].size(); jj++)
             {
-                dist = jf.coordDist(pointWrong, savePoints[ii][jj]);
+                dist = mf.coordDist(pointWrong, savePoints[ii][jj]);
                 if (dist < minDistance)
                 {
                     minDistance = dist;
@@ -1784,7 +1784,7 @@ int IMGFUNC::testBacktrack(vector<vector<int>>& tracks, vector<vector<int>>& can
         nearest = 4294967295.0;
         for (int jj = 0; jj < tracks.size(); jj++)
         {
-            dist = jf.coordDist(candidates[ii], tracks[jj]);
+            dist = mf.coordDist(candidates[ii], tracks[jj]);
             if (dist < nearest)
             {
                 nearest = dist;
@@ -1903,7 +1903,7 @@ void IMGFUNC::testCenterOfMass(vector<vector<int>>& tracks, vector<vector<int>>&
     for (int ii = 0; ii < candidates.size(); ii++)
     {
         pastPresentFuture[2] = candidates[ii];
-        dTemp = jf.angleBetweenVectors(pastPresentFuture);
+        dTemp = mf.angleBetweenVectors(pastPresentFuture);
         angles[ii] = abs(dTemp - 180.0);  // Because the center serves as 'past',
     }                                     // an angle of 180 degrees is ideal.
     vector<double> anglesSorted = { angles[0] };
@@ -2089,7 +2089,7 @@ vector<int> IMGFUNC::testZoneLength(vector<vector<int>>& pastPresent, vector<vec
     vector<vector<vector<int>>> candidatePaths(numCandidates, vector<vector<int>>());
     vector<int> lengthToEdge(numCandidates);
     vector<int> shortestToEdge(2, -1);  // Form [index, length].
-    shortestToEdge[1] = int(jf.hypoteneuse(width, height));
+    shortestToEdge[1] = int(mf.hypoteneuse(width, height));
     vector<vector<int>> vviTemp(2, vector<int>(2));
     vviTemp[0] = pastPresent[1];
 
@@ -2248,29 +2248,29 @@ void IMGFUNC::turnClockwise(vector<int>& dxdy)
 	int magnitude;
 	if (dxdy[1] < 0)  // Normal force is northward, so travel eastward.
 	{
-		if (dxdy[0] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		if (dxdy[0] != 0) { jf.err("Input direction not NESW-im.turnClockwise"); }
 		magnitude = -1 * dxdy[1];
 		dxdy = { magnitude, 0 };
 	}
 	else if (dxdy[0] > 0)  // Normal force is eastward, so travel southward.
 	{
-		if (dxdy[1] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		if (dxdy[1] != 0) { jf.err("Input direction not NESW-im.turnClockwise"); }
 		magnitude = dxdy[0];
 		dxdy = { 0, magnitude };
 	}
 	else if (dxdy[1] > 0)  // Normal force is southward, so travel westward.
 	{
-		if (dxdy[0] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		if (dxdy[0] != 0) { jf.err("Input direction not NESW-im.turnClockwise"); }
 		magnitude = dxdy[1];
 		dxdy = { -1 * magnitude, 0 };
 	}
 	else if (dxdy[0] < 0)  // Normal force is westward, so travel northward.
 	{
-		if (dxdy[1] != 0) { err("Input direction not NESW-jf.turnClockwise"); }
+		if (dxdy[1] != 0) { jf.err("Input direction not NESW-im.turnClockwise"); }
 		magnitude = dxdy[0];
 		dxdy = { 0, magnitude };
 	}
-	else { err("Cannot determine input direction-jf.turnClockwise"); }
+	else { jf.err("Cannot determine input direction-im.turnClockwise"); }
 }
 vector<vector<int>> IMGFUNC::zoneChangeLinear(vector<string>& szones, vector<vector<int>>& ivec)
 {

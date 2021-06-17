@@ -3,6 +3,7 @@
 #include <vector>
 #include "switchboard.h"
 #include "winfunc.h"
+#include "zipfunc.h"
 
 using namespace std;
 
@@ -10,6 +11,7 @@ class STATSCAN
 {
 	JFUNC jf;
 	WINFUNC wf;
+	ZIPFUNC zf;
 
 	string cata_path, cata_name, cata_desc, cataName;
 	int columnLimit = 2000;
@@ -89,6 +91,7 @@ public:
 	bool testCanadaOnly(string& geoLayer);
 	bool testFileNotFound(string& webpage);
 	bool testGeoList(string& filePath);
+	void tree_from_indent(vector<vector<int>>& tree_st, vector<vector<string>>& rows);
 	string urlCatalogue(int iYear, string sCata);
 	string urlCataDownload(int iyear, string& geoPage, string gid);
 	string urlCataList(int iyear, string scata);

@@ -20,7 +20,7 @@ int STATSCAN::cata_init(string& sample_csv)
     create_csv_table_template = make_create_csv_table_template(column_titles);
     insert_csv_row_template = make_insert_csv_row_template(column_titles);
 
-    jf.tree_from_indent(csv_tree, rows);
+    tree_from_indent(csv_tree, rows);
     int tg_row_col;
     subtable_names_template = make_subtable_names_template(cata_name, tg_row_col, csv_tree, rows);
 
@@ -88,7 +88,7 @@ void STATSCAN::downloadCatalogue(SWITCHBOARD& sbgui)
         downloadGeoList(prompt[0], prompt[1], geoPage);
         if (wf.file_exist(zipPath)) 
         {
-            jf.unzip(zipPath);
+            zf.unzip(zipPath);
             mycomm[0] = 1;
             sbgui.update(myid, mycomm);
             return;
@@ -636,7 +636,7 @@ void STATSCAN::loadGeo(string& filePath, vector<int>& gidList, vector<string>& r
     }
 
     pos3 = sfile.rfind("@@Geo Layers", pos3);
-    pos1 = 0;
+    pos1 = sfile.find_first_of("1234567890");
     pos2 = sfile.find('$', pos1);
     while (pos2 < pos3)
     {
@@ -1431,6 +1431,69 @@ bool STATSCAN::testGeoList(string& filePath)
     pos = sfile.find("gc.caor", pos);
     if (pos < sfile.size()) { return 0; }
     return 1;
+}
+void STATSCAN::tree_from_indent(vector<vector<int>>& tree_st, vector<vector<string>>& rows)
+{
+    // Note that the tree structure is of the form 
+    // [node_index][ancestor1, ancestor2, ... , (neg) node value, child1, child2, ...]
+
+    // Genealogy's indices are indent magnitudes, while its values are the last list index
+    // to have that indentation.
+
+    vector<string> row_list(rows.size());
+    for (int ii = 0; ii < rows.size(); ii++)
+    {
+        row_list[ii] = rows[ii][0];
+    }
+
+    vector<int> genealogy, vtemp;
+    int indent, delta_indent, node, parent;
+    tree_st.resize(row_list.size(), vector<int>());
+
+    for (int ii = 0; ii < row_list.size(); ii++)
+    {
+        // Determine this row title's indentation.
+        indent = 0;
+        while (row_list[ii][indent] == '+')
+        {
+            indent++;
+        }
+
+        // Update genealogy.
+        delta_indent = indent - genealogy.size() + 1;  // New indent minus old indent.
+        if (delta_indent == 0)
+        {
+            genealogy[genealogy.size() - 1] = ii;
+        }
+        else if (delta_indent > 0)
+        {
+            for (int jj = 0; jj < delta_indent; jj++)
+            {
+                genealogy.push_back(ii);
+            }
+        }
+        else if (delta_indent < 0)
+        {
+            for (int jj = 0; jj > delta_indent; jj--)
+            {
+                genealogy.pop_back();
+            }
+            genealogy[genealogy.size() - 1] = ii;
+        }
+
+        // Populate the current node with its ancestry and with itself, but no children.
+        tree_st[ii] = genealogy;
+        node = tree_st[ii].size() - 1;  // Genealogical position of the current node.
+        tree_st[ii][node] *= -1;
+
+        // Determine this node's parent, and add this node to its list of children.
+        if (node == 0)
+        {
+            continue;  // This node has no parents.
+        }
+        parent = genealogy[node - 1];
+        tree_st[parent].push_back(ii);
+    }
 }
 
 string STATSCAN::urlCatalogue(int iYear, string sCata)

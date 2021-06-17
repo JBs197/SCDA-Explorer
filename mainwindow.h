@@ -125,6 +125,9 @@ private:
     void judicator(SQLFUNC&, SWITCHBOARD&, WINFUNC&);
     void insert_csvs(vector<vector<vector<string>>>&, SWITCHBOARD&, STATSCAN&);
     static int sql_callback(void*, int, char**, char**);
+    void addTGRegion(SQLFUNC& sfjudi, STATSCAN& scjudi, string cataYear, string cataName);
+    void addTGRow(SQLFUNC& sfjudi, STATSCAN& scjudi, string cataName);
+    void addTMap(SQLFUNC& sfjudi, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, string cataName);
     void auto_expand(QTreeWidget*&, int);
     void barMessage(string message);
     void bind(string&, vector<string>&);

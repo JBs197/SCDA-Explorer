@@ -50,7 +50,12 @@ void MainWindow::initialize()
     viewcata_data.assign(2, "");
 
     // Open the database from an existing local db file, or (failing that) make a new one.
-    sf.init(sroot + "\\SCDA.db");
+    string temp = wf.get_exec_dir();
+    pos1 = temp.rfind('\\');
+    pos1 = temp.rfind('\\', pos1 - 1);
+    string dbPath = temp.substr(0, pos1);
+    dbPath += "\\SCDA-Wt\\SCDA.db";
+    sf.init(dbPath);
     //q.exec(QStringLiteral("PRAGMA journal_mode=WAL"));
 
     // Populate the navSearch matrix.
@@ -874,7 +879,7 @@ void MainWindow::on_pB_insert_clicked()
     Sleep(100);
     update_treeW_cataindb();
 }
-void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
+void MainWindow::judicator(SQLFUNC& sfgui, SWITCHBOARD& sb, WINFUNC& wf)
 {
     vector<int> mycomm, gidList;
     vector<vector<int>> comm_gui;
@@ -892,7 +897,6 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
     QElapsedTimer timer;
 
     // Create and initialize the Stats Can helper object, for the worker threads.
-    timer.start();
     vector<string> csv_list = wf.get_file_list(cata_path, "*.csv");
     string temp = cata_path + "\\" + csv_list[0];
     string sample_csv = jfjudi.load(temp);
@@ -906,51 +910,36 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
     }
     scjudi.extract_gid_list(csv_list);
     scjudi.extract_csv_branches(csv_list);
-    qDebug() << "Judicator timer, STATSCAN object: " << timer.restart();
     
-    // Create and insert this catalogue's row indexing table, if necessary.
-    string tname = "TG_Row$" + prompt[1];
-    int tg_row_col;
-    vector<string> row_queue;
-    if (!sf.table_exist(tname))
+    // Create and insert this catalogue's indexing tables, if necessary.
+    string geoPath = cata_path + "\\" + prompt[1] + " geo list.bin";
+    size_t geoSize = sfgui.table_exist(prompt[1] + "$Geo");
+    geoSize += sfgui.table_exist(prompt[1] + "$Geo_Layers");
+    switch (geoSize)
     {
-        log("Begin row indexing (TGR) for catalogue " + prompt[1]);
-        tg_row_col = scjudi.make_tgrow_statements(row_queue);
-        sf.executor(row_queue[0]);
-        row_queue.erase(row_queue.begin());
-        sf.safe_col(tname, tg_row_col);
-        sf.insert_prepared(row_queue);
-        log("Completed row indexing (TGR) for catalogue " + prompt[1]);
+    case 0:
+        scjudi.loadGeo(geoPath, gidList, regionList, layerList, geoLayers);
+        sfgui.insertGeo(prompt[1], gidList, regionList, layerList, geoLayers);
+        addTMap(sfgui, gidList, regionList, layerList, prompt[1]);
+        break;
+    case 1:
+        err("Geo/Geo_Layers mismatch-MainWindow.judicator");
+        break;
+    case 2:
+        scjudi.loadGeo(geoPath, gidList, regionList, layerList, geoLayers);
+        addTMap(sfgui, gidList, regionList, layerList, prompt[1]);
+        break;
     }
-    qDebug() << "Judicator timer, TG_Row: " << timer.restart();
-
-    // Create and insert this catalogue's region indexing table, if necessary.
-    tname = "TG_Region$" + prompt[1];
-    int tg_region_col;
-    vector<string> geo_queue;
-    if (!sf.table_exist(tname))
-    {
-        log("Begin region indexing (TGR) for catalogue " + prompt[1]);
-        tg_region_col = scjudi.make_tgr_statements(geo_queue, prompt[0], prompt[1]);
-        sf.executor(geo_queue[0]);
-        geo_queue.erase(geo_queue.begin());
-        sf.safe_col(tname, tg_region_col);
-        sf.insert_prepared(geo_queue);
-        log("Completed region indexing (TGR) for catalogue " + prompt[1]);
-    }
-    qDebug() << "Judicator timer, TG_Region: " << timer.restart();
-
-    // Create and insert this catalogue's primary table, if necessary.
+    addTGRow(sfgui, scjudi, prompt[1]);
+    addTGRegion(sfgui, scjudi, prompt[0], prompt[1]);
     string stmt = scjudi.make_create_primary_table();
-    sf.executor(stmt);
-    qDebug() << "Judicator timer, primary table: " << timer.restart();
+    sfgui.executor(stmt);
 
     // Launch the worker threads, which will iterate through the CSVs.
     SWITCHBOARD sbjudi;
     sbjudi.setErrorPath(sroot + "\\SCDA SBjudi Error Log.txt");
     int workload = num_gid / cores;
-    int bot = 0;
-    int top = workload - 1;
+    int bot = 0, top = workload - 1;
     vector<vector<int>> comm_csv(1, vector<int>());  // Form [thread][control, progress report, size report, max params].
     comm_csv[0].assign(comm_gui[0].size(), 0);
     vector<string> prompt_csv(cores);  // Form [(bot,top)]
@@ -975,7 +964,6 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
         }
         break;
     }
-    qDebug() << "Judicator timer, launch workers: " << timer.restart();
 
     // Loop through the worker threads, inserting their statements into the database.
     int active_thread = 0;
@@ -1002,7 +990,7 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
         {
             for (int ii = bot; ii < top; ii++)   // For a specified number of CSVs in a batch...
             {
-                sf.insert_prepared(all_queue[active_thread][ii]);
+                sfgui.insert_prepared(all_queue[active_thread][ii]);
             }
             mycomm[1] += dayswork;
             sb.update(myid, mycomm);
@@ -1079,23 +1067,18 @@ void MainWindow::judicator(SQLFUNC& sf, SWITCHBOARD& sb, WINFUNC& wf)
         }
     }
 
-    // Insert the geo list data.
-    string geoPath = cata_path + "\\" + prompt[1] + " geo list.bin";
-    sc.loadGeo(geoPath, gidList, regionList, layerList, geoLayers);
-    sf.insertGeo(prompt[1], gidList, regionList, layerList, geoLayers);
-
     // Update catalogue's description, if the insertion completed successfully.
     vector<string> test_results;
     if (mycomm[0] == 1)
     {
-        test_results = sf.test_cata(prompt[1]);
+        test_results = sfgui.test_cata(prompt[1]);
         if (test_results[0] == "PASS")
         {
             temp = scjudi.get_cata_desc();
             jf.clean(temp, { "'" });
             stmt = "UPDATE TCatalogueIndex SET Description = '" + temp + "' WHERE Name = '";
             stmt += prompt[1] + "' ;";
-            sf.executor(stmt);
+            sfgui.executor(stmt);
             log("Catalogue " + prompt[1] + " completed its database insertion.");
             sbjudi.end_call(myid);
         }
@@ -1225,6 +1208,94 @@ void MainWindow::insert_csvs(vector<vector<vector<string>>>& all_queue, SWITCHBO
     
     mycomm[0] = 1;
     sbjudi.update(myid, mycomm);
+}
+void MainWindow::addTGRow(SQLFUNC& sfjudi, STATSCAN& scjudi, string cataName)
+{
+    string tname = "TG_Row$" + cataName;
+    int tg_row_col;
+    vector<string> row_queue;
+    if (!sfjudi.table_exist(tname))
+    {
+        log("Begin row indexing (TGR) for catalogue " + cataName);
+        tg_row_col = scjudi.make_tgrow_statements(row_queue);
+        sfjudi.executor(row_queue[0]);
+        row_queue.erase(row_queue.begin());
+        sfjudi.safe_col(tname, tg_row_col);
+        sfjudi.insert_prepared(row_queue);
+        log("Completed row indexing (TGR) for catalogue " + cataName);
+    }
+}
+void MainWindow::addTGRegion(SQLFUNC& sfjudi, STATSCAN& scjudi, string cataYear, string cataName)
+{
+    string tname = "TG_Region$" + cataName;
+    int tg_region_col;
+    vector<string> geo_queue;
+    if (!sfjudi.table_exist(tname))
+    {
+        log("Begin region indexing (TGR) for catalogue " + cataName);
+        tg_region_col = scjudi.make_tgr_statements(geo_queue, cataYear, cataName);
+        sfjudi.executor(geo_queue[0]);
+        geo_queue.erase(geo_queue.begin());
+        sfjudi.safe_col(tname, tg_region_col);
+        sfjudi.insert_prepared(geo_queue);
+        log("Completed region indexing (TGR) for catalogue " + cataName);
+    }
+}
+void MainWindow::addTMap(SQLFUNC& sfjudi, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, string cataName)
+{
+    string tname = "TMap$" + cataName, stmt, stmt0, mapPath, temp;
+    vector<string> params(2), coreDir;
+    int index, inum;
+    if (!sfjudi.table_exist(tname))
+    {
+        log("Begin map indexing for catalogue " + cataName);
+        stmt = "CREATE TABLE \"" + tname;
+        stmt += "\" (GID INTEGER PRIMARY KEY, [Map Path] TEXT);";
+        sfjudi.executor(stmt);
+
+        stmt0 = "INSERT OR IGNORE INTO \"" + tname;
+        stmt0 += "\" (GID, [Map Path]) VALUES (?, ?);";
+        for (int ii = 0; ii < gidList.size(); ii++)
+        {
+            params[0] = to_string(gidList[ii]);
+            mapPath = "TMap$";
+            if (layerList[ii] != "")
+            {
+                index = -1;
+                for (int jj = 0; jj < coreDir.size(); jj++)
+                {
+                    if (layerList[ii] == coreDir[jj])
+                    {
+                        index = jj;
+                        break;
+                    }
+                }
+                if (index < 0)
+                {
+                    coreDir.push_back(layerList[ii]);
+                }
+                else if (index < coreDir.size() - 1) // Return to a parent layer.
+                {
+                    inum = coreDir.size() - 1 - index;
+                    for (int jj = 0; jj < inum; jj++)
+                    {
+                        coreDir.pop_back();
+                    }
+                }
+                for (int jj = 0; jj < coreDir.size(); jj++)
+                {
+                    mapPath += coreDir[jj] + "$";
+                }
+            }
+            temp = regionList[ii];
+            sfjudi.sclean(temp, 1);
+            params[1] = mapPath + temp;
+            stmt = stmt0;
+            bind(stmt, params);
+            sfjudi.executor(stmt);
+        }
+        log("Completed map indexing for catalogue " + cataName);
+    }
 }
 
 // Display the 'tabbed data' for the selected catalogue.
@@ -3578,7 +3649,7 @@ void MainWindow::insertMapWorker(SWITCHBOARD& sbgui, SQLFUNC& sf)
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 11;
+    int mode = 0;
 
     switch (mode)
     {
@@ -4109,6 +4180,42 @@ void MainWindow::on_pB_test_clicked()
         }
         qtemp = "Done!";
         ui->pte_webinput->setPlainText(qtemp);
+        break;
+    }
+    case 12:  // For all catalogues in the database, add their TMaps if needed.
+    {
+        vector<string> search = { "Year", "Name" };
+        string temp = "TCatalogueIndex", geoPath;
+        vector<vector<string>> vvsResult;
+        sf.select(search, temp, vvsResult);
+        QString qtemp;
+        ui->listW_statscan->clear();
+        for (int ii = 0; ii < vvsResult.size(); ii++)
+        {
+            qtemp = QString::fromStdString(vvsResult[ii][1]);
+            ui->listW_statscan->addItem(qtemp);
+        }
+        QCoreApplication::processEvents();
+
+        vector<int> gidList;
+        vector<string> regionList, layerList, geoLayers;
+        for (int ii = 0; ii < vvsResult.size(); ii++)
+        {
+            barMessage("Adding " + vvsResult[ii][1]);
+            geoPath = sroot + "\\" + vvsResult[ii][0] + "\\" + vvsResult[ii][1];
+            geoPath += "\\" + vvsResult[ii][1] + " geo list.bin";
+            sc.loadGeo(geoPath, gidList, regionList, layerList, geoLayers);
+            addTMap(sf, gidList, regionList, layerList, vvsResult[ii][1]);
+        }
+        temp = "Finished test12.";
+        barMessage(temp);
+        break;
+    }
+    case 13:  // Remove all 'incomplete' entries in TCatalogueIndex.
+    {
+        string stmt = "DELETE FROM TCatalogueIndex WHERE (Description ";
+        stmt += "LIKE 'Incomplete');";
+        sf.executor(stmt);
         break;
     }
     }
