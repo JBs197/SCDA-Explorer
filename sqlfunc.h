@@ -1,6 +1,6 @@
 #pragma once
 
-#include <unordered_set>
+#include <set>
 #include <thread>
 #include <sqlite3.h>
 #include "jfunc.h"
@@ -9,11 +9,13 @@ using namespace std;
 
 class SQLFUNC 
 {
+    bool analyze = 0;
     JFUNC jf;
 	sqlite3* db;
     ofstream ERR;
     string error_path = sroot + "\\SCDA Error Log.txt";
-    unordered_set<string> tableList;
+    set<string> tableSet;
+    vector<string> TPrefix, tableList;
     
     void bind(string&, vector<string>&);
 	void sqlerr(string);
@@ -31,6 +33,7 @@ public:
     void executor(string stmt, vector<vector<wstring>>& results);
     void get_col_titles(string tname, vector<string>& titles);
     void get_table_list(vector<string>& results, string& search);
+    vector<string> getTableList(string search);
     void init(string);
     void insert(string tname, vector<string>& row_data);
     void insert(string tname, vector<vector<string>>& row_data);

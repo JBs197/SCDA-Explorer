@@ -489,27 +489,168 @@ int SQLFUNC::get_num_col(string tname)
 }
 void SQLFUNC::get_table_list(vector<string>& results, string& search)
 {
+    // NOTE: Obsolete function kept for the sustenance of near-obsolete functions.
     results.clear();
     vector<string> search_split = jf.list_from_marker(search, '$');
     vector<string> chaff_split;
-    vector<string> chaff;
-    string stmt = "SELECT name FROM sqlite_master WHERE type='table';";
-    executor(stmt, chaff);
-    string cheddar;
-    size_t pos1, pos2;
-    for (int ii = 0; ii < chaff.size(); ii++)
+    for (int ii = 0; ii < tableList.size(); ii++)
     {
-        chaff_split = jf.list_from_marker(chaff[ii], '$');
+        chaff_split = jf.list_from_marker(tableList[ii], '$');
         if (chaff_split.size() < search_split.size()) { continue; }
         for (int jj = 1; jj < search_split.size(); jj++)
         {
             if (search_split[jj] != chaff_split[jj]) { break; }
             else if (jj == search_split.size() - 1)
             {
-                results.push_back(chaff[ii]);
+                results.push_back(tableList[ii]);
             }
         }
     }
+}
+vector<string> SQLFUNC::getTableList(string search)
+{
+    // Uses '*' as a wildcard symbol. If no '$' parameter char is given, 
+    // then the wildcard must be the first or last char in the search string.
+    vector<string> sList, cataList, vsTemp, gidList;
+    string temp, Tprefix, Tsuffix;
+    size_t pos1, pos2;
+    int gid = -1;
+    if (search.size() > 0)
+    {
+        pos1 = search.find('*');
+        if (pos1 < search.size())
+        {
+            vsTemp = { "Name" };
+            temp = "TCatalogueIndex";
+            select(vsTemp, temp, cataList);
+
+            pos2 = search.find('$');
+            if (pos2 < search.size())
+            {
+                if (pos1 < pos2)
+                {
+                    Tsuffix = search.substr(pos2 + 1);
+                    if (table_exist("TG_Region$" + Tsuffix)) { sList.push_back("TG_Region$" + Tsuffix); }
+                    if (table_exist("TG_Row$" + Tsuffix)) { sList.push_back("TG_Row$" + Tsuffix); }
+                    if (table_exist("TMap$" + Tsuffix)) { sList.push_back("TMap$" + Tsuffix); }
+                    
+                    try { gid = stoi(Tsuffix); }
+                    catch (invalid_argument) {}
+                    if (gid >= 0)
+                    {
+                        for (int ii = 0; ii < cataList.size(); ii++)
+                        {
+                            if (table_exist(cataList[ii] + "$" + Tsuffix)) { sList.push_back(cataList[ii] + "$" + Tsuffix); }
+                        }
+                    }
+
+                    if (Tsuffix == "Geo" || Tsuffix == "Geo_Layers")
+                    {
+                        for (int ii = 0; ii < cataList.size(); ii++)
+                        {
+                            if (table_exist(cataList[ii] + "$" + Tsuffix)) { sList.push_back(cataList[ii] + "$" + Tsuffix); }
+                        }
+                    }
+                }
+                else
+                {
+                    Tprefix = search.substr(0, pos2);
+                    if (Tprefix == "TG_Region" || Tprefix == "TG_Row" || Tprefix == "TMap")
+                    {
+                        for (int ii = 0; ii < cataList.size(); ii++)
+                        {
+                            if (table_exist(Tprefix + "$" + cataList[ii])) { sList.push_back(Tprefix + "$" + cataList[ii]); }
+                        }
+                    }
+                    else if (table_exist(Tprefix))  // Catalogue name was given.
+                    {
+                        sList.push_back(Tprefix);
+                        if (table_exist(Tprefix + "$Geo")) { sList.push_back(Tprefix + "$Geo"); }
+                        if (table_exist(Tprefix + "$Geo_Layers")) { sList.push_back(Tprefix + "$Geo_Layers"); }
+                        temp = "TG_Region$" + Tprefix;
+                        if (table_exist(temp))
+                        {
+                            vsTemp = { "GID" };
+                            select(vsTemp, temp, gidList);
+                            for (int ii = 0; ii < gidList.size(); ii++)
+                            {
+                                if (table_exist(Tprefix + "$" + gidList[ii])) 
+                                { 
+                                    sList.push_back(Tprefix + "$" + gidList[ii]); 
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else if (pos1 == 0)
+            {
+                Tsuffix = search.substr(1);
+                if (table_exist("TG_Region$" + Tsuffix)) { sList.push_back("TG_Region$" + Tsuffix); }
+                if (table_exist("TG_Row$" + Tsuffix)) { sList.push_back("TG_Row$" + Tsuffix); }
+                if (table_exist("TMap$" + Tsuffix)) { sList.push_back("TMap$" + Tsuffix); }
+
+                try { gid = stoi(Tsuffix); }
+                catch (invalid_argument) {}
+                if (gid >= 0)
+                {
+                    for (int ii = 0; ii < cataList.size(); ii++)
+                    {
+                        if (table_exist(cataList[ii] + "$" + Tsuffix)) { sList.push_back(cataList[ii] + "$" + Tsuffix); }
+                    }
+                }
+
+                if (Tsuffix == "Geo" || Tsuffix == "Geo_Layers")
+                {
+                    for (int ii = 0; ii < cataList.size(); ii++)
+                    {
+                        if (table_exist(cataList[ii] + "$" + Tsuffix)) { sList.push_back(cataList[ii] + "$" + Tsuffix); }
+                    }
+                }
+            }
+            else if (pos1 == search.size() - 1)
+            {
+                Tprefix = search.substr(0, search.size() - 1);
+                if (Tprefix == "TG_Region" || Tprefix == "TG_Row" || Tprefix == "TMap")
+                {
+                    for (int ii = 0; ii < cataList.size(); ii++)
+                    {
+                        if (table_exist(Tprefix + "$" + cataList[ii])) { sList.push_back(Tprefix + "$" + cataList[ii]); }
+                    }
+                }
+                else if (table_exist(Tprefix))  // Catalogue name was given.
+                {
+                    sList.push_back(Tprefix);
+                    if (table_exist(Tprefix + "$Geo")) { sList.push_back(Tprefix + "$Geo"); }
+                    if (table_exist(Tprefix + "$Geo_Layers")) { sList.push_back(Tprefix + "$Geo_Layers"); }
+                    temp = "TG_Region$" + Tprefix;
+                    if (table_exist(temp))
+                    {
+                        vsTemp = { "GID" };
+                        select(vsTemp, temp, gidList);
+                        for (int ii = 0; ii < gidList.size(); ii++)
+                        {
+                            if (table_exist(Tprefix + "$" + gidList[ii]))
+                            {
+                                sList.push_back(Tprefix + "$" + gidList[ii]);
+                            }
+                        }
+                    }
+                }
+            }
+            else 
+            { 
+                sList.push_back("Invalid search criterion.");
+            }
+        }
+        else
+        {
+            if (table_exist(search)) { sList.push_back(search); }
+            else { sList.push_back("No results found."); }
+        }
+    }
+    else { return tableList; }
+    return sList;
 }
 vector<vector<string>> SQLFUNC::getTMapIndex()
 {
@@ -522,8 +663,17 @@ void SQLFUNC::init(string db_path)
 {
     int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
     if (error) { sqlerr("open-init"); }
-    string stmt = "PRAGMA optimize;";
-    executor(stmt);
+    if (analyze)
+    {
+        string stmt = "PRAGMA optimize;";
+        executor(stmt);
+    }
+    all_tables(tableList);
+    for (int ii = 0; ii < tableList.size(); ii++)
+    {
+        tableSet.emplace(tableList[ii]);
+    }
+
 }
 void SQLFUNC::insert(string tname, vector<string>& row_data)
 {
@@ -1330,8 +1480,7 @@ int SQLFUNC::statusCata(string sname)
 size_t SQLFUNC::table_exist(string tname)
 {
     // Returns TRUE or FALSE as to the existance of a given table within the database.
-
-    return tableList.count(tname);
+    return tableSet.count(tname);
 }
 vector<string> SQLFUNC::test_cata(string cata_name)
 {
