@@ -41,6 +41,7 @@ public:
     vector<string> get_file_list(string folder_path, string search);
     int get_file_path_number(string, string);
     vector<string> get_folder_list(string folder_path, string search);
+	string load(string filePath);
     void makeDir(string);
     void make_tree_local(vector<vector<int>>&, vector<string>&, int, string, int, string);
     void make_tree_local_helper1(vector<vector<int>>&, vector<string>&, vector<int>, string, int, int, int, string);

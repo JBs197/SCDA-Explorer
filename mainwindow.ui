@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1260</width>
-    <height>780</height>
+    <width>1900</width>
+    <height>1020</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,24 +18,10 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>690</y>
-      <width>61</width>
+      <y>880</y>
+      <width>81</width>
       <height>41</height>
      </rect>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pB_scan">
-    <property name="geometry">
-     <rect>
-      <x>80</x>
-      <y>690</y>
-      <width>61</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Scan 
- Drive</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pB_insert">
@@ -44,9 +30,9 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>150</x>
-      <y>690</y>
-      <width>71</width>
+      <x>10</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -58,9 +44,9 @@
    <widget class="QPushButton" name="pB_test">
     <property name="geometry">
      <rect>
-      <x>520</x>
-      <y>690</y>
-      <width>61</width>
+      <x>640</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -72,8 +58,8 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>660</y>
-      <width>1211</width>
+      <y>850</y>
+      <width>1881</width>
       <height>23</height>
      </rect>
     </property>
@@ -84,9 +70,9 @@
    <widget class="QLabel" name="QL_bar">
     <property name="geometry">
      <rect>
-      <x>56</x>
-      <y>660</y>
-      <width>1141</width>
+      <x>40</x>
+      <y>850</y>
+      <width>1791</width>
       <height>20</height>
      </rect>
     </property>
@@ -97,104 +83,15 @@
      <set>Qt::AlignCenter</set>
     </property>
    </widget>
-   <widget class="QTabWidget" name="tabW_results">
-    <property name="geometry">
-     <rect>
-      <x>370</x>
-      <y>10</y>
-      <width>381</width>
-      <height>641</height>
-     </rect>
-    </property>
-    <property name="currentIndex">
-     <number>3</number>
-    </property>
-    <widget class="QWidget" name="GID">
-     <attribute name="title">
-      <string>Geographic Region</string>
-     </attribute>
-     <widget class="QTreeWidget" name="treeW_gid">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>371</width>
-        <height>611</height>
-       </rect>
-      </property>
-      <attribute name="headerVisible">
-       <bool>false</bool>
-      </attribute>
-      <column>
-       <property name="text">
-        <string notr="true">1</string>
-       </property>
-      </column>
-     </widget>
-    </widget>
-    <widget class="QWidget" name="Rows">
-     <attribute name="title">
-      <string>Rows</string>
-     </attribute>
-     <widget class="QListWidget" name="listW_csvrows">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>371</width>
-        <height>611</height>
-       </rect>
-      </property>
-     </widget>
-    </widget>
-    <widget class="QWidget" name="Tree">
-     <attribute name="title">
-      <string>CSV Structure</string>
-     </attribute>
-     <widget class="QTreeWidget" name="treeW_csvtree">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>371</width>
-        <height>611</height>
-       </rect>
-      </property>
-      <attribute name="headerVisible">
-       <bool>false</bool>
-      </attribute>
-      <column>
-       <property name="text">
-        <string notr="true">1</string>
-       </property>
-      </column>
-     </widget>
-    </widget>
-    <widget class="QWidget" name="Search">
-     <attribute name="title">
-      <string>Search Results</string>
-     </attribute>
-     <widget class="QListWidget" name="listW_search">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>371</width>
-        <height>611</height>
-       </rect>
-      </property>
-     </widget>
-    </widget>
-   </widget>
    <widget class="QPushButton" name="pB_viewcata">
     <property name="enabled">
      <bool>false</bool>
     </property>
     <property name="geometry">
      <rect>
-      <x>310</x>
-      <y>690</y>
-      <width>71</width>
+      <x>100</x>
+      <y>880</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -203,125 +100,47 @@
  Catalogue</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pB_cancel">
-    <property name="enabled">
-     <bool>false</bool>
-    </property>
-    <property name="geometry">
-     <rect>
-      <x>230</x>
-      <y>690</y>
-      <width>71</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Cancel 
- Insertion</string>
-    </property>
-   </widget>
-   <widget class="QTabWidget" name="tabW_catalogues">
+   <widget class="QTabWidget" name="tabW_main">
     <property name="geometry">
      <rect>
       <x>10</x>
       <y>10</y>
-      <width>351</width>
-      <height>641</height>
+      <width>1881</width>
+      <height>831</height>
      </rect>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>0</number>
     </property>
-    <widget class="QWidget" name="catas_db">
+    <widget class="QWidget" name="tab_cata">
      <attribute name="title">
-      <string>Catalogues in Database</string>
+      <string>Catalogues</string>
      </attribute>
-     <widget class="QTreeWidget" name="treeW_cataindb">
+     <widget class="QTreeWidget" name="treeW_catalocal">
       <property name="geometry">
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>344</width>
-        <height>611</height>
+        <width>611</width>
+        <height>801</height>
        </rect>
       </property>
-      <property name="mouseTracking">
+      <attribute name="headerVisible">
        <bool>false</bool>
-      </property>
-      <property name="wordWrap">
-       <bool>true</bool>
-      </property>
-      <attribute name="headerDefaultSectionSize">
-       <number>120</number>
       </attribute>
       <column>
        <property name="text">
-        <string>Year</string>
-       </property>
-      </column>
-      <column>
-       <property name="text">
-        <string>Catalogue</string>
-       </property>
-      </column>
-      <column>
-       <property name="text">
-        <string>Description</string>
+        <string/>
        </property>
       </column>
      </widget>
-    </widget>
-    <widget class="QWidget" name="catas_drive">
-     <attribute name="title">
-      <string>Catalogues on Local Drive</string>
-     </attribute>
-     <widget class="QTreeWidget" name="treeW_cataondrive">
+     <widget class="QTreeWidget" name="treeW_catadb">
       <property name="geometry">
        <rect>
-        <x>0</x>
+        <x>620</x>
         <y>0</y>
-        <width>344</width>
-        <height>611</height>
-       </rect>
-      </property>
-      <property name="alternatingRowColors">
-       <bool>false</bool>
-      </property>
-      <property name="selectionMode">
-       <enum>QAbstractItemView::MultiSelection</enum>
-      </property>
-      <property name="iconSize">
-       <size>
-        <width>2</width>
-        <height>2</height>
-       </size>
-      </property>
-      <property name="columnCount">
-       <number>2</number>
-      </property>
-      <column>
-       <property name="text">
-        <string>Year</string>
-       </property>
-      </column>
-      <column>
-       <property name="text">
-        <string>Catalogue</string>
-       </property>
-      </column>
-     </widget>
-    </widget>
-    <widget class="QWidget" name="tab_7">
-     <attribute name="title">
-      <string>Maps in Database</string>
-     </attribute>
-     <widget class="QTreeWidget" name="treeW_mapindb">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>344</width>
-        <height>611</height>
+        <width>611</width>
+        <height>801</height>
        </rect>
       </property>
       <attribute name="headerVisible">
@@ -333,6 +152,34 @@
        </property>
       </column>
      </widget>
+     <widget class="QTreeWidget" name="treeW_cataonline">
+      <property name="geometry">
+       <rect>
+        <x>1240</x>
+        <y>0</y>
+        <width>611</width>
+        <height>801</height>
+       </rect>
+      </property>
+      <attribute name="headerVisible">
+       <bool>false</bool>
+      </attribute>
+      <column>
+       <property name="text">
+        <string notr="true">1</string>
+       </property>
+      </column>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="tab1">
+     <attribute name="title">
+      <string>Maps</string>
+     </attribute>
+    </widget>
+    <widget class="QWidget" name="tab">
+     <attribute name="title">
+      <string>Page</string>
+     </attribute>
     </widget>
    </widget>
    <widget class="QPushButton" name="pB_viewtable">
@@ -341,9 +188,9 @@
     </property>
     <property name="geometry">
      <rect>
-      <x>590</x>
-      <y>690</y>
-      <width>21</width>
+      <x>190</x>
+      <y>880</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -352,241 +199,12 @@
  Table</string>
     </property>
    </widget>
-   <widget class="QTabWidget" name="tabW_results2">
-    <property name="geometry">
-     <rect>
-      <x>760</x>
-      <y>10</y>
-      <width>281</width>
-      <height>641</height>
-     </rect>
-    </property>
-    <property name="currentIndex">
-     <number>1</number>
-    </property>
-    <widget class="QWidget" name="tab_4">
-     <attribute name="title">
-      <string>Table Data</string>
-     </attribute>
-     <widget class="QTableView" name="tV_viewtable">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>271</width>
-        <height>611</height>
-       </rect>
-      </property>
-     </widget>
-    </widget>
-    <widget class="QWidget" name="tab_5">
-     <attribute name="title">
-      <string>Subtable Tree</string>
-     </attribute>
-     <widget class="QTreeWidget" name="treeW_subtables">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>271</width>
-        <height>611</height>
-       </rect>
-      </property>
-      <attribute name="headerVisible">
-       <bool>false</bool>
-      </attribute>
-      <column>
-       <property name="text">
-        <string notr="true">1</string>
-       </property>
-      </column>
-     </widget>
-    </widget>
-   </widget>
-   <widget class="QPushButton" name="pB_mode">
-    <property name="geometry">
-     <rect>
-      <x>1000</x>
-      <y>690</y>
-      <width>21</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Toggle 
- Mode</string>
-    </property>
-   </widget>
-   <widget class="QLabel" name="label_mode">
-    <property name="geometry">
-     <rect>
-      <x>1190</x>
-      <y>690</y>
-      <width>61</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="autoFillBackground">
-     <bool>true</bool>
-    </property>
-    <property name="frameShape">
-     <enum>QFrame::StyledPanel</enum>
-    </property>
-    <property name="frameShadow">
-     <enum>QFrame::Sunken</enum>
-    </property>
-    <property name="text">
-     <string>bbq</string>
-    </property>
-    <property name="textFormat">
-     <enum>Qt::AutoText</enum>
-    </property>
-    <property name="alignment">
-     <set>Qt::AlignCenter</set>
-    </property>
-   </widget>
-   <widget class="QTabWidget" name="tabW_online">
-    <property name="geometry">
-     <rect>
-      <x>1050</x>
-      <y>10</y>
-      <width>241</width>
-      <height>481</height>
-     </rect>
-    </property>
-    <property name="currentIndex">
-     <number>1</number>
-    </property>
-    <widget class="QWidget" name="tab">
-     <attribute name="title">
-      <string>Online Available</string>
-     </attribute>
-     <widget class="QTreeWidget" name="treeW_statscan">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>161</width>
-        <height>451</height>
-       </rect>
-      </property>
-      <property name="columnCount">
-       <number>2</number>
-      </property>
-      <attribute name="headerVisible">
-       <bool>false</bool>
-      </attribute>
-      <attribute name="headerMinimumSectionSize">
-       <number>100</number>
-      </attribute>
-      <attribute name="headerDefaultSectionSize">
-       <number>300</number>
-      </attribute>
-      <column>
-       <property name="text">
-        <string notr="true">Name</string>
-       </property>
-      </column>
-      <column>
-       <property name="text">
-        <string>Number</string>
-       </property>
-      </column>
-     </widget>
-     <widget class="QListWidget" name="listW_statscan">
-      <property name="geometry">
-       <rect>
-        <x>160</x>
-        <y>0</y>
-        <width>71</width>
-        <height>451</height>
-       </rect>
-      </property>
-      <property name="selectionMode">
-       <enum>QAbstractItemView::ExtendedSelection</enum>
-      </property>
-     </widget>
-    </widget>
-    <widget class="QWidget" name="tab_2">
-     <attribute name="title">
-      <string>Maps</string>
-     </attribute>
-     <widget class="QTreeWidget" name="treeW_maps">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>241</width>
-        <height>451</height>
-       </rect>
-      </property>
-      <property name="columnCount">
-       <number>2</number>
-      </property>
-      <attribute name="headerVisible">
-       <bool>false</bool>
-      </attribute>
-      <attribute name="headerMinimumSectionSize">
-       <number>300</number>
-      </attribute>
-      <attribute name="headerDefaultSectionSize">
-       <number>300</number>
-      </attribute>
-      <column>
-       <property name="text">
-        <string notr="true">1</string>
-       </property>
-      </column>
-      <column>
-       <property name="text">
-        <string notr="true">2</string>
-       </property>
-      </column>
-     </widget>
-    </widget>
-    <widget class="QWidget" name="tab_3">
-     <attribute name="title">
-      <string>Map View</string>
-     </attribute>
-     <widget class="QLabel" name="label_maps">
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>151</width>
-        <height>451</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </widget>
-    <widget class="QWidget" name="tab_6">
-     <attribute name="title">
-      <string>Superposition</string>
-     </attribute>
-     <widget class="QLabel" name="label_pos">
-      <property name="geometry">
-       <rect>
-        <x>10</x>
-        <y>10</y>
-        <width>161</width>
-        <height>171</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
-    </widget>
-   </widget>
    <widget class="QPushButton" name="pB_usc">
     <property name="geometry">
      <rect>
-      <x>660</x>
-      <y>690</y>
-      <width>71</width>
+      <x>460</x>
+      <y>880</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -595,32 +213,22 @@
  Stats Can</string>
     </property>
    </widget>
-   <widget class="QPlainTextEdit" name="pte_webinput">
-    <property name="geometry">
-     <rect>
-      <x>470</x>
-      <y>690</y>
-      <width>16</width>
-      <height>16</height>
-     </rect>
-    </property>
-   </widget>
    <widget class="QPlainTextEdit" name="pte_localinput">
     <property name="geometry">
      <rect>
-      <x>470</x>
-      <y>710</y>
-      <width>16</width>
-      <height>16</height>
+      <x>640</x>
+      <y>880</y>
+      <width>261</width>
+      <height>41</height>
      </rect>
     </property>
    </widget>
    <widget class="QPushButton" name="pB_search">
     <property name="geometry">
      <rect>
-      <x>820</x>
-      <y>690</y>
-      <width>21</width>
+      <x>730</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -631,9 +239,9 @@
    <widget class="QPushButton" name="pB_download">
     <property name="geometry">
      <rect>
-      <x>740</x>
-      <y>690</y>
-      <width>21</width>
+      <x>460</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -644,9 +252,9 @@
    <widget class="QPushButton" name="pB_localmaps">
     <property name="geometry">
      <rect>
-      <x>490</x>
-      <y>690</y>
-      <width>21</width>
+      <x>280</x>
+      <y>880</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -658,9 +266,9 @@
    <widget class="QPushButton" name="pB_convert">
     <property name="geometry">
      <rect>
-      <x>850</x>
-      <y>690</y>
-      <width>21</width>
+      <x>370</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -672,9 +280,9 @@ Maps</string>
    <widget class="QPushButton" name="pB_resume">
     <property name="geometry">
      <rect>
-      <x>880</x>
-      <y>690</y>
-      <width>21</width>
+      <x>1630</x>
+      <y>880</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -685,9 +293,9 @@ Maps</string>
    <widget class="QPushButton" name="pB_pause">
     <property name="geometry">
      <rect>
-      <x>910</x>
-      <y>690</y>
-      <width>21</width>
+      <x>1630</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -698,9 +306,9 @@ Maps</string>
    <widget class="QPushButton" name="pB_advance">
     <property name="geometry">
      <rect>
-      <x>940</x>
-      <y>690</y>
-      <width>21</width>
+      <x>1720</x>
+      <y>880</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -711,9 +319,9 @@ Maps</string>
    <widget class="QPushButton" name="pB_backspace">
     <property name="geometry">
      <rect>
-      <x>970</x>
-      <y>690</y>
-      <width>21</width>
+      <x>1720</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -727,9 +335,9 @@ Maps</string>
     </property>
     <property name="geometry">
      <rect>
-      <x>390</x>
-      <y>690</y>
-      <width>71</width>
+      <x>100</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -738,24 +346,11 @@ Maps</string>
  Catalogue</string>
     </property>
    </widget>
-   <widget class="QLabel" name="label_maps2">
-    <property name="geometry">
-     <rect>
-      <x>1050</x>
-      <y>500</y>
-      <width>101</width>
-      <height>21</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Maps Completed</string>
-    </property>
-   </widget>
    <widget class="QListWidget" name="listW_bindone">
     <property name="geometry">
      <rect>
-      <x>1050</x>
-      <y>530</y>
+      <x>1360</x>
+      <y>930</y>
       <width>81</width>
       <height>21</height>
      </rect>
@@ -764,46 +359,46 @@ Maps</string>
    <widget class="QPlainTextEdit" name="pte_advance">
     <property name="geometry">
      <rect>
-      <x>1050</x>
-      <y>560</y>
+      <x>1360</x>
+      <y>880</y>
       <width>81</width>
-      <height>31</height>
+      <height>41</height>
      </rect>
     </property>
    </widget>
    <widget class="QCheckBox" name="checkB_override">
     <property name="geometry">
      <rect>
-      <x>1050</x>
-      <y>600</y>
+      <x>1450</x>
+      <y>880</y>
       <width>81</width>
       <height>41</height>
      </rect>
     </property>
     <property name="text">
-     <string>  Manual 
- Override?</string>
+     <string>    Manual 
+   Override?</string>
     </property>
    </widget>
    <widget class="QCheckBox" name="checkB_eraser">
     <property name="geometry">
      <rect>
-      <x>1140</x>
-      <y>600</y>
-      <width>61</width>
+      <x>1450</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
     <property name="text">
-     <string>Eraser?</string>
+     <string>    Eraser?</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pB_correct">
     <property name="geometry">
      <rect>
-      <x>1030</x>
-      <y>690</y>
-      <width>21</width>
+      <x>1540</x>
+      <y>880</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -815,9 +410,9 @@ Maps</string>
    <widget class="QPushButton" name="pB_undo">
     <property name="geometry">
      <rect>
-      <x>1060</x>
-      <y>690</y>
-      <width>21</width>
+      <x>1540</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -828,9 +423,9 @@ Maps</string>
    <widget class="QPushButton" name="pB_savemap">
     <property name="geometry">
      <rect>
-      <x>1090</x>
-      <y>690</y>
-      <width>21</width>
+      <x>1810</x>
+      <y>880</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -842,9 +437,9 @@ Map</string>
    <widget class="QPushButton" name="pB_deletemap">
     <property name="geometry">
      <rect>
-      <x>1120</x>
-      <y>690</y>
-      <width>21</width>
+      <x>1810</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -853,26 +448,12 @@ Map</string>
 Map</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pB_pos">
-    <property name="geometry">
-     <rect>
-      <x>1150</x>
-      <y>690</y>
-      <width>21</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Superimpose
-Maps</string>
-    </property>
-   </widget>
    <widget class="QPushButton" name="pB_insertmap">
     <property name="geometry">
      <rect>
-      <x>790</x>
-      <y>690</y>
-      <width>21</width>
+      <x>280</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -884,9 +465,9 @@ Map</string>
    <widget class="QPushButton" name="pB_deletetable">
     <property name="geometry">
      <rect>
-      <x>620</x>
-      <y>690</y>
-      <width>21</width>
+      <x>190</x>
+      <y>930</y>
+      <width>81</width>
       <height>41</height>
      </rect>
     </property>
@@ -895,52 +476,13 @@ Map</string>
 Table</string>
     </property>
    </widget>
-   <zorder>cB_drives</zorder>
-   <zorder>pB_scan</zorder>
-   <zorder>pB_insert</zorder>
-   <zorder>pB_test</zorder>
-   <zorder>progressBar</zorder>
-   <zorder>QL_bar</zorder>
-   <zorder>pB_viewcata</zorder>
-   <zorder>pB_cancel</zorder>
-   <zorder>tabW_catalogues</zorder>
-   <zorder>pB_viewtable</zorder>
-   <zorder>tabW_results</zorder>
-   <zorder>tabW_results2</zorder>
-   <zorder>pB_mode</zorder>
-   <zorder>label_mode</zorder>
-   <zorder>tabW_online</zorder>
-   <zorder>pB_usc</zorder>
-   <zorder>pte_webinput</zorder>
-   <zorder>pte_localinput</zorder>
-   <zorder>pB_search</zorder>
-   <zorder>pB_download</zorder>
-   <zorder>pB_localmaps</zorder>
-   <zorder>pB_convert</zorder>
-   <zorder>pB_resume</zorder>
-   <zorder>pB_pause</zorder>
-   <zorder>pB_advance</zorder>
-   <zorder>pB_backspace</zorder>
-   <zorder>pB_removecata</zorder>
-   <zorder>label_maps2</zorder>
-   <zorder>listW_bindone</zorder>
-   <zorder>pte_advance</zorder>
-   <zorder>checkB_override</zorder>
-   <zorder>checkB_eraser</zorder>
-   <zorder>pB_correct</zorder>
-   <zorder>pB_undo</zorder>
-   <zorder>pB_savemap</zorder>
-   <zorder>pB_deletemap</zorder>
-   <zorder>pB_pos</zorder>
-   <zorder>pB_insertmap</zorder>
-   <zorder>pB_deletetable</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1260</width>
+     <width>1900</width>
      <height>22</height>
     </rect>
    </property>

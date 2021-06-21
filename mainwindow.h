@@ -150,6 +150,7 @@ private:
     void populateQTree(JTREE& jtx, QTreeWidgetItem*& qMe, string myName);
     vector<string> notDownloaded(string syear, string sname);
     void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
+    void toggleTableGeometry();
     void update_treeW_cataindb();
     void update_treeW_mapindb();
     void update_mode();

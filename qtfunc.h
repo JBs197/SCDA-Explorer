@@ -10,6 +10,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include "imgfunc.h"
+#include "winfunc.h"
 
 using namespace std;
 
@@ -34,6 +35,7 @@ class QTFUNC
 	vector<vector<vector<int>>> recentBorderTemp;
 	vector<double> recentMapShift;
 	QRectF rect;
+	WINFUNC wf;
 
 	QColor Eraser = QColor(233, 188, 181);
 	vector<unsigned char> Violet = { 127, 0, 255 };

@@ -489,6 +489,7 @@ string JFUNC::load(string file_path)
 {
 	// Load a file into memory as a string.
 
+	// NOTE: Function fails to load non-ascii names. 
 	FILE* pFile = fopen(file_path.c_str(), "rb");
 	if (pFile == NULL) { err("fopen-jf.load"); }
 	fseek(pFile, 0, SEEK_END);
@@ -695,7 +696,7 @@ void JFUNC::printer(string path, string& sfile)
 {
 	ofstream WPR;
 	locale utf8 = locale("en_US.UTF8");
-	WPR.imbue(locale(utf8, new codecvt_utf8<wchar_t, 0x10ffff, generate_header>));
+	WPR.imbue(utf8);
 	WPR.open(path, ios_base::binary | ios_base::trunc);
 	WPR << sfile << endl;
 	WPR.close();

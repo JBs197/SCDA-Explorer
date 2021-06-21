@@ -88,7 +88,7 @@ public:
     int getDotWidth();
     vector<vector<int>> getFrame(vector<vector<int>> vVictor, vector<string> inOut);
     string getMapPath(int mode);
-    vector<double> getPosition(string pathPNGpos, vector<unsigned char> rgb);
+    vector<double> getPosition(string pathPNGpos, vector<vector<unsigned char>> rgb);
     double getPPKM(string& pathTXT, int scalePixels);
     int getQuadrant(vector<vector<int>>& startStop);
     int getScalePixels(vector<vector<int>> TLBR);
@@ -749,7 +749,7 @@ public:
 
     template<typename ... Args> vector<vector<int>> makeBox(Args& ... args)
     {
-        // Return a TLBR for the given path, assuming the tightest rectangle is drawn.
+        // Return a TLBR for the given path/colour, assuming the tightest rectangle is drawn.
         jf.err("makeBox template-im");
     }
     template<> vector<vector<int>> makeBox<vector<vector<int>>>(vector<vector<int>>& vBorderPath)

@@ -237,7 +237,7 @@ void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, do
 	frames.clear();
 	position.clear();
 	border.clear();
-	string sfile = jf.load(pathBin), temp, temp2, temp3, temp4;
+	string sfile = wf.load(pathBin), temp, temp2, temp3, temp4;
 	if (sfile.size() < 1) { err("load-qf.loadBinMap"); }
 	size_t pos1, pos2, posStart;
 	int row, index;

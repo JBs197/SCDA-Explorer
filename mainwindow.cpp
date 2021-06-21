@@ -1686,12 +1686,28 @@ void MainWindow::display_table(string tname)
             model->setItem(ii, jj - 1, cell);
         }
     }
+
+    toggleTableGeometry();
     ui->tV_viewtable->setModel(model);
     for (int ii = 0; ii < row_heights.size(); ii++)
     {
         ui->tV_viewtable->setRowHeight(row_heights[ii][0], row_heights[ii][1]);
     }
     ui->tabW_results2->setCurrentIndex(0);
+}
+void MainWindow::toggleTableGeometry()
+{
+    int xCoord = ui->tabW_results2->x();
+    if (xCoord > 500)
+    {
+        ui->tabW_results2->setGeometry(10, 10, 1241, 641);
+        ui->tV_viewtable->setGeometry(0, 0, 1226, 616);
+    }
+    else
+    {
+        ui->tabW_results2->setGeometry(760, 10, 496, 641);
+        ui->tV_viewtable->setGeometry(0, 0, 486, 611);
+    }
 }
 
 // Remove the selected table from the database. 
@@ -3469,97 +3485,99 @@ void MainWindow::on_pB_pos_clicked()
     vector<string> dirt = { "mapsPNG", "mapsPDF" };
     vector<string> soap = { "mapsBIN", "mapsBIN" };
     jf.clean(binPath, dirt, soap);
-    string binFile = jf.load(binPath), geoLayersPath, sNum, sParent;
-    size_t pos1 = binFile.find("//position"), pos2, posGeo1, posGeo2;
+    string binFile = wf.load(binPath), geoLayersPath, sNum, sParent;
     int inum, numLayers = 0;
     vector<double> binPos;
-    vector<unsigned char> rgbTarget;
+    vector<vector<unsigned char>> rgbTarget(2, vector<unsigned char>());
     string pngParentPath, pngGrandparentPath, myLayer, newBin, pngGPathASCII, pngPPathASCII;
-    if (pos1 > binFile.size())  // Update the BIN map from the 'geo layers' file.
+    
+    // Obtain the parent region's name.
+    size_t pos1 = binPath.rfind('\\'), pos2, posGeo1, posGeo2;
+    geoLayersPath = binPath.substr(0, pos1) + "\\geo layers.txt";
+    if (wf.file_exist(geoLayersPath))
     {
-        // Obtain the parent region's name.
-        pos1 = binPath.rfind('\\');
-        geoLayersPath = binPath.substr(0, pos1) + "\\geo layers.txt";       
-        if (wf.file_exist(geoLayersPath))
+        geoLayersFile = jf.load(geoLayersPath);
+        pos2 = geoLayersFile.rfind("@@Geo URL");
+        pos2 = geoLayersFile.find_last_not_of('\n', pos2 - 1) + 1;
+        pos1 = geoLayersFile.rfind("@@Geo Layers");
+        pos1 = geoLayersFile.find('\n', pos1) + 1;
+        while (pos1 < pos2)
         {
-            geoLayersFile = jf.load(geoLayersPath);
-            pos2 = geoLayersFile.rfind("@@Geo URL");
-            pos2 = geoLayersFile.find_last_not_of('\n', pos2 - 1) + 1;
-            pos1 = geoLayersFile.rfind("@@Geo Layers");
+            numLayers++;
             pos1 = geoLayersFile.find('\n', pos1) + 1;
-            while (pos1 < pos2)
-            {
-                numLayers++;
-                pos1 = geoLayersFile.find('\n', pos1) + 1;
-            }
-
-            temp = "$" + binName8 + "$";
-            pos1 = geoLayersFile.find(temp) + 1;
-            if (pos1 > geoLayersFile.size()) { err("Cannot locate region name-MainWindow.on_pB_pos_clicked"); }
-            pos1 = geoLayersFile.find('$', pos1) + 1;
-            pos2 = geoLayersFile.find('\n', pos1);
-            temp = geoLayersFile.substr(pos1, pos2 - pos1);
-            try { inum = stoi(temp); }
-            catch (invalid_argument& ia) { err("stoi-MainWindow.on_pB_pos_clicked"); }
-            if (inum < 0 || inum >= numLayers) { err("No geo parent-MainWindow.on_pB_pos_clicked"); }
-            
-            posGeo1 = geoLayersFile.rfind("@@Geo Layers");
-            posGeo1 = geoLayersFile.find('\n', posGeo1) + 1;
-            for (int ii = 0; ii < inum; ii++)
-            {
-                posGeo1 = geoLayersFile.find('\n', posGeo1) + 1;
-            }
-            posGeo2 = geoLayersFile.find('\n', posGeo1);
-            if (posGeo1 == posGeo2)
-            {
-                myLayer = "canada";
-            }
-            else
-            {
-                myLayer = geoLayersFile.substr(posGeo1, posGeo2 - posGeo1);
-            }
-
-            inum--;
-            sNum = to_string(inum);
-            while (pos2 < geoLayersFile.size())
-            {
-                pos2 = geoLayersFile.rfind('\n', pos2 - 1);
-                pos1 = geoLayersFile.rfind('$', pos2) + 1;
-                temp = geoLayersFile.substr(pos1, pos2 - pos1);
-                if (temp == sNum)
-                {
-                    pos2 = pos1 - 1;
-                    pos1 = geoLayersFile.rfind('$', pos2 - 1) + 1;
-                    sParent = geoLayersFile.substr(pos1, pos2 - pos1);
-                    break;
-                }
-            }
         }
-        else { err("Missing geo layers.txt-MainWindow.on_pB_pos_clicked"); }
 
-        // Determine this region's position within the parent region.
-        dirt = { "mapsBIN", ".bin" };
-        soap = { "pos", ".png" };
-        pngParentPath = binPath;                   // pngParent refers to the small 
-        jf.clean(pngParentPath, dirt, soap);       // "minimap" png from which we 
-        if (!wf.file_exist(pngParentPath))         // derive position for the bin map.
+        temp = "$" + binName8 + "$";
+        pos1 = geoLayersFile.find(temp) + 1;
+        if (pos1 > geoLayersFile.size()) { err("Cannot locate region name-MainWindow.on_pB_pos_clicked"); }
+        pos1 = geoLayersFile.find('$', pos1) + 1;
+        pos2 = geoLayersFile.find('\n', pos1);
+        temp = geoLayersFile.substr(pos1, pos2 - pos1);
+        try { inum = stoi(temp); }
+        catch (invalid_argument& ia) { err("stoi-MainWindow.on_pB_pos_clicked"); }
+        if (inum < 0 || inum >= numLayers) { err("No geo parent-MainWindow.on_pB_pos_clicked"); }
+
+        posGeo1 = geoLayersFile.rfind("@@Geo Layers");
+        posGeo1 = geoLayersFile.find('\n', posGeo1) + 1;
+        for (int ii = 0; ii < inum; ii++)
         {
-            pos1 = pngParentPath.rfind('\\');
-            temp = pngParentPath.substr(0, pos1);
-            wf.makeDir(temp);
-            dirt = { "\\pos\\" };
-            soap = { "\\mapsPNG\\" };
-            pngGrandparentPath = pngParentPath;
-            jf.clean(pngGrandparentPath, dirt, soap);
-            pngGPathASCII = jf.asciiOnly(pngGrandparentPath);
-            if (!wf.file_exist(pngGPathASCII)) { err("Missing PNG map-MainWindow.on_pB_pos_clicked"); }
-            pngPPathASCII = jf.asciiOnly(pngParentPath);
-            im.makePositionPNG(pngGPathASCII, pngPPathASCII);
+            posGeo1 = geoLayersFile.find('\n', posGeo1) + 1;
         }
-        if (myLayer == "province") { rgbTarget = { 255, 255, 255 }; }
-        else { rgbTarget = { 0, 112, 255 }; }
-        binPos = im.getPosition(pngParentPath, rgbTarget);
+        posGeo2 = geoLayersFile.find('\n', posGeo1);
+        if (posGeo1 == posGeo2)
+        {
+            myLayer = "canada";
+        }
+        else
+        {
+            myLayer = geoLayersFile.substr(posGeo1, posGeo2 - posGeo1);
+        }
 
+        inum--;
+        sNum = to_string(inum);
+        while (pos2 < geoLayersFile.size())
+        {
+            pos2 = geoLayersFile.rfind('\n', pos2 - 1);
+            pos1 = geoLayersFile.rfind('$', pos2) + 1;
+            temp = geoLayersFile.substr(pos1, pos2 - pos1);
+            if (temp == sNum)
+            {
+                pos2 = pos1 - 1;
+                pos1 = geoLayersFile.rfind('$', pos2 - 1) + 1;
+                sParent = geoLayersFile.substr(pos1, pos2 - pos1);
+                break;
+            }
+        }
+    }
+    else { err("Missing geo layers.txt-MainWindow.on_pB_pos_clicked"); }
+
+    // Determine this region's position within the parent region.
+    dirt = { "mapsBIN", ".bin" };
+    soap = { "pos", ".png" };
+    pngParentPath = binPath;                   // pngParent refers to the small 
+    jf.clean(pngParentPath, dirt, soap);       // "minimap" png from which we 
+    if (!wf.file_exist(pngParentPath))         // derive position for the bin map.
+    {
+        pos1 = pngParentPath.rfind('\\');
+        temp = pngParentPath.substr(0, pos1);
+        wf.makeDir(temp);
+        dirt = { "\\pos\\" };
+        soap = { "\\mapsPNG\\" };
+        pngGrandparentPath = pngParentPath;
+        jf.clean(pngGrandparentPath, dirt, soap);
+        pngGPathASCII = jf.asciiOnly(pngGrandparentPath);
+        if (!wf.file_exist(pngGPathASCII)) { err("Missing PNG map-MainWindow.on_pB_pos_clicked"); }
+        pngPPathASCII = jf.asciiOnly(pngParentPath);
+        im.makePositionPNG(pngGPathASCII, pngPPathASCII);
+    }
+    rgbTarget[0] = { 0, 112, 255 };  // Blue dot.
+    rgbTarget[1] = { 255, 255, 255 };  // White parent region.
+    binPos = im.getPosition(pngParentPath, rgbTarget);
+    
+    // Insert the position values into the BIN map.
+    pos1 = binFile.find("//position");
+    if (pos1 > binFile.size())  // BIN map has no position data to override.
+    {
         // Print the updated BIN map.
         pos1 = binFile.find("//scale");
         if (pos1 > binFile.size()) { err("//scale not found-MainWindow.on_pB_pos_clicked"); }
@@ -3570,6 +3588,18 @@ void MainWindow::on_pB_pos_clicked()
         newBin += to_string(binPos[0]) + "," + to_string(binPos[1]) + "\n\n";
         pos1 = binFile.find("//border");
         newBin += binFile.substr(pos1);
+        jf.printer(binPath, newBin);
+    }
+    else  // BIN map has previous position data, which will be overridden.
+    {
+        newBin = binFile.substr(0, pos1);
+        newBin += "//position(" + sParent + ")\n";
+        newBin += to_string(binPos[0]) + "," + to_string(binPos[1]) + "\n\n";
+        pos1 = binFile.find("//border");
+        newBin += binFile.substr(pos1);
+        dirt = { "\r\n" };
+        soap = { "\n" };
+        jf.clean(newBin, dirt, soap);
         jf.printer(binPath, newBin);
     }
 }
@@ -3649,7 +3679,7 @@ void MainWindow::insertMapWorker(SWITCHBOARD& sbgui, SQLFUNC& sf)
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 0;
+    int mode = 10;
 
     switch (mode)
     {

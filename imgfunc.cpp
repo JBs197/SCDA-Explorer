@@ -554,17 +554,24 @@ string IMGFUNC::getMapPath(int mode)
     }
     return path;
 }
-vector<double> IMGFUNC::getPosition(string pathPNGpos, vector<unsigned char> rgb)
+vector<double> IMGFUNC::getPosition(string pathPNGpos, vector<vector<unsigned char>> rgb)
 {
-    // Returns the center of rgb's containing box, as a percentage of the overall image (width, height).
+    // Returns the center of rgb[0] within rgb[1]'s rectangular frame.
     pngLoad(pathPNGpos);
     vector<int> sourceDim = { width, height };
-    vector<vector<int>> boxTLBR = makeBox(dataPNG, sourceDim, rgb);
-    int centerX = ((boxTLBR[1][0] - boxTLBR[0][0]) / 2) + boxTLBR[0][0];
-    int centerY = ((boxTLBR[1][1] - boxTLBR[0][1]) / 2) + boxTLBR[0][1];
+    vector<vector<int>> parentTLBR = makeBox(dataPNG, sourceDim, rgb[1]); // Parent region frame.
+    vector<vector<int>> dotTLBR = makeBox(dataPNG, sourceDim, rgb[0]); // Child dot frame.
+    int centerX = ((dotTLBR[1][0] - dotTLBR[0][0]) / 2) + dotTLBR[0][0];
+    int centerY = ((dotTLBR[1][1] - dotTLBR[0][1]) / 2) + dotTLBR[0][1];
+    if (centerX < parentTLBR[0][0]) { parentTLBR[0][0] = centerX; }
+    else if (centerX > parentTLBR[1][0]) { parentTLBR[1][0] = centerX; }
+    if (centerY < parentTLBR[0][1]) { parentTLBR[0][1] = centerY; }
+    else if (centerY > parentTLBR[1][1]) { parentTLBR[1][1] = centerY; }
+    double frameWidth = (double)(parentTLBR[1][0] - parentTLBR[0][0]);
+    double frameHeight = (double)(parentTLBR[1][1] - parentTLBR[0][1]);
     vector<double> output(2);
-    output[0] = (double)centerX / (double)sourceDim[0];
-    output[1] = (double)centerY / (double)sourceDim[1];
+    output[0] = (double)(centerX - parentTLBR[0][0]) / frameWidth;
+    output[1] = (double)(centerY - parentTLBR[0][1]) / frameHeight;
     return output;
 }
 double IMGFUNC::getPPKM(string& pathTXT, int scalePixels)

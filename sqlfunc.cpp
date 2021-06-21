@@ -452,14 +452,13 @@ void SQLFUNC::executor(string stmt, vector<vector<wstring>>& results)
 }
 void SQLFUNC::get_col_titles(string tname, vector<string>& titles)
 {
-    string temp1;
     vector<vector<string>> results;
     string stmt = "PRAGMA table_info('" + tname + "');";
     executor(stmt, results);
+    titles.resize(results.size());
     for (int ii = 0; ii < results.size(); ii++)
     {
-        temp1 = results[ii][1];
-        titles.push_back(temp1);
+        titles[ii] = results[ii][1];
     }
 }
 string SQLFUNC::getLinearizedTitle(string& cataName, string& rowTitle, string& colTitle)
@@ -1115,22 +1114,17 @@ void SQLFUNC::safe_col(string tname, int num_col)
 }
 int SQLFUNC::sclean(string& bbq, int mode)
 {
+    // mode 2 is for conditional 'select' statements.
+    bool skip = 0;
     int count = 0;
     int pos1, pos2;
+    string temp;
+    vector<int> indexDQuote;
     pos1 = bbq.find('[');
     if (pos1 > 0)
     {
         pos2 = bbq.find(']', pos1);
         bbq.erase(pos1, pos2 - pos1 + 1);
-    }
-    if (mode == 1)
-    {
-        pos1 = bbq.find('\'');
-        while (pos1 > 0)
-        {
-            bbq.replace(pos1, 1, "''");
-            pos1 = bbq.find('\'', pos1 + 2);
-        }
     }
     while (1)
     {
@@ -1142,6 +1136,73 @@ int SQLFUNC::sclean(string& bbq, int mode)
         if (bbq.back() == ' ') { bbq.erase(bbq.size() - 1, 1); }
         else { break; }
     }
+
+    switch (mode)
+    {
+    case 0:
+        break;
+    case 1:  // Double all single quotation marks.
+    {
+        pos1 = bbq.find("''");
+        while (pos1 > 0)
+        {
+            indexDQuote.push_back(pos1);
+            pos1 = bbq.find("''", pos1 + 2);
+        }
+        pos1 = bbq.find('\'');
+        while (pos1 > 0)
+        {
+            skip = 0;
+            for (int ii = 0; ii < indexDQuote.size(); ii++)
+            {
+                if (pos1 == indexDQuote[ii])
+                {
+                    skip = 1;
+                    break;
+                }
+            }
+            if (!skip) { bbq.replace(pos1, 1, "''"); }
+            pos1 = bbq.find('\'', pos1 + 2);
+        }
+        break;
+    }
+    case 2:  // Double all single quotation marks, and ensure there are single quotation marks as first and last chars.
+    {
+        while (bbq.back() == '\'') { bbq.pop_back(); }
+        while (bbq.front() == '\'') { bbq.erase(bbq.begin()); }
+        pos1 = bbq.find("''");
+        while (pos1 > 0)
+        {
+            indexDQuote.push_back(pos1);
+            pos1 = bbq.find("''", pos1 + 2);
+        }
+        pos1 = bbq.find('\'');
+        while (pos1 > 0)
+        {
+            skip = 0;
+            for (int ii = 0; ii < indexDQuote.size(); ii++)
+            {
+                if (pos1 == indexDQuote[ii])
+                {
+                    skip = 1;
+                    break;
+                }
+            }
+            if (!skip) { bbq.replace(pos1, 1, "''"); }
+            pos1 = bbq.find('\'', pos1 + 2);
+        }
+        pos1 = bbq.find("LIKE");
+        if (pos1 > 0)
+        {
+            pos1 += 5;
+            temp = { "'" };
+            bbq.insert(pos1, temp);
+            bbq.push_back('\'');
+        }
+        break;
+    }
+    }
+
     return count;
 }
 int SQLFUNC::select(vector<string> search, string tname, string& result)
@@ -1233,6 +1294,10 @@ int SQLFUNC::select(vector<string> search, string tname, vector<vector<wstring>>
 }
 int SQLFUNC::select(vector<string> search, string tname, string& result, vector<string>& conditions)
 {
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        sclean(conditions[ii], 2);
+    }
     string stmt = "SELECT ";
     if (search[0] == "*" && search.size() == 1)
     {
@@ -1247,12 +1312,17 @@ int SQLFUNC::select(vector<string> search, string tname, string& result, vector<
     {
         stmt += conditions[ii] + " ";
     }
+    stmt.pop_back();
     stmt += ");";
     executor(stmt, result);
     return 1;
 }
 int SQLFUNC::select(vector<string> search, string tname, wstring& result, vector<string>& conditions)
 {
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        sclean(conditions[ii], 2);
+    }
     string stmt = "SELECT ";
     if (search[0] == "*" && search.size() == 1)
     {
@@ -1273,6 +1343,10 @@ int SQLFUNC::select(vector<string> search, string tname, wstring& result, vector
 }
 int SQLFUNC::select(vector<string> search, string tname, vector<string>& results, vector<string>& conditions)
 {
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        sclean(conditions[ii], 2);
+    }
     string stmt = "SELECT ";
     if (search[0] == "*" && search.size() == 1)
     {
@@ -1297,6 +1371,10 @@ int SQLFUNC::select(vector<string> search, string tname, vector<string>& results
 }
 int SQLFUNC::select(vector<string> search, string tname, vector<vector<string>>& results, vector<string>& conditions)
 {
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        sclean(conditions[ii], 2);
+    }
     string stmt = "SELECT ";
     if (search[0] == "*" && search.size() == 1)
     {
@@ -1329,6 +1407,10 @@ int SQLFUNC::select(vector<string> search, string tname, vector<vector<string>>&
 }
 int SQLFUNC::select(vector<string> search, string tname, vector<vector<wstring>>& results, vector<string>& conditions)
 {
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        sclean(conditions[ii], 2);
+    }
     string stmt = "SELECT ";
     if (search[0] == "*" && search.size() == 1)
     {
