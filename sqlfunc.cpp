@@ -685,7 +685,6 @@ void SQLFUNC::init(string db_path)
     {
         tableSet.emplace(tableList[ii]);
     }
-
 }
 void SQLFUNC::insert(string tname, vector<string>& row_data)
 {
@@ -1528,7 +1527,7 @@ vector<string> SQLFUNC::selectYears()
             index++;
         }
     }
-    jf.isort_slist(sYears);
+    jf.isort_ilist(sYears, JFUNC::Increasing);
     return sYears;
 }
 void SQLFUNC::set_error_path(string errpath)

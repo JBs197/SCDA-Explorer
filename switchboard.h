@@ -6,10 +6,8 @@
 #include <unordered_map>
 #include <utility>
 #include <array>
-#include <QDebug>
 
 using namespace std;
-//extern vector<recursive_mutex> m_calls;
 
 class SWITCHBOARD                                   // comm protocol:
 {                                                   // comm[0] = task status

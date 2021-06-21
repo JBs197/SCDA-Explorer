@@ -34,7 +34,7 @@ public:
     void get_col_titles(string tname, vector<string>& titles);
     void get_table_list(vector<string>& results, string& search);
     vector<string> getTableList(string search);
-    void init(string);
+    void init(string db_path);
     void insert(string tname, vector<string>& row_data);
     void insert(string tname, vector<vector<string>>& row_data);
     void insertBinMap(string& binPath, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent8, vector<vector<int>>& border);

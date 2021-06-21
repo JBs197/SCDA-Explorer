@@ -6,18 +6,12 @@ void SWITCHBOARD::err(string func)
 	lock_guard<mutex> lock(m_err);
 	ofstream ERR;
 	string message;
-	QString qfunc;
 	if (errorPath.size() > 0)
 	{
 		ERR.open(errorPath, ofstream::app);
 		message = "Switchboard error within " + func;
 		ERR << message << endl << endl;
 		ERR.close();
-	}
-	else
-	{
-		qfunc = QString::fromStdString(func);
-		qDebug() << "Switchboard error within " + qfunc;
 	}
 	exit(EXIT_FAILURE);
 }

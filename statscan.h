@@ -37,6 +37,7 @@ public:
 	explicit STATSCAN(string path) : cata_path(path) {}
 	STATSCAN() {}
 	~STATSCAN() {}
+	void initialize(string cataPath);
 	void set_path(string);
 	int cata_init(string&);
 	void cleanURL(string& url);
@@ -51,6 +52,7 @@ public:
 	void extract_gid_list(vector<string>&);
 	vector<vector<string>> extract_text_vars(string& sfile, size_t& finalTextVar);
 	vector<vector<string>> extract_rows(string& sfile, int& damaged, size_t& finalTextVar);
+	vector<vector<string>> extractTitles(string& csvFile);
 	string geoLinkToRegionUrl(string& urlGeoList, string& geoLink);
 	vector<string> getLayerSelected(string& sfile);
 	string get_cata_desc();
@@ -67,6 +69,18 @@ public:
 	void initGeo();
 	void loadGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
 	vector<string> linearize_row_titles(vector<vector<string>>&, vector<string>&);
+	string makeCreateGeo(string cataName);
+	string makeCreateGeoLayers(string cataName);
+	string makeCreateRowColTitle(string cataName);
+	vector<string> makeCreateTCatalogue(string& csvFile, string& tname, vector<string>& listParam);
+	string makeCreateTG_Region(string cataName, int numCol);
+	string makeCreateTMapIndex(string cataName);
+	vector<string> makeInsertGeo(string& geoFile, string cataName);
+	vector<string> makeInsertGeoLayers(string& geoFile, string cataName, vector<string>& geoLayers);
+	vector<string> makeInsertRowColTitle(string cataName, string& csvFile);
+	vector<string> makeInsertTCatalogue(string cataName, string tname, vector<string>& listParam);
+	vector<string> makeInsertTG_Region(string cataName, string& geoFile);
+	vector<string> makeInsertTMapIndex(string& geoFile, string cataName, vector<string>& geoLayers);
 	vector<string> makeGeoLayers(string& lineGeo);
 	string makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLayers, string geoURL);
 	string make_csv_path(int);

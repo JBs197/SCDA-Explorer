@@ -216,6 +216,7 @@ void STATSCAN::err(string func)
 {
     jf.err(func);
 }
+
 vector<string> STATSCAN::extract_column_titles(string& sfile, size_t& finalTextVar)
 {
     vector<string> column_titles;
@@ -502,6 +503,215 @@ vector<vector<string>> STATSCAN::extract_text_vars(string& sfile, size_t& finalT
 	}
     return text_vars;
 }
+vector<vector<string>> STATSCAN::extractTitles(string& csvFile)
+{
+    // Return has form [row, column][title0, title1, ... ].
+    vector<vector<string>> titles(2, vector<string>());
+    vector<int> diff, mins, space_history = { 0 };
+    string temp, title;
+    bool multiColumn;  // Before parsing, we must know this.
+    size_t pos1 = 0, pos2, posFinalEq, posEnd;
+    while (1)
+    {
+        pos1 = csvFile.find('=', pos1 + 1);
+        if (pos1 > csvFile.size()) { break; }  // Loop exit.
+        if (csvFile[pos1 - 1] == '<' || csvFile[pos1 - 1] == '>') { continue; }  // Ignore cases where '=' is used in row titles.
+        pos2 = csvFile.rfind('"', pos1);
+        temp = csvFile.substr(pos2, pos1 - pos2);
+        pos2 = temp.find_first_of("[]");       // Sometimes equality symbols are
+        if (pos2 < temp.size()) { continue; }  // used in the [num] footnotes.
+        posFinalEq = pos1;
+    }
+    pos1 = csvFile.find('\n', posFinalEq);
+    pos2 = csvFile.find('\n', pos1 + 1);
+    temp = csvFile.substr(pos1, pos2 - pos1);
+    int inum, min, indent, spaces, old_spaces = 0, count = 0;
+    for (int ii = 0; ii < temp.size(); ii++)
+    {
+        if (temp[ii] == '"') { count++; }
+    }
+    if (count == 2) { multiColumn = 0; }
+    else if (count > 2) { multiColumn = 1; }
+    else { jf.err("Quotation marks-sc.extractTitles"); }
+
+    // Extract the row titles.
+    posEnd = csvFile.find("\"Note\"");
+    if (posEnd > csvFile.size()) { jf.err("Failed to find CSV stop point-sc.extractTitles"); }
+    pos1 = csvFile.find('\n', posFinalEq) + 2;
+    if (multiColumn) { pos1 = csvFile.find('\n', pos1) + 2; }
+    while (pos1 < posEnd)
+    {
+        pos2 = csvFile.find('"', pos1);
+        title = csvFile.substr(pos1, pos2 - pos1);
+        spaces = sclean(title, 0);
+
+        // This next portion of the code is problematic. Stats Canada was 
+        // inconsistent in how they indented their rows using single char 
+        // spaces (even within the same file).
+        if (spaces == old_spaces)
+        {
+            indent = space_history.size() - 1;
+        }
+        else if (spaces > old_spaces)
+        {
+            indent = space_history.size();
+            space_history.push_back(spaces);
+            old_spaces = spaces;
+        }
+        else
+        {
+            inum = old_spaces - spaces;
+            if (inum == 1)
+            {
+                indent = space_history.size() - 1;  // Pretend it's the same as before...
+            }
+            else
+            {
+                for (int ii = space_history.size() - 1; ii >= 0; ii--)
+                {
+                    if (space_history[ii] == spaces)
+                    {
+                        indent = ii;
+                        while (ii < space_history.size() - 1)
+                        {
+                            space_history.pop_back();
+                        }
+                        old_spaces = spaces;
+                        break;
+                    }
+                    else if (ii == 0)   // Tell the program to guess. What could possibly go wrong?
+                    {
+                        diff.resize(space_history.size());
+                        for (int jj = 0; jj < space_history.size(); jj++)
+                        {
+                            diff[jj] = abs(spaces - space_history[jj]);
+                        }
+                        min = diff[0];
+                        mins = { 0 };
+                        for (int jj = 1; jj < space_history.size(); jj++)
+                        {
+                            if (diff[jj] < min)
+                            {
+                                min = diff[jj];
+                                mins = { jj };
+                            }
+                            else if (diff[jj] == min)
+                            {
+                                mins.push_back(jj);
+                            }
+                        }
+                        if (mins.size() == 1)
+                        {
+                            indent = mins[0];
+                            while (indent < space_history.size() - 1)
+                            {
+                                space_history.pop_back();
+                            }
+                            old_spaces = spaces;
+                        }
+                        else
+                        {
+                            // Give up.
+                            jf.err("Failed to parse spaces-sc.extractTitles");
+                        }
+                    }
+                }
+            }
+        }
+
+        temp.assign(indent, '+');
+        titles[0].push_back(temp + title);
+    }
+
+    // Extract the column titles (if there are any).
+    if (multiColumn)
+    {
+        space_history = { 0 };
+        pos1 = csvFile.find('\n', posFinalEq) + 2;
+        posEnd = csvFile.find('\n', pos1);
+        while (pos1 < posEnd)
+        {
+            pos2 = csvFile.find('"', pos1);
+            title = csvFile.substr(pos1, pos2 - pos1);
+            spaces = sclean(title, 2);  // Mode 2 to eliminate number references.
+            if (spaces == old_spaces)
+            {
+                indent = space_history.size() - 1;
+            }
+            else if (spaces > old_spaces)
+            {
+                indent = space_history.size();
+                space_history.push_back(spaces);
+                old_spaces = spaces;
+            }
+            else
+            {
+                inum = old_spaces - spaces;
+                if (inum == 1)
+                {
+                    indent = space_history.size() - 1;  // Pretend it's the same as before...
+                }
+                else
+                {
+                    for (int ii = space_history.size() - 1; ii >= 0; ii--)
+                    {
+                        if (space_history[ii] == spaces)
+                        {
+                            indent = ii;
+                            while (ii < space_history.size() - 1)
+                            {
+                                space_history.pop_back();
+                            }
+                            old_spaces = spaces;
+                            break;
+                        }
+                        else if (ii == 0)   // Tell the program to guess. What could possibly go wrong?
+                        {
+                            diff.resize(space_history.size());
+                            for (int jj = 0; jj < space_history.size(); jj++)
+                            {
+                                diff[jj] = abs(spaces - space_history[jj]);
+                            }
+                            min = diff[0];
+                            mins = { 0 };
+                            for (int jj = 1; jj < space_history.size(); jj++)
+                            {
+                                if (diff[jj] < min)
+                                {
+                                    min = diff[jj];
+                                    mins = { jj };
+                                }
+                                else if (diff[jj] == min)
+                                {
+                                    mins.push_back(jj);
+                                }
+                            }
+                            if (mins.size() == 1)
+                            {
+                                indent = mins[0];
+                                while (indent < space_history.size() - 1)
+                                {
+                                    space_history.pop_back();
+                                }
+                                old_spaces = spaces;
+                            }
+                            else
+                            {
+                                // Give up.
+                                jf.err("Failed to parse spaces-sc.extractTitles");
+                            }
+                        }
+                    }
+                }
+            }
+            temp.assign(indent, '+');
+            titles[1].push_back(temp + title);
+        }
+    }
+
+    return titles;
+}
+
 string STATSCAN::geoLinkToRegionUrl(string& urlGeoList, string& geoLink)
 {
     size_t pos1 = urlGeoList.rfind('/') + 1;
@@ -607,7 +817,17 @@ void STATSCAN::initGeo()
         mapGeoLayers.emplace("DA", "da");  // No maps available.
     }
 }
-
+void STATSCAN::initialize(string cataPath)
+{
+    string folderSearch = cataPath + "\\*.csv";
+    WIN32_FIND_DATAA info;
+    HANDLE hfile = FindFirstFileA(folderSearch.c_str(), &info);
+    if (hfile == INVALID_HANDLE_VALUE) { wf.winerr("FindFirstFileA-sc.initialize"); }
+    string temp(info.cFileName);
+    string samplePath = cataPath + "\\" + temp;
+    string sampleFile = wf.load(samplePath);
+    cata_init(sampleFile);
+}
 void STATSCAN::loadGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers)
 {
     gidList.clear();
@@ -750,6 +970,437 @@ vector<string> STATSCAN::linearize_row_titles(vector<vector<string>>& rows, vect
 
     return linearized_titles;
 }
+
+string STATSCAN::makeCreateGeo(string cataName)
+{
+    // Note that this table must have unique rows.
+    string stmt = "CREATE TABLE IF NOT EXISTS Geo$" + cataName;
+    stmt += " (GID INTEGER PRIMARY KEY, \"Region Name\" TEXT, Indent INT, ";
+    stmt += "UNIQUE(GID, \"Region Name\", Indent));";
+    return stmt;
+}
+string STATSCAN::makeCreateGeoLayers(string cataName)
+{
+    // Note that this table must have unique rows.
+    string stmt = "CREATE TABLE IF NOT EXISTS Geo_Layers$" + cataName;
+    stmt += " (Layers TEXT, UNIQUE(Layers));";
+    return stmt;
+}
+string STATSCAN::makeCreateRowColTitle(string cataName)
+{
+    // Note that this table must have unique rows.
+    string stmt = "CREATE TABLE IF NOT EXISTS RowColTitle$" + cataName;
+    stmt += " (Row TEXT, Column TEXT, UNIQUE(Row));";
+    return stmt;
+}
+vector<string> STATSCAN::makeCreateTCatalogue(string& csvFile, string& tname, vector<string>& listParam)
+{
+    vector<string> stmts;
+    size_t pos1 = csvFile.find('"') + 1, posEq;
+    size_t pos2 = csvFile.find(" for ", pos1);
+    string line, varLeft, varRight;
+    string desc = csvFile.substr(pos1, pos2 - pos1);
+    pos1 = csvFile.find('"', pos2);
+    pos1 = csvFile.find('"', pos1 + 1) + 1;
+    pos2 = csvFile.find('"', pos1);
+    while (1)
+    {
+        line = csvFile.substr(pos1, pos2 - pos1);
+        posEq = line.find('=');
+        if (posEq > line.size()) { break; }
+        pos1 = line.rfind("Geography", posEq);
+        if (pos1 < line.size())
+        {
+            pos1 = csvFile.find('"', pos2 + 1) + 1;
+            pos2 = csvFile.find('"', pos1);
+            continue;
+        }
+        pos1 = line.rfind("(GNR)", posEq);
+        if (pos1 < line.size())
+        {
+            pos1 = csvFile.find('"', pos2 + 1) + 1;
+            pos2 = csvFile.find('"', pos1);
+            continue;
+        }
+        varLeft = line.substr(0, posEq);
+        while (varLeft.back() == ' ') { varLeft.pop_back(); }
+        pos1 = desc.find(varLeft);
+        if (pos1 > desc.size()) { jf.err("Description variables-sc.makeCreateTCatalogue"); }
+        varRight = line.substr(posEq + 1);
+        while (varRight.front() == ' ') { varRight.erase(varRight.begin()); }
+        desc.replace(pos1, varLeft.size(), varRight);
+        pos1 = csvFile.find('"', pos2 + 1) + 1;
+        pos2 = csvFile.find('"', pos1);
+    }
+    pos1 = desc.find('(');
+    int inum;
+    while (pos1 < desc.size())
+    {
+        pos2 = desc.find(')', pos1);
+        line = desc.substr(pos1 + 1, pos2 - pos1 - 1);
+        try { inum = stoi(line); }
+        catch (invalid_argument) { inum = -1; }
+        if (inum >= 0)
+        {
+            desc.erase(desc.begin() + pos1, desc.begin() + pos2 + 1);
+        }
+        pos1 = desc.find('(', pos2);
+    }
+    pos1 = 0;
+    pos2 = desc.find(',');
+    while (pos2 < desc.size())
+    {
+        line = desc.substr(pos1, pos2 - pos1);
+        while (line.back() == ' ') { line.pop_back(); }
+        listParam.push_back(line);
+        pos1 = desc.find_first_not_of(", ", pos2);
+        pos2 = desc.find(',', pos1);
+    }
+    pos2 = desc.find(" and ", pos1);
+    if (pos2 < desc.size())
+    {
+        line = desc.substr(pos1, pos2 - pos1);
+        while (line.back() == ' ') { line.pop_back(); }
+        listParam.push_back(line);
+        pos1 = pos2 + 5;
+        line = desc.substr(pos1);
+        while (line.back() == ' ') { line.pop_back(); }
+        listParam.push_back(line);
+    }
+
+    tname = "TCatalogue";
+    stmts.resize(listParam.size() + 1);
+    stmts[0] = "CREATE TABLE IF NOT EXISTS " + tname;
+    stmts[0] += " (Year INTEGER PRIMARY KEY);";
+    for (int ii = 1; ii <= listParam.size(); ii++)
+    {
+        tname += "$" + listParam[ii - 1];
+        stmts[ii] = "CREATE TABLE IF NOT EXISTS " + tname;
+        stmts[ii] += " (Topic" + to_string(ii) + " TEXT";
+        stmts[ii] += ", UNIQUE(Topic" + to_string(ii) + "));";
+    }
+    return stmts;
+}
+string STATSCAN::makeCreateTG_Region(string cataName, int numCol)
+{
+    // Note that this table must have unique rows.
+    string stmt = "CREATE TABLE IF NOT EXISTS TG_Region$" + cataName;
+    stmt += " (GID INTEGER PRIMARY KEY, \"Region Name\" TEXT, ";
+    for (int ii = 2; ii < numCol; ii++)
+    {
+        stmt += "param" + to_string(ii) + " INT, ";
+    }
+    stmt += "UNIQUE(GID));";
+    return stmt;
+}
+string STATSCAN::makeCreateTMapIndex(string cataName)
+{
+    // Note that this table must have unique rows.
+    string stmt = "CREATE TABLE IF NOT EXISTS TMapIndex$" + cataName;
+    stmt += " (GID INTEGER PRIMARY KEY, \"Map Path\" TEXT, UNIQUE(GID));";
+    return stmt;
+}
+vector<string> STATSCAN::makeInsertGeo(string& geoFile, string cataName)
+{
+    vector<string> stmts;
+    string gid, name, indent, stmt;
+    vector<string> dirt = { "'" }, soap = { "''" };
+    size_t pos1 = geoFile.find_first_of("1234567890");
+    size_t pos2 = geoFile.find('$', pos1);
+    size_t pos3 = geoFile.rfind("@@Geo Layers");
+    while (pos2 < pos3)
+    {
+        gid = geoFile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = geoFile.find('$', pos1);
+        name = geoFile.substr(pos1, pos2 - pos1);
+        jf.clean(name, dirt, soap);
+        pos1 = pos2 + 1;
+        pos2 = geoFile.find_first_not_of("1234567890", pos1);
+        indent = geoFile.substr(pos1, pos2 - pos1);
+        stmt = "INSERT OR IGNORE INTO Geo$" + cataName + " (GID, ";
+        stmt += "\"Region Name\", Indent) VALUES (" + gid + ", '" + name;
+        stmt += "', " + indent + ");";
+        stmts.push_back(stmt);
+        pos2 = geoFile.find('\n', pos2);
+        pos1 = pos2 + 1;
+        pos2 = geoFile.find('$', pos1);
+    }
+    return stmts;
+}
+vector<string> STATSCAN::makeInsertGeoLayers(string& geoFile, string cataName, vector<string>& geoLayers)
+{
+    vector<string> stmts;
+    string temp;
+    size_t pos3 = geoFile.rfind("@@Geo URL");
+    pos3 = geoFile.find_last_not_of("\r\n", pos3 - 1) + 1;
+    size_t pos1 = geoFile.rfind("@@Geo Layers") + 12;
+    size_t pos2 = geoFile.find('\n', pos1);
+    if (pos1 == pos2)  // No carriage return char.
+    {
+        pos1 = pos2 + 1;
+        while (pos1 < pos3)
+        {
+            pos2 = geoFile.find('\n', pos1);
+            if (pos1 == pos2) { geoLayers.push_back("canada"); }
+            else
+            {
+                temp = geoFile.substr(pos1, pos2 - pos1);
+                geoLayers.push_back(temp);
+            }
+            pos1 = pos2 + 1;
+        }
+    }
+    else  // Geo file has carriage return chars.
+    {
+        pos1 = pos2 + 1;
+        while (pos1 < pos3)
+        {
+            pos2 = geoFile.find("\r\n", pos1);
+            if (pos1 == pos2) { geoLayers.push_back("canada"); }
+            else
+            {
+                temp = geoFile.substr(pos1, pos2 - pos1);
+                geoLayers.push_back(temp);
+            }
+            pos1 = pos2 + 2;
+        }
+    }
+    stmts.resize(geoLayers.size());
+    for (int ii = 0; ii < stmts.size(); ii++)
+    {
+        stmts[ii] = "INSERT OR IGNORE INTO Geo_Layers$" + cataName;
+        stmts[ii] += " (Layers) VALUES (" + geoLayers[ii] + ");";
+    }
+    return stmts;
+}
+vector<string> STATSCAN::makeInsertRowColTitle(string cataName, string& csvFile)
+{
+    vector<vector<string>> titles = extractTitles(csvFile);  // Form [row, column][title0, title1, ... ].
+    vector<int> indentHistory = { -1 };
+    vector<string> rowTitles(titles[0].size()), colTitles(titles[1].size());
+    string temp, stmt;
+    int indent, count;
+    size_t pos1, pos2;
+    for (int ii = 0; ii < rowTitles.size(); ii++)
+    {
+        indent = 0;
+        while (titles[0][ii][indent] == '+') { indent++; }
+        if (indent >= indentHistory.size()) { indentHistory.push_back(ii); }
+        else { indentHistory[indent] = ii; }
+
+        for (int jj = 0; jj <= indent; jj++)
+        {
+            temp = titles[0][indentHistory[jj]];
+            if (jj == 0 && indent == 0)  // Single title, nothing to attach.
+            {
+                rowTitles[ii] = temp;
+            }
+            else if (jj == 0)  // Begin a new title, adding more later.
+            {
+                pos1 = temp.find_first_not_of('+');
+                pos2 = temp.find("Total");
+                if (pos1 == pos2)
+                {
+                    pos1 += 5;
+                    pos2 = temp.find_first_not_of(" -", pos1);
+                    rowTitles[ii] = temp.substr(pos2);
+                }
+                else { rowTitles[ii] = temp.substr(pos1); }
+            }
+            else if (jj < indent)  // Build upon the existing title, and adding more later.
+            {
+                pos1 = temp.find_first_not_of('+');
+                pos2 = temp.find("Total");
+                if (pos1 == pos2)
+                {
+                    pos1 += 5;
+                    pos2 = temp.find_first_not_of(" -", pos1);
+                    rowTitles[ii] += "(" + temp.substr(pos2);
+                }
+                else { rowTitles[ii] += "(" + temp.substr(pos1); }
+            }
+            else  // Build upon the existing title, and conclude it.
+            {
+                pos1 = temp.find_first_not_of('+');
+                rowTitles[ii] += "(" + temp.substr(pos1);
+                count = 0;
+                for (int kk = 0; kk < rowTitles[ii].size(); kk++)
+                {
+                    if (rowTitles[ii][kk] == '(') { count++; }
+                    else if (rowTitles[ii][kk] == ')') { count--; }
+                }
+                if (count < 0) { jf.err("Parentheses mismatch-sc.makeCreateRowColTitle"); }
+                while (count > 0)
+                {
+                    rowTitles[ii].push_back(')');
+                    count--;
+                }
+            }
+        }
+    }
+    for (int ii = 0; ii < colTitles.size(); ii++)
+    {
+        if (ii < 2)
+        {
+            colTitles[ii] = titles[1][ii];
+            continue;
+        }
+        if (titles[1][ii].front() != '+')
+        {
+            colTitles[ii] = titles[1][ii];
+            continue;
+        }
+
+        pos1 = titles[1][1].find("Total") + 5;
+        if (pos1 > titles[1][1].size()) { pos1 = 0; }
+        pos2 = titles[1][1].find_first_not_of(" -", pos1);
+        colTitles[ii] = titles[1][1].substr(pos2) + "(";
+        pos1 = titles[1][ii].find_first_not_of('+');
+        colTitles[ii] += titles[1][ii].substr(pos1) + ")";
+    }
+
+    vector<string> stmts, dirt = { "'" }, soap = { "''" };
+    if (rowTitles.size() >= colTitles.size())
+    {
+        for (int ii = 0; ii < rowTitles.size(); ii++)
+        {
+            jf.clean(rowTitles[ii], dirt, soap);
+            stmt = "INSERT OR IGNORE INTO RowColTitle$" + cataName;
+            stmt += " (Row, Column) VALUES ('" + rowTitles[ii] + "', '";
+            if (ii < colTitles.size())
+            {
+                jf.clean(colTitles[ii], dirt, soap);
+                stmt += colTitles[ii] + "');";
+            }
+            else { stmt += "');"; }
+            stmts.push_back(stmt);
+        }
+    }
+    else
+    {
+        for (int ii = 0; ii < colTitles.size(); ii++)
+        {
+            jf.clean(colTitles[ii], dirt, soap);
+            stmt = "INSERT OR IGNORE INTO RowColTitle$" + cataName;
+            stmt += " (Row, Column) VALUES ('";
+            if (ii < rowTitles.size())
+            {
+                jf.clean(rowTitles[ii], dirt, soap);
+                stmt += rowTitles[ii] + "', '" + colTitles[ii] + "');";
+            }
+            else { stmt += "', '" + colTitles[ii] + "');"; }
+            stmts.push_back(stmt);
+        }
+    }
+    return stmts;
+}
+vector<string> STATSCAN::makeInsertTCatalogue(string cataName, string tname, vector<string>& listParam)
+{
+    vector<string> stmts(listParam.size() + 1);
+    size_t pos1;
+    for (int ii = stmts.size() - 1; ii > 0; ii--)
+    {
+        stmts[ii] = "INSERT OR IGNORE INTO " + tname + " (Topic"; 
+        stmts[ii] += to_string(ii) + ") VALUES ('";
+        if (ii == listParam.size())
+        {
+            stmts[ii] += cataName + "');";
+        }
+        else
+        {
+            stmts[ii] += listParam[ii] + "');";
+        }
+        pos1 = tname.rfind('$');
+        tname = tname.substr(0, pos1);
+    }
+    stmts[0] = "INSERT OR IGNORE INTO TCatalogue (Year) VALUES (";
+    stmts[0] += listParam[0] + ");";
+    return stmts;
+}
+vector<string> STATSCAN::makeInsertTG_Region(string cataName, string& geoFile)
+{
+    vector<string> stmts, dirt = { "'" }, soap = { "''" };
+    string gid, name, temp, stmt;
+    vector<int> indentHistory;
+    int indent, GID;
+    size_t posEnd = geoFile.rfind("@@Geo Layers");
+    posEnd = geoFile.find_last_of("1234567890", posEnd) + 1;
+    size_t pos1 = geoFile.find_first_of("1234567890"), pos2;
+    while (pos1 < posEnd)
+    {
+        pos2 = geoFile.find('$', pos1);
+        gid = geoFile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = geoFile.find('$', pos1);
+        name = geoFile.substr(pos1, pos2 - pos1);
+        jf.clean(name, dirt, soap);
+        pos1 = pos2 + 1;
+        pos2 = geoFile.find_first_not_of("1234567890", pos1);
+        temp = geoFile.substr(pos1, pos2 - pos1);
+        try 
+        { 
+            indent = stoi(temp); 
+            GID = stoi(gid);
+        }
+        catch (invalid_argument) { jf.err("stoi-sc.makeInsertTG_Region"); }
+        if (indent >= indentHistory.size()) { indentHistory.push_back(GID); }
+        else { indentHistory[indent] = GID; }
+
+        stmt = "INSERT OR IGNORE INTO TG_Region$" + cataName; 
+        stmt += " (GID, \"Region Name\"";
+        for (int ii = 0; ii < indent; ii++)
+        {
+            stmt += ", param" + to_string(ii + 2);
+        }
+        stmt += ") VALUES (" + gid + ", '" + name + "'";
+        for (int ii = 0; ii < indent; ii++)
+        {
+            stmt += ", " + to_string(indentHistory[ii]);
+        }
+        stmt += ");";
+        stmts.push_back(stmt);
+    }
+    return stmts;
+}
+vector<string> STATSCAN::makeInsertTMapIndex(string& geoFile, string cataName, vector<string>& geoLayers)
+{
+    vector<string> stmts;
+    string gid, temp, name, coreDir, stmt;
+    int indent;
+    vector<string> dirt = { "'" }, soap = { "''" };
+    size_t pos1 = geoFile.find_first_of("1234567890");
+    size_t pos2 = geoFile.find('$', pos1);
+    size_t pos3 = geoFile.rfind("@@Geo Layers");
+    while (pos2 < pos3)
+    {
+        gid = geoFile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = geoFile.find('$', pos1);
+        name = geoFile.substr(pos1, pos2 - pos1);
+        jf.clean(name, dirt, soap);
+        pos1 = pos2 + 1;
+        pos2 = geoFile.find_first_not_of("1234567890", pos1);
+        temp = geoFile.substr(pos1, pos2 - pos1);
+        try { indent = stoi(temp); }
+        catch (invalid_argument) { jf.err("stoi-sc.makeInsertTMap"); }
+        coreDir = "TMap";
+        for (int ii = 0; ii <= indent; ii++)
+        {
+            if (geoLayers[ii] == "canada") { continue; }
+            coreDir += "$" + geoLayers[ii];
+        }
+        coreDir += "$" + name;
+        stmt = "INSERT OR IGNORE INTO TMapIndex$" + cataName + " (GID, ";
+        stmt += "\"Map Path\") VALUES (" + gid + ", '" + coreDir + "');";
+        stmts.push_back(stmt);
+        pos2 = geoFile.find('\n', pos2);
+        pos1 = pos2 + 1;
+        pos2 = geoFile.find('$', pos1);
+    }
+    return stmts;
+}
+
 vector<string> STATSCAN::makeGeoLayers(string& geoTemp)
 {
     geoTemp.append("/ ");
@@ -836,7 +1487,6 @@ string STATSCAN::makeGeoList(vector<string>& geoLinkNames, vector<string>& geoLa
     geoList += "\n@@Geo URL\n" + geoURL + "\n";
     return geoList;
 }
-
 string STATSCAN::make_csv_path(int gid_index)
 {
     string csv_path = cata_path + "\\" + cata_name + " " + csv_branches[gid_index];
@@ -1314,7 +1964,8 @@ string STATSCAN::regionLinkToMapUrl(string& urlRegion, string& regionLink)
 int STATSCAN::sclean(string& sval, int mode)
 {
     int count = 0;
-    int pos1, pos2;
+    int pos1, pos2, pos3, inum = -1;
+    string temp;
     pos1 = sval.find('[');
     if (pos1 > 0)
     {
@@ -1328,6 +1979,24 @@ int STATSCAN::sclean(string& sval, int mode)
         {
             sval.replace(pos1, 1, "''");
             pos1 = sval.find('\'', pos1 + 2);
+        }
+    }
+    else if (mode == 2)
+    {
+        pos1 = sval.find('(');
+        while (pos1 > 0)
+        {
+            pos2 = sval.find(')', pos1);
+            temp = sval.substr(pos1 + 1, pos2 - pos1 - 1);
+            pos3 = temp.find("Sample Data");
+            try { inum = stoi(temp); }
+            catch (invalid_argument) { inum = -1; }
+            if (inum >= 0 || pos3 >= 0)
+            {
+                sval.erase(sval.begin() + pos1, sval.begin() + pos2 + 1);
+                pos1 = sval.find('(', pos1 - 1);
+            }
+            else { pos1 = sval.find('(', pos2); }
         }
     }
     while (1)

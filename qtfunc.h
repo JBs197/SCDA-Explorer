@@ -6,9 +6,11 @@
 #include <QListView>
 #include <QTableView>
 #include <QTreeWidget>
+#include <QTreeWidgetItem>
 #include <QLabel>
 #include <QPainter>
 #include <QPainterPath>
+#include "jtree.h"
 #include "imgfunc.h"
 #include "winfunc.h"
 
@@ -35,6 +37,7 @@ class QTFUNC
 	vector<vector<vector<int>>> recentBorderTemp;
 	vector<double> recentMapShift;
 	QRectF rect;
+	int treeColumns;
 	WINFUNC wf;
 
 	QColor Eraser = QColor(233, 188, 181);
@@ -67,6 +70,8 @@ public:
 	vector<double> makeShift(QLabel*& qlabel, vector<vector<int>>& frameBorderTLBR);
 	QPainterPath pathMakeCircle(vector<double> origin, double radius, int sides);
 	void pmPainterReset(QLabel*& qlabel);
+	void populateTree(QTreeWidget*& qTree, JTREE& jt, int columns);
+	void populateTreeWorker(QTreeWidgetItem*& qTree, JTREE& jt, int myIndex);
 	void printEditedMap(string& pathBin);
 	void setDebugMapPath(string spath);
 	void set_display_root(QTreeWidget*, int);

@@ -37,7 +37,7 @@ public:
     GSFUNC gf;
     IMGFUNC im;
     JFUNC jf;
-    JTREE jt, jtMaps, jtMapsDB, jtStatsCan;
+    JTREE jtCataLocal;
     MATHFUNC mf;
     QTFUNC qf;
     SWITCHBOARD sb;
@@ -51,15 +51,16 @@ signals:
 public slots:
 
 private slots:
-
-    void on_cB_drives_currentTextChanged(const QString &arg1);
-    void on_pB_scan_clicked();
+    void on_cB_drives_currentTextChanged(const QString& arg1);
     void on_pB_insert_clicked();
+    void on_treeW_catalocal_itemSelectionChanged();
+
+    /*
+    void on_pB_scan_clicked();
     void on_pB_test_clicked();
     void on_pB_viewcata_clicked();
     void on_pB_cancel_clicked();
     void on_treeW_cataindb_itemSelectionChanged();
-    void on_treeW_cataondrive_itemSelectionChanged();
     void on_treeW_gid_itemSelectionChanged();
     void on_treeW_statscan_itemSelectionChanged();
     void on_treeW_maps_itemSelectionChanged();
@@ -89,72 +90,28 @@ private slots:
     void on_pB_undo_clicked();
     void on_pB_savemap_clicked();
     void on_pB_deletemap_clicked();
-
+    */
 private:
     Ui::MainWindow *ui;
-    const int cores = 3;
-    const int handful = 100;  // Number of CSVs to insert between progress bar updates.
-    const int worker_batch = 10;  // Number of CSVs workers prepare before pushing to the manager.
-    const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
+
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
-    int jobs_max, jobs_done, jobs_percent, advBuffer, labelMapsDx, labelMapsDy;
-    int backBuffer, downloadWindow = -1, widthEraser = 16, countEraser;
-    int threads_working = 0;
-    int remote_controller = 0;  // 0 = run, 1 = ??, 2 = cancel, 3 = pause.
-    bool begun_logging = 0;
-    int qrow_title_width = 20, active_mode = 0, qnam_status = 0;
-    vector<vector<int>> debugMapCoord;  // Form [TL, origin, candidate0, ... ][xCoord, yCoord]
-    wstring wdrive;
-    QString qdrive;
-    string db_path, sdrive, selectedMapFolder;
-    mutex m_bar, m_io;
-    vector<string> sroots = { "F:", "D:" };
-    vector<wstring> wroots = { L"F:", L"D:" }; //  NOTE: REMOVE HARDCODING LATER.
-    QVector<QString> qroots = { "F:", "D:" };
-    vector<string> modes = { "LOCAL \n MODE ", "ONLINE \n MODE " };
-    vector<vector<string>> navSearch;
-    vector<string> viewcata_data;  // Hold essential information for the catalogue being viewed. Form [syear, sname].
-    vector<string> viewcata_gid_list, removeCataTemp;
+    const int cores = 3;
+    string db_path;
+    const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
+    mutex m_bar;
+    string projectDir, savedSettings;
 
-    void update_bar();
-    void reset_bar(int, string);
-    void initialize();
-    void create_cata_index_table();
-    void create_damaged_table();
-    void createMapIndexTable();
-    void judicator(SQLFUNC&, SWITCHBOARD&, WINFUNC&);
-    void insert_csvs(vector<vector<vector<string>>>&, SWITCHBOARD&, STATSCAN&);
-    static int sql_callback(void*, int, char**, char**);
-    void addTGRegion(SQLFUNC& sfjudi, STATSCAN& scjudi, string cataYear, string cataName);
-    void addTGRow(SQLFUNC& sfjudi, STATSCAN& scjudi, string cataName);
-    void addTMap(SQLFUNC& sfjudi, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, string cataName);
-    void auto_expand(QTreeWidget*&, int);
-    void barMessage(string message);
+    void barReset(int iMax, string message);
+    void barText(string message);
+    void barUpdate(int iCurrent);
     void bind(string&, vector<string>&);
-    void convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorder, vector<string>& pathBIN);
-    void convertSingle(SWITCHBOARD& sbgui);
-    void delete_cata(SWITCHBOARD&, SQLFUNC&);
-    void displayDiscrepancies(string& folderPath, QListWidget*& qlist);
-    void display_catalogue(SQLFUNC&, SWITCHBOARD&, QList<QStringList>&, vector<vector<vector<int>>>&, vector<vector<string>>&);
-    void display_table(string);
-    void downloader(SWITCHBOARD&);
-    vector<string> extract_gids(string);
-    int fetchGeoList(int iYear, string sCata, vector<string>& geoLayers);
-    int fetchGeoList(int iYear, string sCata, vector<string>& geoLayers, string& geoPage, string geoURL);
-    int getCataStatus(string sYear, string sName, vector<string>& csvLocal, vector<string>& csvOnline);
+    void initGUI();
+    void initialize();
     void initImgFont(string fontName);
-    void insertMapWorker(SWITCHBOARD& sbgui, SQLFUNC& sf);
-    void makeTempASCII(string folderPath);
-    void mousePressEvent(QMouseEvent* event) override;
-    void populateQtree(JTREE&, QTreeWidgetItem*&, string);
-    void populateQTree(JTREE& jtx, QTreeWidgetItem*& qMe, string myName);
-    vector<string> notDownloaded(string syear, string sname);
-    void scan_drive(SWITCHBOARD&, WINFUNC&, QList<QTreeWidgetItem*>&);
-    void toggleTableGeometry();
-    void update_treeW_cataindb();
-    void update_treeW_mapindb();
-    void update_mode();
+    void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
+    void scanLocalDrive(SWITCHBOARD& sbgui, JTREE& jtgui);
 
+    /*
 
     // TEMPLATES
 
@@ -705,7 +662,6 @@ private:
             load<wstring, QString>(full_path, output);
             break;
         }
-        */
     }
     template<> void load<string, string>(string& full_path, string& output)
     {
@@ -906,7 +862,7 @@ private:
         return count;
     }
 
-
+    */
 };
 
 

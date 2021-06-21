@@ -18,7 +18,6 @@
 using namespace std;
 extern mutex m_err;
 extern const string sroot;
-extern const string scroot;
 
 class JFUNC
 {
@@ -35,6 +34,7 @@ public:
 	explicit JFUNC() {}
 	~JFUNC() {}
 
+	enum order { Increasing, Decreasing };
 	atomic_ullong stopwatch{0};  // Max timer ticks is 1.8e19.
 	atomic_int stopwatch_control{0};
 
@@ -53,7 +53,8 @@ public:
 	vector<double> destringifyCoordD(string& sCoord);
 	void err(string);
 	string get_error_path();
-	void isort_slist(vector<string>&);
+	void isort_ilist(vector<int>& iList, int type);
+	void isort_ilist(vector<string>& sList, int type);
 	int is_numeric(string&);
 	string getExtension(string& spath);
 	int getPivot(vector<int>& treeSTrow);

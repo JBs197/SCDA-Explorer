@@ -54,7 +54,7 @@
      <string>Test</string>
     </property>
    </widget>
-   <widget class="QProgressBar" name="progressBar">
+   <widget class="QProgressBar" name="progressbar">
     <property name="geometry">
      <rect>
       <x>10</x>
@@ -67,7 +67,7 @@
      <number>24</number>
     </property>
    </widget>
-   <widget class="QLabel" name="QL_bar">
+   <widget class="QLabel" name="qlabel_progressbar">
     <property name="geometry">
      <rect>
       <x>40</x>
@@ -77,7 +77,7 @@
      </rect>
     </property>
     <property name="text">
-     <string>Progress Report</string>
+     <string/>
     </property>
     <property name="alignment">
      <set>Qt::AlignCenter</set>
@@ -125,12 +125,15 @@
         <height>801</height>
        </rect>
       </property>
+      <property name="selectionMode">
+       <enum>QAbstractItemView::ContiguousSelection</enum>
+      </property>
       <attribute name="headerVisible">
-       <bool>false</bool>
+       <bool>true</bool>
       </attribute>
       <column>
        <property name="text">
-        <string/>
+        <string>Local Catalogues</string>
        </property>
       </column>
      </widget>
@@ -144,11 +147,11 @@
        </rect>
       </property>
       <attribute name="headerVisible">
-       <bool>false</bool>
+       <bool>true</bool>
       </attribute>
       <column>
        <property name="text">
-        <string notr="true">1</string>
+        <string>Database Catalogues</string>
        </property>
       </column>
      </widget>
@@ -162,11 +165,11 @@
        </rect>
       </property>
       <attribute name="headerVisible">
-       <bool>false</bool>
+       <bool>true</bool>
       </attribute>
       <column>
        <property name="text">
-        <string notr="true">1</string>
+        <string>Online Catalogues</string>
        </property>
       </column>
      </widget>
@@ -237,6 +240,9 @@
     </property>
    </widget>
    <widget class="QPushButton" name="pB_download">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
     <property name="geometry">
      <rect>
       <x>460</x>
@@ -250,6 +256,9 @@
     </property>
    </widget>
    <widget class="QPushButton" name="pB_localmaps">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
     <property name="geometry">
      <rect>
       <x>280</x>
@@ -264,6 +273,9 @@
     </property>
    </widget>
    <widget class="QPushButton" name="pB_convert">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
     <property name="geometry">
      <rect>
       <x>370</x>
@@ -449,6 +461,9 @@ Map</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pB_insertmap">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
     <property name="geometry">
      <rect>
       <x>280</x>
@@ -463,6 +478,9 @@ Map</string>
     </property>
    </widget>
    <widget class="QPushButton" name="pB_deletetable">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
     <property name="geometry">
      <rect>
       <x>190</x>

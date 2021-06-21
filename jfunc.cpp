@@ -415,9 +415,33 @@ vector<int> JFUNC::get_roots(vector<vector<int>>& tree_st)
 	}
 	return roots;
 }
-void JFUNC::isort_slist(vector<string>& slist)
+void JFUNC::isort_ilist(vector<int>& ilist, int type)
 {
-	int isize = slist.size();
+	int isize = ilist.size(), index;
+	vector<int> viTemp;
+	switch (type)
+	{
+	case 0:
+	{
+		quicksort(ilist, 0, isize - 1);
+		break;
+	}
+	case 1:
+	{
+		viTemp = ilist;
+		quicksort(viTemp, 0, isize - 1);
+		for (int ii = 0; ii < isize; ii++)
+		{
+			index = isize - 1 - ii;
+			ilist[index] = viTemp[ii];
+		}
+		break;
+	}
+	}
+}
+void JFUNC::isort_ilist(vector<string>& slist, int type)
+{
+	int isize = slist.size(), index;
 	vector<int> ilist(isize);
 	for (int ii = 0; ii < isize; ii++)
 	{
@@ -425,12 +449,28 @@ void JFUNC::isort_slist(vector<string>& slist)
 		{
 			ilist[ii] = stoi(slist[ii]);
 		}
-		catch (invalid_argument& ia) { err("stoi-isort_slist"); }
+		catch (invalid_argument) { err("stoi-jf.isort_slist"); }
 	}
 	quicksort(ilist, 0, isize - 1);
-	for (int ii = 0; ii < isize; ii++)
+	switch (type)
 	{
-		slist[ii] = to_string(ilist[ii]);
+	case 0:
+	{
+		for (int ii = 0; ii < isize; ii++)
+		{
+			slist[ii] = to_string(ilist[ii]);
+		}
+		break;
+	}
+	case 1:
+	{
+		for (int ii = 0; ii < isize; ii++)
+		{
+			index = isize - 1 - ii;
+			slist[index] = to_string(ilist[ii]);
+		}
+		break;
+	}
 	}
 }
 int JFUNC::is_numeric(string& candidate)
