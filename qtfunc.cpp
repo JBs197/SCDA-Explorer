@@ -438,7 +438,6 @@ void QTFUNC::populateTree(QTreeWidget*& qTree, JTREE& jt, int columns)
 {
 	// columns = 1 -> text only, columns = 2 -> text and integer
 	treeColumns = columns;
-	int numCol = qTree->columnCount();
 	qTree->clear();
 	QTreeWidgetItem* qRoot = new QTreeWidgetItem(0);      // Type indicates 
 	QString qTemp = QString::fromStdString(jt.nameRoot);  // layers removed
@@ -451,13 +450,20 @@ void QTFUNC::populateTreeWorker(QTreeWidgetItem*& qNode, JTREE& jt, int myIndex)
 	// Note that 'myIndex' refers to the parent's internal index within JTREE.
 	QString qTemp;
 	wstring wTemp;
+	string temp;
+	bool removePath = jt.getRemovePath();
 	int childIndex, myGeneration = jt.treeSTanc[myIndex].size();
 	if (myIndex == 0) { myGeneration = 0; }
 	for (int ii = 0; ii < jt.treeSTdes[myIndex].size(); ii++)
 	{
 		QTreeWidgetItem* qChild = new QTreeWidgetItem(qNode, myGeneration + 1);
 		childIndex = jt.treeSTdes[myIndex][ii];
-		wTemp = jf.utf8to16(jt.treePL[childIndex]);
+		if (removePath)
+		{
+			temp = jf.nameFromPath(jt.treePL[childIndex]);
+			wTemp = jf.utf8to16(temp);
+		}
+		else { wTemp = jf.utf8to16(jt.treePL[childIndex]); }
 		qTemp = QString::fromStdWString(wTemp);
 		qChild->setText(0, qTemp);
 		if (treeColumns > 1)

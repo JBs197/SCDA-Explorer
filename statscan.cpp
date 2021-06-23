@@ -24,6 +24,8 @@ int STATSCAN::cata_init(string& sample_csv)
     int tg_row_col;
     subtable_names_template = make_subtable_names_template(cata_name, tg_row_col, csv_tree, rows);
 
+    binParameter = { "frames","scale","position","parent","border" };
+
     return tg_row_col;
 }
 void STATSCAN::cleanURL(string& url)
@@ -711,7 +713,6 @@ vector<vector<string>> STATSCAN::extractTitles(string& csvFile)
 
     return titles;
 }
-
 string STATSCAN::geoLinkToRegionUrl(string& urlGeoList, string& geoLink)
 {
     size_t pos1 = urlGeoList.rfind('/') + 1;
@@ -722,33 +723,6 @@ string STATSCAN::geoLinkToRegionUrl(string& urlGeoList, string& geoLink)
     cleanURL(temp);
     mapUrl += temp;
     return mapUrl;
-}
-vector<string> STATSCAN::getLayerSelected(string& sfile)
-{
-    // This function is meant to be used with a geo list webpage.
-    size_t pos2 = sfile.find("<div id=\"geo-download\"");
-    size_t pos1 = sfile.rfind("<strong>", pos2) + 8;
-    pos2 = sfile.find("</strong>", pos1);
-    string layerDesc = sfile.substr(pos1, pos2 - pos1);
-    layerDesc.push_back('/');
-    int numLayers = 0;
-    for (int ii = 0; ii < layerDesc.size(); ii++)
-    {
-        if (layerDesc[ii] == '/') { numLayers++; }
-    }
-    vector<string> layerCodes(numLayers);
-    pos2 = 0;
-    string temp;
-    for (int ii = 0; ii < numLayers; ii++)
-    {
-        pos1 = pos2;
-        pos2 = layerDesc.find('/', pos1);
-        temp = layerDesc.substr(pos1, pos2 - pos1);
-        try { layerCodes[ii] = mapGeoLayers.at(temp); }
-        catch (out_of_range& oor) { err("mapGeoLayers-sc.getLayerSelected"); }
-        pos2++;
-    }
-    return layerCodes;
 }
 string STATSCAN::get_cata_desc()
 {
@@ -786,6 +760,33 @@ string STATSCAN::get_insert_primary_template()
 {
     return insert_primary_template;
 }
+vector<string> STATSCAN::getLayerSelected(string& sfile)
+{
+    // This function is meant to be used with a geo list webpage.
+    size_t pos2 = sfile.find("<div id=\"geo-download\"");
+    size_t pos1 = sfile.rfind("<strong>", pos2) + 8;
+    pos2 = sfile.find("</strong>", pos1);
+    string layerDesc = sfile.substr(pos1, pos2 - pos1);
+    layerDesc.push_back('/');
+    int numLayers = 0;
+    for (int ii = 0; ii < layerDesc.size(); ii++)
+    {
+        if (layerDesc[ii] == '/') { numLayers++; }
+    }
+    vector<string> layerCodes(numLayers);
+    pos2 = 0;
+    string temp;
+    for (int ii = 0; ii < numLayers; ii++)
+    {
+        pos1 = pos2;
+        pos2 = layerDesc.find('/', pos1);
+        temp = layerDesc.substr(pos1, pos2 - pos1);
+        try { layerCodes[ii] = mapGeoLayers.at(temp); }
+        catch (out_of_range& oor) { err("mapGeoLayers-sc.getLayerSelected"); }
+        pos2++;
+    }
+    return layerCodes;
+}
 int STATSCAN::get_num_subtables()
 {
     return subtable_names_template.size();
@@ -816,17 +817,6 @@ void STATSCAN::initGeo()
         mapGeoLayers.emplace("FSA", "fsa");  // No maps available.
         mapGeoLayers.emplace("DA", "da");  // No maps available.
     }
-}
-void STATSCAN::initialize(string cataPath)
-{
-    string folderSearch = cataPath + "\\*.csv";
-    WIN32_FIND_DATAA info;
-    HANDLE hfile = FindFirstFileA(folderSearch.c_str(), &info);
-    if (hfile == INVALID_HANDLE_VALUE) { wf.winerr("FindFirstFileA-sc.initialize"); }
-    string temp(info.cFileName);
-    string samplePath = cataPath + "\\" + temp;
-    string sampleFile = wf.load(samplePath);
-    cata_init(sampleFile);
 }
 void STATSCAN::loadGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers)
 {
@@ -971,6 +961,79 @@ vector<string> STATSCAN::linearize_row_titles(vector<vector<string>>& rows, vect
     return linearized_titles;
 }
 
+string STATSCAN::makeBinBorder(vector<vector<int>>& border)
+{
+    string binBorder = "//border";
+    for (int ii = 0; ii < border.size(); ii++)
+    {
+        binBorder += "\n" + to_string(border[ii][0]) + "," + to_string(border[ii][1]);
+    }
+    return binBorder;
+}
+string STATSCAN::makeBinFrames(vector<vector<vector<int>>>& frames)
+{
+    string binFrames = "//frames(topLeft@botRight, showing 'maps', 'scale', 'position')";
+    for (int ii = 0; ii < frames.size(); ii++)
+    {
+        binFrames += "\n" + to_string(frames[ii][0][0]) + ",";
+        binFrames += to_string(frames[ii][0][1]) + "@" + to_string(frames[ii][1][0]);
+        binFrames += "," + to_string(frames[ii][1][1]);
+    }
+    return binFrames;
+}
+string STATSCAN::makeBinParent(string parent)
+{
+    string binParent = "//parent\n" + parent;
+    return binParent;
+}
+string STATSCAN::makeBinParentNew(string binPath)
+{
+    string binParent = "//parent";
+    size_t pos1 = binPath.rfind('\\');
+    size_t pos2 = binPath.rfind(".bin");
+    string regionName = binPath.substr(pos1 + 1, pos2 - pos1 - 1);
+    string geoPath = binPath.substr(0, pos1) + "\\geo layers.txt";
+    pos1 = regionName.find("(Canada)");
+    if (pos1 < regionName.size())
+    {
+        binParent += "\nCanada";
+        return binParent;
+    }
+    string geoFile = wf.load(geoPath);
+    string regionName8 = jf.asciiToUTF8(regionName);
+    pos1 = geoFile.find(regionName8);
+    if (pos1 > geoFile.size()) { jf.err("Region not found in geo-sc.makeBinParent"); }
+    pos1 = geoFile.find('$', pos1) + 1;
+    pos2 = geoFile.find_first_of("\r\n", pos1);
+    string temp = geoFile.substr(pos1, pos2 - pos1);
+    int indent;
+    try { indent = stoi(temp); }
+    catch (invalid_argument) { jf.err("stoi-sc.makeBinParent"); }
+    if (indent == 0)
+    {
+        binParent += "\nNone";
+        return binParent;
+    }
+    indent--;
+    string sIndent = "$" + to_string(indent);
+    pos2 = geoFile.rfind(sIndent, pos1);
+    pos1 = geoFile.rfind('$', pos2 - 1) + 1;
+    temp = geoFile.substr(pos1, pos2 - pos1);
+    binParent += "\n" + temp;
+    return binParent;
+}
+string STATSCAN::makeBinPosition(vector<double> position)
+{
+    string binPosition = "//position(GPS)\n" + to_string(position[0]);
+    binPosition += "," + to_string(position[1]);
+    return binPosition;
+}
+string STATSCAN::makeBinScale(double scale)
+{
+    string binScale = "//scale(pixels per km)\n" + to_string(scale);
+    return binScale;
+}
+
 string STATSCAN::makeCreateGeo(string cataName)
 {
     // Note that this table must have unique rows.
@@ -1100,6 +1163,7 @@ string STATSCAN::makeCreateTMapIndex(string cataName)
     stmt += " (GID INTEGER PRIMARY KEY, \"Map Path\" TEXT, UNIQUE(GID));";
     return stmt;
 }
+
 vector<string> STATSCAN::makeInsertGeo(string& geoFile, string cataName)
 {
     vector<string> stmts;
@@ -1850,6 +1914,134 @@ vector<vector<string>> STATSCAN::navAsset()
     };
     return nA;
 }
+
+vector<vector<int>> STATSCAN::readBinBorder(string& binFile)
+{
+    vector<vector<int>> border;
+    size_t pos1 = binFile.find("//border"), nls;
+    if (pos1 > binFile.size()) { return border; }
+    size_t pos2 = binFile.find_first_of("1234567890", pos1);
+    string temp = binFile.substr(pos1, pos2 - pos1), nl, sx, sy;
+    pos2 = temp.find('\r');
+    if (pos2 > temp.size()) { nl = "\n"; nls = 1; }
+    else { nl = "\r\n"; nls = 2; }
+    temp = nl + nl;
+    size_t posEnd = binFile.find(temp, pos1);
+    if (posEnd > binFile.size()) { jf.err("No posEnd found-sc.readBinBorder"); }
+
+    int ix, iy;
+    pos1 = binFile.find_first_of("1234567890", pos1);
+    while (pos1 < posEnd)
+    {
+        pos2 = binFile.find(',', pos1);
+        sx = binFile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = binFile.find(nl, pos1);
+        sy = binFile.substr(pos1, pos2 - pos1);
+        try 
+        { 
+            ix = stoi(sx); 
+            iy = stoi(sy);
+        }
+        catch (invalid_argument) { jf.err("stoi-sc.readBinBorder"); }
+        border.push_back({ ix, iy });
+        pos1 = pos2 + nls;
+    }
+    return border;
+}
+vector<vector<vector<int>>> STATSCAN::readBinFrames(string& binFile)
+{
+    vector<vector<vector<int>>> frames;
+    size_t pos1 = binFile.find("//frames"), nls;
+    if (pos1 > binFile.size()) { return frames; }
+    size_t pos2 = binFile.find_first_of("1234567890", pos1);
+    string temp = binFile.substr(pos1, pos2 - pos1), nl, sx, sy;
+    pos2 = temp.find('\r');
+    if (pos2 > temp.size()) { nl = "\n"; nls = 1; }
+    else { nl = "\r\n"; nls = 2; }
+    temp = nl + nl;
+    size_t posEnd = binFile.find(temp, pos1);
+    if (posEnd > binFile.size()) { jf.err("No posEnd found-sc.readBinFrames"); }
+
+    int ix, iy, index;
+    pos1 = binFile.find_first_of("1234567890", pos1);
+    while (pos1 < posEnd)
+    {
+        index = frames.size();
+        frames.push_back(vector<vector<int>>());
+        pos2 = binFile.find(',', pos1);
+        sx = binFile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = binFile.find('@', pos1);
+        sy = binFile.substr(pos1, pos2 - pos1);
+        try
+        {
+            ix = stoi(sx);
+            iy = stoi(sy);
+        }
+        catch (invalid_argument) { jf.err("stoi-sc.readBinFrames"); }
+        frames[index].push_back({ ix, iy });
+
+        pos1 = pos2 + 1;
+        pos2 = binFile.find(',', pos1);
+        sx = binFile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = binFile.find(nl, pos1);
+        sy = binFile.substr(pos1, pos2 - pos1);
+        try
+        {
+            ix = stoi(sx);
+            iy = stoi(sy);
+        }
+        catch (invalid_argument) { jf.err("stoi-sc.readBinFrames"); }
+        frames[index].push_back({ ix, iy });
+        pos1 = pos2 + nls;
+    }
+    return frames;
+}
+string STATSCAN::readBinParent(string& binFile)
+{
+    string parent = "";
+    size_t pos1 = binFile.find("//parent");
+    if (pos1 > binFile.size()) { return parent; }
+    pos1 = binFile.find('\n', pos1) + 1;
+    size_t pos2 = binFile.find_first_of("\r\n", pos1);
+    parent = binFile.substr(pos1, pos2 - pos1);
+    return parent;
+}
+vector<double> STATSCAN::readBinPosition(string& binFile)
+{
+    vector<double> position = { -181.0, -181.0 };
+    size_t pos1 = binFile.find("//position(GPS)");
+    if (pos1 > binFile.size()) { return position; }
+    pos1 = binFile.find('\n', pos1) + 1;
+    size_t pos2 = binFile.find(',', pos1);
+    string latitude = binFile.substr(pos1, pos2 - pos1);
+    pos1 = pos2 + 1;
+    pos2 = binFile.find_first_of("\r\n", pos1);
+    string longitude = binFile.substr(pos1, pos2 - pos1);
+    position.resize(2);
+    try
+    {
+        position[0] = stod(latitude);
+        position[1] = stod(longitude);
+    }
+    catch (invalid_argument) { jf.err("stod-sc.readBinPosition"); }
+    return position;
+}
+double STATSCAN::readBinScale(string& binFile)
+{
+    double scale = -1.0;
+    size_t pos1 = binFile.find("//scale(pixels per km)");
+    if (pos1 > binFile.size()) { return scale; }
+    pos1 = binFile.find('\n', pos1) + 1;
+    size_t pos2 = binFile.find_first_of("\r\n", pos1);
+    string sScale = binFile.substr(pos1, pos2 - pos1);
+    try { scale = stod(sScale); }
+    catch (invalid_argument) { jf.err("stod-sc.readBinScale"); }
+    return scale;
+}
+
 vector<vector<string>> STATSCAN::readGeo(string& geoPath)
 {
     // First row is the geo layer data (province, cmaca, etc).

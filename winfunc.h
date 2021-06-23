@@ -39,7 +39,7 @@ public:
     string get_exec_path();
 	vector<string> getFileList(string folder_path, string search);
     vector<string> get_file_list(string folder_path, string search);
-    int get_file_path_number(string, string);
+    int get_file_path_number(string folder_path, string file_extension);
     vector<string> get_folder_list(string folder_path, string search);
 	string load(string filePath);
     void makeDir(string);

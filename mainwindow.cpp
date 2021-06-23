@@ -143,6 +143,36 @@ void MainWindow::bind(string& stmt, vector<string>& param)
         stmt.replace(pos1, 1, temp);
     }
 }
+void MainWindow::qshow(string message)
+{
+    QString qMessage = QString::fromUtf8(message.c_str(), -1);
+    ui->pte_search->setPlainText(qMessage);
+}
+
+// Mouse functions.
+void MainWindow::mousePressEvent(QMouseEvent* event)
+{
+    QPoint pointClick;
+    QString qTemp, qsX, qsY;
+    vector<int> clickCoord(2);
+    vector<string> promptUpdate;
+    double dist;
+    int inum;
+    if (event->button() == Qt::LeftButton)
+    {
+        pointClick = event->position().toPoint();
+        clickCoord[0] = pointClick.x();
+        clickCoord[1] = pointClick.y();
+    }
+    else if (event->button() == Qt::MiddleButton)
+    {
+        ui->checkB_override->setChecked(1);
+        pointClick = event->position().toPoint();
+        clickCoord[0] = pointClick.x();
+        clickCoord[1] = pointClick.y();
+    }
+    
+}
 
 // Local catalogue display.
 void MainWindow::on_cB_drives_currentTextChanged(const QString& arg1)
@@ -157,7 +187,7 @@ void MainWindow::on_cB_drives_currentTextChanged(const QString& arg1)
     vector<string> prompt = { sDrive };
     sb.set_prompt(prompt);
     sb.start_call(myid, 1, comm[0]);
-    std::thread thr(&MainWindow::scanLocalDrive, this, ref(sb), ref(jtCataLocal));
+    std::thread thr(&MainWindow::scanLocalCata, this, ref(sb), ref(jtCataLocal));
     thr.detach();
     ui->tabW_main->setCurrentIndex(0);
     while (1)
@@ -169,16 +199,16 @@ void MainWindow::on_cB_drives_currentTextChanged(const QString& arg1)
     }
     sb.end_call(myid);
     barText("Displaying local catalogues from drive " + sDrive);
+    qf.populateTree(ui->treeW_catalocal, jtCataLocal, 1);
     QTreeWidgetItem* qRoot = ui->treeW_catalocal->topLevelItem(0);
     qRoot->setExpanded(1);
 }
-void MainWindow::scanLocalDrive(SWITCHBOARD& sbgui, JTREE& jtgui)
+void MainWindow::scanLocalCata(SWITCHBOARD& sbgui, JTREE& jtgui)
 {
     thread::id myid = this_thread::get_id();
     vector<int> mycomm;
     sbgui.answer_call(myid, mycomm);
     vector<string> prompt = sbgui.get_prompt();
-
     string search = "*", yearPath, cataPath, geoPath;
     vector<string> folderList = wf.get_folder_list(prompt[0], search);
     vector<string> sYearList, cataList;
@@ -222,8 +252,7 @@ void MainWindow::scanLocalDrive(SWITCHBOARD& sbgui, JTREE& jtgui)
                 jtCataLocal.addChild(folderList[jj], csvCount[jj], iYearList[ii]);
             }
         }
-    }
-    qf.populateTree(ui->treeW_catalocal, jtCataLocal, 1);
+    }   
     mycomm[0] = 1;
     sbgui.update(myid, mycomm);
 }
@@ -391,96 +420,229 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 
 }
 
-/*
-
-// Mouse functions.
-void MainWindow::mousePressEvent(QMouseEvent* event)
+// Local map display.
+void MainWindow::on_pB_maplocal_clicked()
 {
-    QPoint pointClick;
-    vector<int> clickCoord(2);
-    vector<string> promptUpdate;
-    double dist;
-    int inum;
-    if (event->button() == Qt::LeftButton)
+    // Search the local drive for map folders (mapsBIN, mapsPNG, mapsPDF). 
+    QString qTemp = ui->cB_drives->currentText();
+    string sDrive = qTemp.toStdString();
+    sDrive.pop_back();
+    while (sDrive[0] == ' ') { sDrive.erase(sDrive.begin()); }
+    jtMapLocal.init("", sDrive);
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0].assign(comm_length, 0);
+    thread::id myid = this_thread::get_id();
+    vector<string> prompt = { sDrive };
+    sb.set_prompt(prompt);
+    sb.start_call(myid, 1, comm[0]);
+    std::thread thr(&MainWindow::scanLocalMap, this, ref(sb), ref(jtMapLocal));
+    thr.detach();
+    ui->tabW_main->setCurrentIndex(1);
+    while (1)
     {
-        pointClick = event->position().toPoint();
-        clickCoord[0] = pointClick.x();
-        clickCoord[1] = pointClick.y();
+        Sleep(gui_sleep);
+        QCoreApplication::processEvents();
+        comm = sb.update(myid, comm[0]);
+        if (comm.size() > 1 && comm[1][0] == 1) { break; }
     }
-    else if (event->button() == Qt::MiddleButton)
+    sb.end_call(myid);
+    barText("Displaying local maps from drive " + sDrive);
+    qf.populateTree(ui->treeW_maplocal, jtMapLocal, 2);
+    QTreeWidgetItem* qNode, *qRoot = ui->treeW_maplocal->topLevelItem(0);
+    qRoot->setExpanded(1);
+    int numKids = qRoot->childCount();
+    for (int ii = 0; ii < numKids; ii++)
     {
-        ui->checkB_override->setChecked(1);
-        pointClick = event->position().toPoint();
-        clickCoord[0] = pointClick.x();
-        clickCoord[1] = pointClick.y();
-    }
-    if (active_mode == 1)  // Online mode.
-    {
-        if (ui->tabW_online->currentIndex() == 2)
-        {
-            if (remote_controller == 3 && debugMapCoord.size() > 0)
-            {
-                inum = qf.getLastMap();
-                if (inum == 0)
-                {
-                    clickCoord[0] += labelMapsDx + debugMapCoord[0][0];
-                    clickCoord[1] += labelMapsDy + debugMapCoord[0][1];
-                    if (ui->checkB_override->isChecked())
-                    {
-                        qf.debugMapSelected(ui->label_maps, clickCoord, debugMapCoord);
-                        promptUpdate = { "", "", jf.stringifyCoord(clickCoord) };
-                        sb.set_prompt(promptUpdate);
-                        advBuffer = 1;
-                        remote_controller = 1;
-                        ui->pB_pause->setEnabled(1);
-                        ui->pB_resume->setEnabled(0);
-                        ui->pB_backspace->setEnabled(0);
-                        ui->checkB_override->setChecked(0);
-                    }
-                    else
-                    {
-                        for (int ii = 1; ii < debugMapCoord.size(); ii++)
-                        {
-                            dist = mf.coordDist(clickCoord, debugMapCoord[ii]);
-                            if (dist < 5.0)
-                            {
-                                qf.debugMapSelected(ui->label_maps, ii, debugMapCoord);
-                                promptUpdate = { "", jf.stringifyCoord(debugMapCoord[ii]) };
-                                sb.set_prompt(promptUpdate);
-                                remote_controller = 0;
-                                ui->pB_pause->setEnabled(1);
-                                ui->pB_resume->setEnabled(0);
-                                ui->pB_backspace->setEnabled(0);
-                                break;
-                            }
-                        }
-                    }
-                }
-                else if (inum == 1)
-                {
-                    clickCoord[0] += labelMapsDx;
-                    clickCoord[1] += labelMapsDy;
-                    promptUpdate = { jf.stringifyCoord(clickCoord) };
-                    qDebug() << "Click: " << QString::fromStdString(promptUpdate[0]);
-                }
-            }
-            else if (ui->checkB_eraser->isChecked())
-            {
-                clickCoord[0] += labelMapsDx;
-                clickCoord[1] += labelMapsDy;
-                vector<vector<int>> TLBR(2, vector<int>(2));
-                TLBR[0] = clickCoord;
-                TLBR[1][0] = TLBR[0][0] + widthEraser;
-                TLBR[1][1] = TLBR[0][1] + widthEraser;
-                qf.eraser(ui->label_maps, TLBR);
-                countEraser++;
-                ui->pB_undo->setEnabled(1);
-                ui->pB_savemap->setEnabled(1);
-            }
-        }
+        qNode = qRoot->child(ii);
+        qNode->setExpanded(1);
     }
 }
+void MainWindow::scanLocalMap(SWITCHBOARD& sbgui, JTREE& jtgui)
+{
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm, treePLi;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();
+    vector<string> mapFolders = { "mapsBIN", "mapsPDF", "mapsPNG" };
+    vector<string> mapExt = { ".bin", ".pdf", ".png" };
+    vector<vector<int>> treeST;
+    vector<string> treePL;
+    string temp, folderRoot, treeRoot;
+    int finalFolderIndex;
+    for (int ii = 0; ii < mapFolders.size(); ii++)
+    {
+        folderRoot = prompt[0] + "\\" + mapFolders[ii];
+        treeST = { {0} };
+        treePL = { folderRoot };                    // Firstly, make a tree from
+        wf.getTreeFolder(0, treeST, treePL);        // the relevant subfolders.        
+        treePLi.clear();
+        treePLi.resize(treeST.size());
+        finalFolderIndex = treeST.size() - 1;
+        for (int jj = 0; jj <= finalFolderIndex; jj++)
+        {
+            treePLi[jj] = wf.get_file_path_number(treePL[jj], mapExt[ii]);
+        }
+        treeRoot = jtgui.getRootName();
+        jtgui.addBranchSTPL(treeST, treePL, treePLi, treeRoot);       
+    }
+    jtgui.setRemovePath(1);
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+}
+void MainWindow::on_treeW_maplocal_itemSelectionChanged()
+{
+    QList<QTreeWidgetItem*> qList = ui->treeW_maplocal->selectedItems();
+    if (qList.size() == 0)
+    {
+        ui->pB_convert->setEnabled(0);
+        return;
+    }
+    QTreeWidgetItem* qParent = qList[0]->parent();
+    if (qParent == nullptr)
+    {
+        ui->pB_convert->setEnabled(0);
+        return;
+    }
+    ui->pB_convert->setEnabled(1);
+}
 
+// Local map conversion.
+void MainWindow::on_pB_convert_clicked()
+{
+    QList<QTreeWidgetItem*> qSel = ui->treeW_maplocal->selectedItems();
+    if (qSel.size() != 1) { return; }
+    string folderPath = qf.getBranchPath(qSel[0], jtMapLocal.pathRoot);
+    size_t pos1 = folderPath.find("mapsPDF");
+    if (pos1 < folderPath.size()) { qshow("PDF->PNG needs work."); return; }
+    pos1 = folderPath.find("mapsPNG");
+    if (pos1 < folderPath.size()) { qshow("PNG->BIN needs work."); return; }
+    pos1 = folderPath.find("mapsBIN");
+    if (pos1 < folderPath.size())
+    {
+        qshow("Launching BIN map upgrades...");
+        vector<vector<int>> comm(1, vector<int>());
+        comm[0].assign(comm_length, 0);
+        thread::id myid = this_thread::get_id();
+        vector<string> prompt = { folderPath };
+        sb.set_prompt(prompt);
+        sb.start_call(myid, 1, comm[0]);
+        std::thread thr(&MainWindow::upgradeBinMap, this, ref(sb));
+        thr.detach();
+        ui->tabW_main->setCurrentIndex(1);
+        while (1)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm.size() > 1) { break; }
+        }
+        while (comm[0][0] == 0)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm[0][2] == 0 && comm[1][2] > 0)
+            {
+                comm[0][2] = comm[1][2];
+                barReset(comm[0][2], "Upgrading BIN maps in " + prompt[0] + " ...");
+            }
+            if (comm[1][1] > comm[0][1])
+            {
+                comm[0][1] = comm[1][1];
+                barUpdate(comm[0][1]);
+            }
+            if (comm[1][0] == 1)
+            {
+                barUpdate(comm[0][2]);
+                comm[0][0] = 1;
+            }
+        }
+        sb.end_call(myid);
+        barText("Finished upgrading BIN maps from " + prompt[0]);
+    }
+}
+void MainWindow::upgradeBinMap(SWITCHBOARD& sbgui)
+{
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();
+    vector<vector<vector<int>>> frames;
+    vector<vector<int>> border;
+    vector<double> position;
+    double scale;
+    size_t pos1;
+    string temp, binPath, binFile, binFileNew, parent, myName;
+    vector<string> binNameList = wf.get_file_list(prompt[0], "*.bin");
+    mycomm[2] = binNameList.size();
+    sbgui.update(myid, mycomm);
+    for (int ii = 0; ii < binNameList.size(); ii++)
+    {
+        binPath = prompt[0] + "\\" + binNameList[ii];
+        binFile = wf.load(binPath);
+
+        frames = sc.readBinFrames(binFile);
+        if (frames.size() != 3) { qDebug() << binNameList[ii].c_str() << " needs FRAMES"; }
+        else { binFileNew += sc.makeBinFrames(frames) + "\n\n"; }
+        
+        scale = sc.readBinScale(binFile);
+        if (scale < 0.0) { qDebug() << binNameList[ii].c_str() << " needs SCALE"; }
+        else { binFileNew += sc.makeBinScale(scale) + "\n\n"; }
+        
+        parent = sc.readBinParent(binFile);
+        if (parent.size() < 1) { binFileNew += sc.makeBinParentNew(binPath) + "\n\n"; }
+        else { binFileNew += sc.makeBinParent(parent) + "\n\n"; }
+        
+        position = sc.readBinPosition(binFile);
+        if (position[0] < -180.0)
+        {
+            pos1 = binNameList[ii].rfind(".bin");
+            myName = binNameList[ii].substr(0, pos1);
+            temp = sc.readBinParent(binFileNew);
+            parent = jf.utf8ToAscii(temp);
+            position = io.getBinPosition(ui->pte_search, myName, parent);
+            binFileNew += sc.makeBinPosition(position) + "\n\n";
+        }
+        else { binFileNew += sc.makeBinPosition(position) + "\n\n"; }
+
+        border = sc.readBinBorder(binFile);
+        if (border.size() < 1) { qDebug() << binNameList[ii].c_str() << " needs BORDER"; }
+        else { binFileNew += sc.makeBinBorder(border) + "\n\n"; }
+
+        jf.printer(binPath, binFileNew);
+        mycomm[1]++;
+        sbgui.update(myid, mycomm);
+    }
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+}
+
+// Modes: 0 = download given webpage
+void MainWindow::on_pB_test_clicked()
+{
+    int mode = 1;
+
+    switch (mode)
+    {
+    case 0:  // Download the webpage given by the text box's URL.
+    {
+        QString qtemp = ui->pte_search->toPlainText();
+        string url = qtemp.toStdString();
+        wstring webpage = wf.browseW(url);
+        jf.printer(sroot + "\\Test webpage.txt", webpage);
+        return;
+    }
+    case 1:
+    {
+        io.test1(ui->pte_search);
+        break;
+    }
+    }
+
+    int bbq = 1;
+}
+
+/*
 
 // GUI UPDATE FUNCTIONS
 void MainWindow::update_treeW_cataindb()
@@ -2248,108 +2410,7 @@ void MainWindow::on_pB_search_clicked()
     }
 }
 
-// Search the database local drive for maps folders. Display the cumulative
-// results as a tree, with only the best map (BIN > PNG > PDF) shown. 
-void MainWindow::on_pB_localmaps_clicked()
-{
-    string pathFolder, search, nameLeaf, temp, pathSelected, nameSelected;
-    string nameRoot = "Local Maps";
-    string pathRoot = sroot;
-    QString qtemp;
-    vector<vector<int>> treeST;
-    vector<int> treeiPL;
-    vector<string> treePL, listName;
-    QTreeWidgetItem* qnode = nullptr, *qParent = nullptr;
-    QList<QTreeWidgetItem*> qSelected;
-    size_t pos1;
-    bool success;
-    int numFolder, numFile, iValue;
-    int numRoots = ui->treeW_maps->topLevelItemCount();
-    if (numRoots == 0)  // Populate the QTree with all the map folders.
-    {       
-        jtMaps.init(nameRoot, pathRoot);
-        treeST = { { 0 } };
-        treePL = { pathRoot };
-        search = "maps*";
-        wf.getLayerFolder(0, treeST, treePL, search);
-        numFolder = treePL.size();
-        for (int ii = 1; ii < numFolder; ii++)
-        {
-            wf.getTreeFolder(ii, treeST, treePL);
-        }
-        treeiPL.assign(treeST.size(), -1);  // Folders always get an iValue of -1.
-        jtMaps.inputTreeSTPL(treeST, treePL, treeiPL);
-        qnode = new QTreeWidgetItem();
-        qtemp = QString::fromStdString(nameRoot);
-        qnode->setText(0, qtemp);
-        qnode->setText(1, "");
-        populateQTree(jtMaps, qnode, nameRoot);
-        ui->treeW_maps->addTopLevelItem(qnode);
-    }
-    else
-    {
-        qSelected = ui->treeW_maps->selectedItems();
-        if (qSelected.size() < 1) { return; }
-        qtemp = qSelected[0]->text(1);
-        if (qtemp == "")  // Is folder.
-        {
-            qtemp = qSelected[0]->text(0);
-            qf.deleteLeaves(qSelected[0]);
-        }
-        else  // Is leaf.
-        {
-            qtemp = qSelected[0]->parent()->text(0);
-            qnode = qSelected[0]->parent();
-            qf.deleteLeaves(qnode);
-        }
-        nameSelected = qtemp.toStdString();
-        jtMaps.deleteLeaves(nameSelected);
 
-        pathSelected = nameSelected;
-        qParent = qSelected[0]->parent();
-        while (qParent != nullptr)
-        {
-            qtemp = qParent->text(0);
-            pathSelected = qtemp.toStdString() + "\\" + pathSelected;
-            qnode = qParent;
-            qParent = qnode->parent();
-        }
-        pos1 = pathSelected.find('\\');
-        temp = pathSelected.substr(pos1);
-        pathSelected = pathRoot + temp;
-        temp.push_back('\\');
-        pos1 = temp.find('\\', 1);
-        temp = temp.substr(1, pos1 - 1);
-        if (temp == "mapsBIN") { search = ".bin"; }
-        else if (temp == "mapsPNG") { search = ".png"; }
-        else if (temp == "mapsPDF") { search = ".pdf"; }
-        else { err("Failed to locate mapsX folder-MainWindow.on_pB_localmaps_clicked"); }
-        search = "*" + search;
-        listName = wf.get_file_list(pathSelected, search);
-        selectedMapFolder = pathSelected;
-        numFile = listName.size();
-        nameLeaf = temp.substr(4);
-        nameLeaf += " Maps";
-
-        qf.displayBinList(ui->listW_bindone, listName);
-
-        jtMaps.addChild(nameLeaf, numFile, pathSelected);
-        qtemp = QString::fromStdString(nameLeaf);
-        qnode = new QTreeWidgetItem(qSelected[0]);
-        qnode->setText(0, qtemp);
-        qtemp.setNum(numFile);
-        qnode->setText(1, qtemp);
-        qnode->setExpanded(1);
-    }
-    ui->tabW_online->setCurrentIndex(1);
-    qParent = ui->treeW_maps->topLevelItem(0);
-    qParent->setExpanded(1);
-    qnode = qParent->child(0);
-    qnode->setExpanded(1);
-    qParent = qnode;
-    qnode = qParent->child(1);
-    qnode->setExpanded(1);
-}
 void MainWindow::populateQTree(JTREE& jtx, QTreeWidgetItem*& qMe, string myName)
 {
     // Given a JTREE structure and a qRoot, make a qTree from the JTREE.
@@ -3309,582 +3370,6 @@ void MainWindow::insertMapWorker(SWITCHBOARD& sbgui, SQLFUNC& sf)
     }
     mycomm[0] = 1;
     sbgui.update(myid, mycomm);
-}
-
-// Modes: 0 = download given webpage
-void MainWindow::on_pB_test_clicked()
-{
-    int mode = 10;
-
-    switch (mode)
-    {
-    case 0:  // Download the webpage given by the text box's URL.
-    {
-        QString qtemp = ui->pte_webinput->toPlainText();
-        string url = qtemp.toStdString();
-        wstring webpage = wf.browseW(url);
-        jf.printer(sroot + "\\Test webpage.txt", webpage);
-        return;
-    }
-    case 1:  // Fix UTF-8 filenames into ASCII, for the given year's CSVs.
-    {
-        QString qtemp = ui->pte_webinput->toPlainText();
-        string sYear = qtemp.toStdString();
-        int iYear;
-        try { iYear = stoi(sYear); }
-        catch (invalid_argument& ia) { jf.err("stoi-MainWindow.test"); }
-        string pathFolderYear = sroot + "\\" + sYear;
-        string search = "*", pathFolderCata, csvPath, csvPathAscii, asciiName;
-        vector<string> listFolderName = wf.get_folder_list(pathFolderYear, search);
-        vector<string> listCSVName;
-        search = "*.csv";
-        for (int ii = 0; ii < listFolderName.size(); ii++)
-        {
-            pathFolderCata = pathFolderYear + "\\" + listFolderName[ii];
-            listCSVName = wf.getFileList(pathFolderCata, search);
-            for (int jj = 0; jj < listCSVName.size(); jj++)
-            {
-                for (int kk = 0; kk < listCSVName[jj].size(); kk++)
-                {
-                    if (listCSVName[jj][kk] == -61)
-                    {
-                        csvPath = pathFolderCata + "\\" + listCSVName[jj];
-                        wf.delete_file(csvPath);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    case 2:  // For every file in the given folder, force the file name into ASCII.
-    {
-        QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
-        if (qlist.size() != 1) { return; }
-        string folderPath = qf.getBranchPath(qlist[0], sroot);
-        makeTempASCII(folderPath);
-        int bbq = 1;
-        break;
-    }
-    case 3:  // For every bin map in the selected folder, convert frame coords to ints.
-    {
-        QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
-        if (qlist.size() != 1) { return; }
-        string folderPath = qf.getBranchPath(qlist[0], sroot);
-        string search = "*.bin", pathBin, sfile;
-        vector<string> listBinName = wf.get_file_list(folderPath, search);
-        size_t pos1, pos2;
-        for (int ii = 0; ii < listBinName.size(); ii++)
-        {
-            pathBin = folderPath + "\\" + listBinName[ii];
-            sfile = jf.load(pathBin);
-            pos1 = 0;
-            for (int jj = 0; jj < 4; jj++)
-            {
-                pos1 = sfile.find('.', pos1 + 1);
-                if (pos1 > sfile.size()) { break; }
-                pos2 = sfile.find(',', pos1);
-                sfile.erase(pos1, pos2 - pos1);
-                pos1 = sfile.find('.', pos1);
-                pos2 = sfile.find_first_of("\r\n", pos1);
-                sfile.erase(pos1, pos2 - pos1);
-            }
-            jf.printer(pathBin, sfile);
-        }
-        break;
-    }
-    case 4:  // For every bin map in the selected folder, update its frames to include scale and position.
-    {
-        QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
-        if (qlist.size() != 1) { return; }
-        string folderPath = qf.getBranchPath(qlist[0], sroot);
-        string search = "*.bin", pathBin, pathPng, sfileOld, sfileNew, temp;
-        vector<string> dirt = { "mapsBIN", ".bin" };
-        vector<string> soap = { "mapsPNG", ".png" };
-        vector<string> otherDirt = { "\r", "\u00E9", "\u00CE", "\u00C9" };
-        vector<string> listBinName = wf.get_file_list(folderPath, search);
-        string folderPathPNG = folderPath;
-        //makeTempASCII(folderPathPNG);
-        size_t pos1, pos2;
-        vector<vector<vector<int>>> threeFrames;
-        for (int ii = 0; ii < listBinName.size(); ii++)
-        {
-            pathBin = folderPath + "\\" + listBinName[ii];
-            sfileOld = jf.load(pathBin);
-            pos1 = sfileOld.find("//frames");
-            pos1 = sfileOld.find('\n', pos1);
-            pos1 = sfileOld.find('@', pos1);
-            if (pos1 < sfileOld.size()) { continue; }
-            temp = jf.asciiOnly(listBinName[ii]);           
-            pathPng = folderPathPNG + "\\" + temp;
-            jf.clean(pathPng, dirt, soap);
-            im.pngLoad(pathPng);
-            threeFrames = im.pngThreeFrames();
-            sfileNew = "//frames\n";
-            for (int jj = 0; jj < 3; jj++)
-            {
-                sfileNew += to_string(threeFrames[jj][0][0]) + ",";
-                sfileNew += to_string(threeFrames[jj][0][1]) + "@";
-                sfileNew += to_string(threeFrames[jj][1][0]) + ",";
-                sfileNew += to_string(threeFrames[jj][1][1]) + "\n";
-            }
-            sfileNew += "\n";
-            pos1 = sfileOld.find("//border");
-            pos2 = sfileOld.rfind(',');
-            pos2 = sfileOld.find("\n", pos2) + 1;
-            temp = sfileOld.substr(pos1, pos2 - pos1);
-            sfileNew.append(temp);
-            jf.printer(pathBin, sfileNew);
-        }
-        //makeTempASCII(folderPathPNG);
-        break;
-    }
-    case 5:  // For every pdf map in the selected folder, extract its text. 
-    {
-        QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
-        if (qlist.size() != 1) { return; }
-        string folderPath = qf.getBranchPath(qlist[0], sroot);
-        string search = "*.pdf", pathPdf, pathTxt, sfileOld, sfileNew, temp;
-        vector<string> dirt = { "mapsBIN", ".bin" };
-        vector<string> soap = { "mapsPDF", ".pdf" };
-        vector<string> otherDirt = { "\r", "\u00E9", "\u00CE", "\u00C9" };
-        jf.clean(folderPath, dirt, soap);
-        vector<string> listPdfName = wf.get_file_list(folderPath, search);
-        dirt = { ".pdf" };
-        soap = { ".txt" };
-        for (int ii = 0; ii < listPdfName.size(); ii++)
-        {
-            pathPdf = folderPath + "\\" + listPdfName[ii];
-            pathTxt = pathPdf;
-            jf.clean(pathTxt, dirt, soap);
-            gf.pdfToTxt(pathPdf, pathTxt);
-        }
-        break;
-    }
-    case 6:  // For every bin map in the selected folder, add a section for scale (pixels per kilometer).
-    {
-        QList<QTreeWidgetItem*> qlist = ui->treeW_maps->selectedItems();
-        if (qlist.size() != 1) { return; }
-        string folderPath = qf.getBranchPath(qlist[0], sroot);
-        string search = "*.bin", pathBIN, pathPNG, pathTXT, sfileOld, sfileNew, temp, utf8;
-        vector<string> listBinName = wf.get_file_list(folderPath, search), dirt, soap;
-        size_t pos1, pos2;
-        int scalePixels;
-        double PPKM;
-        vector<string> otherDirt = { "\u00E9", "\u00CE", "\u00C9", "\u00E8" };
-        vector<vector<vector<int>>> threeFrames;
-        string status = "Updating BIN map : ";
-        reset_bar(listBinName.size(), status);
-        for (int ii = 0; ii < listBinName.size(); ii++)
-        {
-            temp = status + listBinName[ii];
-            barMessage(temp);
-            pathBIN = folderPath + "\\" + listBinName[ii];
-            sfileOld = jf.load(pathBIN);
-            pos1 = sfileOld.find("//frames(");
-            if (pos1 < sfileOld.size()) 
-            { 
-                jobs_done++;
-                update_bar();
-                continue; 
-            }
-            sfileNew = "//frames(topLeft@botRight, showing 'maps', 'scale', 'position')\n";
-            pos1 = sfileOld.find("//frames") + 8;
-            pos1 = sfileOld.find_first_of("1234567890", pos1);
-            pos2 = sfileOld.find("//", pos1);
-            pos2 = sfileOld.find_last_of("1234567890", pos2) + 1;
-            temp = sfileOld.substr(pos1, pos2 - pos1);
-            sfileNew += temp + "\n\n";
-            sfileNew += "//scale(pixels per km)\n";
-            dirt = { "mapsBIN", ".bin" };
-            soap = { "mapsPNG", ".png" };
-            pathPNG = pathBIN;
-            jf.clean(pathPNG, dirt, soap);
-            utf8 = jf.asciiToUTF8(pathPNG);
-            jf.clean(utf8, otherDirt);
-            pathPNG = jf.utf8ToAscii(utf8);
-            im.pngLoad(pathPNG);
-            threeFrames = im.pngThreeFrames();
-            scalePixels = im.getScalePixels(threeFrames[1]);
-            soap = { "mapsPDF", ".txt" };
-            pathTXT = pathBIN;
-            jf.clean(pathTXT, dirt, soap);
-            PPKM = im.getPPKM(pathTXT, scalePixels);
-            sfileNew += to_string(PPKM) + "\n\n";
-            sfileNew += "//border\n";
-            pos1 = sfileOld.find("//border");
-            pos1 = sfileOld.find_first_of("1234567890", pos1);
-            pos2 = sfileOld.find_last_of("1234567890") + 1;
-            sfileNew += sfileOld.substr(pos1, pos2 - pos1);
-            sfileNew += "\n";
-            jf.printer(pathBIN, sfileNew);
-            jobs_done++;
-            update_bar();
-            QCoreApplication::processEvents();
-        }
-
-        break;
-    }
-    case 7:  // For every CSV in all subfolders, rewrite it as UTF8 if it is UTF16.
-    {
-        QString qYear = ui->pte_webinput->toPlainText();
-        string sYear = qYear.toStdString(), temp;
-        vector<string> dirt = { "/" };
-        vector<string> soap = { "or" };
-        int iYear, count, index;
-        size_t pos1, pos2, len, pos0;
-        try { iYear = stoi(sYear); }
-        catch (invalid_argument& ia)
-        {
-            qYear = "Not a valid year.";
-            ui->pte_webinput->setPlainText(qYear);
-            return;
-        }
-        string rootDir = sroot + "\\" + sYear;
-        vector<vector<int>> treeST;
-        vector<string> treePL, listCSVname;
-        string search = "*", cataPath, csvPath, sfile, utf8, nameInside, nameOutside;
-        wf.make_tree_local(treeST, treePL, 1, rootDir, 2, search);
-        search = "*.csv";
-        string status = "Converting UTF16 to UTF8 : ";
-        reset_bar(treePL.size(), status);
-        for (int ii = 1; ii < treePL.size(); ii++)
-        {
-            temp = status + treePL[ii];
-            barMessage(temp);
-            cataPath = rootDir + "\\" + treePL[ii];
-            listCSVname = wf.get_file_list(cataPath, search);
-            for (int jj = 0; jj < listCSVname.size(); jj++)
-            {
-                csvPath = cataPath + "\\" + listCSVname[jj];
-                sfile = jf.load(csvPath);
-                count = 0;
-                for (int kk = 0; kk < 8; kk++)
-                {
-                    if (sfile[kk] == 0) { count++; }
-                }
-                if (count == 4)  // UTF16...
-                {
-                    utf8.clear();
-                    utf8.resize(sfile.size() + 3);
-                    index = 0;
-                    for (int kk = 0; kk < sfile.size(); kk++)
-                    {
-                        if (sfile[kk] != 0)
-                        {
-                            utf8[index] = sfile[kk];
-                            index++;
-                        }
-                    }
-                    utf8.resize(index);
-                    jf.printer(csvPath, utf8);
-                }
-
-                /*
-                else   // FML...
-                {
-                    for (int ii = sfile.size() - 2; ii >= 0; ii--)
-                    {
-                        if (sfile[ii] != 0)
-                        {
-                            sfile.resize(ii + 1);
-                            break;
-                        }
-                    }
-                    pos1 = sfile.find("Geography = ");
-                    if (pos1 > sfile.size()) { err("FML-mw.test7"); }
-                    pos1 += 12;
-                    pos0 = pos1;
-                    pos2 = sfile.find_first_of("[\"", pos1);
-                    while (sfile[pos2 - 1] == ' ') { pos2--; }
-                    nameInside = sfile.substr(pos1, pos2 - pos1);
-                    len = nameInside.size();
-                    jf.clean(nameInside, dirt, soap);
-                    pos1 = csvPath.find(nameInside);
-                    if (pos1 > csvPath.size())
-                    {
-                        pos1 = csvPath.find(')') + 2;
-                        pos2 = csvPath.rfind(".csv");
-                        nameOutside = csvPath.substr(pos1, pos2 - pos1);
-                        jf.clean(nameOutside, soap, dirt);
-                        utf8 = jf.asciiToUTF8(nameOutside);
-                        sfile.replace(pos0, len, utf8);
-                    }
-                    jf.printer(csvPath, sfile);
-                }
-
-            }
-            jobs_done++;
-            update_bar();
-            QCoreApplication::processEvents();
-        }
-        int bbq = 1;
-        break;
-    }
-    case 8:  // For a given catalogue folder path, delete all CSVs with non-ASCII names.
-    {
-        QString qtemp = ui->pte_webinput->toPlainText();
-        string folderPath = qtemp.toStdString();
-        string search = "*.csv";
-        vector<string> listCSVname = wf.get_file_list(folderPath, search);
-        int numCSV = listCSVname.size();
-        search = "Deleting files ...";
-        reset_bar(numCSV, search);
-        for (int ii = 0; ii < numCSV; ii++)
-        {
-            for (int jj = 0; jj < listCSVname[ii].size(); jj++)
-            {
-                if (listCSVname[ii][jj] < 0)
-                {
-                    search = folderPath + "\\" + listCSVname[ii];
-                    wf.delete_file(search);
-                    break;
-                }
-            }
-            jobs_done++;
-            update_bar();
-        }
-    }
-    case 9:  // For a selected BIN map, slide it upward/leftward to reduce empty space.
-    {
-        QList<QListWidgetItem*> qSel = ui->listW_bindone->selectedItems();
-        if (qSel.size() != 1) { return; }
-        QString qtemp = qSel[0]->text();
-        wstring wTemp = qtemp.toStdWString();
-        string temp = jf.utf16to8(wTemp);
-        string mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
-        vector<vector<int>> frameCorners, border, TLBR;
-        //qf.loadBinMap(mapBinPath, frameCorners, border);
-        TLBR = im.makeBox(border);
-
-        string sfile = jf.load(mapBinPath);
-        size_t pos1 = sfile.find("//border");
-        pos1 = sfile.find('\n', pos1) + 1;
-        string newFile = sfile.substr(0, pos1);
-
-        int Dx, Dy, cushion = 120;
-        Dx = TLBR[0][0] - cushion;
-        Dy = TLBR[0][1] - cushion;
-        for (int ii = 0; ii < border.size(); ii++)
-        {
-            border[ii][0] -= Dx;
-            border[ii][1] -= Dy;
-            newFile += to_string(border[ii][0]) + "," + to_string(border[ii][1]) + "\n";
-        }
-        jf.printer(mapBinPath, newFile);
-        int bbq = 1;
-        break;
-    }
-    case 10: // Update a folder's worth of BIN maps to include position.
-    {
-        int numBin = ui->listW_bindone->count();
-        if (numBin < 1) { return; }
-        string temp = "test 10";
-        reset_bar(numBin, temp);
-        for (int ii = 0; ii < numBin; ii++)
-        {
-            ui->listW_bindone->setCurrentRow(ii, QItemSelectionModel::Select);
-            on_pB_pos_clicked();
-            ui->listW_bindone->setCurrentRow(ii, QItemSelectionModel::Deselect);
-            jobs_done++;
-            update_bar();
-            QCoreApplication::processEvents();
-        }
-        break;
-    }
-    case 11: // For a given [pngPath \n binPath], make a single bin map.
-    {
-        QString qtemp = ui->pte_webinput->toPlainText(), qMessage;
-        string temp = qtemp.toStdString(), temp8;
-        string sfile = jf.load(temp);
-        thread::id myid = this_thread::get_id();
-        vector<vector<int>> comm(1, vector<int>());
-
-        vector<string> prompt(4);  // Form ["width,height", "startX,startY", pngPath, binPath].
-        int inum = ui->label_maps->width(), error;
-        prompt[0] += to_string(inum) + ",";
-        inum = ui->label_maps->height();
-        prompt[0] += to_string(inum);
-
-        size_t pos1 = sfile.find("//pathPNG");
-        pos1 = sfile.find('\n', pos1) + 1;
-        size_t pos2 = sfile.find('\r', pos1);
-        prompt[2] = sfile.substr(pos1, pos2 - pos1);
-
-        vector<string> listBIN, listCoord, debugPath, bagOfAir, vsTemp;
-        size_t pos3 = sfile.find("//pathBIN");
-        pos1 = sfile.find('\n', pos3) + 1;
-        pos2 = sfile.find('\r', pos1);
-        pos3 = sfile.find("\r\n\r\n", pos3);
-        while (pos1 < pos3)
-        {
-            temp8 = sfile.substr(pos1, pos2 - pos1);
-            temp = jf.utf8ToAscii(temp8);
-            listBIN.push_back(temp);
-            pos1 = pos2 + 2;
-            pos2 = sfile.find('\r', pos1);
-        }
-        pos3 = sfile.find("//borderStart");
-        pos1 = sfile.find('\n', pos3) + 1;
-        pos2 = sfile.find('\r', pos1);
-        pos3 = sfile.find("\r\n\r\n", pos3);
-        while (pos1 < pos3)
-        {
-            temp8 = sfile.substr(pos1, pos2 - pos1);
-            temp = jf.utf8ToAscii(temp8);
-            listCoord.push_back(temp);
-            pos1 = pos2 + 2;
-            pos2 = sfile.find('\r', pos1);
-        }
-
-        ui->tabW_online->setCurrentIndex(2);
-        qf.initPixmap(ui->label_maps);
-        for (int ii = 0; ii < listBIN.size(); ii++)
-        {
-            if (wf.file_exist(listBIN[ii])) { continue; }
-            prompt[1] = listCoord[ii];
-            prompt[3] = listBIN[ii];
-            comm.resize(1);
-            comm[0].assign(comm_length, 0);
-            error = sb.start_call(myid, 1, comm[0]);
-            if (error) { errnum("start_call-MainWindow.test11", error); }
-            sb.set_prompt(prompt);
-            std::thread thr(&MainWindow::convertSingle, this, ref(sb));
-            thr.detach();
-            while (comm.size() < 2)
-            {
-                Sleep(gui_sleep);
-                comm = sb.update(myid, comm[0]);
-            }
-            while (comm[0][0] == 0)
-            {
-                Sleep(gui_sleep);
-                QCoreApplication::processEvents();
-                comm = sb.update(myid, comm[0]);
-                if (comm[1][0] == 1)
-                {
-                    error = sb.end_call(myid);
-                    if (error) { errnum("sb.end_call-test11", error); }
-                    comm[0][0] = 1;
-                }
-                else if (comm[1][0] == 3)
-                {
-                    debugPath = sb.get_prompt();
-                    sb.set_prompt(bagOfAir);
-                    qf.displayDebug(ui->label_maps, debugPath, debugMapCoord);
-                    if (debugPath.size() > 1)
-                    {
-                        try
-                        {
-                            inum = stoi(debugPath[1]);
-                            qMessage = "Center point index: ";
-                            qMessage.append(debugPath[1].c_str());
-                            if (debugPath.size() > 2)
-                            {
-                                pos1 = debugPath[2].rfind('\\') + 1;
-                                temp = debugPath[2].substr(pos1);
-                                qtemp = QString::fromStdString(temp);
-                                qMessage.append("\n");
-                                qMessage.append(qtemp);
-                            }
-                            ui->pte_webinput->setPlainText(qMessage);
-                        }
-                        catch (invalid_argument) {}
-                    }
-                    ui->pB_resume->setEnabled(1);
-                    ui->pB_pause->setEnabled(0);
-                    ui->pB_advance->setEnabled(1);
-                    ui->pB_backspace->setEnabled(1);
-                    remote_controller = 3;
-                    while (1)
-                    {
-                        comm[0][0] = 3;
-                        QCoreApplication::processEvents();
-                        comm = sb.update(myid, comm[0]);
-                        if (remote_controller == 1 && comm[0][0] == 3)
-                        {
-                            vsTemp = sb.get_prompt();
-                            if (vsTemp.size() == 3)  // Keep coords in vsTemp[2].
-                            {
-                                vsTemp[0] = to_string(advBuffer);
-                            }
-                            else
-                            {
-                                vsTemp = { to_string(advBuffer) };
-                            }
-                            advBuffer = -1;
-                            sb.set_prompt(vsTemp);
-                            comm[0][0] = 0;
-                            sb.update(myid, comm[0]);
-                        }
-                        else if (remote_controller == 4 && comm[0][0] == 3)
-                        {
-                            vsTemp = { to_string(-1 * backBuffer) };
-                            backBuffer = -1;
-                            sb.set_prompt(vsTemp);
-                            comm[0][0] = 0;
-                            sb.update(myid, comm[0]);
-                        }
-                        if (comm[1][0] == 0)
-                        {
-                            if (remote_controller == 4) { remote_controller = 1; }
-                            ui->checkB_override->setChecked(0);
-                            break;
-                        }
-                        else if (comm[1][0] == 1)
-                        {
-                            remote_controller = 0;
-                            comm[0][0] = 1;
-                            break;
-                        }
-                        Sleep(50);
-                    }
-                }
-            }
-            sb.end_call(myid);
-        }
-        qtemp = "Done!";
-        ui->pte_webinput->setPlainText(qtemp);
-        break;
-    }
-    case 12:  // For all catalogues in the database, add their TMaps if needed.
-    {
-        vector<string> search = { "Year", "Name" };
-        string temp = "TCatalogueIndex", geoPath;
-        vector<vector<string>> vvsResult;
-        sf.select(search, temp, vvsResult);
-        QString qtemp;
-        ui->listW_statscan->clear();
-        for (int ii = 0; ii < vvsResult.size(); ii++)
-        {
-            qtemp = QString::fromStdString(vvsResult[ii][1]);
-            ui->listW_statscan->addItem(qtemp);
-        }
-        QCoreApplication::processEvents();
-
-        vector<int> gidList;
-        vector<string> regionList, layerList, geoLayers;
-        for (int ii = 0; ii < vvsResult.size(); ii++)
-        {
-            barMessage("Adding " + vvsResult[ii][1]);
-            geoPath = sroot + "\\" + vvsResult[ii][0] + "\\" + vvsResult[ii][1];
-            geoPath += "\\" + vvsResult[ii][1] + " geo list.bin";
-            sc.loadGeo(geoPath, gidList, regionList, layerList, geoLayers);
-            addTMap(sf, gidList, regionList, layerList, vvsResult[ii][1]);
-        }
-        temp = "Finished test12.";
-        barMessage(temp);
-        break;
-    }
-    case 13:  // Remove all 'incomplete' entries in TCatalogueIndex.
-    {
-        string stmt = "DELETE FROM TCatalogueIndex WHERE (Description ";
-        stmt += "LIKE 'Incomplete');";
-        sf.executor(stmt);
-        break;
-    }
-    }
-
-    int bbq = 1;
 }
 
 // Update button status (enabled/disabled).

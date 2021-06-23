@@ -15,11 +15,10 @@ class STATSCAN
 
 	string cata_path, cata_name, cata_desc, cataName;
 	int columnLimit = 2000;
-	vector<string> column_titles;
+	vector<string> column_titles, binParameter;
 	string create_csv_table_template;
 	vector<string> csv_branches;
 	vector<vector<int>> csv_tree;  // Form [row_index][ancestor1's row_index, ... , (neg) row_index, child1's row_index, ...].
-	//size_t final_text_var = 0;
 	vector<string> gid_list;
 	string insert_csv_row_template;
 	string insert_primary_template;
@@ -37,8 +36,6 @@ public:
 	explicit STATSCAN(string path) : cata_path(path) {}
 	STATSCAN() {}
 	~STATSCAN() {}
-	void initialize(string cataPath);
-	void set_path(string);
 	int cata_init(string&);
 	void cleanURL(string& url);
 	vector<string> disassembleNameCSV(string& fileName);
@@ -54,7 +51,7 @@ public:
 	vector<vector<string>> extract_rows(string& sfile, int& damaged, size_t& finalTextVar);
 	vector<vector<string>> extractTitles(string& csvFile);
 	string geoLinkToRegionUrl(string& urlGeoList, string& geoLink);
-	vector<string> getLayerSelected(string& sfile);
+	vector<string> getBinParameter() { return binParameter; }
 	string get_cata_desc();
 	string get_cata_name();
 	vector<string> get_column_titles();
@@ -64,11 +61,18 @@ public:
 	vector<string> get_gid_list();
 	string get_insert_csv_row_template();
 	string get_insert_primary_template();
+	vector<string> getLayerSelected(string& sfile);
 	int get_num_subtables();
 	string get_subtable_name_template(int);
 	void initGeo();
 	void loadGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
 	vector<string> linearize_row_titles(vector<vector<string>>&, vector<string>&);
+	string makeBinBorder(vector<vector<int>>& border);
+	string makeBinParent(string parent);
+	string makeBinParentNew(string binPath);
+	string makeBinFrames(vector<vector<vector<int>>>& frames);
+	string makeBinPosition(vector<double> position);
+	string makeBinScale(double scale);
 	string makeCreateGeo(string cataName);
 	string makeCreateGeoLayers(string cataName);
 	string makeCreateRowColTitle(string cataName);
@@ -97,9 +101,15 @@ public:
 	int make_tgrow_statements(vector<string>&);
 	string mapLinkToPDFUrl(string& urlMap, string& mapLink);
 	vector<vector<string>> navAsset();
+	vector<vector<int>> readBinBorder(string& binFile);
+	vector<vector<vector<int>>> readBinFrames(string& binFile);
+	string readBinParent(string& binFile);
+	vector<double> readBinPosition(string& binFile);
+	double readBinScale(string& binFile);
 	vector<vector<string>> readGeo(string& geoPath);
 	vector<vector<string>> readGeo(string& geoPath, unordered_map<string, string>& mapGeo);
 	string regionLinkToMapUrl(string& urlRegion, string& regionLink);
+	void set_path(string);
 	int skimGeoList(string& filePath, vector<string>& geoLayers);
 	vector<vector<string>> splitLinkNames(vector<string>& linkNames);
 	bool testCanadaOnly(string& geoLayer);

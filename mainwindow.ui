@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1900</width>
-    <height>1020</height>
+    <height>1017</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -110,7 +110,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="tab_cata">
      <attribute name="title">
@@ -129,7 +129,7 @@
        <enum>QAbstractItemView::ContiguousSelection</enum>
       </property>
       <attribute name="headerVisible">
-       <bool>true</bool>
+       <bool>false</bool>
       </attribute>
       <column>
        <property name="text">
@@ -147,7 +147,7 @@
        </rect>
       </property>
       <attribute name="headerVisible">
-       <bool>true</bool>
+       <bool>false</bool>
       </attribute>
       <column>
        <property name="text">
@@ -165,7 +165,7 @@
        </rect>
       </property>
       <attribute name="headerVisible">
-       <bool>true</bool>
+       <bool>false</bool>
       </attribute>
       <column>
        <property name="text">
@@ -174,10 +174,36 @@
       </column>
      </widget>
     </widget>
-    <widget class="QWidget" name="tab1">
+    <widget class="QWidget" name="tab_map">
      <attribute name="title">
       <string>Maps</string>
      </attribute>
+     <widget class="QTreeWidget" name="treeW_maplocal">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>611</width>
+        <height>801</height>
+       </rect>
+      </property>
+      <property name="columnCount">
+       <number>2</number>
+      </property>
+      <attribute name="headerDefaultSectionSize">
+       <number>300</number>
+      </attribute>
+      <column>
+       <property name="text">
+        <string>Local Maps</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>Quantity</string>
+       </property>
+      </column>
+     </widget>
     </widget>
     <widget class="QWidget" name="tab">
      <attribute name="title">
@@ -216,12 +242,12 @@
  Stats Can</string>
     </property>
    </widget>
-   <widget class="QPlainTextEdit" name="pte_localinput">
+   <widget class="QPlainTextEdit" name="pte_search">
     <property name="geometry">
      <rect>
       <x>640</x>
       <y>880</y>
-      <width>261</width>
+      <width>601</width>
       <height>41</height>
      </rect>
     </property>
@@ -255,9 +281,9 @@
      <string>Download</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pB_localmaps">
+   <widget class="QPushButton" name="pB_maplocal">
     <property name="enabled">
-     <bool>false</bool>
+     <bool>true</bool>
     </property>
     <property name="geometry">
      <rect>

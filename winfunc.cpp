@@ -410,6 +410,8 @@ string WINFUNC::load(string filePath)
 		delete[] bufferC;
 	}
 	
+	CloseHandle(hFile);
+	if (sFile.size() < 1) { jf.err("File failed to load-wf.load"); }
 	return sFile;
 }
 void WINFUNC::makeDir(string dirPath)

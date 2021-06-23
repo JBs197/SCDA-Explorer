@@ -613,6 +613,13 @@ vector<int> JFUNC::minMax(vector<double>& dList)
 	}
 	return result;
 }
+string JFUNC::nameFromPath(string& path)
+{
+	size_t pos1 = path.rfind('\\');
+	if (pos1 > path.size()) { err("No backslash-jf.nameFromPath"); }
+	string name = path.substr(pos1 + 1);
+	return name;
+}
 void JFUNC::navigator(vector<vector<int>>& tree_st, vector<string>& tree_pl, vector<string>& tree_url, string& webpage, int id)
 {
 	// Recursive function used to make a tree of web URLs. Requires outside support to provide

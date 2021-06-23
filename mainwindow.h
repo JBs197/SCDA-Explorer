@@ -15,6 +15,7 @@
 #include "winfunc.h"
 #include "qtfunc.h"
 #include "sqlfunc.h"
+#include "iofunc.h"
 #include "jtree.h"
 #include "gsfunc.h"
 #include "imgfunc.h"
@@ -35,9 +36,10 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
     GSFUNC gf;
+    IOFUNC io;
     IMGFUNC im;
     JFUNC jf;
-    JTREE jtCataLocal;
+    JTREE jtCataLocal, jtMapLocal;
     MATHFUNC mf;
     QTFUNC qf;
     SWITCHBOARD sb;
@@ -51,19 +53,23 @@ signals:
 public slots:
 
 private slots:
+    void mousePressEvent(QMouseEvent* event);
     void on_cB_drives_currentTextChanged(const QString& arg1);
+    void on_pB_convert_clicked();
     void on_pB_insert_clicked();
+    void on_pB_maplocal_clicked();
+    void on_pB_test_clicked();
     void on_treeW_catalocal_itemSelectionChanged();
+    void on_treeW_maplocal_itemSelectionChanged();
+
 
     /*
     void on_pB_scan_clicked();
-    void on_pB_test_clicked();
     void on_pB_viewcata_clicked();
     void on_pB_cancel_clicked();
     void on_treeW_cataindb_itemSelectionChanged();
     void on_treeW_gid_itemSelectionChanged();
     void on_treeW_statscan_itemSelectionChanged();
-    void on_treeW_maps_itemSelectionChanged();
     void on_listW_search_itemSelectionChanged();
     void on_pB_viewtable_clicked();
     void on_pB_deletetable_clicked();
@@ -75,8 +81,6 @@ private slots:
     void on_pB_usc_clicked();
     void on_pB_search_clicked();
     void on_pB_download_clicked();
-    void on_pB_localmaps_clicked();
-    void on_pB_convert_clicked();
     void on_pB_correct_clicked();
     void on_pB_pos_clicked();
     void on_pB_insertmap_clicked();
@@ -109,7 +113,10 @@ private:
     void initialize();
     void initImgFont(string fontName);
     void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
-    void scanLocalDrive(SWITCHBOARD& sbgui, JTREE& jtgui);
+    void qshow(string message);
+    void scanLocalCata(SWITCHBOARD& sbgui, JTREE& jtgui);
+    void scanLocalMap(SWITCHBOARD& sbgui, JTREE& jtgui);
+    void upgradeBinMap(SWITCHBOARD& sbgui);
 
     /*
 
