@@ -1,24 +1,22 @@
 #include "iofunc.h"
 
-bool IOFUNC::askYesNo(QPlainTextEdit*& box, string question)
+bool IOFUNC::askYesNo(string question)
 {
 	QString qMessage = QString::fromStdString(question);
-	box->setPlainText(qMessage);
-	QCoreApplication::processEvents();
+	qDebug() << qMessage;
 	while (1)
 	{
 		Sleep(50);
 		if (GetAsyncKeyState(89)) { return 1; }  // 'y'
 		else if (GetAsyncKeyState(78)) { return 0; }  // 'n'
 		else if (GetAsyncKeyState(VK_ESCAPE)) { exit(EXIT_FAILURE); }
-		QCoreApplication::processEvents();
 	}
 	return 0;
 }
-string IOFUNC::copyText()
+string IOFUNC::copyText(HWND& targetWindow)
 {
 	// Returns a string from selected text, as if ctrl+c had been used.
-	kbHoldPress(VK_CONTROL, 67);  // ctrl+c
+	kbHoldPress(VK_CONTROL, (WORD)67, targetWindow);  // ctrl+c
 	BOOL success = OpenClipboard(NULL);
 	if (!success) { winerr("OpenClipboard-io.copyText"); }
 	HANDLE hClip = GetClipboardData(CF_TEXT);
@@ -33,10 +31,12 @@ string IOFUNC::copyText()
 	if (!success) { winerr("CloseClipboard-io.copyText"); }
 	return sData;
 }
-vector<double> IOFUNC::getBinPosition(QPlainTextEdit*& box, string regionName, string sParent)
+vector<double> IOFUNC::getBinPosition(string regionName, string sParent)
 {
 	// Note that the region and parent names should be in ASCII !
 	QString qMessage;
+	string region1, region2, query;
+	HWND targetWindow;
 	POINT pSearch, pButton, pResult;
 	pSearch.x = -1;
 	int numCoord = gpsWebpage.size();
@@ -48,7 +48,7 @@ vector<double> IOFUNC::getBinPosition(QPlainTextEdit*& box, string regionName, s
 	}
 	else if (numCoord == 3 && reuse == 0)
 	{
-		bool yesno = askYesNo(box, "(y/n): Do you want to continue using the previous set of coordinates?");
+		bool yesno = askYesNo("(y/n): Do you want to continue using the previous set of coordinates?");
 		if (yesno)
 		{
 			pSearch = gpsWebpage[0];
@@ -60,17 +60,15 @@ vector<double> IOFUNC::getBinPosition(QPlainTextEdit*& box, string regionName, s
 	}
 	if (pSearch.x < 0)
 	{
-		qMessage = "NUM1: Position the cursor inside the search box.";
-		box->setPlainText(qMessage);
-		QCoreApplication::processEvents();
+		qMessage = "NUM1: Position the cursor INSIDE the search box.";
+		qDebug() << qMessage;
 		pSearch = getCoord(VK_NUMPAD1);
+		activeWindow = GetForegroundWindow();
 		qMessage = "NUM2: Position the cursor over the search button.";
-		box->setPlainText(qMessage);
-		QCoreApplication::processEvents();
+		qDebug() << qMessage;
 		pButton = getCoord(VK_NUMPAD2);
 		qMessage = "NUM3: Position the cursor over the results box.";
-		box->setPlainText(qMessage);
-		QCoreApplication::processEvents();
+		qDebug() << qMessage;
 		pResult = getCoord(VK_NUMPAD3);
 		gpsWebpage.resize(3);
 		gpsWebpage[0] = pSearch;
@@ -78,22 +76,47 @@ vector<double> IOFUNC::getBinPosition(QPlainTextEdit*& box, string regionName, s
 		gpsWebpage[2] = pResult;
 	}
 	qMessage = "Working ... DO NOT TOUCH THE MOUSE OR KEYBOARD.";
-	box->setPlainText(qMessage);
-	QCoreApplication::processEvents();
+	qDebug() << qMessage;
 
-	string query = regionName + " " + sParent;
-	mouseClickTriple(pSearch);
+	size_t pos1 = regionName.find(" - ");
+	if (pos1 < regionName.size())
+	{
+		region1 = regionName.substr(0, pos1);
+		region2 = regionName.substr(pos1 + 3);
+		vector<double> coord1 = getBinPosition(region1, sParent);
+		vector<double> coord2 = getBinPosition(region2, sParent);
+		vector<double> coord(2);
+		coord[0] = (coord1[0] + coord2[0]) / 2.0;
+		coord[1] = (coord1[1] + coord2[1]) / 2.0;
+		return coord;
+	}
+	pos1 = sParent.find(" or ");
+	if (pos1 < sParent.size())
+	{
+		sParent = sParent.substr(0, pos1);
+	}
+	pos1 = regionName.find(" or ");
+	if (pos1 < regionName.size())
+	{
+		regionName = regionName.substr(0, pos1);
+	}
+	query = regionName + " " + sParent;
+
+	mouseClickTriple(pSearch, targetWindow);
+	if (targetWindow == NULL) { targetWindow = activeWindow; }
+	Sleep(200);
+	kbInput(VK_BACK, targetWindow);
 	Sleep(50);
-	kbInput(VK_BACK);
+	kbInput(query, targetWindow);
 	Sleep(50);
-	kbInput(query);
+	kbInput(VK_RETURN, targetWindow);
 	Sleep(50);
 	mouseClick(pButton);
 	Sleep(4000);
-	mouseClickTriple(pResult);
+	mouseClick(pResult);
 	Sleep(50);
-	string gps = copyText();
-	size_t pos1 = gps.find(',');
+	string gps = copyText(targetWindow);
+	pos1 = gps.find(',');
 	string latitude = gps.substr(0, pos1);
 	string longitude = gps.substr(pos1 + 1);
 	vector<double> coord(2);
@@ -104,8 +127,7 @@ vector<double> IOFUNC::getBinPosition(QPlainTextEdit*& box, string regionName, s
 	}
 	catch (invalid_argument) { jf.err("stod-io.getBinPosition"); }
 	qMessage = "Finished using the keyboard and mouse.";
-	box->setPlainText(qMessage);
-	QCoreApplication::processEvents();
+	qDebug() << qMessage;
 	return coord;
 }
 POINT IOFUNC::getCoord(int vKey)
@@ -150,21 +172,25 @@ HWND IOFUNC::getWindow(int vKey)
 		else if (GetAsyncKeyState(VK_ESCAPE)) { exit(EXIT_FAILURE); }
 	}
 }
-void IOFUNC::kbHoldPress(int holdKey, int pressKey)
+void IOFUNC::kbHoldPress(WORD holdKey, WORD pressKey, HWND& targetWindow)
 {
-	INPUT ipt[1];
+	BOOL success = SetForegroundWindow(targetWindow);
+	if (!success) { winerr("SetForegroundWindow-io.kbHoldPress"); }
+	INPUT ipt[1] = {};
 	ipt[0].type = INPUT_KEYBOARD;
 	ipt[0].ki.wVk = holdKey;
 	UINT sent = SendInput(1, ipt, sizeof(INPUT));
 	if (!sent) { jf.err("SendInput-io.kbHoldPress"); }
 	Sleep(50);
-	kbInput(pressKey);
+	kbInput(pressKey, targetWindow);
 	Sleep(50);
-	ipt[1].ki.dwFlags = KEYEVENTF_KEYUP;
+	success = SetForegroundWindow(targetWindow);
+	if (!success) { winerr("SetForegroundWindow-io.kbHoldPress"); }
+	ipt[0].ki.dwFlags = KEYEVENTF_KEYUP;
 	sent = SendInput(1, ipt, sizeof(INPUT));
 	if (!sent) { jf.err("SendInput-io.kbHoldPress"); }
 }
-void IOFUNC::kbInput(int vKey)
+void IOFUNC::kbInput(WORD vKey)
 {
 	if (vKey < 0 || vKey > 255) { jf.err("Invalid vKey-io.kbInput"); }
 	INPUT ipt[2];
@@ -176,17 +202,36 @@ void IOFUNC::kbInput(int vKey)
 	UINT sent = SendInput(2, ipt, sizeof(INPUT));
 	if (!sent) { jf.err("SendInput-io.kbInput"); }
 }
-void IOFUNC::kbInput(char ch)
+void IOFUNC::kbInput(WORD vKey, HWND& targetWindow)
 {
-	int vKey = VkKeyScanA(ch);
-	kbInput(vKey);
+	//if (vKey < 0 || vKey > 255) { jf.err("Invalid vKey-io.kbInput"); }
+	INPUT ipt[2] = {};
+	ipt[0].type = INPUT_KEYBOARD;
+	ipt[0].ki.wVk = vKey;
+	ipt[0].ki.time = 50;
+	ipt[1].type = INPUT_KEYBOARD;
+	ipt[1].ki.wVk = vKey;
+	ipt[1].ki.dwFlags = KEYEVENTF_KEYUP;
+	ipt[1].ki.time = 150;
+	BOOL success = SetForegroundWindow(targetWindow);
+	if (!success) { winerr("SetForegroundWindow-io.kbInput"); }
+	UINT sent = SendInput(2, ipt, sizeof(INPUT));
+	if (!sent) { jf.err("SendInput-io.kbInput"); }
 }
-void IOFUNC::kbInput(string str)
+void IOFUNC::kbInput(double ch)
+{
+	//SHORT vKey = VkKeyScanA(ch);
+	//int LOB = vKey & 0xFF;
+	//kbInput(LOB);
+}
+void IOFUNC::kbInput(string str, HWND& targetWindow)
 {
 	// Untested for non-ASCII chars.
+	SHORT vKey;
 	for (int ii = 0; ii < str.size(); ii++)
 	{
-		kbInput(str[ii]);
+		vKey = VkKeyScanA(str[ii]);
+		kbInput(vKey, targetWindow);
 		Sleep(20);
 	}
 }
@@ -262,4 +307,49 @@ void IOFUNC::mouseClickTriple(POINT p1)
 
 	UINT sent = SendInput(7, ipt, sizeof(INPUT));
 	if (!sent) { jf.err("SendInput-io.mouseClickTriple"); }
+}
+void IOFUNC::mouseClickTriple(POINT p1, HWND& targetWindow)
+{
+	LONG xC = p1.x * 65535 / defaultRes[0];
+	LONG yC = p1.y * 65535 / defaultRes[1];
+	INPUT ipt[7];
+	ipt[0].type = INPUT_MOUSE;
+	ipt[0].mi.dx = xC;
+	ipt[0].mi.dy = yC;
+	ipt[0].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_MOVE;
+	ipt[0].mi.time = 500;
+	ipt[1].type = INPUT_MOUSE;
+	ipt[1].mi.dx = xC;
+	ipt[1].mi.dy = yC;
+	ipt[1].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_LEFTDOWN;
+	ipt[1].mi.time = 550;
+	ipt[2].type = INPUT_MOUSE;
+	ipt[2].mi.dx = xC;
+	ipt[2].mi.dy = yC;
+	ipt[2].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_LEFTUP;
+	ipt[2].mi.time = 600;
+	ipt[3].type = INPUT_MOUSE;
+	ipt[3].mi.dx = xC;
+	ipt[3].mi.dy = yC;
+	ipt[3].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_LEFTDOWN;
+	ipt[3].mi.time = 650;
+	ipt[4].type = INPUT_MOUSE;
+	ipt[4].mi.dx = xC;
+	ipt[4].mi.dy = yC;
+	ipt[4].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_LEFTUP;
+	ipt[4].mi.time = 700;
+	ipt[5].type = INPUT_MOUSE;
+	ipt[5].mi.dx = xC;
+	ipt[5].mi.dy = yC;
+	ipt[5].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_LEFTDOWN;
+	ipt[5].mi.time = 750;
+	ipt[6].type = INPUT_MOUSE;
+	ipt[6].mi.dx = xC;
+	ipt[6].mi.dy = yC;
+	ipt[6].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_LEFTUP;
+	ipt[6].mi.time = 800;
+
+	UINT sent = SendInput(7, ipt, sizeof(INPUT));
+	if (!sent) { jf.err("SendInput-io.mouseClickTriple"); }
+	targetWindow = GetForegroundWindow();
 }

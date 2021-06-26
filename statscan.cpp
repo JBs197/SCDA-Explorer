@@ -791,6 +791,27 @@ int STATSCAN::get_num_subtables()
 {
     return subtable_names_template.size();
 }
+vector<int> STATSCAN::getSmallGeoIndex(string sParent, vector<string>& regionList, vector<string>& layerList)
+{
+    vector<int> startStop = { -1, -1 };
+    string parentLayer;
+    for (int ii = 0; ii < regionList.size(); ii++)
+    {
+        if (startStop[0] < 0 && regionList[ii] == sParent)
+        {
+            startStop[0] = ii;
+            parentLayer = layerList[ii];
+        }
+        else if (startStop[0] >= 0 && layerList[ii] == parentLayer)
+        {
+            startStop[1] = ii - 1;
+            break;
+        }
+    }
+    if (startStop[0] < 0) { jf.err("Cannot find parent name-sc.getSmallGeoIndex"); }
+    else if (startStop[1] < 0) { startStop[1] = regionList.size() - 1; }
+    return startStop;
+}
 string STATSCAN::get_subtable_name_template(int index)
 {
     return subtable_names_template[index];
@@ -818,7 +839,7 @@ void STATSCAN::initGeo()
         mapGeoLayers.emplace("DA", "da");  // No maps available.
     }
 }
-void STATSCAN::loadGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers)
+int STATSCAN::loadGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers)
 {
     gidList.clear();
     regionList.clear();
@@ -870,6 +891,13 @@ void STATSCAN::loadGeo(string& filePath, vector<int>& gidList, vector<string>& r
         pos1 = pos2 + 1;
         pos2 = sfile.find('$', pos1);
     }
+
+    int loaded = 0;
+    if (gidList.size() > 0) { loaded++; }
+    if (regionList.size() > 0) { loaded++; }
+    if (layerList.size() > 0) { loaded++; }
+    if (geoLayers.size() > 0) { loaded++; }
+    return loaded;
 }
 vector<string> STATSCAN::linearize_row_titles(vector<vector<string>>& rows, vector<string>& column_titles)
 {
@@ -986,7 +1014,7 @@ string STATSCAN::makeBinParent(string parent)
     string binParent = "//parent\n" + parent;
     return binParent;
 }
-string STATSCAN::makeBinParentNew(string binPath)
+string STATSCAN::makeBinParentNew(string binPath, string& sParent)
 {
     string binParent = "//parent";
     size_t pos1 = binPath.rfind('\\');
@@ -1019,6 +1047,7 @@ string STATSCAN::makeBinParentNew(string binPath)
     pos2 = geoFile.rfind(sIndent, pos1);
     pos1 = geoFile.rfind('$', pos2 - 1) + 1;
     temp = geoFile.substr(pos1, pos2 - pos1);
+    sParent = temp;
     binParent += "\n" + temp;
     return binParent;
 }

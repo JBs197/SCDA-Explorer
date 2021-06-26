@@ -63,13 +63,14 @@ public:
 	string get_insert_primary_template();
 	vector<string> getLayerSelected(string& sfile);
 	int get_num_subtables();
+	vector<int> getSmallGeoIndex(string sParent, vector<string>& regionList, vector<string>& layerList);
 	string get_subtable_name_template(int);
 	void initGeo();
-	void loadGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
+	int loadGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
 	vector<string> linearize_row_titles(vector<vector<string>>&, vector<string>&);
 	string makeBinBorder(vector<vector<int>>& border);
 	string makeBinParent(string parent);
-	string makeBinParentNew(string binPath);
+	string makeBinParentNew(string binPath, string& sParent);
 	string makeBinFrames(vector<vector<vector<int>>>& frames);
 	string makeBinPosition(vector<double> position);
 	string makeBinScale(double scale);

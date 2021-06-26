@@ -64,7 +64,7 @@ public:
 	QBitmap getEraser(int width);
 	int get_display_root(QTreeWidget*);
 	void initPixmap(QLabel* qlabel);
-	void loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent, vector<vector<int>>& border);
+	int loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent, vector<vector<int>>& border);
 	vector<vector<int>> loadDebugMapCoord(string& pathBin);
 	string makePathTree(QTreeWidgetItem*& qBranch);
 	vector<double> makeShift(QLabel*& qlabel, vector<vector<int>>& frameBorderTLBR);

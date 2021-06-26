@@ -174,7 +174,7 @@
       </column>
      </widget>
     </widget>
-    <widget class="QWidget" name="tab_map">
+    <widget class="QWidget" name="tab_maplocal">
      <attribute name="title">
       <string>Maps</string>
      </attribute>
@@ -183,8 +183,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>611</width>
-        <height>801</height>
+        <width>601</width>
+        <height>451</height>
        </rect>
       </property>
       <property name="columnCount">
@@ -195,7 +195,7 @@
       </attribute>
       <column>
        <property name="text">
-        <string>Local Maps</string>
+        <string>Local Maps by Geo Layer</string>
        </property>
       </column>
       <column>
@@ -203,6 +203,54 @@
         <string>Quantity</string>
        </property>
       </column>
+     </widget>
+     <widget class="QTreeWidget" name="treeW_mapdb">
+      <property name="geometry">
+       <rect>
+        <x>611</x>
+        <y>0</y>
+        <width>451</width>
+        <height>341</height>
+       </rect>
+      </property>
+      <column>
+       <property name="text">
+        <string>Database Maps</string>
+       </property>
+      </column>
+     </widget>
+     <widget class="QLabel" name="qlabel_mapmini">
+      <property name="geometry">
+       <rect>
+        <x>611</x>
+        <y>350</y>
+        <width>451</width>
+        <height>451</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string/>
+      </property>
+     </widget>
+     <widget class="QTPAINT" name="qp_maplocal" native="true">
+      <property name="geometry">
+       <rect>
+        <x>1071</x>
+        <y>0</y>
+        <width>800</width>
+        <height>800</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QTableWidget" name="tableW_maplocal">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>460</y>
+        <width>601</width>
+        <height>341</height>
+       </rect>
+      </property>
      </widget>
     </widget>
     <widget class="QWidget" name="tab">
@@ -520,6 +568,23 @@ Map</string>
 Table</string>
     </property>
    </widget>
+   <widget class="QPushButton" name="pB_drawmaplocal">
+    <property name="enabled">
+     <bool>false</bool>
+    </property>
+    <property name="geometry">
+     <rect>
+      <x>370</x>
+      <y>880</y>
+      <width>81</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Draw Map
+With Parent</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
@@ -533,6 +598,14 @@ Table</string>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QTPAINT</class>
+   <extends>QWidget</extends>
+   <header>qtpaint.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

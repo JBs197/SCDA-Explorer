@@ -15,19 +15,21 @@ class IOFUNC : private WINFUNC
 public:
 	explicit IOFUNC() {}
 	~IOFUNC() {}
-	bool askYesNo(QPlainTextEdit*& box, string question);
-	string copyText();
-	vector<double> getBinPosition(QPlainTextEdit*& box, string regionName, string sParent);
+	bool askYesNo(string question);
+	string copyText(HWND& targetWindow);
+	vector<double> getBinPosition(string regionName, string sParent);
 	POINT getCoord(int vKey);
 	QString getQSCoord(POINT& p1);
 	string getSCoord(POINT& p1);
 	HWND getWindow(int vKey);
-	void kbHoldPress(int holdKey, int pressKey);
-	void kbInput(int vKey);
-	void kbInput(char ch);
-	void kbInput(string str);
+	void kbHoldPress(WORD holdKey, WORD pressKey, HWND& targetWindow);
+	void kbInput(WORD vKey);
+	void kbInput(WORD vKey, HWND& targetWindow);
+	void kbInput(double ch);
+	void kbInput(string str, HWND& targetWindow);
 	void mouseClick(POINT p1);
 	void mouseClickKey(int vKey, POINT p1);
 	void mouseClickTriple(POINT p1);
+	void mouseClickTriple(POINT p1, HWND& targetWindow);
 };
 

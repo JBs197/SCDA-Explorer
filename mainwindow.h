@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QLayout>
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QTreeWidget>
@@ -12,16 +13,18 @@
 #include <QTabWidget>
 #include <sqlite3.h>
 #include <iostream>
-#include "winfunc.h"
-#include "qtfunc.h"
-#include "sqlfunc.h"
-#include "iofunc.h"
-#include "jtree.h"
+#include "binmap.h"
 #include "gsfunc.h"
 #include "imgfunc.h"
+#include "iofunc.h"
+#include "jtree.h"
+#include "qtfunc.h"
+#include "qtpaint.h"
+#include "sqlfunc.h"
 #include "statscan.h"
 #include "switchboard.h"
 #include "mathfunc.h"
+#include "winfunc.h"
 #include "zipfunc.h"
 
 QT_BEGIN_NAMESPACE
@@ -35,6 +38,7 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+    BINMAP bm;
     GSFUNC gf;
     IOFUNC io;
     IMGFUNC im;
@@ -55,13 +59,14 @@ public slots:
 private slots:
     void mousePressEvent(QMouseEvent* event);
     void on_cB_drives_currentTextChanged(const QString& arg1);
+    void on_listW_maplocal_itemSelectionChanged();
     void on_pB_convert_clicked();
+    void on_pB_drawmaplocal_clicked();
     void on_pB_insert_clicked();
     void on_pB_maplocal_clicked();
     void on_pB_test_clicked();
     void on_treeW_catalocal_itemSelectionChanged();
     void on_treeW_maplocal_itemSelectionChanged();
-
 
     /*
     void on_pB_scan_clicked();
@@ -81,7 +86,6 @@ private slots:
     void on_pB_usc_clicked();
     void on_pB_search_clicked();
     void on_pB_download_clicked();
-    void on_pB_correct_clicked();
     void on_pB_pos_clicked();
     void on_pB_insertmap_clicked();
     void on_pB_resume_clicked();
@@ -95,9 +99,11 @@ private slots:
     void on_pB_savemap_clicked();
     void on_pB_deletemap_clicked();
     */
+
 private:
     Ui::MainWindow *ui;
 
+    vector<BINMAP> binMaps;
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
     const int cores = 3;
     string db_path;
@@ -116,6 +122,7 @@ private:
     void qshow(string message);
     void scanLocalCata(SWITCHBOARD& sbgui, JTREE& jtgui);
     void scanLocalMap(SWITCHBOARD& sbgui, JTREE& jtgui);
+    void scanLocalMapCata(SWITCHBOARD& sbgui, JTREE& jtgui);
     void upgradeBinMap(SWITCHBOARD& sbgui);
 
     /*

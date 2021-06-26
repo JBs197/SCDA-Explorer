@@ -12,7 +12,6 @@ MainWindow::MainWindow(QWidget *parent)
     initialize();
     initGUI();
     initImgFont("Sylfaen");
-
 }
 MainWindow::~MainWindow()
 {
@@ -50,8 +49,7 @@ void MainWindow::initGUI()
     catch (invalid_argument) { jf.err("stoi-MainWindow.initGUI"); }
     ui->cB_drives->setCurrentIndex(inum);
 
-    // Database catalogue widget.
-    // ADD TCatalogue tree !!!
+    
 
 }
 void MainWindow::initialize()
@@ -420,41 +418,73 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 
 }
 
-// Local map display.
+// Local map listings.
 void MainWindow::on_pB_maplocal_clicked()
 {
-    // Search the local drive for map folders (mapsBIN, mapsPNG, mapsPDF). 
-    QString qTemp = ui->cB_drives->currentText();
-    string sDrive = qTemp.toStdString();
-    sDrive.pop_back();
-    while (sDrive[0] == ' ') { sDrive.erase(sDrive.begin()); }
-    jtMapLocal.init("", sDrive);
+    QString qTemp;
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);
     thread::id myid = this_thread::get_id();
-    vector<string> prompt = { sDrive };
-    sb.set_prompt(prompt);
-    sb.start_call(myid, 1, comm[0]);
-    std::thread thr(&MainWindow::scanLocalMap, this, ref(sb), ref(jtMapLocal));
-    thr.detach();
-    ui->tabW_main->setCurrentIndex(1);
-    while (1)
+    vector<string> prompt, binNameList;
+    int tabIndex = ui->tabW_main->currentIndex();
+    switch (tabIndex)
     {
-        Sleep(gui_sleep);
-        QCoreApplication::processEvents();
-        comm = sb.update(myid, comm[0]);
-        if (comm.size() > 1 && comm[1][0] == 1) { break; }
+    case 0:
+    {
+        // Search the local drive for map folders (mapsBIN, mapsPNG, mapsPDF). 
+        qTemp = ui->cB_drives->currentText();
+        string sDrive = qTemp.toStdString(), sCata, sYear;
+        sDrive.pop_back();
+        while (sDrive[0] == ' ') { sDrive.erase(sDrive.begin()); }
+        jtMapLocal.init("", sDrive);
+        prompt = { sDrive };
+        sb.set_prompt(prompt);
+        sb.start_call(myid, 1, comm[0]);
+        std::thread thr(&MainWindow::scanLocalMap, this, ref(sb), ref(jtMapLocal));
+        thr.detach();
+        while (1)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm.size() > 1 && comm[1][0] == 1) { break; }
+        }
+        sb.end_call(myid);
+        barText("Displaying local maps from drive " + sDrive);
+        qf.populateTree(ui->treeW_maplocal, jtMapLocal, 2);
+        QTreeWidgetItem* qNode, * qRoot = ui->treeW_maplocal->topLevelItem(0);
+        qRoot->setExpanded(1);
+        int numKids = qRoot->childCount();
+        for (int ii = 0; ii < numKids; ii++)
+        {
+            qNode = qRoot->child(ii);
+            qNode->setExpanded(1);
+        }
+        ui->tabW_main->setCurrentIndex(1);
+        break;
     }
-    sb.end_call(myid);
-    barText("Displaying local maps from drive " + sDrive);
-    qf.populateTree(ui->treeW_maplocal, jtMapLocal, 2);
-    QTreeWidgetItem* qNode, *qRoot = ui->treeW_maplocal->topLevelItem(0);
-    qRoot->setExpanded(1);
-    int numKids = qRoot->childCount();
-    for (int ii = 0; ii < numKids; ii++)
+    case 1:
     {
-        qNode = qRoot->child(ii);
-        qNode->setExpanded(1);
+        // Note that the folder path will be a hidden top item.
+        QList<QTreeWidgetItem*> qSel = ui->treeW_maplocal->selectedItems();
+        if (qSel.size() != 1) { return; }
+        string folderPath = qf.getBranchPath(qSel[0], sroot), temp, temp8;
+        qTemp = QString::fromStdString(folderPath);
+        ui->listW_maplocal->clear();
+        ui->listW_maplocal->addItem(qTemp);
+        ui->listW_maplocal->item(0)->setHidden(1);
+        binNameList = wf.get_file_list(folderPath, "*.bin");
+        size_t pos1;
+        for (int ii = 0; ii < binNameList.size(); ii++)
+        {
+            pos1 = binNameList[ii].rfind(".bin");
+            temp = binNameList[ii].substr(0, pos1);
+            temp8 = jf.asciiToUTF8(temp);
+            qTemp = QString::fromStdString(temp8);
+            ui->listW_maplocal->addItem(qTemp);
+        }
+        break;
+    }
     }
 }
 void MainWindow::scanLocalMap(SWITCHBOARD& sbgui, JTREE& jtgui)
@@ -578,6 +608,12 @@ void MainWindow::upgradeBinMap(SWITCHBOARD& sbgui)
     sbgui.update(myid, mycomm);
     for (int ii = 0; ii < binNameList.size(); ii++)
     {
+        binFileNew.clear();
+        pos1 = binNameList[ii].find("(Canada)");
+        if (pos1 < binNameList[ii].size()) { continue; }
+        pos1 = binNameList[ii].find("partie");
+        if (pos1 < binNameList[ii].size()) { continue; }
+
         binPath = prompt[0] + "\\" + binNameList[ii];
         binFile = wf.load(binPath);
 
@@ -590,20 +626,29 @@ void MainWindow::upgradeBinMap(SWITCHBOARD& sbgui)
         else { binFileNew += sc.makeBinScale(scale) + "\n\n"; }
         
         parent = sc.readBinParent(binFile);
-        if (parent.size() < 1) { binFileNew += sc.makeBinParentNew(binPath) + "\n\n"; }
-        else { binFileNew += sc.makeBinParent(parent) + "\n\n"; }
+        if (parent.size() < 1) { binFileNew += sc.makeBinParentNew(binPath, parent) + "\n\n"; }
+        else { binFileNew += sc.makeBinParentNew(binPath, parent) + "\n\n"; }
         
         position = sc.readBinPosition(binFile);
         if (position[0] < -180.0)
         {
             pos1 = binNameList[ii].rfind(".bin");
             myName = binNameList[ii].substr(0, pos1);
-            temp = sc.readBinParent(binFileNew);
-            parent = jf.utf8ToAscii(temp);
-            position = io.getBinPosition(ui->pte_search, myName, parent);
+            //temp = sc.readBinParent(binFileNew);
+            //parent = jf.utf8ToAscii(temp);
+            position = io.getBinPosition(myName, parent);
             binFileNew += sc.makeBinPosition(position) + "\n\n";
         }
-        else { binFileNew += sc.makeBinPosition(position) + "\n\n"; }
+        else 
+        { 
+            pos1 = binNameList[ii].rfind(".bin");
+            myName = binNameList[ii].substr(0, pos1);
+            //temp = sc.readBinParent(binFileNew);
+            //parent = jf.utf8ToAscii(temp);
+            position = io.getBinPosition(myName, parent);
+            binFileNew += sc.makeBinPosition(position) + "\n\n";
+            //binFileNew += sc.makeBinPosition(position) + "\n\n"; 
+        }
 
         border = sc.readBinBorder(binFile);
         if (border.size() < 1) { qDebug() << binNameList[ii].c_str() << " needs BORDER"; }
@@ -617,10 +662,65 @@ void MainWindow::upgradeBinMap(SWITCHBOARD& sbgui)
     sbgui.update(myid, mycomm);
 }
 
+// Local map drawings.
+void MainWindow::on_pB_drawmaplocal_clicked()
+{
+    QList<QListWidgetItem*> qSel = ui->listW_maplocal->selectedItems();
+    if (qSel.size() != 1) { return; }
+    QString qTemp = ui->listW_maplocal->item(0)->text();
+    qTemp += "\\" + qSel[0]->text() + ".bin";
+    string binPath8 = qTemp.toStdString();
+    string binPath = jf.utf8ToAscii(binPath8);
+    BINMAP binChild;
+    binChild.loadFromPath(binPath);
+    if (binMaps.size() > 1 && binMaps[0].myName == binChild.myParent)
+    {
+        for (int ii = 1; ii < binMaps.size(); ii++)
+        {
+            if (binMaps[ii].myName == binChild.myName)
+            {
+                ///
+                return;
+            }
+        }
+    }
+    else
+    {
+        binMaps.clear();
+        string pathGeo = binChild.getPathGeo();
+        string pathParent = binChild.getPathParent();
+        int index = 0;
+        binMaps.emplace_back();
+        binMaps[index].loadFromPath(pathParent);
+        binMaps[index].childrenFromGeo(pathGeo);
+        vector<string> pathList = binMaps[index].getPathChildren();
+        binMaps.resize(pathList.size() + 1);
+        for (int ii = 0; ii < pathList.size(); ii++)
+        {
+            index = binMaps.size();
+            binMaps.emplace_back();
+            binMaps[index].loadFromPath(pathList[ii]);
+        }
+        ui->qp_maplocal->drawFamily()
+    }
+}
+void MainWindow::on_listW_maplocal_itemSelectionChanged()
+{
+    QList<QListWidgetItem*> qSel = ui->listW_maplocal->selectedItems();
+    if (qSel.size() == 0)
+    {
+        ui->pB_drawmaplocal->setEnabled(0);
+    }
+    else
+    {
+        ui->pB_drawmaplocal->setEnabled(1);
+    }
+}
+
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 1;
+    int mode = 0;
 
     switch (mode)
     {
@@ -634,7 +734,6 @@ void MainWindow::on_pB_test_clicked()
     }
     case 1:
     {
-        io.test1(ui->pte_search);
         break;
     }
     }
@@ -3110,19 +3209,7 @@ void MainWindow::makeTempASCII(string folderPath)
     int bbq = 1;
 }
 
-// Erase bad points on a BIN map.  
-void MainWindow::on_pB_correct_clicked()
-{
-    QList<QTreeWidgetItem*> qSelected = ui->treeW_maps->selectedItems();
-    if (qSelected.size() != 1) { return; }
-    selectedMapFolder = qf.makePathTree(qSelected[0]);
-    vector<string> dirt = { "mapsPNG" };
-    vector<string> soap = { "mapsBIN" };
-    jf.clean(selectedMapFolder, dirt, soap);
-    string search = "*.bin";
-    vector<string> listBin = wf.get_file_list(selectedMapFolder, search);
-    qf.displayBinList(ui->listW_bindone, listBin);
-}
+
 void MainWindow::on_pB_undo_clicked()
 {
     qf.undoEraser(ui->label_maps);

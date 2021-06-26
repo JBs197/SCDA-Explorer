@@ -231,11 +231,13 @@ void QTFUNC::initPixmap(QLabel* qlabel)
 	pmCanvas = QPixmap(width, height);
 	pmCanvas.fill();
 }
-void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent8, vector<vector<int>>& border)
+int QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent8, vector<vector<int>>& border)
 {
 	// Load all data into memory from the bin file.
 	frames.clear();
+	scale = -1.0;
 	position.clear();
+	sParent8.clear();
 	border.clear();
 	string sfile = wf.load(pathBin), temp, temp2, temp3, temp4;
 	if (sfile.size() < 1) { err("load-qf.loadBinMap"); }
@@ -278,12 +280,14 @@ void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, do
 	pos1 = sfile.find('\n', posStart) + 1;
 	pos2 = sfile.find('\n', pos1);
 	temp = sfile.substr(pos1, pos2 - pos1);
+	try { scale = stod(temp); }
+	catch (invalid_argument) { jf.err("stod-qf.loadBinMap"); }
 
-	pos1 = sName.find("Canada");
+	pos1 = sName.find("(Canada)");
 	if (pos1 > sName.size())
 	{
 		position.resize(2);
-		posStart = sfile.find("//position");
+		posStart = sfile.find("//position(GPS)");
 		if (posStart > sfile.size()) { jf.err("Missing header-qf.loadBinMap"); }
 		pos1 = sfile.find('\n', posStart) + 1;
 		pos2 = sfile.find(',', pos1);
@@ -293,7 +297,6 @@ void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, do
 		temp3 = sfile.substr(pos1, pos2 - pos1);
 		try
 		{
-			scale = stod(temp);
 			position[0] = stod(temp2);
 			position[1] = stod(temp3);
 		}
@@ -301,11 +304,6 @@ void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, do
 		pos1 = sfile.find('(', posStart) + 1;
 		pos2 = sfile.find(')', pos1);
 		sParent8 = sfile.substr(pos1, pos2 - pos1);
-	}
-	else
-	{
-		try { scale = stod(temp); }
-		catch (invalid_argument) { jf.err("stod-qf.loadBinMap"); }
 	}
 
 	posStart = sfile.find("//border");
@@ -328,6 +326,14 @@ void QTFUNC::loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, do
 		pos1 = pos2 + 1;
 		pos2 = sfile.find(',', pos1);
 	}
+
+	int loaded = 0;
+	if (frames.size() > 0) { loaded++; }
+	if (scale > 0.0) { loaded++; }
+	if (position.size() > 0) { loaded++; }
+	if (sParent8.size() > 0) { loaded++; }
+	if (border.size() > 0) { loaded++; }
+	return loaded;
 }
 vector<vector<int>> QTFUNC::loadDebugMapCoord(string& pathBin)
 {
