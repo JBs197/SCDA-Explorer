@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1900</width>
+    <width>1840</width>
     <height>1017</height>
    </rect>
   </property>
@@ -110,7 +110,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="tab_cata">
      <attribute name="title">
@@ -183,7 +183,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>601</width>
+        <width>441</width>
         <height>451</height>
        </rect>
       </property>
@@ -191,7 +191,7 @@
        <number>2</number>
       </property>
       <attribute name="headerDefaultSectionSize">
-       <number>300</number>
+       <number>200</number>
       </attribute>
       <column>
        <property name="text">
@@ -207,9 +207,9 @@
      <widget class="QTreeWidget" name="treeW_mapdb">
       <property name="geometry">
        <rect>
-        <x>611</x>
+        <x>451</x>
         <y>0</y>
-        <width>451</width>
+        <width>611</width>
         <height>341</height>
        </rect>
       </property>
@@ -245,18 +245,48 @@
      <widget class="QTableWidget" name="tableW_maplocal">
       <property name="geometry">
        <rect>
+        <x>450</x>
+        <y>350</y>
+        <width>611</width>
+        <height>451</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QListWidget" name="listW_maplocal">
+      <property name="geometry">
+       <rect>
         <x>0</x>
         <y>460</y>
-        <width>601</width>
+        <width>441</width>
         <height>341</height>
        </rect>
       </property>
      </widget>
     </widget>
-    <widget class="QWidget" name="tab">
+    <widget class="QWidget" name="tab_table">
      <attribute name="title">
-      <string>Page</string>
+      <string>Tables</string>
      </attribute>
+     <widget class="QListWidget" name="listW_searchresult">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>611</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QTableWidget" name="tableW_db">
+      <property name="geometry">
+       <rect>
+        <x>620</x>
+        <y>0</y>
+        <width>1201</width>
+        <height>801</height>
+       </rect>
+      </property>
+     </widget>
     </widget>
    </widget>
    <widget class="QPushButton" name="pB_viewtable">
@@ -568,7 +598,7 @@ Map</string>
 Table</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pB_drawmaplocal">
+   <widget class="QPushButton" name="pB_reviewmap">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -581,8 +611,22 @@ Table</string>
      </rect>
     </property>
     <property name="text">
-     <string>Draw Map
-With Parent</string>
+     <string>Review Map
+Positioning</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pB_resolution">
+    <property name="geometry">
+     <rect>
+      <x>820</x>
+      <y>930</y>
+      <width>75</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Toggle
+Resolution</string>
     </property>
    </widget>
   </widget>
@@ -591,8 +635,8 @@ With Parent</string>
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1900</width>
-     <height>22</height>
+     <width>1840</width>
+     <height>21</height>
     </rect>
    </property>
   </widget>

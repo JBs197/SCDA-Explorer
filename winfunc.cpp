@@ -634,6 +634,20 @@ void WINFUNC::make_tree_local_helper1(vector<vector<int>>& tree_st, vector<strin
 		}
 	}
 }
+void WINFUNC::printer(string path, string& file)
+{
+	while (!(file[file.size() - 2] == '\n' && file[file.size() - 1] == '\n'))
+	{
+		file.push_back('\n');  // Ensure there are two newlines at the end of file.
+	}
+	wstring wPath = jf.asciiToUTF16(path);
+	HANDLE hFile = CreateFileW(wPath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == INVALID_HANDLE_VALUE) { winerr("CreateFileW-wf.printer"); }
+	DWORD bytesToWrite = file.size(), bytesWritten;
+	BOOL success = WriteFile(hFile, &file[0], bytesToWrite, &bytesWritten, NULL);
+	if (!success) { winerr("WriteFile-wf.printer"); }
+	CloseHandle(hFile);
+}
 void WINFUNC::renameFile(string oldPath, string newPath)
 {
 	DWORD GLE;

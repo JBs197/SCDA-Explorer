@@ -1,26 +1,50 @@
-QT       += core gui sql concurrent
+QT       += core gui
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-CONFIG += c++17
+CONFIG += c++14
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    basictools.cpp \
-    catalogue.cpp \
-    csv.cpp \
+    binmap.cpp \
+    gsfunc.cpp \
+    imgfunc.cpp \
+    iofunc.cpp \
+    jfunc.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    mathfunc.cpp \
+    qtfunc.cpp \
+    qtpaint.cpp \
+    sqlfunc.cpp \
+    statscan.cpp \
+    switchboard.cpp \
+    winfunc.cpp \
+    zipfunc.cpp
 
 HEADERS += \
-    basictools.h \
-    catalogue.h \
-    csv.h \
+    binmap.h \
+    gsfunc.h \
+    imgfunc.h \
+    iofunc.h \
+    jfunc.cpp \
     mainwindow.h \
-    sqlite3.h
+    mathfunc.h \
+    qtfunc.h \
+    qtpaint.h \
+    sqlfunc.h \
+    sqlite3.h \
+    statscan.h \
+    stb_image.h \
+    stb_image_write.h \
+    stb_truetype.h \
+    switchboard.h \
+    ui_mainwindow.h \
+    winfunc.h \
+    zipfunc.h
 
 FORMS += \
     mainwindow.ui

@@ -49,7 +49,8 @@ void MainWindow::initGUI()
     catch (invalid_argument) { jf.err("stoi-MainWindow.initGUI"); }
     ui->cB_drives->setCurrentIndex(inum);
 
-    
+    // Local map paint widget.
+    ui->qp_maplocal->initialize();
 
 }
 void MainWindow::initialize()
@@ -62,6 +63,9 @@ void MainWindow::initialize()
     pos1 = projectDir.rfind('\\');
     temp = projectDir.substr(0, pos1);
     string db_path = temp + "\\SCDA-Wt\\SCDA.db";
+
+    // Adjust the resolution.
+    on_pB_resolution_clicked();
 
     // Populate the navSearch matrix.
     //navSearch = sc.navAsset();
@@ -82,6 +86,14 @@ void MainWindow::initImgFont(string fontName)
             im.initGlyph(filePath, ii);
         }
     }
+}
+void MainWindow::GetDesktopResolution(int& horizontal, int& vertical)
+{
+    RECT desktop;
+    const HWND hDesktop = GetDesktopWindow();
+    GetWindowRect(hDesktop, &desktop);
+    horizontal = desktop.right;
+    vertical = desktop.bottom;
 }
 
 // Progress bar functions.
@@ -110,6 +122,65 @@ void MainWindow::barText(string message)
     QString qmessage = QString::fromStdString(message);
     lock_guard<mutex> lock(m_bar);
     ui->qlabel_progressbar->setText(qmessage);
+}
+
+// Table functions.
+void MainWindow::tablePopulate(QTableWidget*& qTable, vector<vector<string>>& sData)
+{
+    // Note: The zeroth row and column are used as row/column titles. 
+    qTable->clear();
+    QStringList hHeaderLabels, vHeaderLabels;
+    QString qTemp;
+    for (int ii = 1; ii < sData[0].size(); ii++)
+    {
+        qTemp = QString::fromStdString(sData[0][ii]);
+        hHeaderLabels.append(qTemp);
+    }
+    for (int ii = 1; ii < sData.size(); ii++)
+    {
+        qTemp = QString::fromStdString(sData[ii][0]);
+        vHeaderLabels.append(qTemp);
+    }
+
+    QTableWidgetItem* qCell;
+    qTable->setColumnCount(sData[0].size() - 1);
+    qTable->setRowCount(sData.size() - 1);
+    for (int ii = 1; ii < sData.size(); ii++)
+    {
+        for (int jj = 1; jj < sData[ii].size(); jj++)
+        {
+            qTemp = QString::fromStdString(sData[ii][jj]);
+            qCell = new QTableWidgetItem(qTemp);
+            qTable->setItem(ii - 1, jj - 1, qCell);
+        }
+    }
+    qTable->setHorizontalHeaderLabels(hHeaderLabels);
+    qTable->setVerticalHeaderLabels(vHeaderLabels);
+}
+vector<vector<string>> MainWindow::getBinGpsTable(vector<BINMAP>& vBM)
+{
+    // Note: The zeroth BIN map is ignored, as it is assumed to be the parent.
+    if (vBM.size() < 2) { jf.err("Insufficient BINMAPs found-MainWindow.getBinGpsTable"); }
+    vector<vector<string>> sData(vBM.size(), vector<string>(5));
+    sData[0] = { "Region", "Latitude", "Longitude", "xBlue", "yBlue" };
+    for (int ii = 1; ii < vBM.size(); ii++)
+    {
+        sData[ii][0] = vBM[ii].myName;
+        sData[ii][1] = to_string(vBM[ii].myPosition[0]);
+        sData[ii][2] = to_string(vBM[ii].myPosition[1]);
+        sData[ii][3] = to_string(vBM[ii].blueDot[0]);
+        sData[ii][4] = to_string(vBM[ii].blueDot[1]);
+    }
+    return sData;
+}
+void MainWindow::on_tableW_maplocal_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen)
+{
+    if (RowNow < 0 || RowNow == RowThen) { return; }
+    QTableWidgetItem* qCell = ui->tableW_maplocal->verticalHeaderItem(RowNow);
+    if (qCell == nullptr) { qDebug() << "Header item is NULL !"; }
+    QString qTemp = qCell->text();
+    string regionName = qTemp.toStdString();
+    ui->qp_maplocal->drawSelectedDot(regionName);
 }
 
 // Multi-purpose functions.
@@ -154,22 +225,39 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
     QString qTemp, qsX, qsY;
     vector<int> clickCoord(2);
     vector<string> promptUpdate;
-    double dist;
-    int inum;
     if (event->button() == Qt::LeftButton)
     {
-        pointClick = event->position().toPoint();
-        clickCoord[0] = pointClick.x();
-        clickCoord[1] = pointClick.y();
+        clickCoord[0] = event->x();
+        clickCoord[1] = event->y();
     }
     else if (event->button() == Qt::MiddleButton)
     {
         ui->checkB_override->setChecked(1);
-        pointClick = event->position().toPoint();
-        clickCoord[0] = pointClick.x();
-        clickCoord[1] = pointClick.y();
+        clickCoord[0] = event->x();
+        clickCoord[1] = event->y();
     }
     
+}
+
+// Database searching.
+void MainWindow::on_pB_search_clicked()
+{
+    QString qTemp = ui->pte_search->toPlainText();
+    if (qTemp.size() < 1) { return; }
+    string query = qTemp.toStdString();
+    while (query.back() == ' ') { query.pop_back(); }
+    if (query == "all")
+    {
+        ui->listW_searchresult->clear();
+        vector<string> tableList;
+        sf.all_tables(tableList);
+        for (int ii = 0; ii < tableList.size(); ii++)
+        {
+            qTemp = QString::fromStdString(tableList[ii]);
+            ui->listW_searchresult->addItem(qTemp);
+        }
+        ui->tabW_main->setCurrentIndex(2);
+    }
 }
 
 // Local catalogue display.
@@ -355,6 +443,12 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     sc.cata_init(csvFile);
     sc.extract_gid_list(csvNameList);
     sc.extract_csv_branches(csvNameList);
+    vector<string> gidList = sc.get_gid_list();
+    vector<vector<string>> rowColTitle = sc.extractTitles(csvFile);
+    if (rowColTitle[1].size() < 2)
+    {
+        rowColTitle[1] = { "Row Title", "Value" };
+    }
     int numCSV = csvNameList.size();
     mycomm[2] = numCSV * 2;  // Index is half, CSVs are other half;
     sbgui.update(myid, mycomm);
@@ -387,6 +481,15 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     mycomm[1] += indexChunk;
     sbgui.update(myid, mycomm);
 
+    // Insert the catalogue's TMap tables (must be done after TMapIndex).
+    vector<string> stmtsTMI = stmts;
+    stmts = sc.makeCreateTMap(stmtsTMI);
+    sfgui.insert_prepared(stmts);
+    stmts = sc.makeInsertTMap(stmtsTMI);
+    sfgui.insert_prepared(stmts);
+    mycomm[1] += indexChunk;
+    sbgui.update(myid, mycomm);
+
     // Insert the catalogue's RowColTitle table.
     stmt = sc.makeCreateRowColTitle(prompt[1]);
     sfgui.executor(stmt);
@@ -413,9 +516,29 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     mycomm[1] += indexChunk;
     sbgui.update(myid, mycomm);
 
-    // Insert the catalogue's TMap tables.
-    // RESUME HERE. Change BIN maps to include GPS coords.
+    // Insert the catalogue's CSV tables.
+    vector<string> param(rowColTitle[1].size() + 2);
+    param[0] = prompt[1];
+    for (int ii = 0; ii < rowColTitle[1].size(); ii++)
+    {
+        param[ii + 2] = rowColTitle[1][ii];
+    }
+    for (int ii = 0; ii < numCSV; ii++)
+    {
+        csvPath = cataPath + "\\" + csvNameList[ii];
+        csvFile = wf.load(csvPath);
+        param[1] = gidList[ii];
+        stmt = sc.makeCreateCSV(param);
+        sfgui.executor(stmt);
+        stmts = sc.makeInsertCSV(param, csvFile);
+        sfgui.insert_prepared(stmts);
+        mycomm[1]++;
+        if (ii % 10 == 0) { sbgui.update(myid, mycomm); }
+    }
 
+    mycomm[1] = mycomm[2];
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
 }
 
 // Local map listings.
@@ -429,9 +552,8 @@ void MainWindow::on_pB_maplocal_clicked()
     int tabIndex = ui->tabW_main->currentIndex();
     switch (tabIndex)
     {
-    case 0:
-    {
-        // Search the local drive for map folders (mapsBIN, mapsPNG, mapsPDF). 
+    case 0:  // Search the local drive for map folders (mapsBIN, mapsPNG, mapsPDF).
+    {        
         qTemp = ui->cB_drives->currentText();
         string sDrive = qTemp.toStdString(), sCata, sYear;
         sDrive.pop_back();
@@ -463,29 +585,39 @@ void MainWindow::on_pB_maplocal_clicked()
         ui->tabW_main->setCurrentIndex(1);
         break;
     }
-    case 1:
+    case 1:  // Make a list of bin maps within the selected folder.
     {
-        // Note that the folder path will be a hidden top item.
+         // Note that the folder path is the list's invisible zeroth item.
         QList<QTreeWidgetItem*> qSel = ui->treeW_maplocal->selectedItems();
         if (qSel.size() != 1) { return; }
-        string folderPath = qf.getBranchPath(qSel[0], sroot), temp, temp8;
-        qTemp = QString::fromStdString(folderPath);
         ui->listW_maplocal->clear();
+        qTemp = ui->cB_drives->currentText();
+        string sDrive = qTemp.toStdString(), temp, temp8;
+        sDrive.pop_back();
+        while (sDrive[0] == ' ') { sDrive.erase(sDrive.begin()); }
+        string folderPath = qf.getBranchPath(qSel[0], sDrive);
+        qTemp = QString::fromStdString(folderPath);
         ui->listW_maplocal->addItem(qTemp);
         ui->listW_maplocal->item(0)->setHidden(1);
         binNameList = wf.get_file_list(folderPath, "*.bin");
         size_t pos1;
         for (int ii = 0; ii < binNameList.size(); ii++)
         {
+            if (ignorePartie)
+            {
+                pos1 = binNameList[ii].find("partie");
+                if (pos1 < binNameList[ii].size()) { continue; }
+            }
             pos1 = binNameList[ii].rfind(".bin");
             temp = binNameList[ii].substr(0, pos1);
             temp8 = jf.asciiToUTF8(temp);
-            qTemp = QString::fromStdString(temp8);
+            qTemp = QString::fromUtf8(temp8.c_str());
             ui->listW_maplocal->addItem(qTemp);
         }
         break;
     }
     }
+
 }
 void MainWindow::scanLocalMap(SWITCHBOARD& sbgui, JTREE& jtgui)
 {
@@ -521,44 +653,105 @@ void MainWindow::scanLocalMap(SWITCHBOARD& sbgui, JTREE& jtgui)
 }
 void MainWindow::on_treeW_maplocal_itemSelectionChanged()
 {
+    recentClick = ui->treeW_maplocal;
     QList<QTreeWidgetItem*> qList = ui->treeW_maplocal->selectedItems();
     if (qList.size() == 0)
     {
         ui->pB_convert->setEnabled(0);
+        ui->pB_reviewmap->setEnabled(0);
         return;
     }
     QTreeWidgetItem* qParent = qList[0]->parent();
     if (qParent == nullptr)
     {
         ui->pB_convert->setEnabled(0);
+        ui->pB_reviewmap->setEnabled(0);
         return;
     }
     ui->pB_convert->setEnabled(1);
+    ui->pB_reviewmap->setEnabled(1);
 }
 
 // Local map conversion.
 void MainWindow::on_pB_convert_clicked()
 {
-    QList<QTreeWidgetItem*> qSel = ui->treeW_maplocal->selectedItems();
-    if (qSel.size() != 1) { return; }
-    string folderPath = qf.getBranchPath(qSel[0], jtMapLocal.pathRoot);
-    size_t pos1 = folderPath.find("mapsPDF");
-    if (pos1 < folderPath.size()) { qshow("PDF->PNG needs work."); return; }
-    pos1 = folderPath.find("mapsPNG");
-    if (pos1 < folderPath.size()) { qshow("PNG->BIN needs work."); return; }
-    pos1 = folderPath.find("mapsBIN");
-    if (pos1 < folderPath.size())
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0].assign(comm_length, 0);
+    thread::id myid = this_thread::get_id();
+    int mode = 0;
+    if (recentClick == ui->treeW_maplocal) { mode = 1; }
+    else if (recentClick = ui->listW_maplocal) { mode = 2; }
+    switch (mode)
     {
-        qshow("Launching BIN map upgrades...");
-        vector<vector<int>> comm(1, vector<int>());
-        comm[0].assign(comm_length, 0);
-        thread::id myid = this_thread::get_id();
-        vector<string> prompt = { folderPath };
+    case 0:  // Nothing found.
+    {
+        jf.err("No recentClick-MainWindow.on_pB_convert_clicked");
+        break;
+    }
+    case 1:  // Tree widget.
+    {
+        QList<QTreeWidgetItem*> qSel = ui->treeW_maplocal->selectedItems();
+        if (qSel.size() != 1) { return; }
+        string folderPath = qf.getBranchPath(qSel[0], jtMapLocal.pathRoot);
+        size_t pos1 = folderPath.find("mapsPDF");
+        if (pos1 < folderPath.size()) { qshow("PDF->PNG needs work."); return; }
+        pos1 = folderPath.find("mapsPNG");
+        if (pos1 < folderPath.size()) { qshow("PNG->BIN needs work."); return; }
+        pos1 = folderPath.find("mapsBIN");
+        if (pos1 < folderPath.size())
+        {
+            qshow("Launching BIN map upgrades...");
+            vector<string> prompt = { folderPath };
+            sb.set_prompt(prompt);
+            sb.start_call(myid, 1, comm[0]);
+            std::thread thr(&MainWindow::upgradeBinMap, this, ref(sb));
+            thr.detach();
+            ui->tabW_main->setCurrentIndex(1);
+            while (1)
+            {
+                Sleep(gui_sleep);
+                QCoreApplication::processEvents();
+                comm = sb.update(myid, comm[0]);
+                if (comm.size() > 1) { break; }
+            }
+            while (comm[0][0] == 0)
+            {
+                Sleep(gui_sleep);
+                QCoreApplication::processEvents();
+                comm = sb.update(myid, comm[0]);
+                if (comm[0][2] == 0 && comm[1][2] > 0)
+                {
+                    comm[0][2] = comm[1][2];
+                    barReset(comm[0][2], "Upgrading BIN maps in " + prompt[0] + " ...");
+                }
+                if (comm[1][1] > comm[0][1])
+                {
+                    comm[0][1] = comm[1][1];
+                    barUpdate(comm[0][1]);
+                }
+                if (comm[1][0] == 1)
+                {
+                    barUpdate(comm[0][2]);
+                    comm[0][0] = 1;
+                }
+            }
+            sb.end_call(myid);
+            barText("Finished upgrading BIN maps from " + prompt[0]);
+        }
+        break;
+    }
+    case 2:  // List widget.
+    {
+        QList<QListWidgetItem*> qSel = ui->listW_maplocal->selectedItems();
+        if (qSel.size() != 1) { return; }
+        QString qTemp = ui->listW_maplocal->item(0)->text();
+        qTemp.append("\\" + qSel[0]->text() + ".bin");
+        string binPath8 = qTemp.toStdString();
+        vector<string> prompt = { jf.utf8ToAscii(binPath8) };
         sb.set_prompt(prompt);
         sb.start_call(myid, 1, comm[0]);
         std::thread thr(&MainWindow::upgradeBinMap, this, ref(sb));
         thr.detach();
-        ui->tabW_main->setCurrentIndex(1);
         while (1)
         {
             Sleep(gui_sleep);
@@ -571,39 +764,36 @@ void MainWindow::on_pB_convert_clicked()
             Sleep(gui_sleep);
             QCoreApplication::processEvents();
             comm = sb.update(myid, comm[0]);
-            if (comm[0][2] == 0 && comm[1][2] > 0)
-            {
-                comm[0][2] = comm[1][2];
-                barReset(comm[0][2], "Upgrading BIN maps in " + prompt[0] + " ...");
-            }
-            if (comm[1][1] > comm[0][1])
-            {
-                comm[0][1] = comm[1][1];
-                barUpdate(comm[0][1]);
-            }
             if (comm[1][0] == 1)
             {
-                barUpdate(comm[0][2]);
                 comm[0][0] = 1;
             }
         }
         sb.end_call(myid);
-        barText("Finished upgrading BIN maps from " + prompt[0]);
+        barText("Finished upgrading BIN map " + binPath8);
+        break;
     }
+    }
+
 }
 void MainWindow::upgradeBinMap(SWITCHBOARD& sbgui)
 {
     thread::id myid = this_thread::get_id();
     vector<int> mycomm;
     sbgui.answer_call(myid, mycomm);
-    vector<string> prompt = sbgui.get_prompt();
+    vector<string> prompt = sbgui.get_prompt(), binNameList, dirt, soap;
     vector<vector<vector<int>>> frames;
     vector<vector<int>> border;
-    vector<double> position;
+    vector<double> positionGPS, positionPNG;
     double scale;
-    size_t pos1;
-    string temp, binPath, binFile, binFileNew, parent, myName;
-    vector<string> binNameList = wf.get_file_list(prompt[0], "*.bin");
+    string temp, binPath, binFile, binFileNew, parent, myName, pngPath;
+    size_t pos1 = prompt[0].find(".bin");
+    if (pos1 < prompt[0].size())
+    {
+        pos1 = prompt[0].rfind('\\') + 1;
+        binNameList = { prompt[0].substr(pos1) };
+    }
+    else { binNameList = wf.get_file_list(prompt[0], "*.bin"); }
     mycomm[2] = binNameList.size();
     sbgui.update(myid, mycomm);
     for (int ii = 0; ii < binNameList.size(); ii++)
@@ -611,10 +801,15 @@ void MainWindow::upgradeBinMap(SWITCHBOARD& sbgui)
         binFileNew.clear();
         pos1 = binNameList[ii].find("(Canada)");
         if (pos1 < binNameList[ii].size()) { continue; }
-        pos1 = binNameList[ii].find("partie");
-        if (pos1 < binNameList[ii].size()) { continue; }
+        if (ignorePartie)
+        {
+            pos1 = binNameList[ii].find("partie");
+            if (pos1 < binNameList[ii].size()) { continue; }
+        }
 
-        binPath = prompt[0] + "\\" + binNameList[ii];
+        pos1 = prompt[0].find(".bin");
+        if (pos1 < prompt[0].size()) { binPath = prompt[0]; }
+        else { binPath = prompt[0] + "\\" + binNameList[ii]; }
         binFile = wf.load(binPath);
 
         frames = sc.readBinFrames(binFile);
@@ -627,34 +822,36 @@ void MainWindow::upgradeBinMap(SWITCHBOARD& sbgui)
         
         parent = sc.readBinParent(binFile);
         if (parent.size() < 1) { binFileNew += sc.makeBinParentNew(binPath, parent) + "\n\n"; }
-        else { binFileNew += sc.makeBinParentNew(binPath, parent) + "\n\n"; }
+        else { binFileNew += sc.makeBinParent(parent) + "\n\n"; }
         
-        position = sc.readBinPosition(binFile);
-        if (position[0] < -180.0)
+        positionPNG = sc.readBinPositionPNG(binFile);
+        if (positionPNG[0] < 0.0)
+        {
+            dirt = { "mapsBIN", ".bin" };
+            soap = { "pos", ".png" };
+            pngPath = binPath;
+            jf.clean(pngPath, dirt, soap);
+            positionPNG = qf.makeBlueDot(pngPath);
+            binFileNew += sc.makeBinPositionPNG(positionPNG) + "\n\n";
+        }
+        else { binFileNew += sc.makeBinPositionPNG(positionPNG) + "\n\n"; }
+
+        positionGPS = sc.readBinPositionGPS(binFile);
+        if (positionGPS[0] < -180.0)
         {
             pos1 = binNameList[ii].rfind(".bin");
             myName = binNameList[ii].substr(0, pos1);
-            //temp = sc.readBinParent(binFileNew);
-            //parent = jf.utf8ToAscii(temp);
-            position = io.getBinPosition(myName, parent);
-            binFileNew += sc.makeBinPosition(position) + "\n\n";
+            temp = jf.utf8ToAscii(parent);
+            positionGPS = io.getBinPosition(myName, temp);
+            binFileNew += sc.makeBinPositionGPS(positionGPS) + "\n\n";
         }
-        else 
-        { 
-            pos1 = binNameList[ii].rfind(".bin");
-            myName = binNameList[ii].substr(0, pos1);
-            //temp = sc.readBinParent(binFileNew);
-            //parent = jf.utf8ToAscii(temp);
-            position = io.getBinPosition(myName, parent);
-            binFileNew += sc.makeBinPosition(position) + "\n\n";
-            //binFileNew += sc.makeBinPosition(position) + "\n\n"; 
-        }
+        else { binFileNew += sc.makeBinPositionGPS(positionGPS) + "\n\n"; }
 
         border = sc.readBinBorder(binFile);
         if (border.size() < 1) { qDebug() << binNameList[ii].c_str() << " needs BORDER"; }
         else { binFileNew += sc.makeBinBorder(border) + "\n\n"; }
 
-        jf.printer(binPath, binFileNew);
+        wf.printer(binPath, binFileNew);
         mycomm[1]++;
         sbgui.update(myid, mycomm);
     }
@@ -662,58 +859,79 @@ void MainWindow::upgradeBinMap(SWITCHBOARD& sbgui)
     sbgui.update(myid, mycomm);
 }
 
-// Local map drawings.
-void MainWindow::on_pB_drawmaplocal_clicked()
+// Local map review.
+void MainWindow::on_pB_reviewmap_clicked()
 {
     QList<QListWidgetItem*> qSel = ui->listW_maplocal->selectedItems();
     if (qSel.size() != 1) { return; }
     QString qTemp = ui->listW_maplocal->item(0)->text();
-    qTemp += "\\" + qSel[0]->text() + ".bin";
-    string binPath8 = qTemp.toStdString();
-    string binPath = jf.utf8ToAscii(binPath8);
+    qTemp.append("\\" + qSel[0]->text() + ".bin");
+    string temp8 = qTemp.toStdString();
+    vector<string> prompt = { jf.utf8ToAscii(temp8) };
+    vector<BINMAP> binMaps;
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0].assign(comm_length, 0);
+    thread::id myid = this_thread::get_id();
+    sb.set_prompt(prompt);
+    sb.start_call(myid, 1, comm[0]);
+    std::thread thr(&MainWindow::populateBinFamily, this, ref(sb), ref(binMaps));
+    thr.detach();
+    while (1)
+    {
+        Sleep(gui_sleep);
+        QCoreApplication::processEvents();
+        comm = sb.update(myid, comm[0]);
+        if (comm.size() > 1 && comm[1][0] == 1) { break; }
+    }
+    sb.end_call(myid);
+    ui->qp_maplocal->drawFamilyBlue(binMaps);
+    vector<vector<string>> tableData = getBinGpsTable(binMaps);
+    tablePopulate(ui->tableW_maplocal, tableData);
+    string temp = to_string(binMaps.size() - 1);
+    string sMessage = "Displaying parent region " + binMaps[0].myName;
+    sMessage += " and " + temp + " child regions.";
+    barText(sMessage);
+}
+void MainWindow::populateBinFamily(SWITCHBOARD& sbgui, vector<BINMAP>& vBM)
+{
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();
     BINMAP binChild;
-    binChild.loadFromPath(binPath);
-    if (binMaps.size() > 1 && binMaps[0].myName == binChild.myParent)
+    binChild.loadFromPath(prompt[0]);
+    string pathParent = binChild.getPathParent();
+    string pathGeo = binChild.getPathGeo();
+    vBM.clear();
+    int index = 0;
+    BINMAP binBlank;
+    vBM.emplace_back(binBlank);
+    vBM[index].loadFromPath(pathParent);
+    vBM[index].childrenFromGeo(pathGeo);
+    vector<string> pathList = vBM[index].getPathChildren(1);
+    for (int ii = 0; ii < pathList.size(); ii++)
     {
-        for (int ii = 1; ii < binMaps.size(); ii++)
-        {
-            if (binMaps[ii].myName == binChild.myName)
-            {
-                ///
-                return;
-            }
-        }
+        index = vBM.size();
+        BINMAP binBlank;
+        vBM.emplace_back(binBlank);
+        vBM[index].loadFromPath(pathList[ii]);
+        vBM[index].makeBlueDot();
+        if (pathList[ii] == prompt[0]) { vBM[index].isSelected = 1; mycomm[1]++; }
     }
-    else
-    {
-        binMaps.clear();
-        string pathGeo = binChild.getPathGeo();
-        string pathParent = binChild.getPathParent();
-        int index = 0;
-        binMaps.emplace_back();
-        binMaps[index].loadFromPath(pathParent);
-        binMaps[index].childrenFromGeo(pathGeo);
-        vector<string> pathList = binMaps[index].getPathChildren();
-        binMaps.resize(pathList.size() + 1);
-        for (int ii = 0; ii < pathList.size(); ii++)
-        {
-            index = binMaps.size();
-            binMaps.emplace_back();
-            binMaps[index].loadFromPath(pathList[ii]);
-        }
-        ui->qp_maplocal->drawFamily()
-    }
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
 }
 void MainWindow::on_listW_maplocal_itemSelectionChanged()
 {
+    recentClick = ui->listW_maplocal;
     QList<QListWidgetItem*> qSel = ui->listW_maplocal->selectedItems();
     if (qSel.size() == 0)
     {
-        ui->pB_drawmaplocal->setEnabled(0);
+        ui->pB_reviewmap->setEnabled(0);
     }
     else
     {
-        ui->pB_drawmaplocal->setEnabled(1);
+        ui->pB_reviewmap->setEnabled(1);
     }
 }
 
@@ -739,6 +957,44 @@ void MainWindow::on_pB_test_clicked()
     }
 
     int bbq = 1;
+}
+void MainWindow::on_tabW_main_currentChanged(int index)
+{
+    if (index == 2)
+    {
+        int width, height;
+        GetDesktopResolution(width, height);
+        qDebug() << width << ", " << height;
+    }
+}
+void MainWindow::on_pB_resolution_clicked()
+{
+    GetDesktopResolution(resDesktop[0], resDesktop[1]);
+    resScaling[0] = (double)resDesktop[0] / 1920.0;
+    resScaling[1] = (double)resDesktop[1] / 1080.0;
+
+    QRect TLWH = this->geometry();
+    qDebug() << "TL(" << TLWH.x() << ", " << TLWH.y() << ")";
+    qDebug() << "WH(" << TLWH.width() << ", " << TLWH.height() << ")";
+    QList<QWidget*> widgets = this->findChildren<QWidget*>();    
+    int x, y, w, h;
+    for (int ii = 0; ii < widgets.size(); ii++)
+    {
+        TLWH = widgets[ii]->geometry();
+        x = TLWH.x();
+        x *= resScaling[0];
+        y = TLWH.y();
+        y *= resScaling[1];
+        w = TLWH.width();
+        w *= resScaling[0];
+        h = TLWH.height();
+        h *= resScaling[1];
+        TLWH.setRect(x, y, w, h);
+        widgets[ii]->setGeometry(TLWH);
+    }
+
+
+
 }
 
 /*

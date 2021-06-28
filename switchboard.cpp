@@ -29,10 +29,7 @@ int SWITCHBOARD::start_call(thread::id id, int worker_num, vector<int>& comm)
 	if (phone_lines.size() != 0) { return 2; }
 	phone_lines.resize(1);
 	phone_lines[0].assign(comm.size(), 0);
-	pair iresult = map_phone.emplace(id, 0);
-	bool success = get<1>(iresult);
-	if (!success) { return 1; }
-	//signout.assign(workers, -1);
+	map_phone.emplace(id, 0);
 	return 0;
 }
 
@@ -45,9 +42,7 @@ int SWITCHBOARD::answer_call(thread::id id, vector<int>& comm)
 	phone_lines.push_back(vector<int>());
 	phone_lines[inum].assign(comm_length, 0);
 	comm.assign(comm_length, 0);
-	pair iresult = map_phone.emplace(id, inum);
-	bool success = get<1>(iresult);
-	if (!success) { return -1; }
+	map_phone.emplace(id, inum);
 	return inum;  
 }
 

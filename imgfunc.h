@@ -71,7 +71,7 @@ class IMGFUNC
     vector<unsigned char> Yellow = { 255, 255, 0 };
 
 public:
-	explicit IMGFUNC() {}
+	IMGFUNC() {}
 	~IMGFUNC() {}
     int areaRect(vector<vector<int>> TLBR);
 	vector<int> borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks);
@@ -768,6 +768,8 @@ public:
     }
     template<> vector<vector<int>> makeBox<vector<unsigned char>, vector<int>, vector<unsigned char>>(vector<unsigned char>& sourceImg, vector<int>& sourceDim, vector<unsigned char>& rgbTarget)
     {
+        if (sourceImg.size() < 1) { sourceImg = dataPNG; }
+        if (sourceDim.size() < 1) { sourceDim = { width, height }; }
         vector<vector<int>> TLBR(2, vector<int>(2));
         TLBR[0] = { 2147483647, 2147483647 };
         TLBR[1] = { 0, 0 };

@@ -7,6 +7,8 @@
 #include <QListWidgetItem>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
+#include <QTableWidget>
+#include <QTableWidgetItem>
 #include <QStandardItemModel>
 #include <QTableView>
 #include <QPlainTextEdit>
@@ -61,68 +63,47 @@ private slots:
     void on_cB_drives_currentTextChanged(const QString& arg1);
     void on_listW_maplocal_itemSelectionChanged();
     void on_pB_convert_clicked();
-    void on_pB_drawmaplocal_clicked();
     void on_pB_insert_clicked();
     void on_pB_maplocal_clicked();
+    void on_pB_resolution_clicked();
+    void on_pB_reviewmap_clicked();
+    void on_pB_search_clicked();
     void on_pB_test_clicked();
+    void on_tableW_maplocal_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen);
+    void on_tabW_main_currentChanged(int index);
     void on_treeW_catalocal_itemSelectionChanged();
     void on_treeW_maplocal_itemSelectionChanged();
-
-    /*
-    void on_pB_scan_clicked();
-    void on_pB_viewcata_clicked();
-    void on_pB_cancel_clicked();
-    void on_treeW_cataindb_itemSelectionChanged();
-    void on_treeW_gid_itemSelectionChanged();
-    void on_treeW_statscan_itemSelectionChanged();
-    void on_listW_search_itemSelectionChanged();
-    void on_pB_viewtable_clicked();
-    void on_pB_deletetable_clicked();
-    void on_pB_removecata_clicked();
-    void on_tabW_catalogues_currentChanged(int);
-    void on_tabW_results_currentChanged(int);
-    void on_tabW_online_currentChanged(int);
-    void on_pB_mode_clicked();
-    void on_pB_usc_clicked();
-    void on_pB_search_clicked();
-    void on_pB_download_clicked();
-    void on_pB_pos_clicked();
-    void on_pB_insertmap_clicked();
-    void on_pB_resume_clicked();
-    void on_pB_pause_clicked();
-    void on_pB_advance_clicked();
-    void on_listW_bindone_itemSelectionChanged();
-    void on_pB_backspace_clicked();
-    void on_listW_statscan_itemSelectionChanged();
-    void on_checkB_eraser_stateChanged(int);
-    void on_pB_undo_clicked();
-    void on_pB_savemap_clicked();
-    void on_pB_deletemap_clicked();
-    */
 
 private:
     Ui::MainWindow *ui;
 
-    vector<BINMAP> binMaps;
+    //vector<BINMAP> binMaps;
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
     const int cores = 3;
     string db_path;
     const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
+    bool ignorePartie = 1;
     mutex m_bar;
     string projectDir, savedSettings;
+    QWidget* recentClick = nullptr;
+    vector<int> resDesktop = { 1920, 1080 };
+    vector<double> resScaling = { 1.0, 1.0 };
 
     void barReset(int iMax, string message);
     void barText(string message);
     void barUpdate(int iCurrent);
     void bind(string&, vector<string>&);
+    vector<vector<string>> getBinGpsTable(vector<BINMAP>& vBM);
+    void GetDesktopResolution(int& horizontal, int& vertical);
     void initGUI();
     void initialize();
     void initImgFont(string fontName);
     void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
+    void populateBinFamily(SWITCHBOARD& sbgui, vector<BINMAP>& vBM);
     void qshow(string message);
     void scanLocalCata(SWITCHBOARD& sbgui, JTREE& jtgui);
     void scanLocalMap(SWITCHBOARD& sbgui, JTREE& jtgui);
-    void scanLocalMapCata(SWITCHBOARD& sbgui, JTREE& jtgui);
+    void tablePopulate(QTableWidget*& qTable, vector<vector<string>>& sData);
     void upgradeBinMap(SWITCHBOARD& sbgui);
 
     /*

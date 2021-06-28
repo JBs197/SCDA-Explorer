@@ -4,33 +4,36 @@
 
 using namespace std;
 
-struct BINMAP
+class BINMAP
 {
-	explicit BINMAP() {}
-	~BINMAP() {}
 
-	int defaultMargin = 20;
+public:
+	BINMAP() {}
+	~BINMAP() {}
+	
+	double defaultMargin = 20.0;
+	bool isSelected = 0;
 	JFUNC jf;
 	vector<vector<int>> myBorder;
 	vector<vector<vector<int>>> myFrames;
 	int myGid;
 	string myLayer, myName, myParent, myPath;
-	vector<double> myPosition;
+	vector<double> myPosition, blueDot;
 	double myScale;
 	vector<vector<double>> myWindowBorder;
 	vector<string> pathChildren;
 	QTFUNC qf;
 	STATSCAN sc;
 
-	void borderScaleToWindow(vector<vector<int>>& border, vector<vector<double>>& borderD, vector<int> windowDim);
-	void borderShiftFrames(vector<vector<int>>& border, vector<vector<vector<int>>>& frames);
+	void borderScaleToWindow(vector<vector<int>>& border, vector<vector<double>>& borderD, vector<double> borderDim);
 	void borderShiftSetMargin(vector<vector<int>>& border, int margin);
 	void childrenFromGeo(string geoPath);
-	void drawFamily(vector<BINMAP>& binFamily, int selChild, QLabel*& qLabel);
-	vector<string> getPathChildren();
+	vector<string> getPathChildren(int mode);
 	string getPathGeo();
 	string getPathParent();
+	vector<vector<double>> getTLBR(vector<vector<double>>& borderPath);
 	void loadFromPath(string binPath);
-	void makeWindowBorder()
+	void makeBlueDot();
+	void makeWindowBorder(double width, double height);
 };
 

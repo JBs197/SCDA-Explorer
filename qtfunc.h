@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QPainter>
 #include <QPainterPath>
+#include <QBitmap>
 #include "jtree.h"
 #include "imgfunc.h"
 #include "winfunc.h"
@@ -18,8 +19,8 @@ using namespace std;
 
 class QTFUNC
 {
-	QBrush brush;
-	QColor colourDefault = Qt::black;
+	//QBrush brush;
+	//QColor colourDefault = Qt::black;
 	string defaultDebugMapPath, defaultDebugMapPathSelected;
 	int defaultDotWidth = -1;
 	double defaultMapZoom = 3.0;
@@ -30,8 +31,8 @@ class QTFUNC
 	vector<string> listPathBin;
 	QMap<QString, int> mapListPathBin;
 	QMap<QTreeWidget*, int> map_display_root;
-	QPainter painter;
-	QPen pen;
+	//QPainter painter;
+	//QPen pen;
 	QPixmap pmCanvas, pmPainting;
 	vector<vector<int>> recentBorder, frameCorners;
 	vector<vector<vector<int>>> recentBorderTemp;
@@ -44,7 +45,7 @@ class QTFUNC
 	vector<unsigned char> Violet = { 127, 0, 255 };
 
 public:
-	explicit QTFUNC() {}
+	QTFUNC() {}
 	~QTFUNC() {}
 	int deleteChildren(QTreeWidgetItem*& qNode);
 	int deleteLeaves(QTreeWidgetItem*& qNode);
@@ -60,12 +61,15 @@ public:
 	void err(string);
 	int getBranchGen(QTreeWidgetItem*& qBranch);
 	string getBranchPath(QTreeWidgetItem*& qBranch, string rootDir);
+	vector<QPointF> getCrosshairs(QPointF center, double radius);
 	int getLastMap() { return lastMap; }
 	QBitmap getEraser(int width);
 	int get_display_root(QTreeWidget*);
+	vector<vector<int>> getTLBR(vector<vector<int>>& borderPath);
 	void initPixmap(QLabel* qlabel);
 	int loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent, vector<vector<int>>& border);
 	vector<vector<int>> loadDebugMapCoord(string& pathBin);
+	vector<double> makeBlueDot(string& miniPath);
 	string makePathTree(QTreeWidgetItem*& qBranch);
 	vector<double> makeShift(QLabel*& qlabel, vector<vector<int>>& frameBorderTLBR);
 	QPainterPath pathMakeCircle(vector<double> origin, double radius, int sides);
@@ -106,7 +110,7 @@ public:
 			pixelCoord[1]++;
 		}
 		int error = stbi_write_png(defaultDebugMapPathSelected.c_str(), mapDim[0], mapDim[1], numComponents, dataTemp, 0);
-		QString qtemp = QString::fromUtf8(defaultDebugMapPathSelected);
+		QString qtemp = QString::fromUtf8(defaultDebugMapPathSelected.c_str());
 		QImage qimg = QImage(qtemp);
 		QPixmap qpm = QPixmap::fromImage(qimg);
 		qlabel->setPixmap(qpm);
@@ -136,198 +140,11 @@ public:
 			pixelCoord[1]++;
 		}
 		int error = stbi_write_png(defaultDebugMapPathSelected.c_str(), mapDim[0], mapDim[1], numComponents, dataTemp, 0);
-		QString qtemp = QString::fromUtf8(defaultDebugMapPathSelected);
+		QString qtemp = QString::fromUtf8(defaultDebugMapPathSelected.c_str());
 		QImage qimg = QImage(qtemp);
 		QPixmap qpm = QPixmap::fromImage(qimg);
 		qlabel->setPixmap(qpm);
 		int bbq = 1;
-	}
-
-	template<typename Q> void display(Q*, vector<vector<int>>&, vector<string>&) 
-	{
-		err("display template-qf");
-	}
-	template<> void display<QTreeWidget>(QTreeWidget* qview, vector<vector<int>>& tree_st, vector<string>& tree_pl)
-	{
-		qview->clear();
-		string temp1;
-		wstring wtemp;
-		QString qtemp;
-		QTreeWidgetItem *qitem, *qparent;
-		QList<QTreeWidgetItem*> qroots, qregistry, qTNG;
-		int pivot, iparent;
-
-		// Make a qitem for every node in the tree.
-		for (int ii = 0; ii < tree_st.size(); ii++)
-		{
-			wtemp = jf.utf8to16(tree_pl[ii]);
-			qtemp = QString::fromStdWString(wtemp);
-			qtemp = QString::fromUtf8(tree_pl[ii]);
-			qitem = new QTreeWidgetItem();
-			qitem->setText(0, qtemp);
-			qregistry.append(qitem);
-		}
-
-		// Add the roots to their list, and add every node's children to it.
-		for (int ii = 0; ii < tree_st.size(); ii++)
-		{
-			for (int jj = 0; jj < tree_st[ii].size(); jj++)
-			{
-				if (tree_st[ii][jj] < 0)
-				{
-					pivot = jj;
-					break;
-				}
-				else if (jj == tree_st[ii].size() - 1)
-				{
-					for (int kk = 0; kk < tree_st[ii].size(); kk++)
-					{
-						if (tree_st[ii][kk] == 0)
-						{
-							pivot = kk;
-							break;
-						}
-					}
-				}
-			}
-			if (pivot == 0)
-			{
-				qroots.append(qregistry[ii]);
-			}
-			if (tree_st[ii].size() > pivot + 1)  // If this node has children...
-			{
-				for (int jj = pivot + 1; jj < tree_st[ii].size(); jj++)
-				{
-					qregistry[ii]->addChild(qregistry[tree_st[ii][jj]]);
-				}
-			}
-		}
-		qview->addTopLevelItems(qroots);
-
-
-		/*
-		for (int ii = 0; ii < tree_st.size(); ii++) 
-		{
-			qtemp = QString::fromStdString(tree_pl[ii]);
-
-			// For every node, determine its parent. Then, set its text.
-			for (int jj = 0; jj < tree_st[ii].size(); jj++) 
-			{
-				if (tree_st[ii][jj] < 0)
-				{
-					pivot = jj;
-					break;
-				}
-				else if (jj == tree_st[ii].size() - 1)
-				{
-					pivot = 0;
-				}
-			}
-			if (pivot == 0)  // If this node is (part of) the root...
-			{
-				qitem = new QTreeWidgetItem();
-				qitem->setText(0, qtemp);
-				qroots.append(qitem);
-				qregistry.append(qitem);
-			}
-			else
-			{
-				iparent = tree_st[ii][pivot - 1];
-				qparent = qregistry[iparent];
-				qitem = new QTreeWidgetItem(qparent);
-				qitem->setText(0, qtemp);
-				qregistry.append(qitem);
-			}
-		}
-		int display_root = get_display_root(qview);
-		if (display_root == 1)
-		{
-			qview->addTopLevelItems(qroots);
-		}
-		else if (display_root == 0)
-		{
-			for (int ii = 0; ii < qroots.size(); ii++)
-			{
-				qTNG.append(qroots[ii]->takeChildren());
-				qroots[ii]->setHidden(1);
-				qview->addTopLevelItem(qroots[ii]);
-			}
-			qview->addTopLevelItems(qTNG);
-		}
-		else
-		{
-			err("display_root-qt.display");
-		}
-		*/
-
-		// Tidy up.
-		if (tree_st.size() <= 20)
-		{
-			qview->expandAll();
-		}
-	}
-
-	template<typename ... Args> void displayBin(QLabel*& qlabel, Args& ... args)
-	{
-		jf.err("displayBin template-qf");
-	}
-	template<> void displayBin<string>(QLabel*& qlabel, string& pathBIN)
-	{
-		// Load all coordinates into memory from the bin file.
-		vector<vector<vector<int>>> frames;
-		double scale;
-		vector<double> position;
-		string sParent8;
-		vector<vector<int>> border;
-		loadBinMap(pathBIN, frames, scale, position, sParent8, border);
-
-		// Scale and shift the coordinates to fit the display window.
-		vector<double> mapShift = makeShift(qlabel, frames[0]);
-		vector<vector<double>> borderShifted;
-		im.coordShift(border, mapShift, borderShifted);
-
-		// Paint the coordinates onto the GUI window.
-		QPainterPath path = pathMake(borderShifted);
-		displayBin(qlabel, path);
-	}
-	template<> void displayBin<QString>(QLabel*& qlabel, QString& qName)
-	{
-		int listIndex = mapListPathBin.value(qName, -1);
-		if (listIndex < 0) { jf.err("mapListPathBin-qf.displayBin"); }
-		string pathBIN = listPathBin[listIndex];
-		displayBin(qlabel, pathBIN);
-	}
-	template<> void displayBin<QPainterPath>(QLabel*& qlabel, QPainterPath& painterPathBorder)
-	{
-		// Paint the coordinates onto the GUI window.
-		pmPainterReset(qlabel);
-		pen.setWidth(5);
-		painter.drawPath(painterPathBorder);
-		qlabel->setPixmap(pmPainting);
-		QCoreApplication::processEvents();
-		lastMap = 1;
-	}
-
-	template<typename ... Args> void displayPainterPathDots(QLabel*& qlabel, QPainterPath& path, Args& ... args)
-	{
-		// On a given QLabel, draw a filled circle at each of the given coordinates.
-		// If no colour list is given, all points are drawn in default red. Otherwise,
-		// dots are drawn using listed RGB. Listed colours will be paired (by
-		// index) to listed coordinates. If the list of coordinates exceeds the list
-		// of colours, then the overflow points receive the last colour given. 
-		err("displayDots template-qf");
-	}
-	template<> void displayPainterPathDots<vector<vector<int>>>(QLabel*& qlabel, QPainterPath& path, vector<vector<int>>& dots)
-	{
-		pmPainterReset(qlabel);
-		painter.setPen(pen);
-		painter.drawPath(path);
-		for (int ii = 0; ii < dots.size(); ii++)
-		{
-			brush.setColor(getColour(dots[ii][2]));
-			painter.fillRect(dots[ii][0] - (diameterDefault / 2), dots[ii][1] - (diameterDefault / 2), diameterDefault, diameterDefault, brush);
-		}
-		qlabel->setPixmap(pmPainting);
 	}
 
 	template<typename ... Args> vector<vector<int>> dotsMake(Args& ... args)

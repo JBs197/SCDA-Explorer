@@ -1029,7 +1029,7 @@ string STATSCAN::makeBinParentNew(string binPath, string& sParent)
     }
     string geoFile = wf.load(geoPath);
     string regionName8 = jf.asciiToUTF8(regionName);
-    pos1 = geoFile.find(regionName8);
+    pos1 = geoFile.find("$" + regionName8 + "$") + 1;
     if (pos1 > geoFile.size()) { jf.err("Region not found in geo-sc.makeBinParent"); }
     pos1 = geoFile.find('$', pos1) + 1;
     pos2 = geoFile.find_first_of("\r\n", pos1);
@@ -1051,9 +1051,15 @@ string STATSCAN::makeBinParentNew(string binPath, string& sParent)
     binParent += "\n" + temp;
     return binParent;
 }
-string STATSCAN::makeBinPosition(vector<double> position)
+string STATSCAN::makeBinPositionGPS(vector<double> position)
 {
     string binPosition = "//position(GPS)\n" + to_string(position[0]);
+    binPosition += "," + to_string(position[1]);
+    return binPosition;
+}
+string STATSCAN::makeBinPositionPNG(vector<double> position)
+{
+    string binPosition = "//position(PNG)\n" + to_string(position[0]);
     binPosition += "," + to_string(position[1]);
     return binPosition;
 }
@@ -1063,26 +1069,37 @@ string STATSCAN::makeBinScale(double scale)
     return binScale;
 }
 
+string STATSCAN::makeCreateCSV(vector<string> param)
+{
+    string stmt = "CREATE TABLE IF NOT EXISTS \"" + param[0] + "$" + param[1];
+    stmt += "\" (\"" + param[2] + "\" TEXT";
+    for (int ii = 3; ii < param.size(); ii++)
+    {
+        stmt += ", \"" + param[ii] + "\" NUMERIC";
+    }
+    stmt += ");";
+    return stmt;
+}
 string STATSCAN::makeCreateGeo(string cataName)
 {
     // Note that this table must have unique rows.
-    string stmt = "CREATE TABLE IF NOT EXISTS Geo$" + cataName;
-    stmt += " (GID INTEGER PRIMARY KEY, \"Region Name\" TEXT, Indent INT, ";
+    string stmt = "CREATE TABLE IF NOT EXISTS \"Geo$" + cataName;
+    stmt += "\" (GID INTEGER PRIMARY KEY, \"Region Name\" TEXT, Indent INT, ";
     stmt += "UNIQUE(GID, \"Region Name\", Indent));";
     return stmt;
 }
 string STATSCAN::makeCreateGeoLayers(string cataName)
 {
     // Note that this table must have unique rows.
-    string stmt = "CREATE TABLE IF NOT EXISTS Geo_Layers$" + cataName;
-    stmt += " (Layers TEXT, UNIQUE(Layers));";
+    string stmt = "CREATE TABLE IF NOT EXISTS \"Geo_Layers$" + cataName;
+    stmt += "\" (Layers TEXT, UNIQUE(Layers));";
     return stmt;
 }
 string STATSCAN::makeCreateRowColTitle(string cataName)
 {
     // Note that this table must have unique rows.
-    string stmt = "CREATE TABLE IF NOT EXISTS RowColTitle$" + cataName;
-    stmt += " (Row TEXT, Column TEXT, UNIQUE(Row));";
+    string stmt = "CREATE TABLE IF NOT EXISTS \"RowColTitle$" + cataName;
+    stmt += "\" (Row TEXT, Column TEXT, UNIQUE(Row));";
     return stmt;
 }
 vector<string> STATSCAN::makeCreateTCatalogue(string& csvFile, string& tname, vector<string>& listParam)
@@ -1162,13 +1179,13 @@ vector<string> STATSCAN::makeCreateTCatalogue(string& csvFile, string& tname, ve
 
     tname = "TCatalogue";
     stmts.resize(listParam.size() + 1);
-    stmts[0] = "CREATE TABLE IF NOT EXISTS " + tname;
-    stmts[0] += " (Year INTEGER PRIMARY KEY);";
+    stmts[0] = "CREATE TABLE IF NOT EXISTS \"" + tname;
+    stmts[0] += "\" (Year INTEGER PRIMARY KEY);";
     for (int ii = 1; ii <= listParam.size(); ii++)
     {
         tname += "$" + listParam[ii - 1];
-        stmts[ii] = "CREATE TABLE IF NOT EXISTS " + tname;
-        stmts[ii] += " (Topic" + to_string(ii) + " TEXT";
+        stmts[ii] = "CREATE TABLE IF NOT EXISTS \"" + tname;
+        stmts[ii] += "\" (Topic" + to_string(ii) + " TEXT";
         stmts[ii] += ", UNIQUE(Topic" + to_string(ii) + "));";
     }
     return stmts;
@@ -1176,8 +1193,8 @@ vector<string> STATSCAN::makeCreateTCatalogue(string& csvFile, string& tname, ve
 string STATSCAN::makeCreateTG_Region(string cataName, int numCol)
 {
     // Note that this table must have unique rows.
-    string stmt = "CREATE TABLE IF NOT EXISTS TG_Region$" + cataName;
-    stmt += " (GID INTEGER PRIMARY KEY, \"Region Name\" TEXT, ";
+    string stmt = "CREATE TABLE IF NOT EXISTS \"TG_Region$" + cataName;
+    stmt += "\" (GID INTEGER PRIMARY KEY, \"Region Name\" TEXT, ";
     for (int ii = 2; ii < numCol; ii++)
     {
         stmt += "param" + to_string(ii) + " INT, ";
@@ -1185,14 +1202,72 @@ string STATSCAN::makeCreateTG_Region(string cataName, int numCol)
     stmt += "UNIQUE(GID));";
     return stmt;
 }
+vector<string> STATSCAN::makeCreateTMap(vector<string>& stmtsTMI)
+{
+    vector<string> stmts;
+    string coreDir, tname, stmt;
+    size_t pos1, pos2;
+    for (int ii = 0; ii < stmtsTMI.size(); ii++)
+    {
+        pos1 = stmtsTMI[ii].find("VALUES");
+        pos1 = stmtsTMI[ii].find('\'', pos1) + 1;
+        pos2 = stmtsTMI[ii].rfind('\'');
+        coreDir = stmtsTMI[ii].substr(pos1, pos2 - pos1);
+        
+        tname = coreDir + "$scale";
+        stmt = "CREATE TABLE IF NOT EXISTS \"" + tname; 
+        stmt += "\" (\"Pixels Per KM\" NUMERIC);";
+        stmts.push_back(stmt);
+
+        tname = coreDir + "$parent";
+        stmt = "CREATE TABLE IF NOT EXISTS \"" + tname;
+        stmt += "\" (\"Region Name\" TEXT);";
+        stmts.push_back(stmt);
+
+        tname = coreDir + "$position";
+        stmt = "CREATE TABLE IF NOT EXISTS \"" + tname;
+        stmt += "\" (PNG NUMERIC, GPS NUMERIC);";
+        stmts.push_back(stmt);
+
+        tname = coreDir + "$border";
+        stmt = "CREATE TABLE IF NOT EXISTS \"" + tname;
+        stmt += "\" (xCoord NUMERIC, yCoord NUMERIC);";
+        stmts.push_back(stmt);
+    }
+    return stmts;
+}
 string STATSCAN::makeCreateTMapIndex(string cataName)
 {
     // Note that this table must have unique rows.
-    string stmt = "CREATE TABLE IF NOT EXISTS TMapIndex$" + cataName;
-    stmt += " (GID INTEGER PRIMARY KEY, \"Map Path\" TEXT, UNIQUE(GID));";
+    string stmt = "CREATE TABLE IF NOT EXISTS \"TMapIndex$" + cataName;
+    stmt += "\" (GID INTEGER PRIMARY KEY, \"Map Path\" TEXT, UNIQUE(GID));";
     return stmt;
 }
 
+vector<string> STATSCAN::makeInsertCSV(vector<string> param, string& csvFile)
+{
+    size_t finalTextVar = 0;
+    int damaged;
+    vector<vector<string>> rows = extract_rows(csvFile, damaged, finalTextVar);
+    vector<string> stmts(rows.size());
+    for (int ii = 0; ii < stmts.size(); ii++)
+    {
+        stmts[ii] = "INSERT OR IGNORE INTO \"" + param[0] + "$" + param[1] + "\" (\"";
+        for (int jj = 2; jj < param.size(); jj++)
+        {
+            stmts[ii] += param[jj] + "\", ";
+        }
+        stmts[ii].pop_back();
+        stmts[ii].pop_back();
+        stmts[ii] += ") VALUES ('" + rows[ii][0] + "'";
+        for (int jj = 1; jj < rows[ii].size(); jj++)
+        {
+            stmts[ii] += ", " + rows[ii][jj];
+        }
+        stmts[ii] += ");";
+    }
+    return stmts;
+}
 vector<string> STATSCAN::makeInsertGeo(string& geoFile, string cataName)
 {
     vector<string> stmts;
@@ -1211,7 +1286,7 @@ vector<string> STATSCAN::makeInsertGeo(string& geoFile, string cataName)
         pos1 = pos2 + 1;
         pos2 = geoFile.find_first_not_of("1234567890", pos1);
         indent = geoFile.substr(pos1, pos2 - pos1);
-        stmt = "INSERT OR IGNORE INTO Geo$" + cataName + " (GID, ";
+        stmt = "INSERT OR IGNORE INTO \"Geo$" + cataName + "\" (GID, ";
         stmt += "\"Region Name\", Indent) VALUES (" + gid + ", '" + name;
         stmt += "', " + indent + ");";
         stmts.push_back(stmt);
@@ -1262,8 +1337,8 @@ vector<string> STATSCAN::makeInsertGeoLayers(string& geoFile, string cataName, v
     stmts.resize(geoLayers.size());
     for (int ii = 0; ii < stmts.size(); ii++)
     {
-        stmts[ii] = "INSERT OR IGNORE INTO Geo_Layers$" + cataName;
-        stmts[ii] += " (Layers) VALUES (" + geoLayers[ii] + ");";
+        stmts[ii] = "INSERT OR IGNORE INTO \"Geo_Layers$" + cataName;
+        stmts[ii] += "\" (Layers) VALUES ('" + geoLayers[ii] + "');";
     }
     return stmts;
 }
@@ -1359,8 +1434,8 @@ vector<string> STATSCAN::makeInsertRowColTitle(string cataName, string& csvFile)
         for (int ii = 0; ii < rowTitles.size(); ii++)
         {
             jf.clean(rowTitles[ii], dirt, soap);
-            stmt = "INSERT OR IGNORE INTO RowColTitle$" + cataName;
-            stmt += " (Row, Column) VALUES ('" + rowTitles[ii] + "', '";
+            stmt = "INSERT OR IGNORE INTO \"RowColTitle$" + cataName;
+            stmt += "\" (Row, Column) VALUES ('" + rowTitles[ii] + "', '";
             if (ii < colTitles.size())
             {
                 jf.clean(colTitles[ii], dirt, soap);
@@ -1375,8 +1450,8 @@ vector<string> STATSCAN::makeInsertRowColTitle(string cataName, string& csvFile)
         for (int ii = 0; ii < colTitles.size(); ii++)
         {
             jf.clean(colTitles[ii], dirt, soap);
-            stmt = "INSERT OR IGNORE INTO RowColTitle$" + cataName;
-            stmt += " (Row, Column) VALUES ('";
+            stmt = "INSERT OR IGNORE INTO \"RowColTitle$" + cataName;
+            stmt += "\" (Row, Column) VALUES ('";
             if (ii < rowTitles.size())
             {
                 jf.clean(rowTitles[ii], dirt, soap);
@@ -1394,7 +1469,7 @@ vector<string> STATSCAN::makeInsertTCatalogue(string cataName, string tname, vec
     size_t pos1;
     for (int ii = stmts.size() - 1; ii > 0; ii--)
     {
-        stmts[ii] = "INSERT OR IGNORE INTO " + tname + " (Topic"; 
+        stmts[ii] = "INSERT OR IGNORE INTO \"" + tname + "\" (Topic"; 
         stmts[ii] += to_string(ii) + ") VALUES ('";
         if (ii == listParam.size())
         {
@@ -1440,8 +1515,8 @@ vector<string> STATSCAN::makeInsertTG_Region(string cataName, string& geoFile)
         if (indent >= indentHistory.size()) { indentHistory.push_back(GID); }
         else { indentHistory[indent] = GID; }
 
-        stmt = "INSERT OR IGNORE INTO TG_Region$" + cataName; 
-        stmt += " (GID, \"Region Name\"";
+        stmt = "INSERT OR IGNORE INTO \"TG_Region$" + cataName; 
+        stmt += "\" (GID, \"Region Name\"";
         for (int ii = 0; ii < indent; ii++)
         {
             stmt += ", param" + to_string(ii + 2);
@@ -1453,6 +1528,65 @@ vector<string> STATSCAN::makeInsertTG_Region(string cataName, string& geoFile)
         }
         stmt += ");";
         stmts.push_back(stmt);
+    }
+    return stmts;
+}
+vector<string> STATSCAN::makeInsertTMap(vector<string>& stmtsTMI)
+{
+    vector<string> stmts, dirt = { "$", "''" }, soap = { "\\", "'" };
+    string coreDir, tname, stmt, binPath, binFile, parent;
+    size_t pos1, pos2;
+    vector<vector<int>> border;
+    vector<double> positionPNG, positionGPS;
+    double scale;
+    for (int ii = 0; ii < stmtsTMI.size(); ii++)
+    {
+        pos1 = stmtsTMI[ii].find("VALUES");
+        pos1 = stmtsTMI[ii].find('\'', pos1) + 1;
+        pos2 = stmtsTMI[ii].rfind('\'');
+        coreDir = stmtsTMI[ii].substr(pos1, pos2 - pos1);
+
+        pos1 = coreDir.find('$');
+        binPath = sroot + "\\mapsBIN" + coreDir.substr(pos1) + ".bin";
+        jf.clean(binPath, dirt, soap);
+        binFile = wf.load(binPath);
+
+        scale = readBinScale(binFile);
+        if (scale < 0.0) { jf.err("readBinScale-sc.makeInsertTMap"); }
+        tname = coreDir + "$scale";
+        stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (\"Pixels Per KM\")";
+        stmt += " VALUES (" + to_string(scale) + ");";
+        stmts.push_back(stmt);
+
+        parent = readBinParent(binFile);
+        if (parent.size() < 1) { jf.err("readBinParent-sc.makeInsertTMap"); }
+        jf.clean(parent, soap, dirt);  // Double quotes.
+        tname = coreDir + "$parent";
+        stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (\"Region Name\")";
+        stmt += " VALUES ('" + parent + "');";
+        stmts.push_back(stmt);
+
+        positionPNG = readBinPositionPNG(binFile);
+        if (positionPNG[0] < 0.0) { jf.err("readBinPositionPNG-sc.makeInsertTMap"); }
+        positionGPS = readBinPositionGPS(binFile);
+        if (positionGPS[0] < -180.0) { jf.err("readBinPositionGPS-sc.makeInsertTMap"); }
+        tname = coreDir + "$position";
+        stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (PNG, GPS) VALUES (";
+        stmt += to_string(positionPNG[0]) + ", " + to_string(positionGPS[0]) + ");";
+        stmts.push_back(stmt);
+        stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (PNG, GPS) VALUES (";
+        stmt += to_string(positionPNG[1]) + ", " + to_string(positionGPS[1]) + ");";
+        stmts.push_back(stmt);
+
+        border = readBinBorder(binFile);
+        if (border.size() < 1) { jf.err("readBinBorder-sc.makeInsertTMap"); }
+        tname = coreDir + "$border";
+        for (int jj = 0; jj < border.size(); jj++)
+        {
+            stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (xCoord, yCoord) VALUES (";
+            stmt += to_string(border[jj][0]) + ", " + to_string(border[jj][1]) + ");";
+            stmts.push_back(stmt);
+        }
     }
     return stmts;
 }
@@ -1484,7 +1618,7 @@ vector<string> STATSCAN::makeInsertTMapIndex(string& geoFile, string cataName, v
             coreDir += "$" + geoLayers[ii];
         }
         coreDir += "$" + name;
-        stmt = "INSERT OR IGNORE INTO TMapIndex$" + cataName + " (GID, ";
+        stmt = "INSERT OR IGNORE INTO \"TMapIndex$" + cataName + "\" (GID, ";
         stmt += "\"Map Path\") VALUES (" + gid + ", '" + coreDir + "');";
         stmts.push_back(stmt);
         pos2 = geoFile.find('\n', pos2);
@@ -2038,7 +2172,7 @@ string STATSCAN::readBinParent(string& binFile)
     parent = binFile.substr(pos1, pos2 - pos1);
     return parent;
 }
-vector<double> STATSCAN::readBinPosition(string& binFile)
+vector<double> STATSCAN::readBinPositionGPS(string& binFile)
 {
     vector<double> position = { -181.0, -181.0 };
     size_t pos1 = binFile.find("//position(GPS)");
@@ -2054,6 +2188,26 @@ vector<double> STATSCAN::readBinPosition(string& binFile)
     {
         position[0] = stod(latitude);
         position[1] = stod(longitude);
+    }
+    catch (invalid_argument) { jf.err("stod-sc.readBinPosition"); }
+    return position;
+}
+vector<double> STATSCAN::readBinPositionPNG(string& binFile)
+{
+    vector<double> position = { -1.0, -1.0 };
+    size_t pos1 = binFile.find("//position(PNG)");
+    if (pos1 > binFile.size()) { return position; }
+    pos1 = binFile.find('\n', pos1) + 1;
+    size_t pos2 = binFile.find(',', pos1);
+    string xPercent = binFile.substr(pos1, pos2 - pos1);
+    pos1 = pos2 + 1;
+    pos2 = binFile.find_first_of("\r\n", pos1);
+    string yPercent = binFile.substr(pos1, pos2 - pos1);
+    position.resize(2);
+    try
+    {
+        position[0] = stod(xPercent);
+        position[1] = stod(yPercent);
     }
     catch (invalid_argument) { jf.err("stod-sc.readBinPosition"); }
     return position;

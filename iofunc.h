@@ -3,6 +3,7 @@
 #include "winfunc.h"
 #include <QPlainTextEdit>
 #include <QCoreApplication>
+#include <QDebug>
 
 class IOFUNC : private WINFUNC
 {

@@ -101,6 +101,7 @@ vector<double> IOFUNC::getBinPosition(string regionName, string sParent)
 		regionName = regionName.substr(0, pos1);
 	}
 	query = regionName + " " + sParent;
+	jf.asciiNearestFit(query);
 
 	mouseClickTriple(pSearch, targetWindow);
 	if (targetWindow == NULL) { targetWindow = activeWindow; }

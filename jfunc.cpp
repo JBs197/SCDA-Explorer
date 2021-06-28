@@ -1,5 +1,37 @@
 #include "jfunc.h"
 
+void JFUNC::asciiNearestFit(string& input)
+{
+	// For a given ASCII or UTF8 string, replace all negative chars with [0, 127] equivalent.
+	for (int ii = 0; ii < input.size(); ii++)
+	{
+		if (input[ii] < 0)
+		{
+			if (ii < input.size() - 1)  // If UTF8, make ASCII.
+			{
+				if (input[ii] == -61 && input[ii + 1] < 0)  
+				{
+					input[ii] = input[ii + 1] + 64;
+					input.erase(input.begin() + ii + 1);
+				}
+			}
+		
+			if (input[ii] >= -64 && input[ii] <= -59) { input[ii] = 'A'; } 
+			else if (input[ii] == -57) { input[ii] = 'C'; }
+			else if (input[ii] >= -56 && input[ii] <= -53) { input[ii] = 'E'; }
+			else if (input[ii] >= -52 && input[ii] <= -49) { input[ii] = 'I'; }
+			else if (input[ii] >= -46 && input[ii] <= -42) { input[ii] = 'O'; }
+			else if (input[ii] >= -39 && input[ii] <= -36) { input[ii] = 'U'; }
+			else if (input[ii] >= -32 && input[ii] <= -27) { input[ii] = 'a'; }
+			else if (input[ii] == -25) { input[ii] = 'c'; }
+			else if (input[ii] >= -24 && input[ii] <= -21) { input[ii] = 'e'; }
+			else if (input[ii] >= -20 && input[ii] <= -17) { input[ii] = 'i'; }
+			else if (input[ii] >= -14 && input[ii] <= -10) { input[ii] = 'o'; }
+			else if (input[ii] >= -7 && input[ii] <= -4) { input[ii] = 'u'; }
+			else { err("Failed to locate accent-jf.asciiNearestFit"); }
+		}
+	}
+}
 string JFUNC::asciiOnly(string& input)
 {
 	string ascii;
@@ -356,6 +388,7 @@ vector<double> JFUNC::destringifyCoordD(string& sCoord)
 void JFUNC::err(string func)
 {
 	lock_guard<mutex> lock(m_err);
+	ofstream ERR;
 	ERR.open(error_path, ofstream::app);
 	string message = timestamper() + " General error from " + func;
 	ERR << message << endl << endl;
@@ -570,6 +603,7 @@ string JFUNC::load(string file_path)
 void JFUNC::log(string message)
 {
 	lock_guard<mutex> lock(m_err);
+	ofstream LOG;
 	LOG.open(log_path, ofstream::app);
 	string output = timestamper() + message;
 	LOG << output << endl << endl;
@@ -578,6 +612,7 @@ void JFUNC::log(string message)
 void JFUNC::logTime(string func, long long timer)
 {
 	lock_guard<mutex> lock(m_err);
+	ofstream LOG;
 	LOG.open(log_path, ofstream::app);
 	string output = timestamper() + func + " completed in ";
 	output += to_string(timer) + "ms.";
@@ -741,12 +776,12 @@ void JFUNC::pngRead(string& pathPNG)
 }
 void JFUNC::printer(string path, string& sfile)
 {
-	ofstream WPR;
+	ofstream PR;
 	locale utf8 = locale("en_US.UTF8");
-	WPR.imbue(utf8);
-	WPR.open(path, ios_base::binary | ios_base::trunc);
-	WPR << sfile << endl;
-	WPR.close();
+	PR.imbue(utf8);
+	PR.open(path, ios_base::binary | ios_base::trunc);
+	PR << sfile << endl;
+	PR.close();
 }
 void JFUNC::printer(string path, wstring& wfile)
 {
@@ -824,29 +859,6 @@ void JFUNC::set_navigator_asset_path(string& path)
 {
 	navigator_asset_path = path;
 }
-void JFUNC::stopWatch(atomic_int& control, atomic_ullong& timer)
-{
-	using namespace chrono;
-	timer = 0;
-	auto t1 = steady_clock::now();
-	auto t2 = steady_clock::now();
-	auto diff = t2 - t1;
-	while (control < 2)
-	{
-		t2 = steady_clock::now();
-		if (control == 1)
-		{
-			diff = t2 - t1;
-			duration<unsigned long long> d1 = duration_cast<duration<unsigned long long>>(diff);
-			timer = d1.count();
-			t1 = steady_clock::now();
-			control = 0;
-		}
-	}
-	diff = t2 - t1;
-	duration<unsigned long long> d2 = duration_cast<duration<unsigned long long>>(diff);
-	timer = d2.count();
-}
 string JFUNC::stringifyCoord(vector<int>& coord)
 {
 	if (coord.size() < 2) { err("coord format-jf.stringifyCoord"); }
@@ -903,23 +915,21 @@ vector<string> JFUNC::textParser(string& sfile, vector<string>& search)
 }
 void JFUNC::timerStart()
 {
-	t1 = chrono::steady_clock::now();
+	t1 = chrono::high_resolution_clock::now();
 }
 long long JFUNC::timerRestart()
 {
-	auto t2 = chrono::steady_clock::now();  // steady_clock uses ns, but can only update every 100ns.
-	auto diff = t2 - t1;
-	auto ms = chrono::duration_cast<chrono::milliseconds>(diff);
-	auto timer = ms.count();
-	t1 = chrono::steady_clock::now();
+	t2 = chrono::high_resolution_clock::now();  // steady_clock uses ns, but can only update every 100ns.
+	chrono::milliseconds d1 = chrono::duration_cast<chrono::milliseconds>(t2 - t1);
+	long long timer = d1.count();
+	t1 = chrono::high_resolution_clock::now();
 	return timer;
 }
 long long JFUNC::timerStop()
 {
-	auto t2 = chrono::steady_clock::now();  // steady_clock uses ns, but can only update every 100ns.
-	auto diff = t2 - t1;
-	auto ms = chrono::duration_cast<chrono::milliseconds>(diff);
-	auto timer = ms.count();
+	t2 = chrono::high_resolution_clock::now();  // steady_clock uses ns, but can only update every 100ns.
+	chrono::milliseconds d1 = chrono::duration_cast<chrono::milliseconds>(t2 - t1);
+	long long timer = d1.count();
 	return timer;
 }
 string JFUNC::timestamper()

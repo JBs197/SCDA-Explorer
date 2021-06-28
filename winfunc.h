@@ -16,7 +16,6 @@ class WINFUNC
 {
     JFUNC jf;
     vector<string> domains = { ".com", ".net", ".org", ".edu", ".ca" };
-    ofstream ERR;
     string error_path = sroot + "\\SCDA Error Log.txt";
     static vector<wstring> objects;
     vector<int> tree_pl_int;  // List of integer payload values in the tree.
@@ -24,7 +23,7 @@ class WINFUNC
     vector<vector<int>> tree_structure;  // Form [node index][ancestor indices, node index as negative, children's indices].
 
 public:
-	explicit WINFUNC() {}
+	WINFUNC() {}
 	~WINFUNC() {}
 
     string browseA(string url);
@@ -45,6 +44,7 @@ public:
     void makeDir(string);
     void make_tree_local(vector<vector<int>>&, vector<string>&, int, string, int, string);
     void make_tree_local_helper1(vector<vector<int>>&, vector<string>&, vector<int>, string, int, int, int, string);
+	void printer(string path, string& file);
 	void renameFile(string oldPath, string newPath);
 	void set_error_path(string);
     //string urlRedirect(string url);
@@ -58,6 +58,7 @@ public:
     template<> void winerr<const char*>(const char* func)
     {
         lock_guard<mutex> lock(m_err);
+		ofstream ERR;
         DWORD num = GetLastError();
         string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + func + "\r\n";
         ERR.open(error_path, ofstream::app);

@@ -11,7 +11,6 @@
 #include <codecvt>
 #include <algorithm>
 #include <chrono>
-#include <atomic>
 #include <mutex>
 #include <cmath>
 
@@ -21,23 +20,20 @@ extern const string sroot;
 
 class JFUNC
 {
-	ofstream ERR, LOG;
 	string error_path = sroot + "\\SCDA Error Log.txt";
 	string log_path = sroot + "\\SCDA Process Log.txt";
 	string navigator_asset_path = sroot + "\\SCDA Navigator Asset.bin";
 	vector<vector<string>> navigator_search;  // Form [search tree layer index][section start, section end, inside iteration, ...].
 
-	void stopWatch(atomic_int&, atomic_ullong&);
-	chrono::steady_clock::time_point t1;
+	chrono::high_resolution_clock::time_point t1, t2;
 
 public:
-	explicit JFUNC() {}
+	JFUNC() {}
 	~JFUNC() {}
 
 	enum order { Increasing, Decreasing };
-	atomic_ullong stopwatch{0};  // Max timer ticks is 1.8e19.
-	atomic_int stopwatch_control{0};
 
+	void asciiNearestFit(string& input);
 	string asciiOnly(string& input);
 	string asciiToUTF8(string input);
 	wstring asciiToUTF16(string aFile);
