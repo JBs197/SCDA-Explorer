@@ -12,6 +12,7 @@ MainWindow::MainWindow(QWidget *parent)
     initialize();
     initGUI();
     initImgFont("Sylfaen");
+    this->showMaximized();
 }
 MainWindow::~MainWindow()
 {
@@ -124,7 +125,7 @@ void MainWindow::barText(string message)
     ui->qlabel_progressbar->setText(qmessage);
 }
 
-// Table functions.
+// Table shared functions.
 void MainWindow::tablePopulate(QTableWidget*& qTable, vector<vector<string>>& sData)
 {
     // Note: The zeroth row and column are used as row/column titles. 
@@ -257,6 +258,21 @@ void MainWindow::on_pB_search_clicked()
             ui->listW_searchresult->addItem(qTemp);
         }
         ui->tabW_main->setCurrentIndex(2);
+    }
+}
+void MainWindow::on_listW_searchresult_itemSelectionChanged()
+{
+    QList<QListWidgetItem*> qSel = ui->listW_searchresult->selectedItems();
+    if (qSel.size() == 0)
+    {
+        ui->pB_viewtable->setEnabled(0);
+        ui->pB_deletetable->setEnabled(0);
+    }
+    else
+    {
+        ui->pB_viewtable->setEnabled(1);
+        ui->pB_deletetable->setEnabled(1);
+        ui->pB_deletetable->setText("Delete\nTable");
     }
 }
 
@@ -436,109 +452,24 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     sbgui.answer_call(myid, mycomm);
     vector<string> prompt = sbgui.get_prompt();  // Form [sYear, sName].
     string cataPath = sroot + "\\" + prompt[0] + "\\" + prompt[1];
-    vector<string> csvNameList = wf.get_file_list(cataPath, "*.csv");
-    string csvPath = cataPath + "\\" + csvNameList[0];
-    string tname, desc, csvFile = wf.load(csvPath);
-    sc.set_path(cataPath);
-    sc.cata_init(csvFile);
-    sc.extract_gid_list(csvNameList);
-    sc.extract_csv_branches(csvNameList);
-    vector<string> gidList = sc.get_gid_list();
-    vector<vector<string>> rowColTitle = sc.extractTitles(csvFile);
-    if (rowColTitle[1].size() < 2)
+    sc.init(cataPath);
+
+    // Insert tables derived from the meta file.
+    vector<string> vsResult = sc.makeCreateInsertDefinitions();
+    for (int ii = 0; ii < vsResult.size(); ii++)
     {
-        rowColTitle[1] = { "Row Title", "Value" };
+        sfgui.executor(vsResult[ii]);
     }
-    int numCSV = csvNameList.size();
-    mycomm[2] = numCSV * 2;  // Index is half, CSVs are other half;
-    sbgui.update(myid, mycomm);
-    int indexChunk = numCSV / 7;
-
-    // Insert the catalogue's geo table.
-    string geoPath = cataPath + "\\" + prompt[1] + " geo list.bin";
-    string geoFile = wf.load(geoPath);
-    string stmt = sc.makeCreateGeo(prompt[1]);
-    sfgui.executor(stmt);
-    vector<string> stmts = sc.makeInsertGeo(geoFile, prompt[1]);
-    sfgui.insert_prepared(stmts);
-    mycomm[1] += indexChunk;
-    sbgui.update(myid, mycomm);
-
-    // Insert the catalogue's geo layers table.
-    vector<string> geoLayers;
-    stmt = sc.makeCreateGeoLayers(prompt[1]);
-    sfgui.executor(stmt);
-    stmts = sc.makeInsertGeoLayers(geoFile, prompt[1], geoLayers);
-    sfgui.insert_prepared(stmts);
-    mycomm[1] += indexChunk;
-    sbgui.update(myid, mycomm);
-
-    // Insert the catalogue's TMapIndex table (must be done after geo layers).
-    stmt = sc.makeCreateTMapIndex(prompt[1]);
-    sfgui.executor(stmt);
-    stmts = sc.makeInsertTMapIndex(geoFile, prompt[1], geoLayers);
-    sfgui.insert_prepared(stmts);
-    mycomm[1] += indexChunk;
-    sbgui.update(myid, mycomm);
-
-    // Insert the catalogue's TMap tables (must be done after TMapIndex).
-    vector<string> stmtsTMI = stmts;
-    stmts = sc.makeCreateTMap(stmtsTMI);
-    sfgui.insert_prepared(stmts);
-    stmts = sc.makeInsertTMap(stmtsTMI);
-    sfgui.insert_prepared(stmts);
-    mycomm[1] += indexChunk;
-    sbgui.update(myid, mycomm);
-
-    // Insert the catalogue's RowColTitle table.
-    stmt = sc.makeCreateRowColTitle(prompt[1]);
-    sfgui.executor(stmt);
-    stmts = sc.makeInsertRowColTitle(prompt[1], csvFile);
-    sfgui.insert_prepared(stmts);
-    mycomm[1] += indexChunk;
-    sbgui.update(myid, mycomm);
-
-    // Insert the catalogue's TG_Region table.
-    int numCol = geoLayers.size() + 1;
-    stmt = sc.makeCreateTG_Region(prompt[1], numCol);
-    sfgui.executor(stmt);
-    stmts = sc.makeInsertTG_Region(prompt[1], geoFile);
-    sfgui.insert_prepared(stmts);
-    mycomm[1] += indexChunk;
-    sbgui.update(myid, mycomm);
-
-    // Insert the catalogue's TCatalogue tables.
-    vector<string> listParam = { prompt[0] };
-    stmts = sc.makeCreateTCatalogue(csvFile, tname, listParam);
-    sfgui.insert_prepared(stmts);
-    stmts = sc.makeInsertTCatalogue(prompt[1], tname, listParam);
-    sfgui.insert_prepared(stmts);
-    mycomm[1] += indexChunk;
-    sbgui.update(myid, mycomm);
-
-    // Insert the catalogue's CSV tables.
-    vector<string> param(rowColTitle[1].size() + 2);
-    param[0] = prompt[1];
-    for (int ii = 0; ii < rowColTitle[1].size(); ii++)
+    vector<vector<string>> vvsResult = sc.makeCreateInsertDIM();
+    for (int ii = 0; ii < vvsResult.size(); ii++)
     {
-        param[ii + 2] = rowColTitle[1][ii];
-    }
-    for (int ii = 0; ii < numCSV; ii++)
-    {
-        csvPath = cataPath + "\\" + csvNameList[ii];
-        csvFile = wf.load(csvPath);
-        param[1] = gidList[ii];
-        stmt = sc.makeCreateCSV(param);
-        sfgui.executor(stmt);
-        stmts = sc.makeInsertCSV(param, csvFile);
-        sfgui.insert_prepared(stmts);
-        mycomm[1]++;
-        if (ii % 10 == 0) { sbgui.update(myid, mycomm); }
+        for (int jj = 0; jj < vvsResult[ii].size(); jj++)
+        {
+            sfgui.executor(vvsResult[ii][jj]);
+        }
     }
 
-    mycomm[1] = mycomm[2];
-    mycomm[0] = 1;
-    sbgui.update(myid, mycomm);
+    // RESUME HERE. Make it happen.
 }
 
 // Local map listings.
@@ -935,6 +866,107 @@ void MainWindow::on_listW_maplocal_itemSelectionChanged()
     }
 }
 
+// Database table review.
+void MainWindow::on_pB_viewtable_clicked()
+{
+    QList<QListWidgetItem*> qSel = ui->listW_searchresult->selectedItems();
+    if (qSel.size() != 1) { return; }
+    QString qTemp = qSel[0]->text();
+    string tname = qTemp.toStdString();
+    vector<string> colTitles, search = { "*" };
+    sf.get_col_titles(tname, colTitles);
+    vector<vector<string>> vvsResult;
+    int numCol = sf.select(search, tname, vvsResult), iWidth;
+
+    ui->tableW_db->clear();
+    ui->tableW_db->setColumnCount(numCol);
+    ui->tableW_db->setRowCount(vvsResult.size());
+    QTableWidgetItem* qCell = nullptr;
+    QSize qSize(30, 30);
+    for (int ii = 0; ii < vvsResult.size(); ii++)
+    {
+        for (int jj = 0; jj < vvsResult[ii].size(); jj++)
+        {
+            qTemp = QString::fromStdString(vvsResult[ii][jj]);
+            qCell = new QTableWidgetItem(qTemp);
+            qSize.setWidth(qTemp.size() * 10);
+            qCell->setSizeHint(qSize);
+            ui->tableW_db->setItem(ii, jj, qCell);
+        }
+    }
+    QStringList hHeaderLabels;
+    for (int ii = 0; ii < colTitles.size(); ii++)
+    {
+        qTemp = QString::fromStdString(colTitles[ii]);
+        hHeaderLabels.append(qTemp);
+    }
+    qTemp = QString::fromStdString(tname);
+    qCell = new QTableWidgetItem(qTemp);
+    ui->tableW_db->setVerticalHeaderItem(0, qCell);
+    ui->tableW_db->verticalHeader()->setVisible(0);
+    ui->tableW_db->setHorizontalHeaderLabels(hHeaderLabels);
+}
+void MainWindow::on_pB_deletetable_clicked()
+{
+    int mode, iRow, inum = -1;
+    double dnum = -1.0;
+    string tname;
+    QString qTemp = ui->pB_deletetable->text();
+    if (qTemp == "Delete\nTable") { mode = 0; }
+    else if (qTemp == "Delete\nRow") { mode = 1; }
+    else { jf.err("Failed to read button-MainWindow.on_pB_deletetable_clicked"); }
+    switch (mode)
+    {
+    case 0:
+    {
+        QList<QListWidgetItem*> qSel = ui->listW_searchresult->selectedItems();
+        if (qSel.size() != 1) { return; }
+        qTemp = qSel[0]->text();
+        tname = qTemp.toStdString();
+        sf.remove(tname);
+        qSel[0]->setHidden(1);
+        break;
+    }
+    case 1:
+    {
+        QList<QTableWidgetItem*> qSel = ui->tableW_db->selectedItems();
+        if (qSel.size() != 1) { return; }
+        QTableWidgetItem* qCell = ui->tableW_db->verticalHeaderItem(0);
+        qTemp = qCell->text();
+        tname = qTemp.toStdString();
+        qCell = ui->tableW_db->horizontalHeaderItem(0);
+        qTemp = qCell->text();
+        string colTitle = qTemp.toStdString();
+        iRow = ui->tableW_db->row(qSel[0]);
+        qCell = ui->tableW_db->item(iRow, 0);
+        qTemp = qCell->text();
+        string sValue = qTemp.toStdString();
+        try { inum = stoi(sValue); }
+        catch (invalid_argument) 
+        { 
+            inum = -1; 
+            try { dnum = stod(sValue); }
+            catch (invalid_argument) { dnum = -1.0; }
+        }
+        vector<string> conditions = { "\"" + colTitle };
+        if (inum == -1 && dnum == -1.0)
+        {
+            conditions[0] += "\" LIKE '" + sValue + "'";
+        }
+        else { conditions[0] += "\" = " + sValue; }
+        sf.remove(tname, conditions);
+        ui->tableW_db->removeRow(iRow);
+        break;
+    }
+    }
+}
+void MainWindow::on_tableW_db_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen)
+{
+    if (RowNow < 0 || RowNow == RowThen) { return; }
+    ui->pB_deletetable->setEnabled(1);
+    ui->pB_deletetable->setText("Delete\nRow");
+}
+
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
@@ -948,15 +980,71 @@ void MainWindow::on_pB_test_clicked()
         string url = qtemp.toStdString();
         wstring webpage = wf.browseW(url);
         jf.printer(sroot + "\\Test webpage.txt", webpage);
+        qtemp = "Done!";
+        ui->pte_search->setPlainText(qtemp);
         return;
     }
-    case 1:
+    case 1:  // Inspect a table cell's width.
     {
+        QList<QTableWidgetItem*> qSel = ui->tableW_db->selectedItems();
+        if (qSel.size() != 1) { return; }
+        QSize qSize = qSel[0]->sizeHint();
+        string sMessage = "Size Hint\nWidth: " + to_string(qSize.width());
+        sMessage += "\nHeight: " + to_string(qSize.height());
+        QString qMessage = QString::fromStdString(sMessage);
+        ui->pte_search->setPlainText(qMessage);
         break;
+    }
+    case 2:
+    {
+        QString qTemp = ui->pte_search->toPlainText();
+        if (qTemp != "provinceonly") { return; }
+        ui->pte_search->clear();
+        QList<QTreeWidgetItem*> qSel = ui->treeW_maplocal->selectedItems();
+        if (qSel.size() != 1) { return; }
+        int mode;
+        size_t pos1, pos2;
+        string binPath, binFile, binFileNew, temp;
+        string folderPath = qf.getBranchPath(qSel[0], jtMapLocal.pathRoot);
+        vector<string> binNameList = wf.get_file_list(folderPath, "*.bin");
+        for (int ii = 0; ii < binNameList.size(); ii++)
+        {
+            pos1 = binNameList[ii].find("(Canada)");
+            if (pos1 < binNameList[ii].size()) { mode = 1; }
+            else { mode = 0; }
+            binPath = folderPath + "\\" + binNameList[ii];
+            binFile = wf.load(binPath);
+            switch (mode)
+            {
+            case 0:
+            {
+                pos1 = binFile.find("//position");
+                binFileNew = binFile.substr(0, pos1);
+                binFileNew += "//parent\nCanada\n\n//position(PNG)\n";
+                pos1 = binFile.find('\n', pos1) + 1;
+                pos2 = binFile.find_first_of("\r\n", pos1);
+                temp = binFile.substr(pos1, pos2 - pos1);               
+                binFileNew += temp + "\n\n//position(GPS)\n-181.0,-181.0\n\n";
+                pos1 = binFile.find("//border");
+                binFileNew += binFile.substr(pos1);
+                break;
+            }
+            case 1:
+            {
+                pos1 = binFile.find("//border");
+                binFileNew = binFile.substr(0, pos1);
+                binFileNew += "//parent\nCanada\n\n//position(PNG)\n";
+                binFileNew += "-1.0,-1.0\n\n//position(GPS)\n-181.0,-181.0\n\n";
+                pos1 = binFile.find("//border");
+                binFileNew += binFile.substr(pos1);
+                break;
+            }
+            }
+            wf.printer(binPath, binFileNew);
+        }
     }
     }
 
-    int bbq = 1;
 }
 void MainWindow::on_tabW_main_currentChanged(int index)
 {

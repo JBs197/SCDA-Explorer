@@ -1076,7 +1076,7 @@ void SQLFUNC::remove(string& tname)
 }
 void SQLFUNC::remove(string& tname, vector<string>& conditions)
 {
-    string stmt = "DELETE FROM [" + tname + "] WHERE (";
+    string stmt = "DELETE FROM \"" + tname + "\" WHERE (";
     for (int ii = 0; ii < conditions.size(); ii++)
     {
         stmt += conditions[ii] + " ";

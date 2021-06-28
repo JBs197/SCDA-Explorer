@@ -62,13 +62,17 @@ private slots:
     void mousePressEvent(QMouseEvent* event);
     void on_cB_drives_currentTextChanged(const QString& arg1);
     void on_listW_maplocal_itemSelectionChanged();
+    void on_listW_searchresult_itemSelectionChanged();
     void on_pB_convert_clicked();
+    void on_pB_deletetable_clicked();
     void on_pB_insert_clicked();
     void on_pB_maplocal_clicked();
     void on_pB_resolution_clicked();
     void on_pB_reviewmap_clicked();
     void on_pB_search_clicked();
     void on_pB_test_clicked();
+    void on_pB_viewtable_clicked();
+    void on_tableW_db_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen);
     void on_tableW_maplocal_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen);
     void on_tabW_main_currentChanged(int index);
     void on_treeW_catalocal_itemSelectionChanged();
