@@ -26,6 +26,7 @@ public:
     void all_tables(vector<string>& table_list);
     void create_table(string, vector<string>&, vector<int>&);
     void executor(string stmt);
+    void executor(vector<string> stmts);
     void executor(string stmt, string& result);
     void executor(string stmt, wstring& result);
     void executor(string stmt, vector<string>& results);

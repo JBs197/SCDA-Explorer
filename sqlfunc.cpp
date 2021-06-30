@@ -65,6 +65,19 @@ void SQLFUNC::executor(string stmt)
     error = sqlite3_step(statement);
     if (error > 0 && error != 100 && error != 101) { sqlerr("step-executor0"); }
 }
+void SQLFUNC::executor(vector<string> stmts)
+{
+    // Note this function WILL NOT execute the statements as a transaction. 
+    sqlite3_stmt* statement;
+    int error;
+    for (int ii = 0; ii < stmts.size(); ii++)
+    {
+        error = sqlite3_prepare_v2(db, stmts[ii].c_str(), -1, &statement, NULL);
+        if (error) { sqlerr("prepare-sf.executor"); }
+        error = sqlite3_step(statement);
+        if (error > 0 && error != 100 && error != 101) { sqlerr("step-sf.executor"); }
+    }
+}
 void SQLFUNC::executor(string stmt, string& result)
 {
     // Note that this variant of the executor function will only return the first result.

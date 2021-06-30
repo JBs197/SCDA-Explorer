@@ -419,7 +419,11 @@ void MainWindow::on_pB_insert_clicked()
             Sleep(gui_sleep);
             QCoreApplication::processEvents();
             comm = sb.update(myid, comm[0]);
-            if (comm.size() > 1) { break; }
+            if (comm.size() > 1) 
+            { 
+                barText("Indexing catalogue " + prompt[1] + " ...");
+                break; 
+            }
         }
         while (comm[0][0] == 0)
         {
@@ -456,20 +460,59 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 
     // Insert tables derived from the meta file.
     vector<string> vsResult = sc.makeCreateInsertDefinitions();
-    for (int ii = 0; ii < vsResult.size(); ii++)
-    {
-        sfgui.executor(vsResult[ii]);
-    }
+    sfgui.executor(vsResult);
     vector<vector<string>> vvsResult = sc.makeCreateInsertDIM();
     for (int ii = 0; ii < vvsResult.size(); ii++)
     {
-        for (int jj = 0; jj < vvsResult[ii].size(); jj++)
-        {
-            sfgui.executor(vvsResult[ii][jj]);
-        }
+        sfgui.executor(vvsResult[ii]);
     }
 
-    // RESUME HERE. Make it happen.
+    // Add this catalogue to the appropriate 'Topic' table.
+    string result, tname = "Census$" + prompt[0] + "$Topic";
+    vector<string> colTitles;
+    if (sfgui.table_exist(tname)) { sfgui.get_col_titles(tname, colTitles); }
+    vsResult = sc.makeCreateInsertTopic(colTitles);
+    sfgui.executor(vsResult);
+
+    // Add this year to the root census table. 
+    tname = "Census";
+    if (!sfgui.table_exist(tname))
+    {
+        result = sc.makeCreateCensus();
+        sfgui.executor(result);
+    }
+    result = sc.makeInsertCensus();
+    sfgui.executor(result);
+
+    // Add this catalogue to the 'Year' table.
+    tname = "Census$" + prompt[0];
+    if (!sfgui.table_exist(tname))
+    {
+        result = sc.makeCreateYear();
+        sfgui.executor(result);
+    }
+    result = sc.makeInsertYear();
+    sfgui.executor(result);
+
+    // Insert this catalogue's 'Catalogue' table. 
+    vsResult = sc.makeCreateInsertCatalogue();
+    sfgui.executor(vsResult);
+
+    // Determine the number of regions, and update the GUI thread progress bar.
+    string geoPath = cataPath + "\\Geo_starting_row_CSV.csv";
+    vector<vector<string>> geoList = sc.loadGeoList(geoPath);
+    mycomm[2] = geoList.size();
+    sbgui.update(myid, mycomm);
+
+    // Create a data table for each DIM combination. 
+    sc.initCSV();
+    vsResult = sc.makeCreateData();
+    sfgui.insert_prepared(vsResult);
+    while (geoList[mycomm[2]].size() < 3)  // While the final geoList row is incomplete...
+    {
+
+    }
+
 }
 
 // Local map listings.
