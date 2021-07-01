@@ -993,7 +993,6 @@ void SQLFUNC::insert_tg_existing(string tname)
 void SQLFUNC::insert_prepared(vector<string>& stmts)
 {
     // Execute a list of prepared SQL statements as one transaction batch.
-
     int error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
     if (error) { sqlerr("begin transaction-insert_prepared"); }
     for (int ii = 0; ii < stmts.size(); ii++)
@@ -1013,6 +1012,42 @@ void SQLFUNC::insert_prepared(vector<string>& stmts)
             error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
         } 
     }
+}
+void SQLFUNC::insertPreparedBind(vector<string>& stmtAndParams)
+{
+    int numParam = 0, index = 0;
+    size_t pos1 = stmtAndParams[0].find('@');
+    while (pos1 < stmtAndParams[0].size())
+    {
+        numParam++;
+        pos1 = stmtAndParams[0].find('@', pos1 + 1);
+    }
+    if (stmtAndParams.size() % numParam != 1) { jf.err("Size mismatch-sf.insertPreparedBind"); }
+
+    sqlite3_stmt* statement;
+    int bufSize = stmtAndParams[0].size();
+    int error = sqlite3_prepare_v2(db, stmtAndParams[0].c_str(), bufSize, &statement, NULL);
+    if (error) { sqlerr("prepare-sf.insertPreparedBind"); }
+
+    error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+    if (error) { sqlerr("begin transaction-sf.insertPreparedBind"); }
+    while (index < stmtAndParams.size() - 1)
+    {
+        for (int ii = 1; ii <= numParam; ii++)
+        {
+            error = sqlite3_bind_text(statement, ii, stmtAndParams[index + ii].c_str(), stmtAndParams[index + ii].size(), SQLITE_TRANSIENT);
+            if (error) { sqlerr("bind_text-sf.insertPreparedBind"); }
+        }
+        error = sqlite3_step(statement);
+        if (error > 0 && error != 101) { sqlerr("step-sf.insertPreparedBind"); }
+        error = sqlite3_clear_bindings(statement);
+        if (error > 0 && error != 101) { sqlerr("clear_bindings-sf.insertPreparedBind"); }
+        error = sqlite3_reset(statement);
+        if (error > 0 && error != 101) { sqlerr("reset-sf.insertPreparedBind"); }
+        index += numParam;
+    }
+    error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+    if (error) { sqlerr("commit transaction-sf.insertPreparedBind"); }
 }
 string SQLFUNC::insert_stmt(string tname, vector<string>& column_titles, vector<string>& row_data)
 {
@@ -1555,7 +1590,7 @@ void SQLFUNC::sqlerr(string func)
     const char* errmsg = sqlite3_errmsg(db);
     string serrmsg(errmsg);
     string message = jf.timestamper() + " SQL ERROR #" + to_string(errcode) + ", in ";
-    message += func + serrmsg + "\r\n";
+    message += func + ": " + serrmsg + "\r\n";
     ERR.open(error_path, ofstream::app);
     ERR << message << endl;
     ERR.close();

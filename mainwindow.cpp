@@ -56,20 +56,12 @@ void MainWindow::initGUI()
 }
 void MainWindow::initialize()
 {
-    string temp = wf.get_exec_dir();
-    size_t pos1 = temp.rfind('\\');
-    projectDir = temp.substr(0, pos1);
-    temp = projectDir + "\\SCDA-Explorer Settings.txt";
+    string temp = sroot + "\\SCDA-Explorer Settings.txt";
     savedSettings = jf.load(temp);
-    pos1 = projectDir.rfind('\\');
-    temp = projectDir.substr(0, pos1);
-    string db_path = temp + "\\SCDA-Wt\\SCDA.db";
+    string db_path = sroot + "\\SCDA.db";
 
     // Adjust the resolution.
     on_pB_resolution_clicked();
-
-    // Populate the navSearch matrix.
-    //navSearch = sc.navAsset();
 
     // Initialize the class objects.
     sb.setErrorPath(sroot + "\\SCDA SWITCHBOARD Error Log.txt");
@@ -311,12 +303,12 @@ void MainWindow::scanLocalCata(SWITCHBOARD& sbgui, JTREE& jtgui)
     vector<int> mycomm;
     sbgui.answer_call(myid, mycomm);
     vector<string> prompt = sbgui.get_prompt();
-    string search = "*", yearPath, cataPath, geoPath;
+    string search = "*", yearPath, cataPath, metaPath;
     vector<string> folderList = wf.get_folder_list(prompt[0], search);
     vector<string> sYearList, cataList;
     vector<int> iYearList, csvCount;
     size_t pos1;
-    bool geo;
+    bool meta;
     int iYear;
     for (int ii = 0; ii < folderList.size(); ii++)
     {
@@ -347,9 +339,9 @@ void MainWindow::scanLocalCata(SWITCHBOARD& sbgui, JTREE& jtgui)
         {
             cataPath = yearPath + "\\" + folderList[jj];
             csvCount[jj] = wf.get_file_path_number(cataPath, "csv");
-            geoPath = cataPath + "\\" + folderList[jj] + " geo list.bin";
-            geo = wf.file_exist(geoPath);
-            if (geo == 1 && csvCount[jj] > 0)
+            metaPath = cataPath + "\\" + folderList[jj] + "_English_meta.txt";
+            meta = wf.file_exist(metaPath);
+            if (meta == 1 && csvCount[jj] > 0)
             {
                 jtCataLocal.addChild(folderList[jj], csvCount[jj], iYearList[ii]);
             }
@@ -458,6 +450,15 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     string cataPath = sroot + "\\" + prompt[0] + "\\" + prompt[1];
     sc.init(cataPath);
 
+    // Convert the Stats Can geo file to one suited for split CSV files.
+    string geoPath = cataPath + "\\Geo.txt";
+    if (!wf.file_exist(geoPath))
+    {
+        string geoPathOld = cataPath + "\\Geo_starting_row_CSV.csv";
+        sc.convertSCgeo(geoPathOld);
+    }
+
+
     // Insert tables derived from the meta file.
     vector<string> vsResult = sc.makeCreateInsertDefinitions();
     sfgui.executor(vsResult);
@@ -499,20 +500,33 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     sfgui.executor(vsResult);
 
     // Determine the number of regions, and update the GUI thread progress bar.
-    string geoPath = cataPath + "\\Geo_starting_row_CSV.csv";
     vector<vector<string>> geoList = sc.loadGeoList(geoPath);
     mycomm[2] = geoList.size();
+    int inum = sc.initCSV(geoList);
+    mycomm[1] += inum;
     sbgui.update(myid, mycomm);
 
-    // Create a data table for each DIM combination. 
-    sc.initCSV();
-    vsResult = sc.makeCreateData();
+    // Create a data table for each GEO_CODE region.
+    vsResult = sc.makeCreateData(geoList);
     sfgui.insert_prepared(vsResult);
-    while (geoList[mycomm[2]].size() < 3)  // While the final geoList row is incomplete...
+    while (geoList[geoList.size() - 1].size() < 3)
     {
-
+        vsResult = sc.makeInsertData(geoList);
+        sfgui.insertPreparedBind(vsResult);
+        sc.uptickBookmark(geoList);
+        mycomm[1]++;
+        sbgui.update(myid, mycomm);
     }
 
+    // Create the catalogue's geo table.
+    result = sc.makeCreateGeo(geoList);
+    sfgui.executor(result);
+    vsResult = sc.makeInsertGeo(geoList);
+    sfgui.insert_prepared(vsResult);
+
+    // Report completion to the GUI thread.
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
 }
 
 // Local map listings.

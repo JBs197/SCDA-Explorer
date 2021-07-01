@@ -34,7 +34,7 @@ void BINMAP::childrenFromGeo(string geoPath)
 	vector<int> gidList, startStop(2);
 	vector<string> regionList, layerList, geoLayers;
 	if (myName.size() < 1) { jf.err("Cannot load geo without myName-bm.childrenFromGeo"); }
-	int loaded = sc.loadGeo(geoPath, gidList, regionList, layerList, geoLayers);
+	int loaded = sc.loadBinGeo(geoPath, gidList, regionList, layerList, geoLayers);
 	if (loaded != 4) { jf.err("loadGeo-bm.childrenFromGeo"); }
 	bool parentFound = 0;
 	for (int ii = 0; ii < regionList.size(); ii++)

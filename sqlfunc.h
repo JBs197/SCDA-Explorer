@@ -5,6 +5,8 @@
 #include <sqlite3.h>
 #include "jfunc.h"
 
+#include <QDebug>
+
 using namespace std;
 
 class SQLFUNC 
@@ -43,6 +45,7 @@ public:
     void insertTMI(string myCoreDir);
     void insert_tg_existing(string);
     void insert_prepared(vector<string>& stmts);
+    void insertPreparedBind(vector<string>& stmtAndParams);
     string insert_stmt(string, vector<string>&, vector<string>&);
     string getLinearizedTitle(string& cataName, string& rowTitle, string& colTitle);
     int get_num_col(string);

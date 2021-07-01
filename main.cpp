@@ -7,7 +7,7 @@
 #include <QApplication>
 
 mutex m_err;
-const string sroot = "F:";
+const string sroot = "E:";
 const string scroot = "www12.statcan.gc.ca/datasets/index-eng.cfm";
 
 int main(int argc, char* argv[])
