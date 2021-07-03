@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "switchboard.h"
 
 // Error-related functions.

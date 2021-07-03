@@ -11,9 +11,10 @@ class STATSCAN
 {
 	string activeCSV, activeCSVgeocode;
 	vector<int> activeColIndex;
-	int activeCSVpart, geoCodeCol = -1, geoLevelCol = -1, geoMaxLevel = -1, nls;
+	int activeCSVpart, geoCodeCol = -1, geoLevelCol = -1, geoNameCol = -1, nls;
 	vector<string> cataColTitles, geoHistory;
 	string cataName, cataPath, cataYear, description, metaFile, topic;
+	vector<vector<string>> geo;
 	JFUNC jf;
 	string nl;
 	unordered_map<string, int> mapGeoCode;  // Passively updated by loadGeoList
@@ -26,13 +27,14 @@ public:
 	~STATSCAN() {}
 
 	void advanceNextCSVpart();
+	vector<string> compareGeoListDB(vector<vector<string>>& geoList, vector<string>& dbList);
 	void convertSCgeo(string& geoPathOld);
 	string extractCSVLineValue(string& csvLine, int colIndex);
 	vector<string> extractCSVLineValue(string& csvLine, vector<int> colIndex);
-
+	string getCSVPath(int PART);
 	int getGeoCodeIndex(string& sActiveCSVgeocode);
 	void init(string cataPath);
-	int initCSV(vector<vector<string>>& geoList);
+	void initCSV(string activeGeoCode, string sActivePART);
 
 	int loadBinGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
 	void loadBookmark(int& iActiveCSVpart, string& sActiveCSVgeocode);
@@ -49,19 +51,19 @@ public:
 	void makeBookmark(int iActiveCSVpart, string sActiveCSVgeocode);
 
 	string makeCreateCensus();
-	vector<string> makeCreateData(vector<vector<string>>& geoList);
-	string makeCreateGeo(vector<vector<string>>& geoList);
-	vector<string> makeCreateInsertCatalogue();
-	vector<string> makeCreateInsertDefinitions();
-	vector<vector<string>> makeCreateInsertDIM();
+	vector<string> makeCreateData(vector<string>& DIMList, vector<string>& dimList);
+	string makeCreateGeo();
+	vector<string> makeCreateInsertDIMIndex(vector<string>& DIMList);
+	vector<string> makeCreateInsertDIM();
+	vector<string> makeCreateInsertDim(vector<string>& dimList);
 	vector<string> makeCreateInsertTopic(vector<string>& colTitles);
 	string makeCreateYear();
 	string makeInsertCensus();
-	vector<string> makeInsertData(vector<vector<string>>& geoList);
+	vector<string> makeInsertData(string GEO_CODE, string& geoStmt);
 	vector<string> makeInsertGeo(vector<vector<string>>& geoList);
 	string makeInsertYear();
 
-	int processCSVline(string& csvLine, vector<string>& insertData);
+	vector<vector<string>> parseNavSearch(string& navSearchBlob);
 
 	vector<vector<int>> readBinBorder(string& binFile);
 	vector<vector<vector<int>>> readBinFrames(string& binFile);
@@ -72,4 +74,9 @@ public:
 
 	void trimMID(string& MID);
 	void uptickBookmark(vector<vector<string>>& geoList);
+
+	string urlCatalogue(string sYear, string sCata);
+	string urlCSVDownload(string sYear, string sCata);
+	string urlYear(string syear);
 };
+

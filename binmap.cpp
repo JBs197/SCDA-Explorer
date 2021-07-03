@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "binmap.h"
 
 void BINMAP::borderScaleToWindow(vector<vector<int>>& border, vector<vector<double>>& borderD, vector<double> borderDim)

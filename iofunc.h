@@ -16,6 +16,7 @@ class IOFUNC : private WINFUNC
 public:
 	explicit IOFUNC() {}
 	~IOFUNC() {}
+
 	bool askYesNo(string question);
 	string copyText(HWND& targetWindow);
 	vector<double> getBinPosition(string regionName, string sParent);
@@ -32,5 +33,6 @@ public:
 	void mouseClickKey(int vKey, POINT p1);
 	void mouseClickTriple(POINT p1);
 	void mouseClickTriple(POINT p1, HWND& targetWindow);
+	void saveScreenshot(string pngPath);
 };
 

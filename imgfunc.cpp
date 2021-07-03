@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "imgfunc.h"
 
 int IMGFUNC::areaRect(vector<vector<int>> TLBR)

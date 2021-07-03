@@ -1,11 +1,8 @@
 #pragma once
 
-#include <string>
-#include <vector>
 #include <fstream>
 #include <mutex>
 #include <codecvt>
-#include <windows.h>
 #include <winhttp.h>
 #include "jfunc.h"
 #pragma comment(lib, "winhttp.lib")
@@ -26,6 +23,8 @@ public:
 	WINFUNC() {}
 	~WINFUNC() {}
 
+	enum DL { Text, Binary };
+
     string browseA(string url);
 	string browseS(string url);
 	vector<unsigned char> browseUC(string url);
@@ -33,18 +32,22 @@ public:
     //static void CALLBACK call(HINTERNET, DWORD_PTR, DWORD, LPVOID, DWORD);
 	void delete_file(string);
     void download(string url, string filePath);
+	void download(string url, string filePath, int type);
     bool file_exist(string);
+	int fileSplitter(string filePath, long long maxSize, int& progress, mutex& m_progress);
     string get_exec_dir();
     string get_exec_path();
 	vector<string> getFileList(string folder_path, string search);
     vector<string> get_file_list(string folder_path, string search);
     int get_file_path_number(string folder_path, string file_extension);
+	long long getFileSize(string filePath);
     vector<string> get_folder_list(string folder_path, string search);
 	string load(string filePath);
     void makeDir(string);
     void make_tree_local(vector<vector<int>>&, vector<string>&, int, string, int, string);
     void make_tree_local_helper1(vector<vector<int>>&, vector<string>&, vector<int>, string, int, int, int, string);
 	void printer(string path, string& file);
+	void printer(string path, vector<unsigned char>& binFile);
 	void renameFile(string oldPath, string newPath);
 	void set_error_path(string);
     //string urlRedirect(string url);

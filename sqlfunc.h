@@ -5,8 +5,6 @@
 #include <sqlite3.h>
 #include "jfunc.h"
 
-#include <QDebug>
-
 using namespace std;
 
 class SQLFUNC 
@@ -73,6 +71,7 @@ public:
     int statusCata(string sname);
     size_t table_exist(string);
     vector<string> test_cata(string);
+    void update(string tname, vector<string> revisions, vector<string> conditions);
 
 	// TEMPLATES
 

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "gsfunc.h"
 
 void GSFUNC::folderConvert(string& dirPDF)

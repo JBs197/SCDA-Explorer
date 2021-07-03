@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "iofunc.h"
 
 bool IOFUNC::askYesNo(string question)
@@ -21,8 +22,6 @@ string IOFUNC::copyText(HWND& targetWindow)
 	if (!success) { winerr("OpenClipboard-io.copyText"); }
 	HANDLE hClip = GetClipboardData(CF_TEXT);
 	if (hClip == NULL) { winerr("GetClipboardData-io.copyText"); }
-	//size_t bufSize = GlobalSize(hClip);
-	//char* buffer = (char*)GlobalLock(hClip);
 	string sData = (string)static_cast<char*>(hClip);
 	if (sData.size() < 1) { jf.err("Copying from clipboard to string-io.copyText"); }
 	success = EmptyClipboard();
@@ -353,4 +352,8 @@ void IOFUNC::mouseClickTriple(POINT p1, HWND& targetWindow)
 	UINT sent = SendInput(7, ipt, sizeof(INPUT));
 	if (!sent) { jf.err("SendInput-io.mouseClickTriple"); }
 	targetWindow = GetForegroundWindow();
+}
+void IOFUNC::saveScreenshot(string pngPath)
+{
+
 }

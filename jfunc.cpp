@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "jfunc.h"
 
 void JFUNC::asciiNearestFit(string& input)
@@ -894,6 +895,11 @@ void JFUNC::tclean(string& bbq, char marker, string preferred)
 }
 vector<string> JFUNC::textParser(string& sfile, vector<string>& search)
 {
+	// search[0] is a sanity check for the page
+	// search[1] is the start boundary for all extractions
+	// search[2] is the end boundary for all extractions
+	// search[3] is the start point for an individual extraction
+	// search[4] is the end point for an individual extraction
 	vector<string> gold;
 	string temp;
 	size_t pos1, pos2, pos_start, pos_stop;

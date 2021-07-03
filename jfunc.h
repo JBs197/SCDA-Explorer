@@ -17,6 +17,7 @@
 using namespace std;
 extern mutex m_err;
 extern const string sroot;
+extern const string scroot;
 
 class JFUNC
 {

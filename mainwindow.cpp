@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
@@ -23,7 +24,19 @@ MainWindow::~MainWindow()
 void MainWindow::initGUI()
 {
     QString qTemp;
-    int inum;
+    int inum, nls, navSearchTerms;
+    size_t pos1, pos2;
+
+    // navSearch.
+    pos1 = savedSettings.find("//navSearch");
+    pos2 = savedSettings.find("\r\n\r\n", pos1);
+    if (pos2 > savedSettings.size())
+    {
+        pos2 = savedSettings.find("\n\n", pos1);
+        if (pos2 > savedSettings.size()) { jf.err("Parsing navSearch-MainWindow.initGUI"); }
+    }
+    string navSearchBlob = savedSettings.substr(pos1, pos2 - pos1);
+    navSearch = sc.parseNavSearch(navSearchBlob);
 
     // Progress bar.
     barReset(100, "");
@@ -33,7 +46,7 @@ void MainWindow::initGUI()
     DWORD dsize = GetLogicalDriveStringsW(500, bufferW);
     wstring wDrives(bufferW, dsize), wTemp;
     delete[] bufferW;
-    size_t pos1 = 0, pos2 = wDrives.find(L'\0');
+    pos1 = 0, pos2 = wDrives.find(L'\0');
     while (pos1 < wDrives.size())
     {
         wTemp = wDrives.substr(pos1, pos2 - pos1);
@@ -49,6 +62,12 @@ void MainWindow::initGUI()
     try { inum = stoi(temp); }
     catch (invalid_argument) { jf.err("stoi-MainWindow.initGUI"); }
     ui->cB_drives->setCurrentIndex(inum);
+
+    // Database catalogue tree.
+    updateDBCata();
+
+    // Plain Text Edit.
+    pteDefault = ui->pte_search;
 
     // Local map paint widget.
     ui->qp_maplocal->initialize();
@@ -110,11 +129,41 @@ void MainWindow::barReset(int iMax, string message)
     ui->progressbar->setValue(0);
     ui->qlabel_progressbar->setText(qMessage);
 }
-void MainWindow::barText(string message)
+void MainWindow::barMessage(string message)
 {
     QString qmessage = QString::fromStdString(message);
     lock_guard<mutex> lock(m_bar);
     ui->qlabel_progressbar->setText(qmessage);
+    QCoreApplication::processEvents();
+}
+
+// PlainTextEdit functions.
+void MainWindow::qshow(string message)
+{
+    QString qMessage = QString::fromUtf8(message.c_str(), -1);
+    pteDefault->setPlainText(qMessage);
+}
+void MainWindow::qshow(vector<string> message)
+{
+    QString qMessage;
+    for (int ii = 0; ii < message.size(); ii++)
+    {
+        if (ii > 0) { qMessage += "\n"; }
+        qMessage += QString::fromUtf8(message[ii].c_str(), -1);
+    }  
+    pteDefault->setPlainText(qMessage);
+}
+void MainWindow::reportTable(QTableWidget*& qTable)
+{
+    QString qTitle = qTable->verticalHeaderItem(0)->text();
+    if (qTitle.size() < 1) { qTitle = "Unknown"; }
+    int numRow = qTable->rowCount();
+    int numCol = qTable->columnCount();
+    QString qMessage = "Displaying table " + qTitle + "\nRows: ";
+    qMessage += QString::number(numRow) + "\nColumns: " + QString::number(numCol);
+    qMessage += "\nLoad time(ms): " + QString::number(time);
+    pteDefault->clear();
+    pteDefault->setPlainText(qMessage);
 }
 
 // Table shared functions.
@@ -177,6 +226,27 @@ void MainWindow::on_tableW_maplocal_currentCellChanged(int RowNow, int ColNow, i
 }
 
 // Multi-purpose functions.
+void MainWindow::autoExpand(QTreeWidget*& qTree, int maxNum)
+{
+    QTreeWidgetItem* qRoot = qTree->topLevelItem(0);
+    int numKids = qRoot->childCount();
+    if (numKids > maxNum) { return; }
+    qRoot->setExpanded(1);
+    QList<QTreeWidgetItem*> gen1;
+    for (int ii = 0; ii < numKids; ii++)
+    {
+        gen1.append(qRoot->child(ii));
+    }
+    for (int ii = 0; ii < gen1.size(); ii++)
+    {
+        numKids += gen1[ii]->childCount();
+    }
+    if (numKids > maxNum) { return; }
+    for (int ii = 0; ii < gen1.size(); ii++)
+    {
+        gen1[ii]->setExpanded(1);
+    }
+}
 void MainWindow::bind(string& stmt, vector<string>& param)
 {
     // Replace '?' placeholders in a template statement with given parameter strings.
@@ -205,10 +275,48 @@ void MainWindow::bind(string& stmt, vector<string>& param)
         stmt.replace(pos1, 1, temp);
     }
 }
-void MainWindow::qshow(string message)
+void MainWindow::thrDownload(SWITCHBOARD& sbgui)
 {
-    QString qMessage = QString::fromUtf8(message.c_str(), -1);
-    ui->pte_search->setPlainText(qMessage);
+    // Downloads a file using a new thread.
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form [url, filePath, type].
+    size_t pos1 = prompt[1].rfind('\\');
+    string folderPath = prompt[1].substr(0, pos1);
+    wf.makeDir(folderPath);
+    int type;
+    try { type = stoi(prompt[2]); }
+    catch (invalid_argument) { jf.err("stoi-MainWindow.thrDownload"); }
+    wf.download(prompt[0], prompt[1], type);
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+}
+void MainWindow::thrFileSplitter(SWITCHBOARD& sbgui, int& progress, mutex& m_progress)
+{
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form [filePath, maxSize(bytes)].
+    long long maxSize;
+    try { maxSize = stoll(prompt[1]); }
+    catch (invalid_argument) { jf.err("stoll-MainWindow.thrFileSplitter"); }
+    long long fileSize = wf.getFileSize(prompt[0]);
+    mycomm[2] = (fileSize / maxSize) + 1;
+    sbgui.update(myid, mycomm);
+    mycomm[3] = wf.fileSplitter(prompt[0], maxSize, progress, m_progress);
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+}
+void MainWindow::thrUnzip(SWITCHBOARD& sbgui)
+{
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> filePath = sbgui.get_prompt();
+    zf.unzip(filePath[0]);
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
 }
 
 // Mouse functions.
@@ -236,13 +344,19 @@ void MainWindow::mousePressEvent(QMouseEvent* event)
 void MainWindow::on_pB_search_clicked()
 {
     QString qTemp = ui->pte_search->toPlainText();
-    if (qTemp.size() < 1) { return; }
-    string query = qTemp.toStdString();
-    while (query.back() == ' ') { query.pop_back(); }
-    if (query == "all")
+    string query = qTemp.toStdString(), sMessage;
+    vector<string> tableList;
+    size_t pos1;
+    bool wildcard = 0;
+    if (query.size() > 0)
+    {
+        while (query.back() == ' ') { query.pop_back(); }
+        pos1 = query.find('*');
+        if (pos1 < query.size()) { wildcard = 1; }
+    }
+    if (query == "")
     {
         ui->listW_searchresult->clear();
-        vector<string> tableList;
         sf.all_tables(tableList);
         for (int ii = 0; ii < tableList.size(); ii++)
         {
@@ -250,6 +364,29 @@ void MainWindow::on_pB_search_clicked()
             ui->listW_searchresult->addItem(qTemp);
         }
         ui->tabW_main->setCurrentIndex(2);
+        sMessage = "Displaying " + to_string(tableList.size());
+        sMessage += " tables from the search criteria 'all'.";
+        qTemp = QString::fromStdString(sMessage);
+        ui->pte_search->setPlainText(qTemp);
+    }
+    else if (!wildcard)
+    {
+        ui->listW_searchresult->clear();
+        sf.all_tables(tableList);
+        for (int ii = 0; ii < tableList.size(); ii++)
+        {
+            if (tableList[ii] == query)
+            {
+                qTemp = QString::fromStdString(tableList[ii]);
+                ui->listW_searchresult->addItem(qTemp);
+            }
+        }
+        int numTables = ui->listW_searchresult->count();
+        if (numTables == 1)
+        {
+            ui->listW_searchresult->item(0)->setSelected(1);
+            on_pB_viewtable_clicked();
+        }
     }
 }
 void MainWindow::on_listW_searchresult_itemSelectionChanged()
@@ -267,6 +404,10 @@ void MainWindow::on_listW_searchresult_itemSelectionChanged()
         ui->pB_deletetable->setText("Delete\nTable");
     }
 }
+void MainWindow::on_listW_searchresult_itemDoubleClicked(QListWidgetItem* qItem)
+{
+    on_pB_viewtable_clicked();
+}
 
 // Local catalogue display.
 void MainWindow::on_cB_drives_currentTextChanged(const QString& arg1)
@@ -274,7 +415,7 @@ void MainWindow::on_cB_drives_currentTextChanged(const QString& arg1)
     string sDrive = arg1.toStdString();
     sDrive.pop_back();
     while (sDrive[0] == ' ') { sDrive.erase(sDrive.begin()); }
-    jtCataLocal.init("", sDrive);
+    jtCataLocal.init("Local", sDrive);
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);
     thread::id myid = this_thread::get_id();
@@ -292,10 +433,9 @@ void MainWindow::on_cB_drives_currentTextChanged(const QString& arg1)
         if (comm.size() > 1 && comm[1][0] == 1) { break; }
     }
     sb.end_call(myid);
-    barText("Displaying local catalogues from drive " + sDrive);
+    barMessage("Displaying local catalogues from drive " + sDrive);
     qf.populateTree(ui->treeW_catalocal, jtCataLocal, 1);
-    QTreeWidgetItem* qRoot = ui->treeW_catalocal->topLevelItem(0);
-    qRoot->setExpanded(1);
+    autoExpand(ui->treeW_catalocal, treeLength);
 }
 void MainWindow::scanLocalCata(SWITCHBOARD& sbgui, JTREE& jtgui)
 {
@@ -374,6 +514,45 @@ void MainWindow::on_treeW_catalocal_itemSelectionChanged()
     }
 }
 
+// Database catalogue display.
+void MainWindow::updateDBCata()
+{
+    ui->treeW_catadb->clear();
+    QTreeWidgetItem* qRoot = new QTreeWidgetItem(0), *qNode, *qParent;
+    QString qTemp = "Database";
+    qRoot->setText(0, qTemp);
+    int index;
+    unordered_map<string, int> mapYear, mapCata;  // Output is child index in tree.
+    vector<string> search = { "Year" }, yearList, cataList;
+    string tname = "Census";
+    sf.select(search, tname, yearList);
+    jf.isort_ilist(yearList, JFUNC::Increasing);
+    for (int ii = 0; ii < yearList.size(); ii++)
+    {
+        mapYear.emplace(yearList[ii], ii);
+        qNode = new QTreeWidgetItem(qRoot, 1);
+        qTemp = QString::fromStdString(yearList[ii]);
+        qNode->setText(0, qTemp);
+    }
+    search = { "Catalogue" };
+    for (int ii = 0; ii < yearList.size(); ii++)
+    {
+        tname = "Census$" + yearList[ii];
+        sf.select(search, tname, cataList);
+        index = mapYear.at(yearList[ii]);
+        qParent = qRoot->child(index);
+        for (int jj = 0; jj < cataList.size(); jj++)
+        {
+            mapCata.emplace(cataList[jj], jj);
+            qNode = new QTreeWidgetItem(qParent, 2);
+            qTemp = QString::fromStdString(cataList[jj]);
+            qNode->setText(0, qTemp);
+        }
+    }
+    ui->treeW_catadb->addTopLevelItem(qRoot);
+    autoExpand(ui->treeW_catadb, treeLength);
+}
+
 // Local catalogue insertion.
 void MainWindow::on_pB_insert_clicked()
 {
@@ -413,7 +592,7 @@ void MainWindow::on_pB_insert_clicked()
             comm = sb.update(myid, comm[0]);
             if (comm.size() > 1) 
             { 
-                barText("Indexing catalogue " + prompt[1] + " ...");
+                barMessage("Indexing catalogue " + prompt[1] + " ...");
                 break; 
             }
         }
@@ -435,10 +614,12 @@ void MainWindow::on_pB_insert_clicked()
             if (comm[1][0] == 1)
             {
                 barUpdate(comm[0][2]);
+                barMessage("Finished inserting catalogue " + prompt[1]);
                 comm[0][0] = 1;
             }
         }
         sb.end_call(myid);
+        updateDBCata();
     }
 }
 void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
@@ -449,6 +630,8 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     vector<string> prompt = sbgui.get_prompt();  // Form [sYear, sName].
     string cataPath = sroot + "\\" + prompt[0] + "\\" + prompt[1];
     sc.init(cataPath);
+    vector<string> DIMList, dimList, colTitles;
+    string result, stmt, temp;
 
     // Convert the Stats Can geo file to one suited for split CSV files.
     string geoPath = cataPath + "\\Geo.txt";
@@ -458,22 +641,27 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
         sc.convertSCgeo(geoPathOld);
     }
 
-
-    // Insert tables derived from the meta file.
-    vector<string> vsResult = sc.makeCreateInsertDefinitions();
-    sfgui.executor(vsResult);
-    vector<vector<string>> vvsResult = sc.makeCreateInsertDIM();
-    for (int ii = 0; ii < vvsResult.size(); ii++)
+    // Determine the number of regions, and update the GUI thread progress bar.
+    vector<vector<string>> geoList = sc.loadGeoList(geoPath);
+    unordered_map<string, string> mapGeoPart;
+    for (int ii = 0; ii < geoList.size(); ii++)
     {
-        sfgui.executor(vvsResult[ii]);
+        mapGeoPart.emplace(geoList[ii][0], geoList[ii][2]);
     }
-
-    // Add this catalogue to the appropriate 'Topic' table.
-    string result, tname = "Census$" + prompt[0] + "$Topic";
-    vector<string> colTitles;
-    if (sfgui.table_exist(tname)) { sfgui.get_col_titles(tname, colTitles); }
-    vsResult = sc.makeCreateInsertTopic(colTitles);
-    sfgui.executor(vsResult);
+    mycomm[2] = geoList.size();
+    string tname = "Census$" + prompt[0] + "$" + prompt[1] + "$Geo";
+    vector<string> vsResult, search = { "GEO_CODE" };
+    if (sfgui.table_exist(tname))
+    {
+        sfgui.select(search, tname, vsResult);
+    }
+    vector<string> geoToDo = sc.compareGeoListDB(geoList, vsResult);  // Form [# already in DB, geoIndex of first absence].
+    if (geoToDo.size() < 1) { goto FTL1; }
+    mycomm[1] += (geoList.size() - geoToDo.size());
+    sbgui.update(myid, mycomm);
+    try { temp = mapGeoPart.at(geoToDo[0]); }
+    catch (out_of_range) { jf.err("mapGeoPart-MainWindow.judicator"); }
+    sc.initCSV(geoToDo[0], temp);
 
     // Add this year to the root census table. 
     tname = "Census";
@@ -485,7 +673,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     result = sc.makeInsertCensus();
     sfgui.executor(result);
 
-    // Add this catalogue to the 'Year' table.
+    // Add this catalogue (and its topic) to the 'Year' table.
     tname = "Census$" + prompt[0];
     if (!sfgui.table_exist(tname))
     {
@@ -495,34 +683,89 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     result = sc.makeInsertYear();
     sfgui.executor(result);
 
-    // Insert this catalogue's 'Catalogue' table. 
-    vsResult = sc.makeCreateInsertCatalogue();
+    // Add this catalogue to the appropriate 'Topic' table.
+    tname = "Census$" + prompt[0] + "$Topic";
+    if (sfgui.table_exist(tname)) { sfgui.get_col_titles(tname, colTitles); }
+    vsResult = sc.makeCreateInsertTopic(colTitles);
     sfgui.executor(vsResult);
 
-    // Determine the number of regions, and update the GUI thread progress bar.
-    vector<vector<string>> geoList = sc.loadGeoList(geoPath);
-    mycomm[2] = geoList.size();
-    int inum = sc.initCSV(geoList);
-    mycomm[1] += inum;
-    sbgui.update(myid, mycomm);
+    // Create the catalogue's geo table. Rows are added later, with the CSV data.
+    result = sc.makeCreateGeo();
+    sfgui.executor(result);
+
+    // Insert DIM/Dim tables.
+    vsResult = sc.makeCreateInsertDIMIndex(DIMList);
+    sfgui.executor(vsResult);
+    vsResult = sc.makeCreateInsertDIM();
+    sfgui.executor(vsResult);
+    vsResult = sc.makeCreateInsertDim(dimList);
+    sfgui.executor(vsResult);
 
     // Create a data table for each GEO_CODE region.
-    vsResult = sc.makeCreateData(geoList);
+    vsResult = sc.makeCreateData(DIMList, dimList);
     sfgui.insert_prepared(vsResult);
-    while (geoList[geoList.size() - 1].size() < 3)
+    for (int ii = 0; ii < geoToDo.size(); ii++)
     {
-        vsResult = sc.makeInsertData(geoList);
+        vsResult = sc.makeInsertData(geoToDo[ii], result);
+        sfgui.executor(result);
         sfgui.insertPreparedBind(vsResult);
-        sc.uptickBookmark(geoList);
         mycomm[1]++;
         sbgui.update(myid, mycomm);
     }
 
-    // Create the catalogue's geo table.
-    result = sc.makeCreateGeo(geoList);
-    sfgui.executor(result);
-    vsResult = sc.makeInsertGeo(geoList);
-    sfgui.insert_prepared(vsResult);
+    // Add ancestry columns to the geo table, if necessary.
+    vsResult.clear();
+    search = { "GEO_LEVEL" };
+    tname = "Census$" + prompt[0] + "$" + prompt[1] + "$Geo";
+    sfgui.select(search, tname, vsResult);
+    int numCol = sfgui.get_num_col(tname), maxLevel = -1, inum, iGeoLevel;
+    for (int ii = 0; ii < vsResult.size(); ii++)
+    {
+        try { inum = stoi(vsResult[ii]); }
+        catch (invalid_argument) { jf.err("stoi-sc.makeInsertData"); }
+        if (inum > maxLevel) { maxLevel = inum; }
+    }
+    int needCol = maxLevel + 3 - numCol;
+    if (needCol > 0)
+    {
+        inum = numCol - 3;
+        for (int ii = 0; ii < needCol; ii++)
+        {
+            result = "ALTER TABLE \"" + tname + "\" ADD COLUMN Ancestor";
+            result += to_string(inum + ii) + " INT;";
+            sfgui.executor(result);
+        }
+    }
+
+FTL1:
+    // Insert ancestry values into the geo table.
+    vector<string> ancestry, conditions, revisions;
+    for (int ii = 0; ii < geoList.size(); ii++)
+    {
+        result.clear();
+        revisions.clear();
+        conditions = { "GEO_CODE = " + geoList[ii][0] };
+        sfgui.select(search, tname, result, conditions);
+        try { iGeoLevel = stoi(result); }
+        catch (invalid_argument) { jf.err("stoi-MainWindow.judicator"); }
+        if (iGeoLevel >= ancestry.size())
+        {
+            ancestry.push_back(geoList[ii][0]);
+        }
+        else
+        {
+            ancestry[iGeoLevel] = geoList[ii][0];
+        }
+        for (int jj = 0; jj < iGeoLevel; jj++)
+        {
+            temp = "Ancestor" + to_string(jj) + " = " + ancestry[jj];
+            revisions.push_back(temp);
+        }
+        if (revisions.size() > 0)
+        {
+            sfgui.update(tname, revisions, conditions);
+        }
+    }
 
     // Report completion to the GUI thread.
     mycomm[0] = 1;
@@ -560,7 +803,7 @@ void MainWindow::on_pB_maplocal_clicked()
             if (comm.size() > 1 && comm[1][0] == 1) { break; }
         }
         sb.end_call(myid);
-        barText("Displaying local maps from drive " + sDrive);
+        barMessage("Displaying local maps from drive " + sDrive);
         qf.populateTree(ui->treeW_maplocal, jtMapLocal, 2);
         QTreeWidgetItem* qNode, * qRoot = ui->treeW_maplocal->topLevelItem(0);
         qRoot->setExpanded(1);
@@ -724,7 +967,7 @@ void MainWindow::on_pB_convert_clicked()
                 }
             }
             sb.end_call(myid);
-            barText("Finished upgrading BIN maps from " + prompt[0]);
+            barMessage("Finished upgrading BIN maps from " + prompt[0]);
         }
         break;
     }
@@ -758,7 +1001,7 @@ void MainWindow::on_pB_convert_clicked()
             }
         }
         sb.end_call(myid);
-        barText("Finished upgrading BIN map " + binPath8);
+        barMessage("Finished upgrading BIN map " + binPath8);
         break;
     }
     }
@@ -878,7 +1121,7 @@ void MainWindow::on_pB_reviewmap_clicked()
     string temp = to_string(binMaps.size() - 1);
     string sMessage = "Displaying parent region " + binMaps[0].myName;
     sMessage += " and " + temp + " child regions.";
-    barText(sMessage);
+    barMessage(sMessage);
 }
 void MainWindow::populateBinFamily(SWITCHBOARD& sbgui, vector<BINMAP>& vBM)
 {
@@ -928,15 +1171,48 @@ void MainWindow::on_pB_viewtable_clicked()
 {
     QList<QListWidgetItem*> qSel = ui->listW_searchresult->selectedItems();
     if (qSel.size() != 1) { return; }
+    jf.timerStart();
     QString qTemp = qSel[0]->text();
     string tname = qTemp.toStdString();
-    vector<string> colTitles, search = { "*" };
-    sf.get_col_titles(tname, colTitles);
     vector<vector<string>> vvsResult;
-    int numCol = sf.select(search, tname, vvsResult), iWidth;
-
+    vector<string> colTitles, prompt = { tname };
+    sb.set_prompt(prompt);
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0].assign(comm_length, 0);
+    thread::id myid = this_thread::get_id();
+    sb.start_call(myid, 1, comm[0]);
+    std::thread thr(&MainWindow::tableTopper, this, ref(sb), ref(vvsResult));
+    thr.detach();
+    while (1)
+    {
+        Sleep(gui_sleep);
+        QCoreApplication::processEvents();
+        comm = sb.update(myid, comm[0]);
+        if (comm.size() > 1)
+        {
+            barMessage("Indexing catalogue " + prompt[0] + " ...");
+            break;
+        }
+    }
+    while (comm[0][0] == 0)
+    {
+        Sleep(gui_sleep);
+        QCoreApplication::processEvents();
+        comm = sb.update(myid, comm[0]);
+        if (comm[0][2] == 0 && comm[1][2] > 0)
+        {
+            comm[0][2] = comm[1][2];
+            barReset(comm[0][2], "Loading table " + prompt[0] + " ...");
+        }
+        if (comm[1][0] == 1)
+        {
+            comm[0][0] = 1;
+        }
+    }
+    sb.end_call(myid);
+    sf.get_col_titles(tname, colTitles);
     ui->tableW_db->clear();
-    ui->tableW_db->setColumnCount(numCol);
+    ui->tableW_db->setColumnCount(colTitles.size());
     ui->tableW_db->setRowCount(vvsResult.size());
     QTableWidgetItem* qCell = nullptr;
     QSize qSize(30, 30);
@@ -962,6 +1238,19 @@ void MainWindow::on_pB_viewtable_clicked()
     ui->tableW_db->setVerticalHeaderItem(0, qCell);
     ui->tableW_db->verticalHeader()->setVisible(0);
     ui->tableW_db->setHorizontalHeaderLabels(hHeaderLabels);
+    time = jf.timerStop();
+    reportTable(ui->tableW_db);
+}
+void MainWindow::tableTopper(SWITCHBOARD& sbgui, vector<vector<string>>& vvsResult)
+{
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form [tname].
+    vector<string> search = { "*" };
+    sf.select(search, prompt[0], vvsResult);
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
 }
 void MainWindow::on_pB_deletetable_clicked()
 {
@@ -1022,6 +1311,381 @@ void MainWindow::on_tableW_db_currentCellChanged(int RowNow, int ColNow, int Row
     if (RowNow < 0 || RowNow == RowThen) { return; }
     ui->pB_deletetable->setEnabled(1);
     ui->pB_deletetable->setText("Delete\nRow");
+}
+
+// Online Statistics Canada functionalities.
+void MainWindow::on_pB_usc_clicked()
+{
+    int uscMode;
+    QString qTemp;
+    QTreeWidgetItem* qNode;
+    QList<QTreeWidgetItem*> qSel = ui->treeW_cataonline->selectedItems();
+    if (qSel.size() < 1) { uscMode = 0; }
+    else
+    {
+        qNode = qSel[0]->parent();
+        uscMode = 0;
+        while (qNode != nullptr)
+        {
+            qNode = qNode->parent();
+            uscMode++;
+        }
+    }
+    switch (uscMode)
+    {
+    case 0:  // Set root, display years.
+    {
+        string nameRoot = "Statistics Canada Census Data";
+        jtCataOnline.init(nameRoot, sroot);
+        string webpage = wf.browseS(scroot);
+        vector<string> yearList = jf.textParser(webpage, navSearch[0]);
+        jf.isort_ilist(yearList, JFUNC::Increasing);
+        vector<int> iYearList;
+        iYearList.assign(yearList.size(), -2);  // Unique placeholders.
+        jtCataOnline.addChildren(yearList, iYearList, -1);
+        qf.populateTree(ui->treeW_cataonline, jtCataOnline, 1);
+        ui->treeW_cataonline->topLevelItem(0)->setExpanded(1);
+        break;
+    }
+    case 1:  // Set year, display catalogues.
+    {
+        QString qYear = qSel[0]->text(0);
+        string sYear = qYear.toStdString();
+        string url = sc.urlYear(sYear);
+        string webpage = wf.browseS(url);
+        vector<string> cataList = jf.textParser(webpage, navSearch[1]);
+        vector<int> iCataList(cataList.size(), -2);
+        jtCataOnline.addChildren(cataList, iCataList, sYear);
+        qf.populateTree(ui->treeW_cataonline, jtCataOnline, 1);
+        qNode = ui->treeW_cataonline->topLevelItem(0);
+        qNode->setExpanded(1);
+        int numKids = qNode->childCount();
+        for (int ii = 0; ii < numKids; ii++)
+        {
+            qTemp = qNode->child(ii)->text(0);
+            if (qTemp == qYear)
+            {
+                qNode->child(ii)->sortChildren(0, Qt::SortOrder::AscendingOrder);
+                qNode->child(ii)->setExpanded(1);
+                break;
+            }
+        }
+        break;
+    }
+    }
+}
+void MainWindow::on_pB_download_clicked()
+{
+    QString qTemp;
+    QList<QTreeWidgetItem*> qlist, qChildren;
+    string sYear, sCata, temp;
+    vector<string> prompt;
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
+    thread::id myid = this_thread::get_id();
+    int activeTab = ui->tabW_main->currentIndex(), iGen;
+    switch (activeTab)
+    {
+    case 0:
+    {
+        qlist = ui->treeW_cataonline->selectedItems();
+        if (qlist.size() < 1) { return; }
+        iGen = qf.getBranchGen(qlist[0]);
+        prompt.resize(2);  // Form [syear, sname].
+        switch (iGen)
+        {
+        case 0:  // Root. Nothing to do...
+            return;
+        case 1:  // Year.
+        {
+
+            /*
+            qtemp = qlist[0]->text(0);
+            prompt[0] = qtemp.toStdString();
+            url = sc.urlYear(prompt[0]);
+            webpage = wf.browseS(url);
+            listCata = jf.textParser(webpage, navSearch[1]);
+            numCata = listCata.size();
+            for (int ii = 0; ii < numCata; ii++)
+            {
+                prompt[1] = listCata[ii];
+                sb.set_prompt(prompt);
+                sb.start_call(myid, 1, comm[0]);
+                std::thread dlCata(&STATSCAN::downloadCatalogue, ref(sc), ref(sb));
+                dlCata.detach();
+                while (comm.size() < 2)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                }
+                while (comm[1][0] == 0)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[1][2] > comm[0][2])
+                    {
+                        comm[0][2] = comm[1][2];
+                        temp = "Downloading catalogue " + prompt[1] + " (";
+                        temp += to_string(ii + 1) + "/" + to_string(numCata) + ") ...";
+                        reset_bar(comm[0][2], temp);
+                    }
+                    jobs_done = comm[1][1];
+                    update_bar();
+                    if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
+                    {
+                        comm[0][0] = 1;
+                    }
+                    else { comm[0][1] = comm[1][1]; }
+                }
+                if (comm[0][2] == 0)
+                {
+                    temp = "Downloading catalogue " + prompt[1] + " (";
+                    temp += to_string(ii + 1) + "/" + to_string(numCata) + ") ...";
+                    barMessage(temp);
+                }
+                comm.resize(1);
+                comm[0].assign(comm_length, 0);
+                sb.end_call(myid);
+            }
+            return;
+            */
+            break;
+        }
+        case 2:  // Catalogue.
+        {
+            // Download the zip file.
+            qTemp = qlist[0]->parent()->text(0);
+            sYear = qTemp.toStdString();  
+            qTemp = qlist[0]->text(0);
+            sCata = qTemp.toStdString(); 
+            prompt.resize(3);
+            prompt[0] = sc.urlCSVDownload(sYear, sCata);
+            prompt[1] = sroot + "\\" + sYear + "\\" + sCata;
+            prompt[1] += "\\" + sCata + "_ENG_CSV.zip";
+            prompt[2] = "1";  // Binary file.
+            if (!wf.file_exist(prompt[1]))
+            {
+                sb.set_prompt(prompt);
+                sb.start_call(myid, 1, comm[0]);
+                temp = "Downloading " + sCata + ", please wait ...";
+                barMessage(temp);
+                std::thread thr(&MainWindow::thrDownload, this, ref(sb));
+                thr.detach();
+                QCoreApplication::processEvents();
+                while (comm.size() < 2)
+                {
+                    Sleep(20);
+                    comm = sb.update(myid, comm[0]);
+                }
+                while (comm[0][0] = 0)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[1][0] == 1)
+                    {
+                        sb.end_call(myid);
+                        comm[0][0] = 1;
+                    }
+                }
+            }
+            temp = "Download complete! Unzipping file:    " + prompt[1];
+            barMessage(temp);
+
+            // Extract the contents of the zip file to its folder.
+            if (!wf.file_exist(prompt[1])) { jf.err("Downloaded file not found-MainWindow.on_pB_download_clicked"); }
+            size_t pos1 = prompt[1].rfind('\\');
+            string folderPath = prompt[1].substr(0, pos1);
+            string csvPath = folderPath + "\\" + sCata + "_English_CSV_data.csv";
+            if (!wf.file_exist(csvPath))
+            {
+                temp = prompt[1];
+                prompt.resize(1);
+                prompt[0] = temp;
+                sb.set_prompt(prompt);
+                comm.resize(1);
+                comm[0].assign(comm_length, 0);
+                sb.start_call(myid, 1, comm[0]);
+                std::thread thr2(&MainWindow::thrUnzip, this, ref(sb));
+                thr2.detach();
+                while (comm.size() < 2)
+                {
+                    Sleep(20);
+                    comm = sb.update(myid, comm[0]);
+                }
+                while (comm[0][0] = 0)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[1][0] == 1)
+                    {
+                        sb.end_call(myid);
+                        comm[0][0] = 1;
+                    }
+                }
+            }
+            temp = "Unzip complete! Splitting the CSV mega-file:    " + csvPath;
+            barMessage(temp);
+
+            // Split the CSV mega-file into manageable pieces. 
+            if (!wf.file_exist(csvPath)) { jf.err("Unzipped file not found-MainWindow.on_pB_download_clicked"); }
+            int progress = 0, myProgress;
+            mutex m_progress;
+            vector<string> csvList = wf.get_file_list(folderPath, "*PART*.csv");
+            if (csvList.size() < 1)
+            {
+                prompt.resize(2);
+                prompt[0] = csvPath;
+                prompt[1] = to_string(csvMaxSize);
+                sb.set_prompt(prompt);
+                comm.resize(1);
+                comm[0].assign(comm_length, 0);
+                sb.start_call(myid, 1, comm[0]);
+                std::thread thr3(&MainWindow::thrFileSplitter, this, ref(sb), ref(progress), ref(m_progress));
+                thr3.detach();
+                while (comm.size() < 2)
+                {
+                    Sleep(20);
+                    comm = sb.update(myid, comm[0]);
+                }
+                while (comm[0][0] == 0)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[1][2] > comm[0][2])
+                    {
+                        comm[0][2] = comm[1][2];
+                        barReset(comm[0][2], temp);
+                    }
+                    if (comm[1][0] == 1)
+                    {
+                        sb.end_call(myid);
+                        comm[0][3] = comm[1][3];
+                        comm[0][0] = 1;
+                    }
+                    m_progress.lock();
+                    myProgress = progress;
+                    m_progress.unlock();
+                    barUpdate(myProgress);
+                }
+            }
+            temp = "File splitting complete! " + to_string(comm[0][3]) + " CSV parts were made.";
+            barMessage(temp);
+            break;
+        }
+        case 3:  // CSV or maps.
+        {
+            /*
+            qtemp = qlist[0]->parent()->parent()->text(0);
+            prompt[0] = qtemp.toStdString();
+            qtemp = qlist[0]->parent()->text(0);
+            prompt[1] = qtemp.toStdString();
+            qtemp = qlist[0]->text(0);
+            temp = qtemp.toStdString();
+            pos1 = temp.find("CSV");
+            if (pos1 < temp.size())  // Download catalogue's CSVs.
+            {
+                sb.set_prompt(prompt);
+                sb.start_call(myid, 1, comm[0]);
+                std::thread dlCata(&STATSCAN::downloadCatalogue, ref(sc), ref(sb));
+                dlCata.detach();
+                while (comm.size() < 2)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                }
+                while (comm[0][0] == 0)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[1][2] > comm[0][2])
+                    {
+                        comm[0][2] = comm[1][2];
+                        temp = "Downloading catalogue " + prompt[1] + " ...";
+                        reset_bar(comm[0][2], temp);
+                    }
+                    jobs_done = comm[1][1];
+                    update_bar();
+                    if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
+                    {
+                        comm[0][0] = 1;
+                    }
+                    else { comm[0][1] = comm[1][1]; }
+                }
+                sb.end_call(myid);
+                temp += " done!";
+                barMessage(temp);
+            }
+            else  // Download catalogue's maps.
+            {
+                sb.set_prompt(prompt);
+                sb.start_call(myid, 1, comm[0]);
+                std::thread dlMaps(&STATSCAN::downloadMaps, ref(sc), ref(sb));
+                dlMaps.detach();
+                while (comm.size() < 2)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                }
+                while (comm[0][0] == 0)
+                {
+                    Sleep(gui_sleep);
+                    QCoreApplication::processEvents();
+                    comm = sb.update(myid, comm[0]);
+                    if (comm[1][2] > comm[0][2])
+                    {
+                        comm[0][2] = comm[1][2];
+                        temp = "Downloading maps for catalogue " + prompt[1] + " ...";
+                        reset_bar(comm[0][2], temp);
+                    }
+                    jobs_done = comm[1][1];
+                    update_bar();
+                    if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
+                    {
+                        comm[0][0] = 1;
+                    }
+                    else { comm[0][1] = comm[1][1]; }
+                }
+                sb.end_call(myid);
+                temp += " done!";
+                barMessage(temp);
+            }
+            */
+            
+            break;
+        }
+        }
+        break;
+    }
+    case 1:
+    {
+        // NOTE: Display tree of existing maps.
+
+        break;
+    }
+    }
+
+}
+void MainWindow::on_treeW_cataonline_itemSelectionChanged()
+{
+    QList<QTreeWidgetItem*> qSel = ui->treeW_cataonline->selectedItems();
+    if (qSel.size() != 1) { return; }
+    int iGen = qf.getBranchGen(qSel[0]);
+    if (iGen == 2)
+    {
+        ui->pB_download->setEnabled(1);
+    }
+    else
+    {
+        ui->pB_download->setEnabled(0);
+    }
 }
 
 // Modes: 0 = download given webpage
@@ -1099,6 +1763,156 @@ void MainWindow::on_pB_test_clicked()
             }
             wf.printer(binPath, binFileNew);
         }
+    }
+    case 3:  // Upgrade a given SC geo file.
+    {
+        QString qTemp = ui->pte_search->toPlainText();
+        string geoPathOld = qTemp.toStdString(), folderPath;
+        size_t pos1;
+        if (wf.file_exist(geoPathOld))
+        {
+            pos1 = geoPathOld.rfind('\\');
+            folderPath = geoPathOld.substr(0, pos1);
+            sc.init(folderPath);
+            sc.convertSCgeo(geoPathOld);
+        }
+        else
+        {
+            qTemp = "Specified file does not exist.";
+            ui->pte_search->setPlainText(qTemp);
+        }
+        break;
+    }
+    case 4:  // Insert a complete geo table using the given tnameGeo.
+    {
+        QString qTemp = ui->pte_search->toPlainText();
+        string tnameGeo = qTemp.toStdString();
+        size_t pos1 = tnameGeo.find('$') + 1;
+        size_t pos2 = tnameGeo.find('$', pos1);
+        string sYear = tnameGeo.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = tnameGeo.find('$', pos1);
+        string sCata = tnameGeo.substr(pos1, pos2 - pos1);
+        string cataPath = sroot + "\\" + sYear + "\\" + sCata;
+        vector<string> nameList = wf.get_file_list(cataPath, "*PART*.csv");
+        int maxPART = nameList.size(), index, maxLevel = -1, inum;
+        string csvPath, csvFile, csvBuffer, line, temp, currentGeoCode;
+        vector<string> colTitles, colValues, ancestry, stmts;
+        vector<string> dirt = { "'" }, soap = { "''" };
+        vector<vector<string>> geoData;
+        vector<int> scoopIndex;
+        for (int ii = 1; ii <= maxPART; ii++)
+        {
+            csvPath = cataPath + "\\" + sCata + "_English_CSV_data (PART ";
+            csvPath += to_string(ii) + ").csv";
+            csvFile = wf.load(csvPath);
+            if (ii == 1)
+            {
+                pos1 = csvFile.find('"');
+                pos2 = csvFile.find("\r\n");
+                line = csvFile.substr(pos1, pos2 - pos1);
+                pos1 = 0;
+                while (pos1 < line.size())
+                {
+                    pos1 = line.find_first_not_of(",\" ", pos1);
+                    pos2 = line.find('"', pos1);
+                    temp = line.substr(pos1, pos2 - pos1);
+                    colTitles.push_back(temp);
+                    pos1 = line.find(',', pos2);
+                }
+                for (int jj = 0; jj < colTitles.size(); jj++)
+                {
+                    pos1 = colTitles[jj].find("ALT_GEO_CODE");
+                    if (pos1 < colTitles[jj].size()) { scoopIndex.push_back(jj); }
+                    pos1 = colTitles[jj].find("GEO_LEVEL");
+                    if (pos1 < colTitles[jj].size()) { scoopIndex.push_back(jj); }
+                    pos1 = colTitles[jj].find("GEO_NAME");
+                    if (pos1 < colTitles[jj].size()) { scoopIndex.push_back(jj); }
+                    if (scoopIndex.size() >= 3) { break; }
+                }
+                pos1 = csvFile.find("\r\n");
+                pos2 = csvFile.find("\r\n", pos1 + 1);
+                line = csvFile.substr(pos1, pos2 - pos1);
+            }
+            else
+            {
+                pos1 = 0;
+                pos2 = csvFile.find("\r\n");
+                line = csvBuffer + csvFile.substr(pos1, pos2 - pos1);
+            }
+
+            while (pos2 < csvFile.size())
+            {
+                colValues = sc.extractCSVLineValue(line, scoopIndex);
+                if (colValues[2] != currentGeoCode)
+                {
+                    currentGeoCode = colValues[2];
+                    index = geoData.size();
+                    geoData.push_back(vector<string>(3));
+                    geoData[index][0] = colValues[2];
+                    geoData[index][1] = colValues[1];
+                    geoData[index][2] = colValues[0];
+                }
+                pos1 = pos2;
+                pos2 = csvFile.find("\r\n", pos1 + 1);
+                if (pos2 < csvFile.size()) { line = csvFile.substr(pos1, pos2 - pos1); }
+            }
+            csvBuffer = csvFile.substr(pos1);
+            pos1--;
+        }
+        for (int ii = 0; ii < geoData.size(); ii++)
+        {
+            try { inum = stoi(geoData[ii][2]); }
+            catch (invalid_argument) { jf.err("stoi-MainWindow.test4"); }
+            if (inum > maxLevel) { maxLevel = inum; }
+        }
+        string stmt = "CREATE TABLE IF NOT EXISTS \"" + tnameGeo + "\" (GEO_CODE ";
+        stmt += "INTEGER PRIMARY KEY, \"Region Name\" TEXT, GEO_LEVEL INT";
+        for (int ii = 0; ii < maxLevel; ii++)
+        {
+            stmt += ", Ancestor" + to_string(ii) + " INT";
+        }
+        stmt += ");";
+        sf.executor(stmt);
+        for (int ii = 0; ii < geoData.size(); ii++)
+        {
+            try { inum = stoi(geoData[ii][2]); }
+            catch (invalid_argument) { jf.err("stoi-MainWindow.test4"); }
+            if (inum >= ancestry.size())
+            {
+                ancestry.push_back(geoData[ii][0]);
+            }
+            else
+            {
+                ancestry[inum] = geoData[ii][0];
+            }
+            for (int jj = 0; jj < inum; jj++)
+            {
+                geoData[ii].push_back(ancestry[jj]);
+            }
+            stmt = "INSERT OR REPLACE INTO \"" + tnameGeo + "\" (GEO_CODE, ";
+            stmt += "\"Region Name\", GEO_LEVEL";
+            for (int jj = 0; jj < inum; jj++)
+            {
+                stmt += ", Ancestor" + to_string(jj);
+            }
+            jf.clean(geoData[ii][1], dirt, soap);
+            stmt += ") VALUES (" + geoData[ii][0] + ", '" + geoData[ii][1];
+            stmt += "', " + geoData[ii][2];
+            for (int jj = 3; jj < geoData[ii].size(); jj++)
+            {
+                stmt += ", " + geoData[ii][jj];
+            }
+            stmt += ");";
+            stmts.push_back(stmt);
+        }
+        sf.insert_prepared(stmts);
+        break;
+    }
+    case 5:  // Save a screenshot as PNG.
+    {
+
+        break;
     }
     }
 
@@ -2377,407 +3191,6 @@ void MainWindow::displayDiscrepancies(string& folderPath, QListWidget*& qlist)
             qlist->addItem(qtemp);
         }
     }
-}
-
-// Download the selected file(s).
-void MainWindow::on_pB_download_clicked()
-{
-    //jf.timerStart();
-    int onlineTab = ui->tabW_online->currentIndex();
-    QList<QTreeWidgetItem*> qlist, qChildren;
-    vector<string> prompt, listCata, sLayer, csvLocal, csvOnline;
-    vector<vector<int>> comm(1, vector<int>());
-    comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
-    thread::id myid = this_thread::get_id();
-    
-    int kids, iStatusCata, error, iGen, inum, sizeComm, oldProgress, indexCata;
-    int iYear, numCata;
-    size_t pos1;
-    vector<int> iLayer;
-    QTreeWidgetItem* pNode = nullptr;
-    QTreeWidgetItem* pParent = nullptr;
-    QString qtemp;
-    string temp, url, webpage, urlCata, urlGeoList;
-    vector<vector<string>> csvDiff;
-    switch (onlineTab)
-    {
-    case 0:
-    {
-        qlist = ui->treeW_statscan->selectedItems();
-        if (qlist.size() < 1) { return; }
-        iGen = qf.getBranchGen(qlist[0]);
-        prompt.resize(2);  // Form [syear, sname].
-        switch (iGen)
-        {
-        case 0:  // Root. Nothing to do...
-            return;
-        case 1:  // Year.
-        {
-            qtemp = qlist[0]->text(0);
-            prompt[0] = qtemp.toStdString();
-            url = sc.urlYear(prompt[0]);
-            webpage = wf.browseS(url);
-            listCata = jf.textParser(webpage, navSearch[1]);
-            numCata = listCata.size();
-            for (int ii = 0; ii < numCata; ii++)
-            {
-                prompt[1] = listCata[ii];
-                sb.set_prompt(prompt);
-                sb.start_call(myid, 1, comm[0]);
-                std::thread dlCata(&STATSCAN::downloadCatalogue, ref(sc), ref(sb));
-                dlCata.detach();
-                while (comm.size() < 2)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                }
-                while (comm[1][0] == 0)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                    if (comm[1][2] > comm[0][2])
-                    {
-                        comm[0][2] = comm[1][2];
-                        temp = "Downloading catalogue " + prompt[1] + " (";
-                        temp += to_string(ii + 1) + "/" + to_string(numCata) + ") ...";
-                        reset_bar(comm[0][2], temp);
-                    }
-                    jobs_done = comm[1][1];
-                    update_bar();
-                    if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
-                    {
-                        comm[0][0] = 1;
-                    }
-                    else { comm[0][1] = comm[1][1]; }
-                }
-                if (comm[0][2] == 0)
-                {
-                    temp = "Downloading catalogue " + prompt[1] + " (";
-                    temp += to_string(ii + 1) + "/" + to_string(numCata) + ") ...";
-                    barMessage(temp);
-                }
-                comm.resize(1);
-                comm[0].assign(comm_length, 0);
-                sb.end_call(myid);
-            }
-            return;
-        }
-        case 2:  // Catalogue.
-        {
-            qtemp = qlist[0]->parent()->text(0);
-            prompt[0] = qtemp.toStdString();
-            qtemp = qlist[0]->text(0);
-            prompt[1] = qtemp.toStdString();
-            sb.set_prompt(prompt);
-            sb.start_call(myid, 1, comm[0]);
-            std::thread dlCata(&STATSCAN::downloadCatalogue, ref(sc), ref(sb));
-            dlCata.detach();
-            while (comm.size() < 2)
-            {
-                Sleep(gui_sleep);
-                QCoreApplication::processEvents();
-                comm = sb.update(myid, comm[0]);
-            }
-            while (comm[0][0] == 0)
-            {
-                Sleep(gui_sleep);
-                QCoreApplication::processEvents();
-                comm = sb.update(myid, comm[0]);
-                if (comm[1][2] > comm[0][2])
-                {
-                    comm[0][2] = comm[1][2];
-                    temp = "Downloading catalogue " + prompt[1] + " ...";
-                    reset_bar(comm[0][2], temp);
-                }
-                jobs_done = comm[1][1];
-                update_bar();
-                if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
-                {
-                    comm[0][0] = 1;
-                }
-                else { comm[0][1] = comm[1][1]; }
-            }
-            sb.end_call(myid);
-            temp += " done!";
-            barMessage(temp);
-            return;
-        }
-        case 3:  // CSV or maps.
-        {
-            qtemp = qlist[0]->parent()->parent()->text(0);
-            prompt[0] = qtemp.toStdString();
-            qtemp = qlist[0]->parent()->text(0);
-            prompt[1] = qtemp.toStdString();
-            qtemp = qlist[0]->text(0);
-            temp = qtemp.toStdString();
-            pos1 = temp.find("CSV");
-            if (pos1 < temp.size())  // Download catalogue's CSVs.
-            {
-                sb.set_prompt(prompt);
-                sb.start_call(myid, 1, comm[0]);
-                std::thread dlCata(&STATSCAN::downloadCatalogue, ref(sc), ref(sb));
-                dlCata.detach();
-                while (comm.size() < 2)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                }
-                while (comm[0][0] == 0)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                    if (comm[1][2] > comm[0][2])
-                    {
-                        comm[0][2] = comm[1][2];
-                        temp = "Downloading catalogue " + prompt[1] + " ...";
-                        reset_bar(comm[0][2], temp);
-                    }
-                    jobs_done = comm[1][1];
-                    update_bar();
-                    if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
-                    {
-                        comm[0][0] = 1;
-                    }
-                    else { comm[0][1] = comm[1][1]; }
-                }
-                sb.end_call(myid);
-                temp += " done!";
-                barMessage(temp);
-            }
-            else  // Download catalogue's maps.
-            {
-                sb.set_prompt(prompt);
-                sb.start_call(myid, 1, comm[0]);
-                std::thread dlMaps(&STATSCAN::downloadMaps, ref(sc), ref(sb));
-                dlMaps.detach();
-                while (comm.size() < 2)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                }
-                while (comm[0][0] == 0)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                    if (comm[1][2] > comm[0][2])
-                    {
-                        comm[0][2] = comm[1][2];
-                        temp = "Downloading maps for catalogue " + prompt[1] + " ...";
-                        reset_bar(comm[0][2], temp);
-                    }
-                    jobs_done = comm[1][1];
-                    update_bar();
-                    if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
-                    {
-                        comm[0][0] = 1;
-                    }
-                    else { comm[0][1] = comm[1][1]; }
-                }
-                sb.end_call(myid);
-                temp += " done!";
-                barMessage(temp);
-            }
-            break;
-        }
-        }
-        QCoreApplication::processEvents();
-
-        if (listCata.size() < 1)
-        {
-            QList<QListWidgetItem*> qSelected = ui->listW_statscan->selectedItems();
-            if (qSelected.size() > 0)
-            {
-                comm[0][2] = qSelected.size();
-                prompt.resize(qSelected.size() + 3);
-                for (int ii = 0; ii < qSelected.size(); ii++)
-                {
-                    qtemp = qSelected[ii]->text();
-                    prompt[ii + 3] = qtemp.toStdString();
-                }
-            }
-            else
-            {
-                iStatusCata = getCataStatus(prompt[0], prompt[1], csvLocal, csvOnline);
-                if (iStatusCata == 1)
-                {
-                    csvDiff = jf.compareList(csvLocal, csvOnline);
-                    prompt.resize(3 + csvDiff[1].size());
-                    for (int jj = 0; jj < csvDiff[1].size(); jj++)
-                    {
-                        prompt[3 + jj] = csvDiff[1][jj];
-                    }
-                }
-                else if (iStatusCata == 2)
-                {
-                    qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
-                    break;
-                }
-                iStatusCata = sf.statusCata(prompt[1]);
-                if (iStatusCata == 2)
-                {
-                    qf.displayText(ui->QL_bar, prompt[1] + " is already present in the database.");
-                    return;
-                }
-                try { iYear = stoi(prompt[0]); }
-                catch (invalid_argument& ia) { err("stoi-MainWindow.on_pB_download"); }
-                urlCata = sc.urlCatalogue(iYear, prompt[1]);
-                urlGeoList = sc.urlGeoList(iYear, urlCata);
-                prompt.push_back(urlGeoList);
-            }
-            sb.set_prompt(prompt);
-            sb.start_call(myid, 1, comm[0]);
-            std::thread dl(&MainWindow::downloader, this, ref(sb));
-            dl.detach();
-            while (comm[0][1] < comm[0][2])
-            {
-                Sleep(gui_sleep);
-                QCoreApplication::processEvents();
-                comm = sb.update(myid, comm[0]);
-                jobs_done = comm[1][1];
-                update_bar();
-                comm[0][1] = comm[1][1];
-            }
-        }
-        break;
-    }
-    case 1:
-    {
-        // NOTE: Display tree of existing maps.
-
-        break;
-    }
-    }
-
-    while (1)
-    {
-        Sleep(gui_sleep);
-        QCoreApplication::processEvents();
-        if (remote_controller == 2)  // The 'cancel' button was pressed.
-        {
-            comm[0][0] = 2;  // Inform the manager thread it should abort its task.
-            remote_controller = 0;
-        }
-        try
-        {
-            comm = sb.update(myid, comm[0]);
-            if (comm[0][2] == 0)  // If the GUI thread does not yet know the size of the task...
-            {
-                if (comm[1][2] > 0)  // ... and the manager thread does know, then ...
-                {
-                    comm[0][2] = comm[1][2];
-                    comm[0][1] = comm[1][1];
-                    if (onlineTab == 0)
-                    {
-                        reset_bar(comm[1][2], "Downloading catalogue  " + prompt[1]);  // ... initialize the progress bar.
-                    }
-                    else if (onlineTab == 1)
-                    {
-                        reset_bar(comm[1][2], "Downloading maps...");  // ... initialize the progress bar.
-                    }
-                    jobs_done = comm[0][1];
-                    update_bar();
-                }
-            }
-            else
-            {
-                comm[0][1] = comm[1][1];
-                jobs_done = comm[0][1];
-                update_bar();
-            }
-        }
-        catch (out_of_range& oor)
-        {
-            err("sb.update-on_pB_download_clicked");
-        }
-
-        if (comm[1][0] == 1 || comm[1][0] == -2)
-        {
-            error = sb.end_call(myid);
-            if (error) { errnum("sb.end_call-on_pB_download_clicked", error); }
-            jobs_done = comm[0][2];
-            update_bar();
-            break;           // Manager reports task finished/cancelled.
-        }
-    }
-    
-    //long long timer = jf.timerStop();
-    //log("Downloaded catalogue " + prompt[1] + " in " + to_string(timer) + "ms");
-}
-void MainWindow::downloader(SWITCHBOARD& sb)
-{
-    vector<int> mycomm;
-    vector<vector<int>> comm_gui;
-    thread::id myid = this_thread::get_id();
-    sb.answer_call(myid, mycomm);
-    vector<string> prompt = sb.get_prompt();  // Form [syear, sname, gid0, ... ].
-    int iyear, dlMode, yearMode;
-    try { iyear = stoi(prompt[0]); }
-    catch (out_of_range& oor) { err("stoi-MainWindow.downloader"); }
-    string folderPath = sroot + "\\" + prompt[0] + "\\" + prompt[1];
-    wf.makeDir(folderPath);
-    string geoPath = folderPath + "\\" + prompt[1] + " geo list.bin";
-    bool geo;
-    if (prompt.size() > 3) { geo = 0; }
-    else { geo = 1; sc.initGeo(); }
-
-    size_t pos1;
-    string sfile, urlCataDL, csvPath, csvFile;
-    vector<string> gidList, geoLayers;
-    vector<vector<string>> geoAll;
-    string urlCata = sc.urlCatalogue(iyear, prompt[1]);
-    string urlGeoList = sc.urlGeoList(iyear, urlCata);
-    string geoPage = wf.browseS(urlGeoList);
-    if (geo)
-    {
-        if (!wf.file_exist(geoPath))
-        {
-            fetchGeoList(iyear, prompt[1], geoLayers, geoPage, prompt[2]);
-        }
-        geoAll = sc.readGeo(geoPath);
-        mycomm[2] = geoAll.size() - 1;
-        sb.update(myid, mycomm);
-    }
-    else
-    {
-        mycomm[2] = prompt.size() - 2;
-        sb.update(myid, mycomm);
-        gidList.resize(mycomm[2]);
-        for (int ii = 0; ii < mycomm[2]; ii++)
-        {
-            pos1 = prompt[ii + 2].find(')');
-            gidList[ii] = prompt[ii + 2].substr(1, pos1 - 1);
-        }
-    }
-    
-    vector<string> dirt = { "/" };
-    vector<string> soap = { "or" };
-    for (int ii = 0; ii < mycomm[2]; ii++)
-    {
-        if (geo)
-        {
-            urlCataDL = sc.urlCataDownload(iyear, geoPage, geoAll[ii + 1][0]);
-            csvPath = folderPath + "\\" + prompt[1] + " (" + geoAll[ii + 1][0];
-            csvPath += ") " + geoAll[ii + 1][1] + ".csv";
-        }
-        else
-        {
-            urlCataDL = sc.urlCataDownload(iyear, geoPage, gidList[ii]);
-            csvPath = folderPath + "\\" + prompt[1] + " " + prompt[ii + 2] + ".csv";
-        }
-        jf.clean(csvPath, dirt, soap);
-        wf.download(urlCataDL, csvPath);
-        mycomm[1]++;
-        sb.update(myid, mycomm);
-    }
-    mycomm[0] = 1;
-    sb.update(myid, mycomm);
-    int bbq = 1;
 }
 
 // Toggle between local database mode, and online Stats Canada navigation.

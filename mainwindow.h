@@ -16,6 +16,7 @@
 #include <sqlite3.h>
 #include <iostream>
 #include "binmap.h"
+#include "gdifunc.h"
 #include "gsfunc.h"
 #include "imgfunc.h"
 #include "iofunc.h"
@@ -41,11 +42,12 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
     BINMAP bm;
+    GDIFUNC gdi;
     GSFUNC gf;
     IOFUNC io;
     IMGFUNC im;
     JFUNC jf;
-    JTREE jtCataLocal, jtMapLocal;
+    JTREE jtCataLocal, jtMapLocal, jtCataOnline;
     MATHFUNC mf;
     QTFUNC qf;
     SWITCHBOARD sb;
@@ -62,39 +64,47 @@ private slots:
     void mousePressEvent(QMouseEvent* event);
     void on_cB_drives_currentTextChanged(const QString& arg1);
     void on_listW_maplocal_itemSelectionChanged();
+    void on_listW_searchresult_itemDoubleClicked(QListWidgetItem* qItem);
     void on_listW_searchresult_itemSelectionChanged();
     void on_pB_convert_clicked();
     void on_pB_deletetable_clicked();
+    void on_pB_download_clicked();
     void on_pB_insert_clicked();
     void on_pB_maplocal_clicked();
     void on_pB_resolution_clicked();
     void on_pB_reviewmap_clicked();
     void on_pB_search_clicked();
     void on_pB_test_clicked();
+    void on_pB_usc_clicked();
     void on_pB_viewtable_clicked();
     void on_tableW_db_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen);
     void on_tableW_maplocal_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen);
     void on_tabW_main_currentChanged(int index);
     void on_treeW_catalocal_itemSelectionChanged();
+    void on_treeW_cataonline_itemSelectionChanged();
     void on_treeW_maplocal_itemSelectionChanged();
 
 private:
     Ui::MainWindow *ui;
 
-    //vector<BINMAP> binMaps;
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
-    const int cores = 3;
+    const int cores = 3, treeLength = 20;
+    const long long csvMaxSize = 200000000;  // Bytes
     string db_path;
     const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
     bool ignorePartie = 1;
     mutex m_bar;
+    vector<vector<string>> navSearch;
     string projectDir, savedSettings;
+    QPlainTextEdit* pteDefault;
     QWidget* recentClick = nullptr;
     vector<int> resDesktop = { 1920, 1080 };
     vector<double> resScaling = { 1.0, 1.0 };
+    long long time;
 
+    void autoExpand(QTreeWidget*& qTree, int maxNum);
+    void barMessage(string message);
     void barReset(int iMax, string message);
-    void barText(string message);
     void barUpdate(int iCurrent);
     void bind(string&, vector<string>&);
     vector<vector<string>> getBinGpsTable(vector<BINMAP>& vBM);
@@ -105,9 +115,16 @@ private:
     void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
     void populateBinFamily(SWITCHBOARD& sbgui, vector<BINMAP>& vBM);
     void qshow(string message);
+    void qshow(vector<string> message);
+    void reportTable(QTableWidget*& qTable);
     void scanLocalCata(SWITCHBOARD& sbgui, JTREE& jtgui);
     void scanLocalMap(SWITCHBOARD& sbgui, JTREE& jtgui);
     void tablePopulate(QTableWidget*& qTable, vector<vector<string>>& sData);
+    void tableTopper(SWITCHBOARD& sbgui, vector<vector<string>>& vvsResult);
+    void thrDownload(SWITCHBOARD& sbgui);
+    void thrFileSplitter(SWITCHBOARD& sbgui, int& progress, mutex& m_progress);
+    void thrUnzip(SWITCHBOARD& sbgui);
+    void updateDBCata();
     void upgradeBinMap(SWITCHBOARD& sbgui);
 
     /*

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "winfunc.h"
 
 using namespace std;
@@ -205,9 +206,26 @@ void WINFUNC::delete_file(string path)
 }
 void WINFUNC::download(string url, string filepath)
 {
-	// UTF-8 encoding is used to write the downloaded file.
-	wstring wFile = browseW(url);
-	jf.printer(filepath, wFile);
+	download(url, filepath, 0);
+}
+void WINFUNC::download(string url, string filePath, int type)
+{
+	switch (type)
+	{
+	case 0:  // Text file, UTF8.
+	{
+		wstring wFile = browseW(url);
+		string sFile = jf.utf16to8(wFile);
+		printer(filePath, sFile);
+		break;
+	}
+	case 1:
+	{
+		vector<unsigned char> binFile = browseUC(url);
+		printer(filePath, binFile);
+		break;
+	}
+	}
 }
 bool WINFUNC::file_exist(string path)
 {
@@ -217,6 +235,53 @@ bool WINFUNC::file_exist(string path)
 		return 0;
 	}
 	return 1;
+}
+int WINFUNC::fileSplitter(string filePathInput, long long maxSize, int& progress, mutex& m_progress)
+{
+	int completed = 0;
+	string filePathOutput = filePathInput;
+	size_t pos1 = filePathOutput.rfind('.'), pos2;
+	string temp = " (PART 1)";
+	filePathOutput.insert(pos1, temp);
+
+	HANDLE hFileInput = CreateFileA(filePathInput.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFileInput == INVALID_HANDLE_VALUE) { jf.err("CreateFileA-wf.fileSplitter"); }
+	HANDLE hFileOutput = CreateFileA(filePathOutput.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFileOutput == INVALID_HANDLE_VALUE) { jf.err("CreateFileA-wf.fileSplitter"); }
+
+	unsigned char* buffer[4096];
+	bool success;
+	DWORD bytesRead = 1, bytesWritten, bytesWrittenPerFile = 0;
+	while (bytesRead > 0)
+	{
+		success = ReadFile(hFileInput, buffer, 4096, &bytesRead, NULL);
+		if (!success) { jf.err("ReadFile-wf.fileSplitter"); }
+		success = WriteFile(hFileOutput, buffer, bytesRead, &bytesWritten, NULL);
+		if (!success) { jf.err("WriteFile-wf.fileSplitter"); }
+		bytesWrittenPerFile += bytesWritten;
+		if (bytesWrittenPerFile > maxSize)
+		{
+			CloseHandle(hFileOutput);
+			completed++;
+			m_progress.lock();
+			progress++;
+			m_progress.unlock();
+			bytesWrittenPerFile = 0;
+			pos1 = filePathOutput.rfind(' ') + 1;
+			pos2 = filePathOutput.find(')', pos1);
+			temp = to_string(completed + 1);
+			filePathOutput.replace(pos1, pos2 - pos1, temp);
+			hFileOutput = CreateFileA(filePathOutput.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (hFileOutput == INVALID_HANDLE_VALUE) { jf.err("CreateFileA-wf.fileSplitter"); }
+		}
+	}
+	completed++;
+	m_progress.lock();
+	progress++;
+	m_progress.unlock();
+	CloseHandle(hFileOutput);
+	CloseHandle(hFileInput);
+	return completed;
 }
 string WINFUNC::get_exec_dir()
 {
@@ -316,6 +381,19 @@ int WINFUNC::get_file_path_number(string folder_path, string file_extension)
 
 	if (!FindClose(hfile1)) { winerr("FindClose-get_file_path_number"); }
 	return count;
+}
+long long WINFUNC::getFileSize(string filePath)
+{
+	// Return value is in bytes.
+	if (!file_exist(filePath)) { jf.err("File not found-wf.getFileSize"); }
+	HANDLE hFile = CreateFileA(filePath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == INVALID_HANDLE_VALUE) { winerr("CreateFileA-wf.getFileSize"); }
+	LARGE_INTEGER graham;
+	bool success = GetFileSizeEx(hFile, &graham);
+	if (!success) { winerr("GetFileSizeEx-wf.getFileSize"); }
+	CloseHandle(hFile);
+	long long mySize = graham.QuadPart;
+	return mySize;
 }
 vector<string> WINFUNC::get_folder_list(string folder_path, string search)
 {
@@ -645,6 +723,16 @@ void WINFUNC::printer(string path, string& file)
 	if (hFile == INVALID_HANDLE_VALUE) { winerr("CreateFileW-wf.printer"); }
 	DWORD bytesToWrite = file.size(), bytesWritten;
 	BOOL success = WriteFile(hFile, &file[0], bytesToWrite, &bytesWritten, NULL);
+	if (!success) { winerr("WriteFile-wf.printer"); }
+	CloseHandle(hFile);
+}
+void WINFUNC::printer(string path, vector<unsigned char>& binFile)
+{
+	wstring wPath = jf.asciiToUTF16(path);
+	HANDLE hFile = CreateFileW(wPath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == INVALID_HANDLE_VALUE) { winerr("CreateFileW-wf.printer"); }
+	DWORD bytesToWrite = binFile.size(), bytesWritten;
+	BOOL success = WriteFile(hFile, &binFile[0], bytesToWrite, &bytesWritten, NULL);
 	if (!success) { winerr("WriteFile-wf.printer"); }
 	CloseHandle(hFile);
 }

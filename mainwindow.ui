@@ -288,6 +288,25 @@
       </property>
      </widget>
     </widget>
+    <widget class="QWidget" name="tab_debug">
+     <attribute name="title">
+      <string>Debug</string>
+     </attribute>
+     <widget class="QPushButton" name="pB_resolution">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>10</y>
+        <width>81</width>
+        <height>41</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>Toggle
+Resolution</string>
+      </property>
+     </widget>
+    </widget>
    </widget>
    <widget class="QPushButton" name="pB_viewtable">
     <property name="enabled">
@@ -613,20 +632,6 @@ Table</string>
     <property name="text">
      <string>Review Map
 Positioning</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pB_resolution">
-    <property name="geometry">
-     <rect>
-      <x>820</x>
-      <y>930</y>
-      <width>75</width>
-      <height>41</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Toggle
-Resolution</string>
     </property>
    </widget>
   </widget>

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "sqlfunc.h"
 
 using namespace std;
@@ -1691,4 +1692,19 @@ vector<string> SQLFUNC::test_cata(string cata_name)
     }
     return test_results;
 }
-
+void SQLFUNC::update(string tname, vector<string> revisions, vector<string> conditions)
+{
+    string stmt = "UPDATE \"" + tname + "\" SET ";
+    for (int ii = 0; ii < revisions.size(); ii++)
+    {
+        if (ii > 0) { stmt += ", "; }
+        stmt += revisions[ii];
+    }
+    stmt += " WHERE";
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        stmt += " " + conditions[ii];
+    }
+    stmt += ";";
+    executor(stmt);
+}

@@ -1,3 +1,4 @@
+#include "stdafx.h"
 #include "qtpaint.h"
 
 void QTPAINT::addArea(vector<vector<double>>& border)
