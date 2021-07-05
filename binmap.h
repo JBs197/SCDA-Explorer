@@ -1,5 +1,8 @@
 #pragma once
 
+#include "gdifunc.h"
+#include "imgfunc.h"
+#include "iofunc.h"
 #include "qtfunc.h"
 #include "statscan.h"
 
@@ -7,34 +10,24 @@ using namespace std;
 
 class BINMAP
 {
+	vector<POINT> bHome, bHomeExt, bPanel, fMain, fOverview;  // Form [TL, BR, mid]
+	GDIFUNC gdi;
+	IOFUNC io;
+	IMGFUNC im;
+	JFUNC jf;
+	QPlainTextEdit* pte;
+	QTFUNC qf;
+
+	vector<unsigned char> Canada = { 240, 240, 240, 255 };
+	vector<unsigned char> Usa = { 215, 215, 215, 255 };
+	vector<unsigned char> Water = { 179, 217, 247, 255 };
 
 public:
 	BINMAP() {}
 	~BINMAP() {}
 	
-	double defaultMargin = 20.0;
-	bool isSelected = 0;
-	JFUNC jf;
-	vector<vector<int>> myBorder;
-	vector<vector<vector<int>>> myFrames;
-	int myGid;
-	string myLayer, myName, myParent, myPath;
-	vector<double> myPosition, blueDot;
-	double myScale;
-	vector<vector<double>> myWindowBorder;
-	vector<string> pathChildren;
-	QTFUNC qf;
-	STATSCAN sc;
-
-	void borderScaleToWindow(vector<vector<int>>& border, vector<vector<double>>& borderD, vector<double> borderDim);
-	void borderShiftSetMargin(vector<vector<int>>& border, int margin);
-	void childrenFromGeo(string geoPath);
-	vector<string> getPathChildren(int mode);
-	string getPathGeo();
-	string getPathParent();
-	vector<vector<double>> getTLBR(vector<vector<double>>& borderPath);
-	void loadFromPath(string binPath);
-	void makeBlueDot();
-	void makeWindowBorder(double width, double height);
+	void findFrames(POINT bHome);
+	void recordButton(vector<POINT>& button, string buttonName);
+	void setPTE(QPlainTextEdit*& qPTE);
 };
 

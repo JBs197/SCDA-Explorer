@@ -1,8 +1,10 @@
 #pragma once
+
 #include "stb_image.h"
 #include "stb_image_write.h"
 #include "stb_truetype.h"
 #include <assert.h>
+#include <unordered_map>
 #include <string>
 #include <vector>
 #include "mathfunc.h"
@@ -73,6 +75,23 @@ class IMGFUNC
 public:
 	IMGFUNC() {}
 	~IMGFUNC() {}
+
+    POINT coordFromOffset(int offset, vector<int> imgSpec);
+    void countPixelColour(string& filePath, vector<vector<unsigned char>>& colourList, vector<int>& freqList);
+    void crop(vector<vector<unsigned char>>& img, vector<vector<int>>& imgSpec, vector<POINT> TLBR);
+    void cropSave(vector<string>& filePath, vector<POINT> TLBR);
+    void cropSaveOld(vector<string>& filePath, vector<POINT> TLBR);
+    void drawSquare(vector<unsigned char>& img, vector<int>& imgSpec, POINT coord);
+    void flatten(string& filePath);
+    POINT getTLImgImg(string& targetPath, string& bgPath);
+    void linePaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<unsigned char> rgbx);
+    void markTargetTL(string& targetPath, string& bgPath);
+    void pngLoadHere(string& pngPath, vector<unsigned char>& pngData, vector<int>& spec);
+    void pngLoadString(string& pngPath, string& pngData, vector<int>& spec);
+    void removePeriodic(vector<unsigned char>& img, int modulus);
+    void scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult);
+    void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult);
+
     int areaRect(vector<vector<int>> TLBR);
 	vector<int> borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks);
 	vector<int> borderFindStart();
@@ -100,6 +119,7 @@ public:
 	bool isInit();
     bool jobsDone(vector<int> vCoord);
 	vector<vector<int>> linePath(vector<vector<int>>& startStop);
+    vector<POINT> linePath(vector<POINT>& startStop);
     vector<vector<int>> linePathToEdge(vector<vector<int>>& startMid);
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
     void loadRecentSavePoint(vector<vector<int>>& vBorderPath);
@@ -112,6 +132,7 @@ public:
     void pauseMapDebug(SWITCHBOARD& sbgui, vector<vector<int>>& tracks, int radius, vector<vector<int>>& candidates);
     string pixelDecToHex(vector<unsigned char>& rgb);
 	void pixelPaint(vector<unsigned char>& img, int widthImg, vector<unsigned char> rgb, vector<int> coord);
+    void pixelPaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> rgbx, POINT coord);
 	string pixelZone(vector<unsigned char>& rgb);
     vector<unsigned char> pngBlankCanvas(vector<int>& dim);
     vector<unsigned char> pngExtractRow(int row, vector<unsigned char>& img, vector<int>& sourceDim);
@@ -681,20 +702,34 @@ public:
         return colours;
     }
 
-    template<typename ... Args> int getOffset(vector<int>& vCoord, Args& ... args)
+    template<typename ... Args> int getOffset(Args& ... args)
     {
         jf.err("getOffset template-im");
     }
-    template<> int getOffset< >(vector<int>& vCoord)
+    template<> int getOffset<vector<int>>(vector<int>& vCoord)
     {
         int offRow = vCoord[1] * width * numComponents;
         int offCol = vCoord[0] * numComponents;
         return offRow + offCol;
     }
-    template<> int getOffset<int>(vector<int>& vCoord, int& widthRect)
+    template<> int getOffset<vector<int>, int>(vector<int>& vCoord, int& widthRect)
     {
         int offRow = vCoord[1] * widthRect * numComponents;
         int offCol = vCoord[0] * numComponents;
+        return offRow + offCol;
+    }
+    template<> int getOffset<vector<int>, vector<int>>(vector<int>& vCoord, vector<int>& imgSpec)
+    {
+        // imgSpec has form [width, height, numComponents].
+        int offRow = vCoord[1] * imgSpec[0] * imgSpec[2];
+        int offCol = vCoord[0] * imgSpec[2];
+        return offRow + offCol;
+    }
+    template<> int getOffset<POINT, vector<int>>(POINT& coord, vector<int>& imgSpec)
+    {
+        // imgSpec has form [width, height, numComponents].
+        int offRow = coord.y * imgSpec[0] * imgSpec[2];
+        int offCol = coord.x * imgSpec[2];
         return offRow + offCol;
     }
 
@@ -1963,17 +1998,17 @@ public:
         }
     }
 
-    template<typename ... Args> vector<unsigned char> pixelRGB(vector<int> coord, Args& ... args)
+    template<typename ... Args> vector<unsigned char> pixelRGB(Args& ... args)
     {
         jf.err("pixelRGB template-im");
     }
-    template<> vector<unsigned char> pixelRGB< >(vector<int> coord)
+    template<> vector<unsigned char> pixelRGB<vector<int>>(vector<int>& coord)
     {
         vector<int> sourceDim = { width, height };
         vector<unsigned char> rgb = pixelRGB(coord, dataPNG, sourceDim);
         return rgb;
     }
-    template<> vector<unsigned char> pixelRGB<vector<unsigned char>, vector<int>>(vector<int> coord, vector<unsigned char>& sourceImg, vector<int>& sourceDim)
+    template<> vector<unsigned char> pixelRGB<vector<int>, vector<unsigned char>, vector<int>>(vector<int>& coord, vector<unsigned char>& sourceImg, vector<int>& sourceDim)
     {
         if (sourceImg.size() < 1) { jf.err("No supplied image-im.pixelRGB"); }
         if (coord[0] < 0 || coord[0] >= sourceDim[0]) { jf.err("xCoord out of bounds-im.pixelRGB"); }
@@ -1984,6 +2019,18 @@ public:
         rgb[1] = sourceImg[offset + 1];
         rgb[2] = sourceImg[offset + 2];
         return rgb;
+    }
+    template<> vector<unsigned char> pixelRGB<vector<unsigned char>, vector<int>, POINT>(vector<unsigned char>& img, vector<int>& imgSpec, POINT& Coord)
+    {
+        if (img.size() < 1) { jf.err("No supplied image-im.pixelRGB"); }
+        vector<unsigned char> rgbx;
+        rgbx.resize(imgSpec[2]);
+        int offset = getOffset(Coord, imgSpec);
+        rgbx[0] = img[offset + 0];
+        rgbx[1] = img[offset + 1];
+        rgbx[2] = img[offset + 2];
+        if (rgbx.size() > 3) { rgbx[3] = img[offset + 3]; }
+        return rgbx;
     }
 
     template<typename ... Args> void pngAppendText(Args& ... args)
@@ -2199,18 +2246,16 @@ public:
         delete[] bufferUC;
         int barbecue = 1;
     }
-    template<> void pngPrint<vector<unsigned char>, vector<int>, string>(vector<unsigned char>& img, vector<int>& sourceDim, string& filePath)
+    template<> void pngPrint<vector<unsigned char>, vector<int>, string>(vector<unsigned char>& img, vector<int>& imgSpec, string& filePath)
     {
-        int sizeImg = sourceDim[0] * sourceDim[1] * 3;
-        int channels = 3;
+        int sizeImg = imgSpec[0] * imgSpec[1] * imgSpec[2];
         auto bufferUC = new unsigned char[sizeImg];
         for (int ii = 0; ii < sizeImg; ii++)
         {
             bufferUC[ii] = img[ii];
         }
-        int error = stbi_write_png(filePath.c_str(), sourceDim[0], sourceDim[1], channels, bufferUC, 0);
+        int error = stbi_write_png(filePath.c_str(), imgSpec[0], imgSpec[1], imgSpec[2], bufferUC, 0);
         delete[] bufferUC;
-        int barbecue = 1;
     }
 
     template<typename ... Args> void rectanglePaint(vector<int> topLeft, vector<int> dim, vector<unsigned char> rgb, Args& ... args)

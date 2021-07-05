@@ -157,6 +157,28 @@ string IOFUNC::getSCoord(POINT& p0)
 	string sCoord = "(" + to_string(p0.x) + "," + to_string(p0.y) + ")";
 	return sCoord;
 }
+vector<POINT> IOFUNC::getUserTLBR(int vKey1, int vKey2)
+{
+	vector<POINT> TLBR;
+	POINT p;
+	while (1)
+	{
+		Sleep(50);
+		if (TLBR.size() == 0 && GetAsyncKeyState(vKey1))
+		{
+			GetCursorPos(&p);
+			TLBR.push_back(p);
+		}
+		else if (TLBR.size() == 1 && GetAsyncKeyState(vKey2))
+		{
+			GetCursorPos(&p);
+			TLBR.push_back(p);
+		}
+		else if (GetAsyncKeyState(VK_ESCAPE)) { exit(EXIT_FAILURE); }
+		if (TLBR.size() == 2) { break; }
+	}
+	return TLBR;
+}
 HWND IOFUNC::getWindow(int vKey)
 {
 	// Wait until vKey is pressed, then return a handle to the foreground window.
@@ -353,7 +375,4 @@ void IOFUNC::mouseClickTriple(POINT p1, HWND& targetWindow)
 	if (!sent) { jf.err("SendInput-io.mouseClickTriple"); }
 	targetWindow = GetForegroundWindow();
 }
-void IOFUNC::saveScreenshot(string pngPath)
-{
 
-}

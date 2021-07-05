@@ -76,6 +76,7 @@ public:
 	void removeBlanks(vector<vector<wstring>>& task);
 	void set_navigator_asset_path(string&);
 	string stringifyCoord(vector<int>& coord);
+	string stringifyCoord(vector<unsigned char>& coord);
 	vector<int> svectorToIvector(vector<string>&);
 	void tclean(string&, char, string);
 	vector<string> textParser(string&, vector<string>&);

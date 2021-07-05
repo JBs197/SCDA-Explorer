@@ -871,6 +871,17 @@ string JFUNC::stringifyCoord(vector<int>& coord)
 	sCoord.pop_back();
 	return sCoord;
 }
+string JFUNC::stringifyCoord(vector<unsigned char>& coord)
+{
+	if (coord.size() < 2) { err("coord format-jf.stringifyCoord"); }
+	string sCoord;
+	for (int ii = 0; ii < coord.size(); ii++)
+	{
+		sCoord += to_string(coord[ii]) + ",";
+	}
+	sCoord.pop_back();
+	return sCoord;
+}
 vector<int> JFUNC::svectorToIvector(vector<string>& svec)
 {
 	vector<int> ivec(svec.size());

@@ -1691,7 +1691,7 @@ void MainWindow::on_treeW_cataonline_itemSelectionChanged()
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 0;
+    int mode = 8;
 
     switch (mode)
     {
@@ -1909,9 +1909,104 @@ void MainWindow::on_pB_test_clicked()
         sf.insert_prepared(stmts);
         break;
     }
-    case 5:  // Save a screenshot as PNG.
+    case 5:  // Search for a small image within a larger one.
     {
-
+        string targetPath = sroot + "\\1.png";
+        string bgPath = sroot + "\\2.png";
+        im.markTargetTL(targetPath, bgPath);
+        QString qTemp = "Finished markTargetTL.";
+        ui->pte_search->setPlainText(qTemp);
+        break;
+    }
+    case 6:  // Define a TLBR, and save it as a cropped image. 
+    {
+        QString qTemp = "NUM1: Hover your cursor over the Top-Left corner of the rectangle.";
+        qDebug() << qTemp;
+        qTemp = "NUM2: Hover your cursor over the Bottom-Right corner of the rectangle.";
+        qDebug() << qTemp;
+        vector<POINT> TLBR = io.getUserTLBR(VK_NUMPAD1, VK_NUMPAD2);
+        Sleep(1000);
+        vector<string> filePath(2);
+        filePath[0] = sroot + "\\background.png";
+        filePath[1] = sroot + "\\overview.png";
+        gdi.screenshot(filePath[0]);
+        im.cropSave(filePath, TLBR);
+        break;
+    }
+    case 7:  // Count the pixel colours, and display them as a list sorted by frequency measured.
+    {
+        vector<vector<unsigned char>> rgbList;
+        vector<unsigned char> img, legend;
+        vector<int> imgSpec, legendSpec, freqList;
+        vector<string> sFreqList;
+        string inputPath = sroot + "\\overview (Flattened).png";
+        im.countPixelColour(inputPath, rgbList, freqList);
+        sFreqList.resize(freqList.size());
+        for (int ii = 0; ii < sFreqList.size(); ii++)
+        {
+            sFreqList[ii] = to_string(freqList[ii]);
+        }
+        im.makeLegendV(legend, legendSpec, sFreqList, rgbList);
+        if (legendSpec.size() < 3) { legendSpec.push_back(3); }
+        string outputPath = sroot + "\\Overview Colour Count (Flattened).png";
+        im.pngPrint(legend, legendSpec, outputPath);
+        break;
+    }
+    case 8:  // Scan a PNG for a pattern of colours, along horizontal or vertial lines.
+    {
+        string inputPath = sroot + "\\overview.png";
+        vector<vector<unsigned char>> colourListV = {
+            { 179, 217, 247, 255 },
+            { 240, 240, 240, 255 },
+            { 179, 217, 247, 255 },
+            { 215, 215, 215, 255 },
+            { 179, 217, 247, 255 },
+            { 215, 215, 215, 255 }
+        };
+        vector<vector<unsigned char>> colourListH = {
+            { 215, 215, 215, 255 },
+            { 179, 217, 247, 255 },
+            { 215, 215, 215, 255 },
+            { 179, 217, 247, 255 },
+            { 215, 215, 215, 255 },
+            { 179, 217, 247, 255 }
+        };
+        vector<unsigned char> img, red = { 255, 0, 0 };
+        vector<int> imgSpec, viResultV, viResultH, frontrunner = { -1, -1 };
+        im.pngLoadHere(inputPath, img, imgSpec);
+        im.scanPatternLineV(img, imgSpec, colourListV, viResultV);
+        im.scanPatternLineH(img, imgSpec, colourListH, viResultH);
+        int count = 0;
+        for (int ii = 1; ii < viResultV.size(); ii++)
+        {
+            if (viResultV[ii - 1] + 1 == viResultV[ii]) { count++; }
+            else { count = 0; }
+            if (count > frontrunner[0])
+            {
+                frontrunner[0] = count;
+                frontrunner[1] = viResultV[ii];
+            }
+        }
+        frontrunner[1] -= frontrunner[0] / 2;
+        POINT origin;
+        origin.x = frontrunner[1];
+        frontrunner = { -1, -1 };
+        count = 0;
+        for (int ii = 1; ii < viResultH.size(); ii++)
+        {
+            if (viResultH[ii - 1] + 1 == viResultH[ii]) { count++; }
+            else { count = 0; }
+            if (count > frontrunner[0])
+            {
+                frontrunner[0] = count;
+                frontrunner[1] = viResultH[ii];
+            }
+        }
+        frontrunner[1] -= frontrunner[0] / 2;
+        origin.y = frontrunner[1];
+        im.drawSquare(img, imgSpec, origin);
+        string outputPath = sroot + "\\Overview Pattern.png";
+        im.pngPrint(img, imgSpec, outputPath);
         break;
     }
     }
