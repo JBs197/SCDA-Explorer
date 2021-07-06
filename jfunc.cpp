@@ -882,6 +882,11 @@ string JFUNC::stringifyCoord(vector<unsigned char>& coord)
 	sCoord.pop_back();
 	return sCoord;
 }
+string JFUNC::stringifyCoord(POINT coord)
+{
+	string sCoord = to_string(coord.x) + "," + to_string(coord.y);
+	return sCoord;
+}
 vector<int> JFUNC::svectorToIvector(vector<string>& svec)
 {
 	vector<int> ivec(svec.size());

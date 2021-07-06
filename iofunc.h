@@ -28,7 +28,7 @@ public:
 	void kbHoldPress(WORD holdKey, WORD pressKey, HWND& targetWindow);
 	void kbInput(WORD vKey);
 	void kbInput(WORD vKey, HWND& targetWindow);
-	void kbInput(double ch);
+	void kbInput(string str);
 	void kbInput(string str, HWND& targetWindow);
 	void mouseClick(POINT p1);
 	void mouseClickKey(int vKey, POINT p1);

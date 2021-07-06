@@ -45,66 +45,6 @@ void QTPAINT::addAreaColour(vector<int> rgb)
 		areaColour.push_back(qC);
 	}
 }
-void QTPAINT::drawFamilyBlue(vector<BINMAP>& binFamily)
-{
-	areas.clear();
-	areaColour.clear();
-	mapDotIndex.clear();
-	dots.clear();
-	dots.resize(binFamily.size() - 1);
-	binFamily[0].makeWindowBorder(Width, Height);
-	addArea(binFamily[0].myWindowBorder);
-	addAreaColour({ 255, 255, 255 });
-	parentTLBR = binFamily[0].getTLBR(binFamily[0].myWindowBorder);
-	double xC, yC, dx, dy; 
-	double boxWidth = parentTLBR[1][0] - parentTLBR[0][0];
-	double boxHeight = parentTLBR[1][1] - parentTLBR[0][1];
-	for (int ii = 1; ii < binFamily.size(); ii++)
-	{
-		if (binFamily[ii].blueDot.size() < 2) { jf.err("Missing blue dot-qp.drawFamilyBlue"); }
-		xC = binFamily[ii].blueDot[0];
-		yC = binFamily[ii].blueDot[1];
-		xC *= boxWidth;
-		yC *= boxHeight;
-		xC += parentTLBR[0][0];
-		yC += parentTLBR[0][1];
-		QPointF qpf(xC, yC);
-		dots[ii - 1] = qpf;
-		mapDotIndex.emplace(binFamily[ii].myName, ii - 1);
-		if (binFamily[ii].isSelected) { selectedDot = ii - 1; }
-	}
-
-	crosshairs.clear();
-	if (debug)
-	{
-		vector<QPointF> dotTLBR = getTLBR(dots);
-		vector<vector<double>> dotGPS(binFamily.size() - 1, vector<double>(2));
-		for (int ii = 1; ii < binFamily.size(); ii++)
-		{
-			dotGPS[ii - 1] = binFamily[ii].myPosition;
-		}
-		vector<vector<double>> gpsTLBR = binFamily[0].getTLBR(dotGPS);
-		double ySpanGPS = gpsTLBR[1][0] - gpsTLBR[0][0];
-		double xSpanGPS = gpsTLBR[1][1] - gpsTLBR[0][1];
-		double ySpanPixel = dotTLBR[2].y() - dotTLBR[0].y();
-		double xSpanPixel = dotTLBR[3].x() - dotTLBR[1].x();
-		QPointF qpfTemp;
-		crosshairs.resize(dots.size());
-		for (int ii = 0; ii < crosshairs.size(); ii++)
-		{
-			dx = dotGPS[ii][1] - gpsTLBR[0][1];
-			dx *= (xSpanPixel / xSpanGPS);
-			qpfTemp.setX(dotTLBR[1].x() + dx);
-			dy = gpsTLBR[1][0] - dotGPS[ii][0];
-			dy *= (ySpanPixel / ySpanGPS);
-			qpfTemp.setY(dotTLBR[0].y() + dy);
-			crosshairs[ii] = qpfTemp;
-		}
-		int bbq = 1;
-	}
-	
-	update();
-}
 void QTPAINT::drawSelectedDot(string regionName)
 {
 	if (dots.size() < 1) { return; }

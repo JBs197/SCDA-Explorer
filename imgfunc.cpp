@@ -12,7 +12,7 @@ POINT IMGFUNC::coordFromOffset(int offset, vector<int> imgSpec)
 void IMGFUNC::countPixelColour(string& filePath, vector<vector<unsigned char>>& colourList, vector<int>& freqList)
 {
     vector<unsigned char> img, rgbx;
-    vector<int> imgSpec, dummy;
+    vector<int> imgSpec;
     unordered_map<string, int> mapColour;
     int index;
     string srgbx;
@@ -26,7 +26,7 @@ void IMGFUNC::countPixelColour(string& filePath, vector<vector<unsigned char>>& 
         for (int jj = 0; jj < imgSpec[0]; jj++)
         {
             p1.x = jj;
-            rgbx = pixelRGB(dummy, img, imgSpec, p1);
+            rgbx = pixelRGB(img, imgSpec, p1);
             srgbx = jf.stringifyCoord(rgbx);
             if (mapColour.count(srgbx))  // Colour already encountered.
             {
@@ -40,6 +40,61 @@ void IMGFUNC::countPixelColour(string& filePath, vector<vector<unsigned char>>& 
                 colourList.push_back(rgbx);
                 mapColour.emplace(srgbx, index);
             }
+        }
+    }
+}
+void IMGFUNC::countPixelColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& freqList, vector<POINT> TLBR)
+{
+    vector<unsigned char> rgbx;
+    unordered_map<string, int> mapColour;
+    int index;
+    string srgbx;
+    POINT p1;
+    colourList.clear();
+    freqList.clear();
+    for (int ii = TLBR[0].y; ii < TLBR[1].y; ii++)
+    {
+        p1.y = ii;
+        for (int jj = TLBR[0].x; jj < TLBR[1].x; jj++)
+        {
+            p1.x = jj;
+            rgbx = pixelRGB(img, imgSpec, p1);
+            srgbx = jf.stringifyCoord(rgbx);
+            if (mapColour.count(srgbx))  // Colour already encountered.
+            {
+                index = mapColour.at(srgbx);
+                freqList[index]++;
+            }
+            else
+            {
+                index = freqList.size();
+                freqList.push_back(1);
+                colourList.push_back(rgbx);
+                mapColour.emplace(srgbx, index);
+            }
+        }
+    }
+}
+void IMGFUNC::crop(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR)
+{
+    // Replaces the original image with the cropped image. 
+    if (img.size() < 1 || imgSpec.size() < 1 || TLBR.size() < 2) { jf.err("Bad input parameters-im.crop"); }
+    vector<unsigned char> image = img;
+    vector<int> imageSpec = imgSpec;
+    imgSpec.resize(3);
+    imgSpec[0] = TLBR[1].x - TLBR[0].x;
+    imgSpec[1] = TLBR[1].y - TLBR[0].y;
+    imgSpec[2] = imageSpec[2];
+    img.resize(imgSpec[0] * imgSpec[1] * imgSpec[2]);
+    int index = 0, offsetRow;
+    int offsetTL = getOffset(TLBR[0], imageSpec);
+    for (int ii = 0; ii < imgSpec[1]; ii++)
+    {
+        offsetRow = offsetTL + (ii * imageSpec[0] * imageSpec[2]);
+        for (int jj = 0; jj < (imgSpec[0] * imgSpec[2]); jj++)
+        {
+            img[index] = image[offsetRow + jj];
+            index++;
         }
     }
 }
@@ -73,8 +128,6 @@ void IMGFUNC::cropSave(vector<string>& filePath, vector<POINT> TLBR)
     vector<vector<unsigned char>> img(2);
     vector<vector<int>> imgSpec(2);
     pngLoadHere(filePath[0], img[0], imgSpec[0]);
-    //removePeriodic(img[0], imgSpec[0][2]);
-    //imgSpec[0][2]--;
     crop(img, imgSpec, TLBR);
     pngPrint(img[1], imgSpec[1], filePath[1]);
 }
@@ -102,6 +155,36 @@ void IMGFUNC::drawSquare(vector<unsigned char>& img, vector<int>& imgSpec, POINT
         }
     }
 }
+void IMGFUNC::filterColour(vector<POINT>& pList, vector<vector<unsigned char>>& rgbList, vector<unsigned char> rgb)
+{
+    if (pList.size() != rgbList.size()) { jf.err("Size mismatch-im.filterColour"); }
+    for (int ii = rgbList.size() - 1; ii >= 0; ii--)
+    {
+        if (rgbList[ii] != rgb)
+        {
+            rgbList.erase(rgbList.begin() + ii);
+            pList.erase(pList.begin() + ii);
+        }
+    }
+}
+vector<POINT> IMGFUNC::findColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGB, vector<POINT> TLBR)
+{
+    // Return a list of points that match the given colour, within the specified TLBR.
+    vector<unsigned char> rgb;
+    vector<POINT> result;
+    POINT p1;
+    for (int ii = TLBR[0].y; ii <= TLBR[1].y; ii++)
+    {
+        p1.y = ii;
+        for (int jj = TLBR[0].x; jj <= TLBR[1].x; jj++)
+        {
+            p1.x = jj;
+            rgb = pixelRGB(img, imgSpec, p1);
+            if (rgb == RGB) { result.push_back(p1); }
+        }
+    }
+    return result;
+}
 void IMGFUNC::flatten(string& filePath)
 {
     // Load a PNG, and if it has alpha, remove those bytes and save it as RGB only.
@@ -124,6 +207,36 @@ void IMGFUNC::flatten(string& filePath)
         pngPrint(img[1], imgSpec, newPath);
     }
     else { jf.err("Unknown bits-per-pixel-im.flatten"); }
+}
+int IMGFUNC::getBandCenter(vector<int>& candidates)
+{
+    // Return the center element from the largest interval of continuous values.
+    vector<int> frontrunner = { -1, -1 };
+    int count = 0;
+    for (int ii = 1; ii < candidates.size(); ii++)
+    {
+        if (candidates[ii - 1] + 1 == candidates[ii]) { count++; }
+        else { count = 0; }
+        if (count > frontrunner[0])
+        {
+            frontrunner[0] = count;
+            frontrunner[1] = candidates[ii];
+        }
+    }
+    frontrunner[1] -= frontrunner[0] / 2;
+    return frontrunner[1];
+}
+vector<POINT> IMGFUNC::getCircle(POINT pCenter, int radius)
+{
+    if (scanCircles.size() < 1) { jf.err("No init for scanCircles-im.getCircle"); }
+    if (radius < 1 || radius >= scanCircles.size()) { jf.err("Bad radius-im.getCircle"); }
+    vector<POINT> circle = scanCircles[radius - 1];
+    for (int ii = 0; ii < circle.size(); ii++)
+    {
+        circle[ii].x += pCenter.x - 9;
+        circle[ii].y += pCenter.y - 9;
+    }
+    return circle;
 }
 POINT IMGFUNC::getTLImgImg(string& targetPath, string& bgPath)
 {
@@ -163,6 +276,44 @@ POINT IMGFUNC::getTLImgImg(string& targetPath, string& bgPath)
     }
     return TL;
 }
+void IMGFUNC::initScanCircles(string& pngPath)
+{
+    vector<unsigned char> img, rgb;
+    vector<int> imgSpec;
+    int index = 0;
+    string sRGB;
+    unordered_map<string, int> mapRgbIndex;
+    pngLoadHere(pngPath, img, imgSpec);
+    POINT pCenter, p1;
+    pCenter.x = imgSpec[0] / 2;
+    pCenter.y = imgSpec[1] / 2;
+    p1 = pCenter;
+    while (p1.x < imgSpec[0])
+    {
+        p1.x++;
+        rgb = pixelRGB(img, imgSpec, p1);
+        sRGB = jf.stringifyCoord(rgb);
+        if (!mapRgbIndex.count(sRGB))
+        {
+            mapRgbIndex.emplace(sRGB, index);
+            index++;
+        }
+    }
+    scanCircles.resize(mapRgbIndex.size(), vector<POINT>());
+    for (int ii = 0; ii < imgSpec[1]; ii++)
+    {
+        p1.y = ii;
+        for (int jj = 0; jj < imgSpec[0]; jj++)
+        {
+            p1.x = jj;
+            rgb = pixelRGB(img, imgSpec, p1);
+            if (rgb == White || rgb == Black) { continue; }
+            sRGB = jf.stringifyCoord(rgb);
+            index = mapRgbIndex.at(sRGB);
+            scanCircles[index].push_back(p1);
+        }
+    }
+}
 void IMGFUNC::linePaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<unsigned char> rgbx)
 {
     vector<POINT> path = linePath(startStop);
@@ -170,6 +321,31 @@ void IMGFUNC::linePaint(vector<unsigned char>& img, vector<int>& imgSpec, vector
     {
         pixelPaint(img, imgSpec, rgbx, path[ii]);
     }
+}
+vector<vector<unsigned char>> IMGFUNC::lineRGB(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> vpList)
+{
+    vector<vector<unsigned char>> rgbList(vpList.size(), vector<unsigned char>());
+    for (int ii = 0; ii < rgbList.size(); ii++)
+    {
+        rgbList[ii] = pixelRGB(img, imgSpec, vpList[ii]);
+    }
+    return rgbList;
+}
+vector<POINT> IMGFUNC::makeTLBR(vector<POINT>& vpRegion)
+{
+    vector<POINT> TLBR(2);
+    TLBR[0].x = 2147483647;
+    TLBR[0].y = 2147483647;
+    TLBR[1].x = 0;
+    TLBR[1].y = 0;
+    for (int ii = 0; ii < vpRegion.size(); ii++)
+    {
+        if (vpRegion[ii].x < TLBR[0].x) { TLBR[0].x = vpRegion[ii].x; }
+        else if (vpRegion[ii].x > TLBR[1].x) { TLBR[1].x = vpRegion[ii].x; }
+        if (vpRegion[ii].y < TLBR[0].y) { TLBR[0].y = vpRegion[ii].y; }
+        else if (vpRegion[ii].y > TLBR[1].y) { TLBR[1].y = vpRegion[ii].y; }
+    }
+    return TLBR;
 }
 void IMGFUNC::markTargetTL(string& targetPath, string& bgPath)
 {
@@ -217,6 +393,49 @@ void IMGFUNC::pngLoadString(string& pngPath, string& pngData, vector<int>& spec)
     pngData.resize(sizeTemp);
     copy(dataTemp, dataTemp + sizeTemp, pngData.begin());
 }
+void IMGFUNC::rectPaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<unsigned char> rgba)
+{
+    vector<POINT> startStop = TLBR;
+    startStop[1].y = startStop[0].y;
+    linePaint(img, imgSpec, startStop, rgba);
+    startStop[0] = startStop[1];
+    startStop[1].y = TLBR[1].y;
+    linePaint(img, imgSpec, startStop, rgba);
+    startStop[0] = startStop[1];
+    startStop[1].x = TLBR[0].x;
+    linePaint(img, imgSpec, startStop, rgba);
+    startStop[0] = startStop[1];
+    startStop[1].y = TLBR[0].y;
+    linePaint(img, imgSpec, startStop, rgba);
+}
+void IMGFUNC::rectPaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<vector<unsigned char>> rgba)
+{
+    // rgba has form [border, interior][colour].
+    vector<POINT> startStop = TLBR;
+    startStop[1].y = startStop[0].y;
+    linePaint(img, imgSpec, startStop, rgba[0]);
+    startStop[0] = startStop[1];
+    startStop[1].y = TLBR[1].y;
+    linePaint(img, imgSpec, startStop, rgba[0]);
+    startStop[0] = startStop[1];
+    startStop[1].x = TLBR[0].x;
+    linePaint(img, imgSpec, startStop, rgba[0]);
+    startStop[0] = startStop[1];
+    startStop[1].y = TLBR[0].y;
+    linePaint(img, imgSpec, startStop, rgba[0]);
+
+    int thickness = 1;
+    POINT p1;
+    for (int ii = TLBR[0].y + thickness; ii <= TLBR[1].y - thickness; ii++)
+    {
+        p1.y = ii;
+        for (int jj = TLBR[0].x + thickness; jj <= TLBR[1].x - thickness; jj++)
+        {
+            p1.x = jj;
+            pixelPaint(img, imgSpec, rgba[1], p1);
+        }
+    }
+}
 void IMGFUNC::removePeriodic(vector<unsigned char>& img, int modulus)
 {
     // Every 'modulus' value is erased from the image.
@@ -234,14 +453,26 @@ void IMGFUNC::removePeriodic(vector<unsigned char>& img, int modulus)
 }
 void IMGFUNC::scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult)
 {
-    // viResult contains the indices of the columns that contained the pattern.
-    // Other colours not specified are ignored completely.
+    vector<vector<int>> startStop = { {0, imgSpec[0] - 1}, { 0, imgSpec[1] - 1 } };
+    scanPatternLineH(img, imgSpec, colourList, viResult, startStop);
+}
+void IMGFUNC::scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<POINT> TLBR)
+{
+    vector<vector<int>> startStop = { { TLBR[0].x, TLBR[1].x }, { TLBR[0].y, TLBR[1].y } };
+    scanPatternLineH(img, imgSpec, colourList, viResult, startStop);
+}
+void IMGFUNC::scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<vector<int>> startStop)
+{
+    // viResult contains the indices of the columns that contained the pattern. Other 
+    // colours not specified are ignored completely. Only checks within startStop,
+    // which has form [horizontal, vertical][first pixel, last pixel].
     vector<unsigned char> rgbx;
     unordered_map<string, int> mapColour;
     vector<int> pattern, mask;
     int index = 0, iColour, maxColour;
     string srgbx;
     POINT p1;
+    viResult.clear();
     for (int ii = 0; ii < colourList.size(); ii++)
     {
         srgbx = jf.stringifyCoord(colourList[ii]);
@@ -258,14 +489,14 @@ void IMGFUNC::scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec,
         pattern.push_back(iColour);
     }
     maxColour = index - 1;
-    for (int ii = 0; ii < imgSpec[1]; ii++)
+    for (int ii = startStop[1][0]; ii <= startStop[1][1]; ii++)
     {
         p1.y = ii;
         mask.assign(pattern.size(), 1);
-        for (int jj = 0; jj < imgSpec[0]; jj++)
+        for (int jj = startStop[0][0]; jj <= startStop[0][1]; jj++)
         {
             p1.x = jj;
-            rgbx = pixelRGB(imgSpec, img, imgSpec, p1);
+            rgbx = pixelRGB(img, imgSpec, p1);
             srgbx = jf.stringifyCoord(rgbx);
             try { iColour = mapColour.at(srgbx); }
             catch (out_of_range)
@@ -305,14 +536,26 @@ void IMGFUNC::scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec,
 }
 void IMGFUNC::scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult)
 {
-    // viResult contains the indices of the columns that contained the pattern.
-    // Other colours not specified are ignored completely.
+    vector<vector<int>> startStop = { {0, imgSpec[0] - 1}, { 0, imgSpec[1] - 1 } };
+    scanPatternLineV(img, imgSpec, colourList, viResult, startStop);
+}
+void IMGFUNC::scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<POINT> TLBR)
+{
+    vector<vector<int>> startStop = { { TLBR[0].x, TLBR[1].x }, { TLBR[0].y, TLBR[1].y } };
+    scanPatternLineV(img, imgSpec, colourList, viResult, startStop);
+}
+void IMGFUNC::scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<vector<int>> startStop)
+{
+    // viResult contains the indices of the columns that contained the pattern. Other 
+    // colours not specified are ignored completely. Only checks within startStop,
+    // which has form [horizontal, vertical][first pixel, last pixel].
     vector<unsigned char> rgbx;
     unordered_map<string, int> mapColour;
     vector<int> pattern, mask;
     int index = 0, iColour, maxColour;
     string srgbx;
     POINT p1;
+    viResult.clear();
     for (int ii = 0; ii < colourList.size(); ii++)
     {
         srgbx = jf.stringifyCoord(colourList[ii]);
@@ -329,14 +572,14 @@ void IMGFUNC::scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec,
         pattern.push_back(iColour);
     }
     maxColour = index - 1;
-    for (int ii = 0; ii < imgSpec[0]; ii++)
+    for (int ii = startStop[0][0]; ii <= startStop[0][1]; ii++)
     {
         p1.x = ii;
         mask.assign(pattern.size(), 1);
-        for (int jj = 0; jj < imgSpec[1]; jj++)
+        for (int jj = startStop[1][0]; jj <= startStop[1][1]; jj++)
         {
             p1.y = jj;
-            rgbx = pixelRGB(imgSpec, img, imgSpec, p1);
+            rgbx = pixelRGB(img, imgSpec, p1);
             srgbx = jf.stringifyCoord(rgbx);
             try { iColour = mapColour.at(srgbx); }
             catch (out_of_range) 
@@ -554,7 +797,7 @@ vector<int> IMGFUNC::borderFindStart()
     vector<string> szones = { "zoneBorder", "white" };
     int minDim = min(width, height);
     int interval = minDim / 10;
-    int pixelJump = 2, offset = 0; 
+    int pixelJump = 1, offset = 0; 
     bool letMeOut = 0;
     vector<vector<int>> vCorners = { {0,0}, {width-1,0}, {0,height-1}, {width-1,height-1} }; 
     vector<vector<int>> vVictors = { {pixelJump, pixelJump}, {-1 * pixelJump, pixelJump}, {pixelJump, -1 * pixelJump}, {-1 * pixelJump, -1 * pixelJump} };
@@ -609,8 +852,6 @@ vector<int> IMGFUNC::borderFindStart()
         vStart = coordMid(vvI);
         pointOfOrigin = vStart;
     }
-
-    //if (debug) { drawMarker(debugDataPNG, vStart); }
     return vStart;
 }
 void IMGFUNC::buildFont(string filePath)

@@ -221,6 +221,30 @@ double MATHFUNC::coordDist(vector<int>& iv1, vector<int>& iv2)
 	double dist = coordDist(origin, test);
 	return dist;
 }
+double MATHFUNC::coordDistPoint(POINT origin, POINT test)
+{
+	double xTemp = pow((double)(test.x - origin.x), 2.0);
+	double yTemp = pow((double)(test.y - origin.y), 2.0);
+	double radius = sqrt(xTemp + yTemp);
+	return radius;
+}
+double MATHFUNC::coordDistPointSum(POINT& origin, vector<POINT>& testList)
+{
+	double dsum = 0.0;
+	for (int ii = 0; ii < testList.size(); ii++)
+	{
+		dsum += coordDistPoint(origin, testList[ii]);
+	}
+	return dsum;
+}
+void MATHFUNC::coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList, vector<double>& resultList)
+{
+	resultList.resize(originList.size());
+	for (int ii = 0; ii < resultList.size(); ii++)
+	{
+		resultList[ii] = coordDistPointSum(originList[ii], testList);
+	}
+}
 void MATHFUNC::coordOnCircle(vector<double>& origin, double& radius, double& angle, vector<double>& coord)
 {
 	// NOTE: Angle is measured in degrees, starting from north, 

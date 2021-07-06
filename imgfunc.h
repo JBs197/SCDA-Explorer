@@ -55,6 +55,7 @@ class IMGFUNC
     int rabbitHole = 0;
     const int rabbitHoleDepth = 16;
     vector<vector<vector<int>>> savePoints;  // Form [point index][sizeVBP, Origin, Candidate0, ... , CandidateChosen][x,y coords].
+    vector<vector<POINT>> scanCircles;  // Form [radius - 1][points]
     int searchRadiusIncrease = 0;
     double stretchFactor;
     vector<int> textFound;
@@ -78,19 +79,33 @@ public:
 
     POINT coordFromOffset(int offset, vector<int> imgSpec);
     void countPixelColour(string& filePath, vector<vector<unsigned char>>& colourList, vector<int>& freqList);
+    void countPixelColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& freqList, vector<POINT> TLBR);
+    void crop(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR);
     void crop(vector<vector<unsigned char>>& img, vector<vector<int>>& imgSpec, vector<POINT> TLBR);
     void cropSave(vector<string>& filePath, vector<POINT> TLBR);
     void cropSaveOld(vector<string>& filePath, vector<POINT> TLBR);
     void drawSquare(vector<unsigned char>& img, vector<int>& imgSpec, POINT coord);
+    void filterColour(vector<POINT>& pList, vector<vector<unsigned char>>& rgbList, vector<unsigned char> rgb);
+    vector<POINT> findColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGB, vector<POINT> TLBR);
     void flatten(string& filePath);
+    int getBandCenter(vector<int>& candidates);
+    vector<POINT> getCircle(POINT pCenter, int radius);
     POINT getTLImgImg(string& targetPath, string& bgPath);
+    void initScanCircles(string& pngPath);
     void linePaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<unsigned char> rgbx);
+    vector<POINT> makeTLBR(vector<POINT>& vpRegion);
     void markTargetTL(string& targetPath, string& bgPath);
     void pngLoadHere(string& pngPath, vector<unsigned char>& pngData, vector<int>& spec);
     void pngLoadString(string& pngPath, string& pngData, vector<int>& spec);
+    void rectPaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<unsigned char> rgba);
+    void rectPaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<vector<unsigned char>> rgba);
     void removePeriodic(vector<unsigned char>& img, int modulus);
     void scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult);
+    void scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<POINT> TLBR);
+    void scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<vector<int>> startStop);
     void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult);
+    void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<POINT> TLBR);
+    void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<vector<int>> startStop);
 
     int areaRect(vector<vector<int>> TLBR);
 	vector<int> borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks);
@@ -122,6 +137,7 @@ public:
     vector<POINT> linePath(vector<POINT>& startStop);
     vector<vector<int>> linePathToEdge(vector<vector<int>>& startMid);
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
+    vector<vector<unsigned char>> lineRGB(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> vpList);
     void loadRecentSavePoint(vector<vector<int>>& vBorderPath);
     void makePositionPNG(string& pngPath, string& pngFramePath);
     bool mapIsInit();
@@ -2001,6 +2017,8 @@ public:
     template<typename ... Args> vector<unsigned char> pixelRGB(Args& ... args)
     {
         jf.err("pixelRGB template-im");
+        vector<unsigned char> sillyCompiler;
+        return sillyCompiler;
     }
     template<> vector<unsigned char> pixelRGB<vector<int>>(vector<int>& coord)
     {

@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <set>
 #include <stdexcept>
 #include <locale>
 #include <codecvt>
@@ -75,8 +76,10 @@ public:
 	void removeBlanks(vector<string>& task);
 	void removeBlanks(vector<vector<wstring>>& task);
 	void set_navigator_asset_path(string&);
+	//void sortLinkedList(vector<int>& viList, vector<vector<unsigned char>>& vvucList, int type);
 	string stringifyCoord(vector<int>& coord);
 	string stringifyCoord(vector<unsigned char>& coord);
+	string stringifyCoord(POINT coord);
 	vector<int> svectorToIvector(vector<string>&);
 	void tclean(string&, char, string);
 	vector<string> textParser(string&, vector<string>&);
@@ -97,6 +100,57 @@ public:
 
 
 	// TEMPLATES
+
+	template<typename S> void sortLinkedList(vector<int>& viList, vector<S>& vSList, int mode)
+	{
+		int count = 1, iTemp;
+		S STemp;
+		switch (mode)
+		{
+		case 0:  // Ascending
+		{
+			while (count > 0)
+			{
+				count = 0;
+				for (int ii = 0; ii < viList.size() - 1; ii++)
+				{
+					if (viList[ii + 1] < viList[ii])
+					{
+						iTemp = viList[ii];
+						STemp = vSList[ii];
+						viList[ii] = viList[ii + 1];
+						vSList[ii] = vSList[ii + 1];
+						viList[ii + 1] = iTemp;
+						vSList[ii + 1] = STemp;
+						count++;
+					}
+				}
+			}
+			break;
+		}
+		case 1: // Descending
+		{
+			while (count > 0)
+			{
+				count = 0;
+				for (int ii = 0; ii < viList.size() - 1; ii++)
+				{
+					if (viList[ii + 1] > viList[ii])
+					{
+						iTemp = viList[ii];
+						STemp = vSList[ii];
+						viList[ii] = viList[ii + 1];
+						vSList[ii] = vSList[ii + 1];
+						viList[ii + 1] = iTemp;
+						vSList[ii + 1] = STemp;
+						count++;
+					}
+				}
+			}
+			break;
+		}
+		}
+	}
 
 };
 

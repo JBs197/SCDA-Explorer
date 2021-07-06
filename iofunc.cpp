@@ -214,15 +214,7 @@ void IOFUNC::kbHoldPress(WORD holdKey, WORD pressKey, HWND& targetWindow)
 }
 void IOFUNC::kbInput(WORD vKey)
 {
-	if (vKey < 0 || vKey > 255) { jf.err("Invalid vKey-io.kbInput"); }
-	INPUT ipt[2];
-	ipt[0].type = INPUT_KEYBOARD;
-	ipt[0].ki.wVk = vKey;
-	ipt[1].type = INPUT_KEYBOARD;
-	ipt[1].ki.wVk = vKey;
-	ipt[1].ki.dwFlags = KEYEVENTF_KEYUP;
-	UINT sent = SendInput(2, ipt, sizeof(INPUT));
-	if (!sent) { jf.err("SendInput-io.kbInput"); }
+	kbInput(vKey, activeWindow);
 }
 void IOFUNC::kbInput(WORD vKey, HWND& targetWindow)
 {
@@ -240,11 +232,9 @@ void IOFUNC::kbInput(WORD vKey, HWND& targetWindow)
 	UINT sent = SendInput(2, ipt, sizeof(INPUT));
 	if (!sent) { jf.err("SendInput-io.kbInput"); }
 }
-void IOFUNC::kbInput(double ch)
+void IOFUNC::kbInput(string str)
 {
-	//SHORT vKey = VkKeyScanA(ch);
-	//int LOB = vKey & 0xFF;
-	//kbInput(LOB);
+	kbInput(str, activeWindow);
 }
 void IOFUNC::kbInput(string str, HWND& targetWindow)
 {
@@ -277,6 +267,7 @@ void IOFUNC::mouseClick(POINT p1)
 
 	UINT bbq = SendInput(3, ipt, sizeof(INPUT));
 	if (!bbq) { jf.err("SendInput-io.mouseClick"); }
+	activeWindow = GetForegroundWindow();
 }
 void IOFUNC::mouseClickKey(int vKey, POINT p0)
 {

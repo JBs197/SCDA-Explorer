@@ -199,22 +199,6 @@ void MainWindow::tablePopulate(QTableWidget*& qTable, vector<vector<string>>& sD
     qTable->setHorizontalHeaderLabels(hHeaderLabels);
     qTable->setVerticalHeaderLabels(vHeaderLabels);
 }
-vector<vector<string>> MainWindow::getBinGpsTable(vector<BINMAP>& vBM)
-{
-    // Note: The zeroth BIN map is ignored, as it is assumed to be the parent.
-    if (vBM.size() < 2) { jf.err("Insufficient BINMAPs found-MainWindow.getBinGpsTable"); }
-    vector<vector<string>> sData(vBM.size(), vector<string>(5));
-    sData[0] = { "Region", "Latitude", "Longitude", "xBlue", "yBlue" };
-    for (int ii = 1; ii < vBM.size(); ii++)
-    {
-        sData[ii][0] = vBM[ii].myName;
-        sData[ii][1] = to_string(vBM[ii].myPosition[0]);
-        sData[ii][2] = to_string(vBM[ii].myPosition[1]);
-        sData[ii][3] = to_string(vBM[ii].blueDot[0]);
-        sData[ii][4] = to_string(vBM[ii].blueDot[1]);
-    }
-    return sData;
-}
 void MainWindow::on_tableW_maplocal_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen)
 {
     if (RowNow < 0 || RowNow == RowThen) { return; }
@@ -783,13 +767,13 @@ void MainWindow::on_pB_maplocal_clicked()
     int tabIndex = ui->tabW_main->currentIndex();
     switch (tabIndex)
     {
-    case 0:  // Search the local drive for map folders (mapsBIN, mapsPNG, mapsPDF).
+    case 0:  // Search the local drive for map folders (mapsBIN, mapsPNG, mapsPDF, mapsSHD).
     {        
         qTemp = ui->cB_drives->currentText();
         string sDrive = qTemp.toStdString(), sCata, sYear;
         sDrive.pop_back();
         while (sDrive[0] == ' ') { sDrive.erase(sDrive.begin()); }
-        jtMapLocal.init("", sDrive);
+        jtMapLocal.init("Local Maps", sDrive);
         prompt = { sDrive };
         sb.set_prompt(prompt);
         sb.start_call(myid, 1, comm[0]);
@@ -856,8 +840,8 @@ void MainWindow::scanLocalMap(SWITCHBOARD& sbgui, JTREE& jtgui)
     vector<int> mycomm, treePLi;
     sbgui.answer_call(myid, mycomm);
     vector<string> prompt = sbgui.get_prompt();
-    vector<string> mapFolders = { "mapsBIN", "mapsPDF", "mapsPNG" };
-    vector<string> mapExt = { ".bin", ".pdf", ".png" };
+    vector<string> mapFolders = { "mapsBIN", "mapsPDF", "mapsPNG", "mapsSHD" };
+    vector<string> mapExt = { ".bin", ".pdf", ".png", ".shd" };
     vector<vector<int>> treeST;
     vector<string> treePL;
     string temp, folderRoot, treeRoot;
@@ -1093,6 +1077,7 @@ void MainWindow::upgradeBinMap(SWITCHBOARD& sbgui)
 // Local map review.
 void MainWindow::on_pB_reviewmap_clicked()
 {
+    /*
     QList<QListWidgetItem*> qSel = ui->listW_maplocal->selectedItems();
     if (qSel.size() != 1) { return; }
     QString qTemp = ui->listW_maplocal->item(0)->text();
@@ -1122,9 +1107,11 @@ void MainWindow::on_pB_reviewmap_clicked()
     string sMessage = "Displaying parent region " + binMaps[0].myName;
     sMessage += " and " + temp + " child regions.";
     barMessage(sMessage);
+    */
 }
 void MainWindow::populateBinFamily(SWITCHBOARD& sbgui, vector<BINMAP>& vBM)
 {
+    /*
     thread::id myid = this_thread::get_id();
     vector<int> mycomm;
     sbgui.answer_call(myid, mycomm);
@@ -1151,6 +1138,7 @@ void MainWindow::populateBinFamily(SWITCHBOARD& sbgui, vector<BINMAP>& vBM)
     }
     mycomm[0] = 1;
     sbgui.update(myid, mycomm);
+    */
 }
 void MainWindow::on_listW_maplocal_itemSelectionChanged()
 {
@@ -1379,7 +1367,7 @@ void MainWindow::on_pB_download_clicked()
     QString qTemp;
     QList<QTreeWidgetItem*> qlist, qChildren;
     string sYear, sCata, temp;
-    vector<string> prompt;
+    vector<string> prompt, listChildren;
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
     thread::id myid = this_thread::get_id();
@@ -1398,183 +1386,55 @@ void MainWindow::on_pB_download_clicked()
             return;
         case 1:  // Year.
         {
-
-            /*
-            qtemp = qlist[0]->text(0);
-            prompt[0] = qtemp.toStdString();
-            url = sc.urlYear(prompt[0]);
-            webpage = wf.browseS(url);
-            listCata = jf.textParser(webpage, navSearch[1]);
-            numCata = listCata.size();
-            for (int ii = 0; ii < numCata; ii++)
+            QString qYear = qlist[0]->text(0);
+            sYear = qYear.toStdString();
+            int numKids = qlist[0]->childCount(), numGKids;
+            QTreeWidgetItem* qRoot, *qBranch;
+            if (numKids == 0)
             {
-                prompt[1] = listCata[ii];
-                sb.set_prompt(prompt);
-                sb.start_call(myid, 1, comm[0]);
-                std::thread dlCata(&STATSCAN::downloadCatalogue, ref(sc), ref(sb));
-                dlCata.detach();
-                while (comm.size() < 2)
+                on_pB_usc_clicked();
+                qRoot = ui->treeW_cataonline->topLevelItem(0);
+                numKids = qRoot->childCount();
+                for (int ii = 0; ii < numKids; ii++)
                 {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                }
-                while (comm[1][0] == 0)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                    if (comm[1][2] > comm[0][2])
+                    qBranch = qRoot->child(ii);
+                    qTemp = qBranch->text(0);
+                    if (qTemp == qYear)
                     {
-                        comm[0][2] = comm[1][2];
-                        temp = "Downloading catalogue " + prompt[1] + " (";
-                        temp += to_string(ii + 1) + "/" + to_string(numCata) + ") ...";
-                        reset_bar(comm[0][2], temp);
+                        numGKids = qBranch->childCount();
+                        listChildren.resize(numGKids);
+                        for (int jj = 0; jj < numGKids; jj++)
+                        {
+                            qTemp = qBranch->child(jj)->text(0);
+                            listChildren[jj] = qTemp.toStdString();
+                        }
+                        break;
                     }
-                    jobs_done = comm[1][1];
-                    update_bar();
-                    if (comm[1][1] == comm[0][2] && comm[1][1] > 0)
-                    {
-                        comm[0][0] = 1;
-                    }
-                    else { comm[0][1] = comm[1][1]; }
                 }
-                if (comm[0][2] == 0)
-                {
-                    temp = "Downloading catalogue " + prompt[1] + " (";
-                    temp += to_string(ii + 1) + "/" + to_string(numCata) + ") ...";
-                    barMessage(temp);
-                }
-                comm.resize(1);
-                comm[0].assign(comm_length, 0);
-                sb.end_call(myid);
             }
-            return;
-            */
+            else
+            {
+                listChildren.resize(numKids);
+                for (int ii = 0; ii < numKids; ii++)
+                {
+                    qTemp = qlist[0]->child(ii)->text(0);
+                    listChildren[ii] = qTemp.toStdString();
+                }
+            }
+
+            for (int ii = 0; ii < listChildren.size(); ii++)
+            {
+                downloadCatalogue(sYear, listChildren[ii]);
+            }
             break;
         }
         case 2:  // Catalogue.
         {
-            // Download the zip file.
             qTemp = qlist[0]->parent()->text(0);
-            sYear = qTemp.toStdString();  
+            sYear = qTemp.toStdString();
             qTemp = qlist[0]->text(0);
-            sCata = qTemp.toStdString(); 
-            prompt.resize(3);
-            prompt[0] = sc.urlCSVDownload(sYear, sCata);
-            prompt[1] = sroot + "\\" + sYear + "\\" + sCata;
-            prompt[1] += "\\" + sCata + "_ENG_CSV.zip";
-            prompt[2] = "1";  // Binary file.
-            if (!wf.file_exist(prompt[1]))
-            {
-                sb.set_prompt(prompt);
-                sb.start_call(myid, 1, comm[0]);
-                temp = "Downloading " + sCata + ", please wait ...";
-                barMessage(temp);
-                std::thread thr(&MainWindow::thrDownload, this, ref(sb));
-                thr.detach();
-                QCoreApplication::processEvents();
-                while (comm.size() < 2)
-                {
-                    Sleep(20);
-                    comm = sb.update(myid, comm[0]);
-                }
-                while (comm[0][0] = 0)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                    if (comm[1][0] == 1)
-                    {
-                        sb.end_call(myid);
-                        comm[0][0] = 1;
-                    }
-                }
-            }
-            temp = "Download complete! Unzipping file:    " + prompt[1];
-            barMessage(temp);
-
-            // Extract the contents of the zip file to its folder.
-            if (!wf.file_exist(prompt[1])) { jf.err("Downloaded file not found-MainWindow.on_pB_download_clicked"); }
-            size_t pos1 = prompt[1].rfind('\\');
-            string folderPath = prompt[1].substr(0, pos1);
-            string csvPath = folderPath + "\\" + sCata + "_English_CSV_data.csv";
-            if (!wf.file_exist(csvPath))
-            {
-                temp = prompt[1];
-                prompt.resize(1);
-                prompt[0] = temp;
-                sb.set_prompt(prompt);
-                comm.resize(1);
-                comm[0].assign(comm_length, 0);
-                sb.start_call(myid, 1, comm[0]);
-                std::thread thr2(&MainWindow::thrUnzip, this, ref(sb));
-                thr2.detach();
-                while (comm.size() < 2)
-                {
-                    Sleep(20);
-                    comm = sb.update(myid, comm[0]);
-                }
-                while (comm[0][0] = 0)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                    if (comm[1][0] == 1)
-                    {
-                        sb.end_call(myid);
-                        comm[0][0] = 1;
-                    }
-                }
-            }
-            temp = "Unzip complete! Splitting the CSV mega-file:    " + csvPath;
-            barMessage(temp);
-
-            // Split the CSV mega-file into manageable pieces. 
-            if (!wf.file_exist(csvPath)) { jf.err("Unzipped file not found-MainWindow.on_pB_download_clicked"); }
-            int progress = 0, myProgress;
-            mutex m_progress;
-            vector<string> csvList = wf.get_file_list(folderPath, "*PART*.csv");
-            if (csvList.size() < 1)
-            {
-                prompt.resize(2);
-                prompt[0] = csvPath;
-                prompt[1] = to_string(csvMaxSize);
-                sb.set_prompt(prompt);
-                comm.resize(1);
-                comm[0].assign(comm_length, 0);
-                sb.start_call(myid, 1, comm[0]);
-                std::thread thr3(&MainWindow::thrFileSplitter, this, ref(sb), ref(progress), ref(m_progress));
-                thr3.detach();
-                while (comm.size() < 2)
-                {
-                    Sleep(20);
-                    comm = sb.update(myid, comm[0]);
-                }
-                while (comm[0][0] == 0)
-                {
-                    Sleep(gui_sleep);
-                    QCoreApplication::processEvents();
-                    comm = sb.update(myid, comm[0]);
-                    if (comm[1][2] > comm[0][2])
-                    {
-                        comm[0][2] = comm[1][2];
-                        barReset(comm[0][2], temp);
-                    }
-                    if (comm[1][0] == 1)
-                    {
-                        sb.end_call(myid);
-                        comm[0][3] = comm[1][3];
-                        comm[0][0] = 1;
-                    }
-                    m_progress.lock();
-                    myProgress = progress;
-                    m_progress.unlock();
-                    barUpdate(myProgress);
-                }
-            }
-            temp = "File splitting complete! " + to_string(comm[0][3]) + " CSV parts were made.";
-            barMessage(temp);
+            sCata = qTemp.toStdString();
+            downloadCatalogue(sYear, sCata);
             break;
         }
         case 3:  // CSV or maps.
@@ -1673,12 +1533,139 @@ void MainWindow::on_pB_download_clicked()
     }
 
 }
+void MainWindow::downloadCatalogue(string sYear, string sCata)
+{
+    QList<QTreeWidgetItem*> qlist, qChildren;
+    string temp;
+    vector<string> prompt;
+    vector<vector<int>> comm(1, vector<int>());
+    comm[0].assign(comm_length, 0);  // Form [control, progress report, size report, max param].
+    thread::id myid = this_thread::get_id();
+    int activeTab = ui->tabW_main->currentIndex(), iGen;
+
+    // Download the zip file.
+    prompt.resize(3);
+    prompt[0] = sc.urlCSVDownload(sYear, sCata);
+    prompt[1] = sroot + "\\" + sYear + "\\" + sCata;
+    prompt[1] += "\\" + sCata + "_ENG_CSV.zip";
+    prompt[2] = "1";  // Binary file.
+    if (!wf.file_exist(prompt[1]))
+    {
+        sb.set_prompt(prompt);
+        sb.start_call(myid, 1, comm[0]);
+        temp = "Downloading " + sCata + ", please wait ...";
+        barMessage(temp);
+        std::thread thr(&MainWindow::thrDownload, this, ref(sb));
+        thr.detach();
+        QCoreApplication::processEvents();
+        while (comm.size() < 2)
+        {
+            Sleep(20);
+            comm = sb.update(myid, comm[0]);
+        }
+        while (comm[0][0] == 0)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm[1][0] == 1)
+            {
+                sb.end_call(myid);
+                comm[0][0] = 1;
+            }
+        }
+    }
+    temp = "Download complete! Unzipping file:    " + prompt[1];
+    barMessage(temp);
+
+    // Extract the contents of the zip file to its folder.
+    if (!wf.file_exist(prompt[1])) { jf.err("Downloaded file not found-MainWindow.on_pB_download_clicked"); }
+    size_t pos1 = prompt[1].rfind('\\');
+    string folderPath = prompt[1].substr(0, pos1);
+    string csvPath = folderPath + "\\" + sCata + "_English_CSV_data.csv";
+    if (!wf.file_exist(csvPath))
+    {
+        temp = prompt[1];
+        prompt.resize(1);
+        prompt[0] = temp;
+        sb.set_prompt(prompt);
+        comm.resize(1);
+        comm[0].assign(comm_length, 0);
+        sb.start_call(myid, 1, comm[0]);
+        std::thread thr2(&MainWindow::thrUnzip, this, ref(sb));
+        thr2.detach();
+        while (comm.size() < 2)
+        {
+            Sleep(20);
+            comm = sb.update(myid, comm[0]);
+        }
+        while (comm[0][0] == 0)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm[1][0] == 1)
+            {
+                sb.end_call(myid);
+                comm[0][0] = 1;
+            }
+        }
+    }
+    temp = "Unzip complete! Splitting the CSV mega-file:    " + csvPath;
+    barMessage(temp);
+
+    // Split the CSV mega-file into manageable pieces. 
+    if (!wf.file_exist(csvPath)) { jf.err("Unzipped file not found-MainWindow.on_pB_download_clicked"); }
+    int progress = 0, myProgress;
+    mutex m_progress;
+    vector<string> csvList = wf.get_file_list(folderPath, "*PART*.csv");
+    if (csvList.size() < 1)
+    {
+        prompt.resize(2);
+        prompt[0] = csvPath;
+        prompt[1] = to_string(csvMaxSize);
+        sb.set_prompt(prompt);
+        comm.resize(1);
+        comm[0].assign(comm_length, 0);
+        sb.start_call(myid, 1, comm[0]);
+        std::thread thr3(&MainWindow::thrFileSplitter, this, ref(sb), ref(progress), ref(m_progress));
+        thr3.detach();
+        while (comm.size() < 2)
+        {
+            Sleep(20);
+            comm = sb.update(myid, comm[0]);
+        }
+        while (comm[0][0] == 0)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm[1][2] > comm[0][2])
+            {
+                comm[0][2] = comm[1][2];
+                barReset(comm[0][2], temp);
+            }
+            if (comm[1][0] == 1)
+            {
+                sb.end_call(myid);
+                comm[0][3] = comm[1][3];
+                comm[0][0] = 1;
+            }
+            m_progress.lock();
+            myProgress = progress;
+            m_progress.unlock();
+            barUpdate(myProgress);
+        }
+    }
+    temp = "File splitting complete! " + to_string(comm[0][3]) + " CSV parts were made.";
+    barMessage(temp);
+}
 void MainWindow::on_treeW_cataonline_itemSelectionChanged()
 {
     QList<QTreeWidgetItem*> qSel = ui->treeW_cataonline->selectedItems();
     if (qSel.size() != 1) { return; }
     int iGen = qf.getBranchGen(qSel[0]);
-    if (iGen == 2)
+    if (iGen >= 1 && iGen <= 2)
     {
         ui->pB_download->setEnabled(1);
     }
@@ -1691,7 +1678,7 @@ void MainWindow::on_treeW_cataonline_itemSelectionChanged()
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 8;
+    int mode = 13;
 
     switch (mode)
     {
@@ -2007,6 +1994,260 @@ void MainWindow::on_pB_test_clicked()
         im.drawSquare(img, imgSpec, origin);
         string outputPath = sroot + "\\Overview Pattern.png";
         im.pngPrint(img, imgSpec, outputPath);
+        break;
+    }
+    case 9:  // Succinctly determine the Overview origin point.
+    {
+        vector<POINT> bHome;
+        bm.init(ui->pte_search);
+        bm.recordButton(bHome, "home");
+        string inputPath = sroot + "\\desktop.png", outputPath = sroot + "\\desktopTest.png";
+        vector<unsigned char> img;
+        vector<int> imgSpec;
+        im.pngLoadHere(inputPath, img, imgSpec);
+        bm.findFrames(img, imgSpec, bHome[2]);
+        POINT origin = bm.getOrigin(img, imgSpec);
+        im.drawSquare(img, imgSpec, origin);
+        im.pngPrint(img, imgSpec, outputPath);
+        break;
+    }
+    case 10:  // Perform a search and determine the delta origin.
+    {
+        vector<POINT> bHome, bPanel;
+        bm.init(ui->pte_search);
+        bm.recordButton(bHome, "home");
+        Sleep(500);
+        bm.recordButton(bPanel, "panel");
+        Sleep(500);
+        POINT searchBar, bMinus = bHome[2];
+        bm.recordPoint(searchBar, "search bar");
+        bMinus.y += 45;
+        string inputPath = sroot + "\\desktop.png";
+        vector<unsigned char> img;
+        vector<int> imgSpec;
+        im.pngLoadHere(inputPath, img, imgSpec);
+        bm.findFrames(img, imgSpec, bHome[2]);
+        POINT originCanada = bm.getOrigin(img, imgSpec);
+        Sleep(500);
+        io.mouseClick(searchBar);
+        Sleep(500);
+        string temp = "alberta";
+        io.kbInput(temp);
+        Sleep(500);
+        io.kbInput(VK_DOWN);
+        Sleep(500);
+        io.kbInput(VK_RETURN);
+        Sleep(3000);
+        io.mouseClick(bPanel[2]);
+        Sleep(2000);
+        io.mouseClick(bMinus);
+        Sleep(2000);
+        string albertaPath = sroot + "\\albertaTest.png";
+        gdi.screenshot(albertaPath);
+        im.pngLoadHere(albertaPath, img, imgSpec);
+        POINT originAlberta = bm.getOrigin(img, imgSpec);
+        int dx = originAlberta.x - originCanada.x;
+        int dy = originAlberta.y - originCanada.y;
+        QString qMessage = "deltaOrigin x: " + QString::number(dx);
+        qMessage += "\ndeltaOrigin y: " + QString::number(dy);
+        ui->pte_search->setPlainText(qMessage);
+        break;
+    }
+    case 11:  // Load a screenshot, make a list of highlighted pixels, make a bounding rectangle, display a color frequency list. 
+    {
+        vector<unsigned char> img, highlighted = { 192, 192, 243, 255 };
+        vector<unsigned char> red = { 255, 0, 0, 255 }, legend;
+        vector<int> imgSpec, freqList, legendSpec;
+        string inputPath = sroot + "\\albertaTest.png";
+        im.pngLoadHere(inputPath, img, imgSpec);
+        vector<POINT> mainTLBR(2);
+        mainTLBR[0].x = 2207;
+        mainTLBR[0].y = 157;
+        mainTLBR[1].x = 3836;
+        mainTLBR[1].y = 971;
+        vector<POINT> vpAlberta = im.findColour(img, imgSpec, highlighted, mainTLBR);
+        vector<POINT> albertaTLBR = im.makeTLBR(vpAlberta);
+        vector<vector<unsigned char>> rgbList;
+        im.countPixelColour(img, imgSpec, rgbList, freqList, albertaTLBR);
+        jf.sortLinkedList(freqList, rgbList, JFUNC::Decreasing);
+        ui->tabW_main->setCurrentIndex(3);
+        ui->tableW_debug->clear();
+        ui->tableW_debug->setColumnCount(6);
+        ui->tableW_debug->setRowCount(freqList.size());
+        QString qTemp;
+        QTableWidgetItem* qCell;
+        QColor qColour;
+        QBrush qBrush(Qt::SolidPattern);
+        for (int ii = 0; ii < 6; ii++)
+        {
+            for (int jj = 0; jj < freqList.size(); jj++)
+            {
+                switch (ii)
+                {
+                case 0:
+                {
+                    qTemp = QString::number(freqList[jj]);
+                    qCell = new QTableWidgetItem(qTemp);
+                    ui->tableW_debug->setItem(jj, ii, qCell);
+                    break;
+                }
+                case 1:
+                {
+                    qColour.setRgb((int)rgbList[jj][0], (int)rgbList[jj][1], (int)rgbList[jj][2], (int)rgbList[jj][3]);
+                    qBrush.setColor(qColour);
+                    qCell = new QTableWidgetItem(qTemp);
+                    qCell->setBackground(qBrush);
+                    ui->tableW_debug->setItem(jj, ii, qCell);
+                    break;
+                }
+                case 2:
+                {
+                    qTemp = QString::number(rgbList[jj][0]);
+                    qCell = new QTableWidgetItem(qTemp);
+                    ui->tableW_debug->setItem(jj, ii, qCell);
+                    break;
+                }
+                case 3:
+                {
+                    qTemp = QString::number(rgbList[jj][1]);
+                    qCell = new QTableWidgetItem(qTemp);
+                    ui->tableW_debug->setItem(jj, ii, qCell);
+                    break;
+                }
+                case 4:
+                {
+                    qTemp = QString::number(rgbList[jj][2]);
+                    qCell = new QTableWidgetItem(qTemp);
+                    ui->tableW_debug->setItem(jj, ii, qCell);
+                    break;
+                }
+                case 5:
+                {
+                    qTemp = QString::number(rgbList[jj][3]);
+                    qCell = new QTableWidgetItem(qTemp);
+                    ui->tableW_debug->setItem(jj, ii, qCell);
+                    break;
+                }
+                }
+            }
+        }
+        
+        break;
+    }
+    case 12:  // Load a screenshot, make a list of highlighted pixels, make a bounding rectangle, cast shadows from NESW, connect the dots to make a border.
+    {
+        vector<unsigned char> img, highlighted = { 192, 192, 243, 255 }, rgba;
+        vector<unsigned char> red = { 255, 0, 0, 255 };
+        vector<int> imgSpec, freqList;
+        string inputPath = sroot + "\\albertaTest.png";
+        im.pngLoadHere(inputPath, img, imgSpec);
+        vector<POINT> mainTLBR(2);
+        mainTLBR[0].x = 2207;
+        mainTLBR[0].y = 157;
+        mainTLBR[1].x = 3836;
+        mainTLBR[1].y = 971;
+        vector<POINT> vpAlberta = im.findColour(img, imgSpec, highlighted, mainTLBR);
+        vector<POINT> albertaTLBR = im.makeTLBR(vpAlberta);
+        albertaTLBR[0].x -= 10;
+        albertaTLBR[0].y -= 10;
+        albertaTLBR[1].x += 10;
+        albertaTLBR[1].y += 10;
+        // Go top->bot, right->left, bot->top, left->right.
+        vector<vector<POINT>> border(4, vector<POINT>()); // NESW
+        vector<vector<unsigned char>> outIn(2, vector<unsigned char>(4));
+        outIn[0] = { 240, 240, 240, 255 };
+        outIn[1] = highlighted;
+        POINT p1, p2, pLastOut;
+        for (int ii = albertaTLBR[0].x; ii <= albertaTLBR[1].x; ii++)
+        {
+            p1.x = ii;
+            pLastOut.x = -1;
+            for (int jj = albertaTLBR[0].y; jj <= albertaTLBR[1].y; jj++)
+            {
+                p1.y = jj;
+                rgba = im.pixelRGB(img, imgSpec, p1);
+                if (rgba == outIn[0]) { pLastOut = p1; }
+                else if (rgba == outIn[1] && pLastOut.x >= 0)
+                {
+                    p2 = p1;
+                    p2.y = (p1.y + pLastOut.y) / 2;
+                    border[0].push_back(p2);
+                    break;
+                }
+            }
+        }
+        for (int ii = albertaTLBR[0].y; ii <= albertaTLBR[1].y; ii++)
+        {
+            p1.y = ii;
+            pLastOut.x = -1;
+            for (int jj = albertaTLBR[1].x; jj >= albertaTLBR[0].x; jj--)
+            {
+                p1.x = jj;
+                rgba = im.pixelRGB(img, imgSpec, p1);
+                if (rgba == outIn[0]) { pLastOut = p1; }
+                else if (rgba == outIn[1] && pLastOut.x >= 0)
+                {
+                    p2 = p1;
+                    p2.x = (p1.x + pLastOut.x) / 2;
+                    border[1].push_back(p2);
+                    break;
+                }
+            }
+        }
+        for (int ii = albertaTLBR[1].x; ii >= albertaTLBR[0].x; ii--)
+        {
+            p1.x = ii;
+            pLastOut.x = -1;
+            for (int jj = albertaTLBR[1].y; jj >= albertaTLBR[0].y; jj--)
+            {
+                p1.y = jj;
+                rgba = im.pixelRGB(img, imgSpec, p1);
+                if (rgba == outIn[0]) { pLastOut = p1; }
+                else if (rgba == outIn[1] && pLastOut.x >= 0)
+                {
+                    p2 = p1;
+                    p2.y = (p1.y + pLastOut.y) / 2;
+                    border[2].push_back(p2);
+                    break;
+                }
+            }
+        }
+        for (int ii = albertaTLBR[1].y; ii >= albertaTLBR[0].y; ii--)
+        {
+            p1.y = ii;
+            pLastOut.x = -1;
+            for (int jj = albertaTLBR[0].x; jj <= albertaTLBR[1].x; jj++)
+            {
+                p1.x = jj;
+                rgba = im.pixelRGB(img, imgSpec, p1);
+                if (rgba == outIn[0]) { pLastOut = p1; }
+                else if (rgba == outIn[1] && pLastOut.x >= 0)
+                {
+                    p2 = p1;
+                    p2.x = (p1.x + pLastOut.x) / 2;
+                    border[3].push_back(p2);
+                    break;
+                }
+            }
+        }
+        
+        for (int ii = 0; ii < 4; ii++)
+        {
+            for (int jj = 0; jj < border[ii].size(); jj++)
+            {
+                im.pixelPaint(img, imgSpec, red, border[ii][jj]);
+            }
+        }
+        string outputPath = sroot + "\\Alberta Highlighted with Shadow Borders.png";
+        im.pngPrint(img, imgSpec, outputPath);
+        break;
+    }
+    case 13:  // Make the CANADA parent map.
+    {
+        bm.init(ui->pte_search);
+        string homePath = sroot + "\\Home.png";
+        string canadaPath = sroot + "\\mapParent\\Canada.png";
+        bm.makeCanada(canadaPath);
         break;
     }
     }

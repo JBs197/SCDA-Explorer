@@ -45,9 +45,9 @@
     <property name="geometry">
      <rect>
       <x>640</x>
-      <y>930</y>
+      <y>940</y>
       <width>81</width>
-      <height>41</height>
+      <height>31</height>
      </rect>
     </property>
     <property name="text">
@@ -306,6 +306,16 @@
 Resolution</string>
       </property>
      </widget>
+     <widget class="QTableWidget" name="tableW_debug">
+      <property name="geometry">
+       <rect>
+        <x>190</x>
+        <y>10</y>
+        <width>601</width>
+        <height>791</height>
+       </rect>
+      </property>
+     </widget>
     </widget>
    </widget>
    <widget class="QPushButton" name="pB_viewtable">
@@ -345,7 +355,7 @@ Resolution</string>
       <x>640</x>
       <y>880</y>
       <width>601</width>
-      <height>41</height>
+      <height>51</height>
      </rect>
     </property>
    </widget>
@@ -353,9 +363,9 @@ Resolution</string>
     <property name="geometry">
      <rect>
       <x>730</x>
-      <y>930</y>
+      <y>940</y>
       <width>81</width>
-      <height>41</height>
+      <height>31</height>
      </rect>
     </property>
     <property name="text">
