@@ -18,6 +18,7 @@ class STATSCAN
 	JFUNC jf;
 	string nl;
 	unordered_map<string, int> mapGeoCode;  // Passively updated by loadGeoList
+	unordered_map<string, string> mapGeoLayer;  // Listed layer name->internal name
 	unordered_map<int, int> mapDIM, mapDim;  // Form indexDIM->cataColTitles[index]
 	WINFUNC wf;
 	ZIPFUNC zf;
@@ -33,8 +34,10 @@ public:
 	vector<string> extractCSVLineValue(string& csvLine, vector<int> colIndex);
 	string getCSVPath(int PART);
 	int getGeoCodeIndex(string& sActiveCSVgeocode);
+	string getGeoLayer(string geoLayerExternal);
 	void init(string cataPath);
 	void initCSV(string activeGeoCode, string sActivePART);
+	void initGeo();
 
 	int loadBinGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
 	void loadBookmark(int& iActiveCSVpart, string& sActiveCSVgeocode);
@@ -53,6 +56,7 @@ public:
 	string makeCreateCensus();
 	vector<string> makeCreateData(vector<string>& DIMList, vector<string>& dimList);
 	string makeCreateGeo();
+	string makeCreateGeoLayers(string sYear);
 	vector<string> makeCreateInsertDIMIndex(vector<string>& DIMList);
 	vector<string> makeCreateInsertDIM();
 	vector<string> makeCreateInsertDim(vector<string>& dimList);
@@ -77,6 +81,7 @@ public:
 
 	string urlCatalogue(string sYear, string sCata);
 	string urlCSVDownload(string sYear, string sCata);
+	string urlGeo(string urlCata);
 	string urlYear(string syear);
 };
 

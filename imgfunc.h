@@ -95,17 +95,18 @@ public:
     void linePaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<unsigned char> rgbx);
     vector<POINT> makeTLBR(vector<POINT>& vpRegion);
     void markTargetTL(string& targetPath, string& bgPath);
+    vector<unsigned char> pngExtractRow(vector<unsigned char>& img, vector<int>& imgSpec, POINT pLeft);
     void pngLoadHere(string& pngPath, vector<unsigned char>& pngData, vector<int>& spec);
     void pngLoadString(string& pngPath, string& pngData, vector<int>& spec);
     void rectPaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<unsigned char> rgba);
     void rectPaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<vector<unsigned char>> rgba);
     void removePeriodic(vector<unsigned char>& img, int modulus);
-    void scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult);
-    void scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<POINT> TLBR);
-    void scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<vector<int>> startStop);
-    void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult);
-    void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<POINT> TLBR);
-    void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& viResult, vector<vector<int>> startStop);
+    void scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<vector<unsigned char>>>& colourList, vector<int>& viResult);
+    void scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<vector<unsigned char>>>& colourList, vector<int>& viResult, vector<POINT> TLBR);
+    void scanPatternLineH(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<vector<unsigned char>>>& colourList, vector<int>& viResult, vector<vector<int>> startStop);
+    void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<vector<unsigned char>>>& colourList, vector<int>& viResult);
+    void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<vector<unsigned char>>>& colourList, vector<int>& viResult, vector<POINT> TLBR);
+    void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<vector<unsigned char>>>& colourList, vector<int>& viResult, vector<vector<int>> startStop);
 
     int areaRect(vector<vector<int>> TLBR);
 	vector<int> borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks);
@@ -2237,6 +2238,35 @@ public:
             }
         }
     }
+    template<> void pngPaste<vector<unsigned char>, vector<int>, vector<unsigned char>, vector<int>, POINT>(vector<unsigned char>& sourceImg, vector<int>& sourceSpec, vector<unsigned char>& pasteImg, vector<int>& pasteSpec, POINT& TL)
+    {
+        // Note: this variant is for 32bit pixels.
+        if (TL.x < 0 || TL.x + pasteSpec[0] > sourceSpec[0])
+        {
+            jf.err("xCoord out of bounds-im.pngPaste");
+        }
+        if (TL.y < 0 || TL.y + pasteSpec[1] > sourceSpec[1])
+        {
+            jf.err("yCoord out of bounds-im.pngPaste");
+        }
+
+        vector<unsigned char> newRow;
+        POINT pOffset, pLeft;
+        pOffset.x = TL.x;
+        pLeft.x = 0;
+        int offset;
+        for (int ii = 0; ii < pasteSpec[1]; ii++)
+        {
+            pLeft.y = ii;
+            pOffset.y = TL.y + ii;
+            offset = getOffset(pOffset, sourceSpec);
+            newRow = pngExtractRow(pasteImg, pasteSpec, pLeft);
+            for (int jj = 0; jj < newRow.size(); jj++)
+            {
+                sourceImg[offset + jj] = newRow[jj];
+            }
+        }
+    }
 
     template<typename ... Args> void pngPrint(Args& ... args)
     {
@@ -2265,6 +2295,17 @@ public:
         int barbecue = 1;
     }
     template<> void pngPrint<vector<unsigned char>, vector<int>, string>(vector<unsigned char>& img, vector<int>& imgSpec, string& filePath)
+    {
+        int sizeImg = imgSpec[0] * imgSpec[1] * imgSpec[2];
+        auto bufferUC = new unsigned char[sizeImg];
+        for (int ii = 0; ii < sizeImg; ii++)
+        {
+            bufferUC[ii] = img[ii];
+        }
+        int error = stbi_write_png(filePath.c_str(), imgSpec[0], imgSpec[1], imgSpec[2], bufferUC, 0);
+        delete[] bufferUC;
+    }
+    template<> void pngPrint<string, vector<unsigned char>, vector<int>>(string& filePath, vector<unsigned char>& img, vector<int>& imgSpec)
     {
         int sizeImg = imgSpec[0] * imgSpec[1] * imgSpec[2];
         auto bufferUC = new unsigned char[sizeImg];

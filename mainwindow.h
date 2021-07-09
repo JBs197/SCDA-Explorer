@@ -49,6 +49,7 @@ public:
     JFUNC jf;
     JTREE jtCataLocal, jtMapLocal, jtCataOnline;
     MATHFUNC mf;
+    PNGMAP pngm;
     QTFUNC qf;
     SWITCHBOARD sb;
     SQLFUNC sf;
@@ -63,13 +64,15 @@ public slots:
 private slots:
     void mousePressEvent(QMouseEvent* event);
     void on_cB_drives_currentTextChanged(const QString& arg1);
-    void on_listW_maplocal_itemSelectionChanged();
+    void on_listW_map_itemDoubleClicked(QListWidgetItem* qItem);
+    void on_listW_map_itemSelectionChanged();
     void on_listW_searchresult_itemDoubleClicked(QListWidgetItem* qItem);
     void on_listW_searchresult_itemSelectionChanged();
-    void on_pB_convert_clicked();
+    void on_pB_createmap_clicked();
     void on_pB_deletetable_clicked();
     void on_pB_download_clicked();
     void on_pB_insert_clicked();
+    void on_pB_insertmap_clicked();
     void on_pB_maplocal_clicked();
     void on_pB_resolution_clicked();
     void on_pB_reviewmap_clicked();
@@ -80,6 +83,7 @@ private slots:
     void on_tableW_db_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen);
     void on_tableW_maplocal_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen);
     void on_tabW_main_currentChanged(int index);
+    void on_treeW_catadb_itemSelectionChanged();
     void on_treeW_catalocal_itemSelectionChanged();
     void on_treeW_cataonline_itemSelectionChanged();
     void on_treeW_maplocal_itemSelectionChanged();
@@ -107,11 +111,16 @@ private:
     void barReset(int iMax, string message);
     void barUpdate(int iCurrent);
     void bind(string&, vector<string>&);
+    void createParentPNG(SWITCHBOARD& sbgui, SQLFUNC& sfgui, PNGMAP& pngmgui);
+    void displayTable(QTableWidget*& qTable, string tname);
     void downloadCatalogue(string sYear, string sCata);
     void GetDesktopResolution(int& horizontal, int& vertical);
+    void getGeoLayers(string sYear, string sCata, vector<string>& geoLayers);
     void initGUI();
     void initialize();
     void initImgFont(string fontName);
+    void insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui, BINMAP& bmgui);
+    void insertGeoLayers(string sYear, string sCata);
     void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
     void populateBinFamily(SWITCHBOARD& sbgui, vector<BINMAP>& vBM);
     void qshow(string message);
@@ -125,7 +134,6 @@ private:
     void thrFileSplitter(SWITCHBOARD& sbgui, int& progress, mutex& m_progress);
     void thrUnzip(SWITCHBOARD& sbgui);
     void updateDBCata();
-    void upgradeBinMap(SWITCHBOARD& sbgui);
 
     /*
 

@@ -209,6 +209,14 @@ int STATSCAN::getGeoCodeIndex(string& sActiveCSVgeocode)
     catch (out_of_range) { jf.err("mapGeoCode-sc.getGeoCodeIndex"); }
     return gci;
 }
+string STATSCAN::getGeoLayer(string geoLayerExternal)
+{
+    if (mapGeoLayer.size() < 1) { initGeo(); }
+    string geoLayerInternal;
+    try { geoLayerInternal = mapGeoLayer.at(geoLayerExternal); }
+    catch (out_of_range) { jf.err("Geo layer not recognized-sc.getGeoLayer"); }
+    return geoLayerInternal;
+}
 
 void STATSCAN::init(string cP)
 {
@@ -272,6 +280,29 @@ void STATSCAN::initCSV(string activeGeoCode, string sActivePART)
         if (pos1 < cataColTitles[ii].size()) { geoLevelCol = ii; }
         pos1 = cataColTitles[ii].find("GEO_NAME");
         if (pos1 < cataColTitles[ii].size()) { geoNameCol = ii; }
+    }
+}
+void STATSCAN::initGeo()
+{
+    string empty;
+    if (mapGeoLayer.size() == 0)
+    {
+        mapGeoLayer.emplace("Canada", empty);
+        mapGeoLayer.emplace("Can", empty);
+        mapGeoLayer.emplace("Prov.Terr.", "province");
+        mapGeoLayer.emplace("Prov.Terr", "province");
+        mapGeoLayer.emplace("Provinces Territories", "province");
+        mapGeoLayer.emplace("CMACA", "cmaca");
+        mapGeoLayer.emplace("CMACA with Provincial Splits", "cmaca");
+        mapGeoLayer.emplace("CMACA with Provincial Splits 2016", "cmaca");
+        mapGeoLayer.emplace("CMA with Provincial Splits", "cmaca");
+        mapGeoLayer.emplace("CT", "ct");
+        mapGeoLayer.emplace("CD", "cd");
+        mapGeoLayer.emplace("CSD", "csd");
+        mapGeoLayer.emplace("FED", "fed");
+        mapGeoLayer.emplace("ER", "er");
+        mapGeoLayer.emplace("FSA", "fsa");  // No maps available.
+        mapGeoLayer.emplace("DA", "da");  // No maps available.
     }
 }
 
@@ -553,6 +584,13 @@ string STATSCAN::makeCreateGeo()
     string stmt = "CREATE TABLE IF NOT EXISTS \"Census$" + cataYear + "$";
     stmt += cataName + "$Geo\" (GEO_CODE INTEGER PRIMARY KEY, \"Region Name\" TEXT";
     stmt += ", GEO_LEVEL INT);";
+    return stmt;
+}
+string STATSCAN::makeCreateGeoLayers(string sYear)
+{
+    string tname = "Census$" + sYear + "$GeoLayers";
+    string stmt = "CREATE TABLE IF NOT EXISTS \"" + tname + "\" (Catalogue TEXT";
+    stmt += ", Level0 TEXT, UNIQUE(Catalogue));";
     return stmt;
 }
 vector<string> STATSCAN::makeCreateInsertDIMIndex(vector<string>& DIMList)
@@ -849,6 +887,7 @@ vector<string> STATSCAN::makeInsertData(string GEO_CODE, string& geoStmt)
 
     // Extract the desired data, line by line, until a new GEO_CODE is found.
     vector<string> lineData;
+    size_t pos3, pos4;
     int index, maxPART;
     try { maxPART = stoi(geo[geo.size() - 1][3]); }
     catch (invalid_argument) { jf.err("stoi-sc.makeInsertData"); }
@@ -860,6 +899,30 @@ vector<string> STATSCAN::makeInsertData(string GEO_CODE, string& geoStmt)
         lineData = extractCSVLineValue(csvLine, scoopIndex);
         while (lineData[2][0] == '0') { lineData[2].erase(lineData[2].begin()); }
         if (lineData[2] != GEO_CODE) { break; }  // Loop exit.
+        pos3 = lineData[1].find('(');
+        if (pos3 < lineData[1].size())
+        {
+            pos4 = lineData[1].find(" part", pos3);
+            if (pos4 < lineData[1].size())
+            {
+                pos1 = pos2;
+                pos2 = activeCSV.find(nl, pos1 + 1);
+                if (pos2 > activeCSV.size())  // Line is broken by file change.
+                {
+                    csvBuffer = activeCSV.substr(pos1);
+                    if (activeCSVpart < maxPART)
+                    {
+                        advanceNextCSVpart();
+                        pos2 = activeCSV.find_first_of(nl);
+                        if (pos2 > 0) { csvLine = csvBuffer + activeCSV.substr(0, pos2); }
+                        else { csvLine = csvBuffer; }
+                    }
+                    else { return stmt; }
+                }
+                else { csvLine = activeCSV.substr(pos1, pos2 - pos1); }
+                continue;
+            }
+        }
 
         if (geoStmt.size() < 1)
         {
@@ -1224,6 +1287,14 @@ string STATSCAN::urlCSVDownload(string sYear, string sCata)
         url += "CompDataDownload.cfm?LANG=E&PID=" + jf.utf16to8(wTemp);
         url += "&OFT=CSV";
     }
+    return url;
+}
+string STATSCAN::urlGeo(string urlCata)
+{
+    size_t pos1 = urlCata.find('?') + 1;
+    string url = urlCata.substr(0, pos1) + "TABID=6&";
+    url += urlCata.substr(pos1);
+    url += "&D1=0&D2=0&D3=0&D4=0&D5=0&D6=0";
     return url;
 }
 string STATSCAN::urlYear(string syear)

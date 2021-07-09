@@ -33,6 +33,11 @@ public:
     void executor(string stmt, vector<vector<string>>& results);
     void executor(string stmt, vector<vector<wstring>>& results);
     void get_col_titles(string tname, vector<string>& titles);
+    string getLinearizedTitle(string& cataName, string& rowTitle, string& colTitle);
+    int get_num_col(string tname);
+    int getNumRows(string tname);
+    vector<string> getTableListFromRoot(string& root);
+    vector<vector<string>> getTMapIndex();
     void get_table_list(vector<string>& results, string& search);
     vector<string> getTableList(string search);
     void init(string db_path);
@@ -45,11 +50,6 @@ public:
     void insert_prepared(vector<string>& stmts);
     void insertPreparedBind(vector<string>& stmtAndParams);
     string insert_stmt(string, vector<string>&, vector<string>&);
-    string getLinearizedTitle(string& cataName, string& rowTitle, string& colTitle);
-    int get_num_col(string);
-    int getNumRows(string tname);
-    vector<string> getTableListFromRoot(string& root);
-    vector<vector<string>> getTMapIndex();
     void makeANSI(string&);
     void remove(string& tname);
     void remove(string& tname, vector<string>& conditions);

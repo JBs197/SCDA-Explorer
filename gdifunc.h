@@ -22,6 +22,8 @@ public:
 		GdiplusShutdown(gdiplusToken);
 	}
 
+	void capture(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR);
 	void screenshot(std::string& pngPath);
+
 };
 

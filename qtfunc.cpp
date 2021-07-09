@@ -57,6 +57,43 @@ void QTFUNC::displayBinList(QListWidget*& qLW, vector<string>& pathBin)
 		qLW->addItem(qtemp);
 	}
 }
+void QTFUNC::displayTable(QTableWidget*& qTable, vector<vector<string>>& data, vector<vector<string>>& header)
+{
+	QString qTemp;
+	QTableWidgetItem* qCell;
+	qTable->clear();
+	qTable->setColumnCount(data[0].size());
+	qTable->setRowCount(data.size());
+	for (int ii = 0; ii < data.size(); ii++)
+	{
+		for (int jj = 0; jj < data[ii].size(); jj++)
+		{
+			qTemp = QString::fromStdString(data[ii][jj]);
+			qCell = new QTableWidgetItem(qTemp);
+			qTable->setItem(ii, jj, qCell);
+		}
+	}
+	QStringList hHeaderLabels, vHeaderLabels;
+	if (header.size() > 0)  // Horizontal header.
+	{
+		for (int ii = 0; ii < header[0].size(); ii++)
+		{
+			qTemp = QString::fromStdString(header[0][ii]);
+			hHeaderLabels.append(qTemp);
+		}
+		qTable->setHorizontalHeaderLabels(hHeaderLabels);
+	}
+	if (header.size() > 1)  // Vertical header.
+	{
+		for (int ii = 0; ii < header[1].size(); ii++)
+		{
+			qTemp = QString::fromStdString(header[1][ii]);
+			vHeaderLabels.append(qTemp);
+		}
+		qTable->setVerticalHeaderLabels(vHeaderLabels);
+	}
+
+}
 void QTFUNC::displayText(QLabel* ql, string stext)
 {
 	const QString qtemp = QString::fromUtf8(stext.c_str());

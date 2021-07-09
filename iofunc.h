@@ -7,7 +7,6 @@
 
 class IOFUNC : private WINFUNC
 {
-	HWND activeWindow = NULL;
 	vector<int> defaultRes = { 3840, 1080 };
 	vector<POINT> gpsWebpage;
 	JFUNC jf;
@@ -16,6 +15,7 @@ class IOFUNC : private WINFUNC
 public:
 	explicit IOFUNC() {}
 	~IOFUNC() {}
+	HWND activeWindow = NULL;
 
 	bool askYesNo(string question);
 	string copyText(HWND& targetWindow);
@@ -34,5 +34,7 @@ public:
 	void mouseClickKey(int vKey, POINT p1);
 	void mouseClickTriple(POINT p1);
 	void mouseClickTriple(POINT p1, HWND& targetWindow);
+	void mouseMove(POINT p1);
+	bool signal(WORD vKey);
 };
 

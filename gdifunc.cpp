@@ -1,6 +1,34 @@
 #include "stdafx.h"
 #include "gdifunc.h"
 
+void GDIFUNC::capture(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR)
+{
+    if (TLBR.size() < 2) { jf.err("TLBR missing-gdi.capture"); }
+    HWND hWindow = GetDesktopWindow();
+    HBITMAP hBitmap = GdiPlusScreenCapture(hWindow);
+    CImage cImg;
+    cImg.Attach(hBitmap);
+    COLORREF cr1;
+    imgSpec.resize(3);
+    imgSpec[0] = TLBR[1].x - TLBR[0].x + 1;
+    imgSpec[1] = TLBR[1].y - TLBR[0].y + 1;
+    imgSpec[2] = 4;
+    img.clear();
+    img.resize(imgSpec[0] * imgSpec[1] * imgSpec[2]);
+    long long index = 0;
+    for (int ii = TLBR[0].y; ii <= TLBR[1].y; ii++)
+    {
+        for (int jj = TLBR[0].x; jj <= TLBR[1].x; jj++)
+        {
+            cr1 = cImg.GetPixel(jj, ii);
+            img[index] = GetRValue(cr1);
+            img[index + 1] = GetGValue(cr1);
+            img[index + 2] = GetBValue(cr1);
+            img[index + 3] = 255;
+            index += 4;
+        }
+    }
+}
 BITMAPINFOHEADER GDIFUNC::createBitmapHeader(int width, int height)
 {
     BITMAPINFOHEADER  bi;

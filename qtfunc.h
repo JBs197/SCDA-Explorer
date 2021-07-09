@@ -4,7 +4,7 @@
 #include <QColumnView>
 #include <QListWidget>
 #include <QListView>
-#include <QTableView>
+#include <QTableWidget>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QLabel>
@@ -19,8 +19,6 @@ using namespace std;
 
 class QTFUNC
 {
-	//QBrush brush;
-	//QColor colourDefault = Qt::black;
 	string defaultDebugMapPath, defaultDebugMapPathSelected;
 	int defaultDotWidth = -1;
 	double defaultMapZoom = 3.0;
@@ -31,8 +29,6 @@ class QTFUNC
 	vector<string> listPathBin;
 	QMap<QString, int> mapListPathBin;
 	QMap<QTreeWidget*, int> map_display_root;
-	//QPainter painter;
-	//QPen pen;
 	QPixmap pmCanvas, pmPainting;
 	vector<vector<int>> recentBorder, frameCorners;
 	vector<vector<vector<int>>> recentBorderTemp;
@@ -52,6 +48,7 @@ public:
 	void displayBinList(QListWidget*& qLW, vector<string>& pathBin);
 	void displayDebug(QLabel*& qlabel, vector<string>& pathPNG, vector<vector<int>>& debugMapCoord);
 	void displayPainterPath(QLabel*& qlabel, QPainterPath& path);
+	void displayTable(QTableWidget*& qTable, vector<vector<string>>& data, vector<vector<string>>& header);
 	void displayText(QLabel*, string stext);
 	void display_subt(QTreeWidget*, QTreeWidgetItem*);
 	void drawDotsDebug(QPainter& qpaint, vector<vector<double>>& dots);

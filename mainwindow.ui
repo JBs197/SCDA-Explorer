@@ -45,9 +45,9 @@
     <property name="geometry">
      <rect>
       <x>640</x>
-      <y>940</y>
+      <y>930</y>
       <width>81</width>
-      <height>31</height>
+      <height>41</height>
      </rect>
     </property>
     <property name="text">
@@ -110,7 +110,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>3</number>
     </property>
     <widget class="QWidget" name="tab_cata">
      <attribute name="title">
@@ -210,7 +210,7 @@
         <x>451</x>
         <y>0</y>
         <width>611</width>
-        <height>341</height>
+        <height>451</height>
        </rect>
       </property>
       <column>
@@ -218,19 +218,6 @@
         <string>Database Maps</string>
        </property>
       </column>
-     </widget>
-     <widget class="QLabel" name="qlabel_mapmini">
-      <property name="geometry">
-       <rect>
-        <x>611</x>
-        <y>350</y>
-        <width>451</width>
-        <height>451</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string/>
-      </property>
      </widget>
      <widget class="QTPAINT" name="qp_maplocal" native="true">
       <property name="geometry">
@@ -246,13 +233,13 @@
       <property name="geometry">
        <rect>
         <x>450</x>
-        <y>350</y>
+        <y>460</y>
         <width>611</width>
-        <height>451</height>
+        <height>341</height>
        </rect>
       </property>
      </widget>
-     <widget class="QListWidget" name="listW_maplocal">
+     <widget class="QListWidget" name="listW_map">
       <property name="geometry">
        <rect>
         <x>0</x>
@@ -309,9 +296,9 @@ Resolution</string>
      <widget class="QTableWidget" name="tableW_debug">
       <property name="geometry">
        <rect>
-        <x>190</x>
+        <x>230</x>
         <y>10</y>
-        <width>601</width>
+        <width>1591</width>
         <height>791</height>
        </rect>
       </property>
@@ -355,7 +342,7 @@ Resolution</string>
       <x>640</x>
       <y>880</y>
       <width>601</width>
-      <height>51</height>
+      <height>41</height>
      </rect>
     </property>
    </widget>
@@ -363,9 +350,9 @@ Resolution</string>
     <property name="geometry">
      <rect>
       <x>730</x>
-      <y>940</y>
+      <y>930</y>
       <width>81</width>
-      <height>31</height>
+      <height>41</height>
      </rect>
     </property>
     <property name="text">
@@ -401,24 +388,24 @@ Resolution</string>
      </rect>
     </property>
     <property name="text">
-     <string>View 
- Local Maps</string>
+     <string>Update
+Maps</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pB_convert">
+   <widget class="QPushButton" name="pB_createmap">
     <property name="enabled">
      <bool>false</bool>
     </property>
     <property name="geometry">
      <rect>
-      <x>370</x>
+      <x>280</x>
       <y>930</y>
       <width>81</width>
       <height>41</height>
      </rect>
     </property>
     <property name="text">
-     <string>Convert
+     <string>Create
 Maps</string>
     </property>
    </widget>
@@ -599,7 +586,7 @@ Map</string>
     </property>
     <property name="geometry">
      <rect>
-      <x>280</x>
+      <x>370</x>
       <y>930</y>
       <width>81</width>
       <height>41</height>

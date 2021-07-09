@@ -27,7 +27,6 @@ public:
 
 	void addArea(vector<vector<double>>& border);
 	void addAreaColour(vector<int> rgb);
-	void drawFamilyBlue(vector<BINMAP>& binFamily);
 	void drawSelectedDot(string regionName);
 	vector<QPointF> getTLBR(vector<QPointF>& vQPF);  // Form [top, left, bot, right].
 	void initialize();

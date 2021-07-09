@@ -168,6 +168,7 @@ vector<POINT> IOFUNC::getUserTLBR(int vKey1, int vKey2)
 		{
 			GetCursorPos(&p);
 			TLBR.push_back(p);
+			Sleep(1000);
 		}
 		else if (TLBR.size() == 1 && GetAsyncKeyState(vKey2))
 		{
@@ -214,7 +215,8 @@ void IOFUNC::kbHoldPress(WORD holdKey, WORD pressKey, HWND& targetWindow)
 }
 void IOFUNC::kbInput(WORD vKey)
 {
-	kbInput(vKey, activeWindow);
+	HWND hActive = GetForegroundWindow();
+	kbInput(vKey, hActive);
 }
 void IOFUNC::kbInput(WORD vKey, HWND& targetWindow)
 {
@@ -234,7 +236,8 @@ void IOFUNC::kbInput(WORD vKey, HWND& targetWindow)
 }
 void IOFUNC::kbInput(string str)
 {
-	kbInput(str, activeWindow);
+	HWND hActive = GetForegroundWindow();
+	kbInput(str, hActive);
 }
 void IOFUNC::kbInput(string str, HWND& targetWindow)
 {
@@ -366,4 +369,27 @@ void IOFUNC::mouseClickTriple(POINT p1, HWND& targetWindow)
 	if (!sent) { jf.err("SendInput-io.mouseClickTriple"); }
 	targetWindow = GetForegroundWindow();
 }
+void IOFUNC::mouseMove(POINT p1)
+{
+	LONG xC = p1.x * 65535 / defaultRes[0];
+	LONG yC = p1.y * 65535 / defaultRes[1];
+	INPUT ipt[1];
+	ipt[0].type = INPUT_MOUSE;
+	ipt[0].mi.dx = xC;
+	ipt[0].mi.dy = yC;
+	ipt[0].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_MOVE;
 
+	UINT bbq = SendInput(3, ipt, sizeof(INPUT));
+	if (!bbq) { jf.err("SendInput-io.mouseMove"); }
+}
+bool IOFUNC::signal(WORD vKey)
+{
+	// Wait until the chosen keystroke is registered, then return TRUE.
+	while (1)
+	{
+		Sleep(50);
+		if (GetAsyncKeyState(vKey)) { break; }
+		else if (GetAsyncKeyState(VK_ESCAPE)) { exit(EXIT_FAILURE); }
+	}
+	return 1;
+}

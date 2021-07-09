@@ -842,6 +842,20 @@ void JFUNC::removeBlanks(vector<string>& task)
 		}
 	}
 }
+void JFUNC::removeBlanks(vector<vector<string>>& task)
+{
+	for (int ii = 0; ii < task.size(); ii++)
+	{
+		for (int jj = 0; jj < task[ii].size(); jj++)
+		{
+			if (task[ii][jj] == "")
+			{
+				task[ii].erase(task[ii].begin() + jj);
+				jj--;
+			}
+		}
+	}
+}
 void JFUNC::removeBlanks(vector<vector<wstring>>& task)
 {
 	for (int ii = 0; ii < task.size(); ii++)

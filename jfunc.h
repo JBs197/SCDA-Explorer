@@ -74,6 +74,7 @@ public:
 	void printer(string path, vector<unsigned char>& binFile);
 	void quicksort(vector<int>&, int, int);
 	void removeBlanks(vector<string>& task);
+	void removeBlanks(vector<vector<string>>& task);
 	void removeBlanks(vector<vector<wstring>>& task);
 	void set_navigator_asset_path(string&);
 	//void sortLinkedList(vector<int>& viList, vector<vector<unsigned char>>& vvucList, int type);
