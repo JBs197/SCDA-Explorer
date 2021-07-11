@@ -48,7 +48,9 @@ public:
 	void displayBinList(QListWidget*& qLW, vector<string>& pathBin);
 	void displayDebug(QLabel*& qlabel, vector<string>& pathPNG, vector<vector<int>>& debugMapCoord);
 	void displayPainterPath(QLabel*& qlabel, QPainterPath& path);
+	void displayTable(QTableWidget*& qTable, vector<vector<QString>>& data, vector<vector<string>>& header);
 	void displayTable(QTableWidget*& qTable, vector<vector<string>>& data, vector<vector<string>>& header);
+	void displayTable(QTableWidget*& qTable, vector<vector<int>>& data, vector<vector<string>>& header);
 	void displayText(QLabel*, string stext);
 	void display_subt(QTreeWidget*, QTreeWidgetItem*);
 	void drawDotsDebug(QPainter& qpaint, vector<vector<double>>& dots);

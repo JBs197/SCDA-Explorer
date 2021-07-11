@@ -1,6 +1,6 @@
 #pragma once
 #include "qtfunc.h"
-#include "binmap.h"
+#include "jmap.h"
 
 class QTPAINT : public QWidget
 {

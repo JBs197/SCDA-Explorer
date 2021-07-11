@@ -1,6 +1,46 @@
 #include "stdafx.h"
 #include "imgfunc.h"
 
+string IMGFUNC::convertColour(vector<unsigned char>& rgbx)
+{
+    if (mapDecHex.size() < 1) { initHex(); }
+    string srgbx;
+    unsigned char quotient, remainder;
+    char quot, rem;
+    for (int ii = 0; ii < rgbx.size(); ii++)
+    {
+        quotient = rgbx[ii] / 16;
+        remainder = rgbx[ii] % 16;
+        try
+        {
+            quot = mapDecHex.at(quotient);
+            rem = mapDecHex.at(remainder);
+        }
+        catch (out_of_range) { jf.err("mapDecHex-im.convertColour"); }
+        srgbx.append(1, quot);
+        srgbx.append(1, rem);
+    }
+    return srgbx;
+}
+vector<unsigned char> IMGFUNC::convertColour(string& srgbx)
+{
+    vector<unsigned char> rgbx;
+    if (srgbx.size() == 6) { rgbx.resize(3); }
+    else if (srgbx.size() == 8) { rgbx.resize(4); }
+    else { jf.err("Parameter size-im.convertColour"); }
+    unsigned char quotient, remainder;
+    for (int ii = 0; ii < rgbx.size(); ii++)
+    {
+        try
+        {
+            quotient = mapHexDec.at(srgbx[(2 * ii)]);
+            remainder = mapHexDec.at(srgbx[(2 * ii) + 1]);
+        }
+        catch (out_of_range) { jf.err("mapHexDec-im.convertColour"); }
+        rgbx[ii] = (16 * quotient) + remainder;
+    }
+    return rgbx;
+}
 POINT IMGFUNC::coordFromOffset(int offset, vector<int> imgSpec)
 {
     // imgSpec has form [width, height, numComponents].
@@ -276,6 +316,42 @@ POINT IMGFUNC::getTLImgImg(string& targetPath, string& bgPath)
     }
     return TL;
 }
+void IMGFUNC::initHex()
+{
+    mapHexDec.emplace('0', 0);
+    mapHexDec.emplace('1', 1);
+    mapHexDec.emplace('2', 2);
+    mapHexDec.emplace('3', 3);
+    mapHexDec.emplace('4', 4);
+    mapHexDec.emplace('5', 5);
+    mapHexDec.emplace('6', 6);
+    mapHexDec.emplace('7', 7);
+    mapHexDec.emplace('8', 8);
+    mapHexDec.emplace('9', 9);
+    mapHexDec.emplace('a', 10);
+    mapHexDec.emplace('b', 11);
+    mapHexDec.emplace('c', 12);
+    mapHexDec.emplace('d', 13);
+    mapHexDec.emplace('e', 14);
+    mapHexDec.emplace('f', 15);
+
+    mapDecHex.emplace(0, '0');
+    mapDecHex.emplace(1, '1');
+    mapDecHex.emplace(2, '2');
+    mapDecHex.emplace(3, '3');
+    mapDecHex.emplace(4, '4');
+    mapDecHex.emplace(5, '5');
+    mapDecHex.emplace(6, '6');
+    mapDecHex.emplace(7, '7');
+    mapDecHex.emplace(8, '8');
+    mapDecHex.emplace(9, '9');
+    mapDecHex.emplace(10, 'a');
+    mapDecHex.emplace(11, 'b');
+    mapDecHex.emplace(12, 'c');
+    mapDecHex.emplace(13, 'd');
+    mapDecHex.emplace(14, 'e');
+    mapDecHex.emplace(15, 'f');
+}
 void IMGFUNC::initScanCircles(string& pngPath)
 {
     vector<unsigned char> img, rgb;
@@ -356,6 +432,25 @@ void IMGFUNC::markTargetTL(string& targetPath, string& bgPath)
     drawSquare(imgOutput, imgOutputDim, TL);
     string resultPath = sroot + "\\Test-1.png";
     pngPrint(imgOutput, imgOutputDim, resultPath);
+}
+void IMGFUNC::pngCanvas(vector<int>& imgSpec, vector<unsigned char>& img, vector<unsigned char> rgbx)
+{
+    // Given imgSpec, create the img whereby every pixel is rgbx.
+    if (imgSpec.size() < 3) { jf.err("No imgSpec given-im.pngCanvas"); }
+    if (rgbx.size() < 3) { jf.err("No rgbx given-im.pngCanvas"); }
+    long long imgSize = imgSpec[0] * imgSpec[1] * imgSpec[2];
+    int pixelSize = rgbx.size();
+    img.clear();
+    img.resize(imgSize);
+    long long index = 0;
+    while (index < imgSize)
+    {
+        for (int ii = 0; ii < pixelSize; ii++)
+        {
+            img[index + ii] = rgbx[ii];
+        }
+        index += pixelSize;
+    }
 }
 vector<unsigned char> IMGFUNC::pngExtractRow(vector<unsigned char>& img, vector<int>& imgSpec, POINT pLeft)
 {

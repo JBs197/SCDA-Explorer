@@ -30,6 +30,7 @@ public:
 	vector<unsigned char> browseUC(string url);
 	wstring browseW(string url);
     //static void CALLBACK call(HINTERNET, DWORD_PTR, DWORD, LPVOID, DWORD);
+	void copyFile(string& oldPath, string& newPath);
 	void delete_file(string);
     void download(string url, string filePath);
 	void download(string url, string filePath, int type);

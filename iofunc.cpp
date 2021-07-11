@@ -14,6 +14,12 @@ bool IOFUNC::askYesNo(string question)
 	}
 	return 0;
 }
+string IOFUNC::copyText()
+{
+	HWND hActive = GetForegroundWindow();
+	string sText = copyText(hActive);
+	return sText;
+}
 string IOFUNC::copyText(HWND& targetWindow)
 {
 	// Returns a string from selected text, as if ctrl+c had been used.
@@ -195,6 +201,11 @@ HWND IOFUNC::getWindow(int vKey)
 		else if (GetAsyncKeyState(VK_ESCAPE)) { exit(EXIT_FAILURE); }
 	}
 }
+void IOFUNC::kbHoldPress(WORD holdKey, WORD pressKey)
+{
+	HWND hActive = GetForegroundWindow();
+	kbHoldPress(holdKey, pressKey, hActive);
+}
 void IOFUNC::kbHoldPress(WORD holdKey, WORD pressKey, HWND& targetWindow)
 {
 	BOOL success = SetForegroundWindow(targetWindow);
@@ -269,8 +280,7 @@ void IOFUNC::mouseClick(POINT p1)
 	ipt[2].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_LEFTUP;
 
 	UINT bbq = SendInput(3, ipt, sizeof(INPUT));
-	if (!bbq) { jf.err("SendInput-io.mouseClick"); }
-	activeWindow = GetForegroundWindow();
+	if (bbq != 3) { jf.err("SendInput-io.mouseClick"); }
 }
 void IOFUNC::mouseClickKey(int vKey, POINT p0)
 {
@@ -379,7 +389,7 @@ void IOFUNC::mouseMove(POINT p1)
 	ipt[0].mi.dy = yC;
 	ipt[0].mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | MOUSEEVENTF_MOVE;
 
-	UINT bbq = SendInput(3, ipt, sizeof(INPUT));
+	UINT bbq = SendInput(1, ipt, sizeof(INPUT));
 	if (!bbq) { jf.err("SendInput-io.mouseMove"); }
 }
 bool IOFUNC::signal(WORD vKey)

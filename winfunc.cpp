@@ -197,6 +197,16 @@ wstring WINFUNC::browseW(string url)
 	if (!yesno) { winerr("WinHttpCloseHandle-wf.browse"); }
 	return wPage;
 }
+void WINFUNC::copyFile(string& oldPath, string& newPath)
+{
+	DWORD GLE;
+	BOOL yesno = CopyFileA(oldPath.c_str(), newPath.c_str(), 0);
+	if (!yesno)
+	{
+		GLE = GetLastError();
+		winerr("CopyFileA-wf.copyFile");
+	}
+}
 void WINFUNC::delete_file(string path)
 {
 	HANDLE hfile = CreateFileA(path.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);

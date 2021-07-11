@@ -18,6 +18,7 @@ public:
 	HWND activeWindow = NULL;
 
 	bool askYesNo(string question);
+	string copyText();
 	string copyText(HWND& targetWindow);
 	vector<double> getBinPosition(string regionName, string sParent);
 	POINT getCoord(int vKey);
@@ -25,6 +26,7 @@ public:
 	string getSCoord(POINT& p1);
 	vector<POINT> getUserTLBR(int vKey1, int vKey2);
 	HWND getWindow(int vKey);
+	void kbHoldPress(WORD holdKey, WORD pressKey);
 	void kbHoldPress(WORD holdKey, WORD pressKey, HWND& targetWindow);
 	void kbInput(WORD vKey);
 	void kbInput(WORD vKey, HWND& targetWindow);

@@ -925,6 +925,7 @@ void MainWindow::on_treeW_maplocal_itemSelectionChanged()
         ui->pB_reviewmap->setEnabled(0);
         return;
     }
+    
     ui->pB_createmap->setEnabled(1);
     ui->pB_reviewmap->setEnabled(1);
 }
@@ -953,64 +954,189 @@ void MainWindow::createParentPNG(SWITCHBOARD& sbgui, SQLFUNC& sfgui, PNGMAP& png
     mycomm[0] = 1;
     sbgui.update(myid, mycomm);
 }
+void MainWindow::createChildPNG(SWITCHBOARD& sbgui, SQLFUNC& sfgui, PNGMAP& pngmgui)
+{
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    mycomm[2] = pngmgui.getNumChildren();
+    sbgui.update(myid, mycomm);
+    pngmgui.createAllChildren(sbgui, mycomm);
+
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+}
+void MainWindow::createBinMap(SWITCHBOARD& sbgui, BINMAP& bmgui)
+{
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> pngPath = sbgui.get_prompt();
+    for (int ii = 0; ii < pngPath.size(); ii++)
+    {
+        bmgui.pngToBin(pngPath[ii]);
+        mycomm[1]++;
+        sbgui.update(myid, mycomm);
+    }
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+}
 void MainWindow::on_pB_createmap_clicked() 
 {
-    QList<QTreeWidgetItem*> qSel = ui->treeW_catadb->selectedItems();
-    if (qSel.size() != 1) { return; }
-    int type = qSel[0]->type();
-    if (type != 2)
+    int indexTab = ui->tabW_main->currentIndex();
+    switch (indexTab)
     {
-        qshow("ERROR: No database catalogue was selected to create PNG maps.");
-        return;
-    }
-    QString qTemp = qSel[0]->text(0);
-    string sCata = qTemp.toStdString();
-    qTemp = qSel[0]->parent()->text(0);
-    string sYear = qTemp.toStdString();
-    string tnameGeoLayers = "GeoLayers$" + sYear;
-    string tnameGeo = "Geo$" + sYear + "$" + sCata;
-    thread::id myid = this_thread::get_id();
-    vector<vector<int>> comm(1, vector<int>());
-    comm[0].assign(comm_length, 0);
-    vector<string> prompt = { tnameGeoLayers, tnameGeo };
-    sb.set_prompt(prompt);
-    pngm.setPTE(ui->pte_search, 0);
-    sb.start_call(myid, 1, comm[0]);
-    std::thread thr(&MainWindow::createParentPNG, this, ref(sb), ref(sf), ref(pngm));
-    thr.detach();
-    while (1)
+    case 0:
     {
-        Sleep(gui_sleep);
-        QCoreApplication::processEvents();
-        comm = sb.update(myid, comm[0]);
-        if (comm.size() > 1)
+        QList<QTreeWidgetItem*> qSel = ui->treeW_catadb->selectedItems();
+        if (qSel.size() != 1) { return; }
+        int type = qSel[0]->type();
+        if (type != 2)
         {
-            break;
+            qshow("ERROR: No database catalogue was selected to create PNG maps.");
+            return;
         }
+        QString qTemp = qSel[0]->text(0);
+        string sCata = qTemp.toStdString();
+        qTemp = qSel[0]->parent()->text(0);
+        string sYear = qTemp.toStdString();
+        string tnameGeoLayers = "GeoLayers$" + sYear;
+        string tnameGeo = "Geo$" + sYear + "$" + sCata;
+        thread::id myid = this_thread::get_id();
+        vector<vector<int>> comm(1, vector<int>());
+        comm[0].assign(comm_length, 0);
+        vector<string> prompt = { tnameGeoLayers, tnameGeo };
+        sb.set_prompt(prompt);
+        pngm.setPTE(ui->pte_search, 0);
+        sb.start_call(myid, 1, comm[0]);
+        std::thread thr(&MainWindow::createParentPNG, this, ref(sb), ref(sf), ref(pngm));
+        thr.detach();
+        while (1)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm.size() > 1) { break; }
+        }
+        while (comm[0][0] == 0)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm[0][2] == 0 && comm[1][2] > 0)
+            {
+                comm[0][2] = comm[1][2];
+                barReset(comm[0][2], "Creating PNG parent maps for " + sCata + " ...");
+            }
+            if (comm[1][1] > comm[0][1])
+            {
+                comm[0][1] = comm[1][1];
+                barUpdate(comm[0][1]);
+            }
+            if (comm[1][0] == 1)
+            {
+                barUpdate(comm[0][2]);
+                barMessage("Finished creating PNG parent maps for " + sCata);
+                comm[0][0] = 1;
+            }
+        }
+        sb.end_call(myid);
+
+        // Now, make the child maps.
+        comm.resize(1);
+        comm[0].assign(comm_length, 0);
+        sb.start_call(myid, 1, comm[0]);
+        std::thread thr1(&MainWindow::createChildPNG, this, ref(sb), ref(sf), ref(pngm));
+        thr1.detach();
+        while (1)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm.size() > 1)
+            {
+                break;
+            }
+        }
+        while (comm[0][0] == 0)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm[0][2] == 0 && comm[1][2] > 0)
+            {
+                comm[0][2] = comm[1][2];
+                barReset(comm[0][2], "Creating PNG child maps for " + sCata + " ...");
+            }
+            if (comm[1][1] > comm[0][1])
+            {
+                comm[0][1] = comm[1][1];
+                barUpdate(comm[0][1]);
+            }
+            if (comm[1][0] == 1)
+            {
+                barUpdate(comm[0][2]);
+                barMessage("Finished creating PNG child maps for " + sCata);
+                comm[0][0] = 1;
+            }
+        }
+        sb.end_call(myid);
+        break;
     }
-    while (comm[0][0] == 0)
+    case 1:
     {
-        Sleep(gui_sleep);
-        QCoreApplication::processEvents();
-        comm = sb.update(myid, comm[0]);
-        if (comm[0][2] == 0 && comm[1][2] > 0)
+        QList<QTreeWidgetItem*> qSel = ui->treeW_maplocal->selectedItems();
+        if (qSel.size() != 1) { return; }
+        string folderPath = qf.getBranchPath(qSel[0], sroot);
+        vector<string> pngList = wf.get_file_list(folderPath, "*.png");
+        if (pngList.size() < 1)
         {
-            comm[0][2] = comm[1][2];
-            barReset(comm[0][2], "Creating PNG maps for " + sCata + " ...");
+            qshow("ERROR: No PNG files in the selected directory.");
+            return;
         }
-        if (comm[1][1] > comm[0][1])
+        vector<string> prompt(pngList.size());
+        for (int ii = 0; ii < prompt.size(); ii++)
         {
-            comm[0][1] = comm[1][1];
-            barUpdate(comm[0][1]);
+            prompt[ii] = folderPath + "\\" + pngList[ii];
         }
-        if (comm[1][0] == 1)
+        thread::id myid = this_thread::get_id();
+        vector<vector<int>> comm(1, vector<int>());
+        comm[0].assign(comm_length, 0);
+        sb.set_prompt(prompt);
+        bm.init(ui->pte_search, 0, ui->qp_maplocal);
+        sb.start_call(myid, 1, comm[0]);
+        std::thread thr(&MainWindow::createBinMap, this, ref(sb));
+        thr.detach();
+        comm[0][2] = prompt.size();
+        barReset(comm[0][2], "Creating BIN maps from PNGs ...");
+        while (1)
         {
-            barUpdate(comm[0][2]);
-            barMessage("Finished creating PNG maps for " + sCata);
-            comm[0][0] = 1;
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm.size() > 1) { break; }
         }
+        while (comm[0][0] == 0)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm[1][1] > comm[0][1])
+            {
+                comm[0][1] = comm[1][1];
+                barUpdate(comm[0][1]);
+            }
+            if (comm[1][0] == 1)
+            {
+                barUpdate(comm[0][2]);
+                barMessage("Finished creating BIN maps!");
+                comm[0][0] = 1;
+            }
+        }
+        sb.end_call(myid);
+        break;
     }
-    sb.end_call(myid);
+    }
 
 }
 
@@ -1776,7 +1902,7 @@ void MainWindow::on_treeW_cataonline_itemSelectionChanged()
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 2;
+    int mode = 0;
 
     switch (mode)
     {
@@ -1801,9 +1927,107 @@ void MainWindow::on_pB_test_clicked()
         ui->pte_search->setPlainText(qMessage);
         break;
     }
-    case 2:  // Analyze Hudson's Bay.
+    case 2:  // Superimpose minimaps.
     {
+        OVERLAY ov;
+        string path0 = sroot + "\\debug\\superposition";
+        string inputPath = path0 + "\\Home.png", outputPath;
+        vector<string> geoLayers = { "", "province", "cmaca" };
+        vector<unsigned char> img, imgHome, imgSuper;
+        vector<int> imgSpec, imgSpecHome, imgSpecSuper, minMaxTL;
 
+        pngm.initialize(geoLayers);
+        im.pngLoadHere(inputPath, imgHome, imgSpecHome);
+        ov.initPNG(imgHome, imgSpecHome);
+        vector<string> provList = wf.get_file_list(path0, "*.png");
+        inputPath = path0 + "\\" + provList[0];
+        outputPath = path0 + "\\Superposition " + provList[0];
+        im.pngLoadHere(inputPath, img, imgSpec);
+        minMaxTL = ov.setTopPNG(img, imgSpec);
+        vector<vector<vector<int>>> matchResult(3, vector<vector<int>>(5, vector<int>(3, 0)));
+
+        thread::id myid = this_thread::get_id();
+        vector<vector<int>> comm(1, vector<int>());
+        comm[0].assign(comm_length, 0);
+        sb.start_call(myid, 3, comm[0]);
+        comm[0][2] = minMaxTL[1] - minMaxTL[0] + 1;
+        int workload = comm[0][2] / 5;
+        vector<string> prompt = {
+            to_string(minMaxTL[0]),
+            to_string(minMaxTL[0] + (2 * workload)),
+            to_string(minMaxTL[0] + (2 * workload) + 1),
+            to_string(minMaxTL[0] + (3 * workload)),
+            to_string(minMaxTL[0] + (3 * workload) + 1),
+            to_string(minMaxTL[1])
+        };
+        sb.set_prompt(prompt);
+        std::thread thr0(&OVERLAY::reportSuperposition, &ov, ref(sb), ref(matchResult[0]), ov, 0);
+        thr0.detach();
+        while (1)
+        {
+            Sleep(20);
+            comm = sb.update(myid, comm[0]);
+            if (comm.size() == 2) { break; }
+        }
+        std::thread thr1(&OVERLAY::reportSuperposition, &ov, ref(sb), ref(matchResult[1]), ov, 1);
+        thr1.detach();
+        while (1)
+        {
+            Sleep(20);
+            comm = sb.update(myid, comm[0]);
+            if (comm.size() == 3) { break; }
+        }
+        std::thread thr2(&OVERLAY::reportSuperposition, &ov, ref(sb), ref(matchResult[2]), ov, 2);
+        thr2.detach();
+        while (1)
+        {
+            Sleep(20);
+            comm = sb.update(myid, comm[0]);
+            if (comm.size() == 4) { break; }
+        }
+        barReset(comm[0][2], "Superimposing " + provList[0] + " ...");
+        while (comm[0][0] == 0)
+        {
+            Sleep(gui_sleep);
+            comm = sb.update(myid, comm[0]);
+            comm[0][1] = 0;
+            comm[0][3] = 0;
+            for (int jj = 1; jj < comm.size(); jj++)
+            {
+                comm[0][1] += comm[jj][1];
+                comm[0][3] += comm[jj][0];
+            }
+            barUpdate(comm[0][1]);
+            QCoreApplication::processEvents();
+            if (comm[0][3] == 3) { comm[0][0] = 1; }
+        }
+        sb.end_call(myid);
+        barMessage("Displaying superposition results for " + provList[0]);
+        vector<vector<int>> vviResult(15, vector<int>(3));
+        for (int ii = 0; ii < 5; ii++)
+        {
+            vviResult[ii] = matchResult[0][ii];
+            vviResult[5 + ii] = matchResult[1][ii];
+            vviResult[10 + ii] = matchResult[2][ii];
+        }
+        vector<vector<string>> header(1, vector<string>());
+        header[0] = { "numMatches", "TLx", "TLy" };
+        qf.displayTable(ui->tableW_debug, vviResult, header);
+        ui->tabW_main->setCurrentIndex(3);
+
+        int maxMatch = 0, maxIndex = -1;
+        for (int ii = 0; ii < vviResult.size(); ii++)
+        {
+            if (vviResult[ii][0] > maxMatch)
+            {
+                maxMatch = vviResult[ii][0];
+                maxIndex = ii;
+            }
+        }
+        vector<int> viTL = { vviResult[maxIndex][1], vviResult[maxIndex][2] };
+        ov.printSuperposition(outputPath, viTL);
+
+        qshow("Done!");
         break;
     }
     case 3:  // Upgrade a given SC geo file.
@@ -2038,48 +2262,6 @@ void MainWindow::on_pB_test_clicked()
         string outputPath = sroot + "\\debug\\testNorthwestOriginBars.png";
         im.pngPrint(outputPath, img, imgSpec);
         qshow("Done!");
-        break;
-    }
-    case 10:  // Perform a search and determine the delta origin.
-    {
-        vector<POINT> bHome, bPanel, vpDummy;
-        bm.init(ui->pte_search, 1);
-        bm.recordButtonTLBR(bHome, "home");
-        Sleep(500);
-        bm.recordButtonTLBR(bPanel, "panel");
-        Sleep(500);
-        POINT searchBar, bMinus = bHome[2];
-        bm.recordPoint(searchBar, "search bar");
-        bMinus.y += 45;
-        string inputPath = sroot + "\\desktop.png";
-        vector<unsigned char> img;
-        vector<int> imgSpec;
-        im.pngLoadHere(inputPath, img, imgSpec);
-        bm.findFrames(img, imgSpec, bHome[2]);
-        POINT originCanada = bm.getOrigin(img, imgSpec, vpDummy);
-        Sleep(500);
-        io.mouseClick(searchBar);
-        Sleep(500);
-        string temp = "alberta";
-        io.kbInput(temp);
-        Sleep(500);
-        io.kbInput(VK_DOWN);
-        Sleep(500);
-        io.kbInput(VK_RETURN);
-        Sleep(3000);
-        io.mouseClick(bPanel[2]);
-        Sleep(2000);
-        io.mouseClick(bMinus);
-        Sleep(2000);
-        string albertaPath = sroot + "\\albertaTest.png";
-        gdi.screenshot(albertaPath);
-        im.pngLoadHere(albertaPath, img, imgSpec);
-        POINT originAlberta = bm.getOrigin(img, imgSpec, vpDummy);
-        int dx = originAlberta.x - originCanada.x;
-        int dy = originAlberta.y - originCanada.y;
-        QString qMessage = "deltaOrigin x: " + QString::number(dx);
-        qMessage += "\ndeltaOrigin y: " + QString::number(dy);
-        ui->pte_search->setPlainText(qMessage);
         break;
     }
     case 11:  // Load a screenshot, make a list of highlighted pixels, make a bounding rectangle, display a color frequency list. 

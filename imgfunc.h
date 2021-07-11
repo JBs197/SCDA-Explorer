@@ -45,7 +45,9 @@ class IMGFUNC
 	JFUNC jf;
     vector<unsigned char> legendColourBox;
 	unordered_map<string, string> mapColour;
+    unordered_map<unsigned char, char> mapDecHex;
     unordered_map<int, int> mapFontWidth;  // Input ascii, output glyph width (pixels).  
+    unordered_map<char, unsigned char> mapHexDec;
     MATHFUNC mf;
     string pathActivePNG, pathMapDebug, bufferTempASCII;
     int pauseVBP, sizeVBP;
@@ -77,6 +79,8 @@ public:
 	IMGFUNC() {}
 	~IMGFUNC() {}
 
+    string convertColour(vector<unsigned char>& rgbx);
+    vector<unsigned char> convertColour(string& srgbx);
     POINT coordFromOffset(int offset, vector<int> imgSpec);
     void countPixelColour(string& filePath, vector<vector<unsigned char>>& colourList, vector<int>& freqList);
     void countPixelColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& colourList, vector<int>& freqList, vector<POINT> TLBR);
@@ -91,10 +95,12 @@ public:
     int getBandCenter(vector<int>& candidates);
     vector<POINT> getCircle(POINT pCenter, int radius);
     POINT getTLImgImg(string& targetPath, string& bgPath);
+    void initHex();
     void initScanCircles(string& pngPath);
     void linePaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<unsigned char> rgbx);
     vector<POINT> makeTLBR(vector<POINT>& vpRegion);
     void markTargetTL(string& targetPath, string& bgPath);
+    void pngCanvas(vector<int>& imgSpec, vector<unsigned char>& img, vector<unsigned char> rgbx);
     vector<unsigned char> pngExtractRow(vector<unsigned char>& img, vector<int>& imgSpec, POINT pLeft);
     void pngLoadHere(string& pngPath, vector<unsigned char>& pngData, vector<int>& spec);
     void pngLoadString(string& pngPath, string& pngData, vector<int>& spec);

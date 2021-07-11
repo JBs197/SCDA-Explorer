@@ -15,7 +15,7 @@
 #include <QTabWidget>
 #include <sqlite3.h>
 #include <iostream>
-#include "binmap.h"
+#include "jmap.h"
 #include "gdifunc.h"
 #include "gsfunc.h"
 #include "imgfunc.h"
@@ -111,6 +111,8 @@ private:
     void barReset(int iMax, string message);
     void barUpdate(int iCurrent);
     void bind(string&, vector<string>&);
+    void createBinMap(SWITCHBOARD& sbgui, BINMAP& bmgui);
+    void createChildPNG(SWITCHBOARD& sbgui, SQLFUNC& sfgui, PNGMAP& pngmgui);
     void createParentPNG(SWITCHBOARD& sbgui, SQLFUNC& sfgui, PNGMAP& pngmgui);
     void displayTable(QTableWidget*& qTable, string tname);
     void downloadCatalogue(string sYear, string sCata);

@@ -57,7 +57,7 @@ void QTFUNC::displayBinList(QListWidget*& qLW, vector<string>& pathBin)
 		qLW->addItem(qtemp);
 	}
 }
-void QTFUNC::displayTable(QTableWidget*& qTable, vector<vector<string>>& data, vector<vector<string>>& header)
+void QTFUNC::displayTable(QTableWidget*& qTable, vector<vector<QString>>& data, vector<vector<string>>& header)
 {
 	QString qTemp;
 	QTableWidgetItem* qCell;
@@ -68,8 +68,7 @@ void QTFUNC::displayTable(QTableWidget*& qTable, vector<vector<string>>& data, v
 	{
 		for (int jj = 0; jj < data[ii].size(); jj++)
 		{
-			qTemp = QString::fromStdString(data[ii][jj]);
-			qCell = new QTableWidgetItem(qTemp);
+			qCell = new QTableWidgetItem(data[ii][jj]);
 			qTable->setItem(ii, jj, qCell);
 		}
 	}
@@ -92,7 +91,32 @@ void QTFUNC::displayTable(QTableWidget*& qTable, vector<vector<string>>& data, v
 		}
 		qTable->setVerticalHeaderLabels(vHeaderLabels);
 	}
-
+}
+void QTFUNC::displayTable(QTableWidget*& qTable, vector<vector<string>>& data, vector<vector<string>>& header)
+{
+	vector<vector<QString>> qData(data.size(), vector<QString>());
+	for (int ii = 0; ii < qData.size(); ii++)
+	{
+		qData[ii].resize(data[ii].size());
+		for (int jj = 0; jj < qData[ii].size(); jj++)
+		{
+			qData[ii][jj] = QString::fromStdString(data[ii][jj]);
+		}
+	}
+	displayTable(qTable, qData, header);
+}
+void QTFUNC::displayTable(QTableWidget*& qTable, vector<vector<int>>& data, vector<vector<string>>& header)
+{
+	vector<vector<QString>> qData(data.size(), vector<QString>());
+	for (int ii = 0; ii < qData.size(); ii++)
+	{
+		qData[ii].resize(data[ii].size());
+		for (int jj = 0; jj < qData[ii].size(); jj++)
+		{
+			qData[ii][jj] = QString::number(data[ii][jj]);
+		}
+	}
+	displayTable(qTable, qData, header);
 }
 void QTFUNC::displayText(QLabel* ql, string stext)
 {
