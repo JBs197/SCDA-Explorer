@@ -28,7 +28,8 @@ public:
 	int answer_call(thread::id, vector<int>&);      // 2 = cancelled task
 	int end_call(thread::id);                       // 3 = paused task
 	void err(string func);
-	int terminateCall(thread::id id, int pindex);
+	int terminateWorker(thread::id id, int pindex);
+	void terminateSelf(thread::id);
 	vector<string> get_prompt();
 	vector<int> getMyComm(thread::id);
 	void set_prompt(vector<string>&);

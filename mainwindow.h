@@ -92,7 +92,7 @@ private:
     Ui::MainWindow *ui;
 
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
-    const int cores = 3, treeLength = 40;
+    const int cores = 3, treeLength = 40, mapMargin = 20;
     const long long csvMaxSize = 200000000;  // Bytes
     string db_path;
     const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
@@ -111,7 +111,7 @@ private:
     void barReset(int iMax, string message);
     void barUpdate(int iCurrent);
     void bind(string&, vector<string>&);
-    void createBinMap(SWITCHBOARD& sbgui, BINMAP& bmgui);
+    void createBinMap(SWITCHBOARD& sbgui);
     void createChildPNG(SWITCHBOARD& sbgui, SQLFUNC& sfgui, PNGMAP& pngmgui);
     void createParentPNG(SWITCHBOARD& sbgui, SQLFUNC& sfgui, PNGMAP& pngmgui);
     void displayTable(QTableWidget*& qTable, string tname);

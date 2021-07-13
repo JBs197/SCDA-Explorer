@@ -1,6 +1,29 @@
 #include "stdafx.h"
 #include "jmap.h"
 
+void MAP::cropToOverview(vector<unsigned char>& img, vector<int>& imgSpec)
+{
+	if (imgSpec != pngRes) { jf.err("No init or bad parameter-map.cropToOverview"); }
+	im.crop(img, imgSpec, vpOVCropped);
+}
+double MAP::extractScale(vector<unsigned char> img, vector<int> imgSpec)
+{
+	// Returns this map's "pixels per kilometer" scale. 
+	vector<POINT> TLBR(2);
+	TLBR[0].x = 14;
+	TLBR[0].y = 758;
+	TLBR[1].x = 300;
+	TLBR[1].y = 786;
+	im.crop(img, imgSpec, TLBR);
+	int leftCol = 4;
+	POINT scaleBR = getScaleCorner(img, imgSpec, leftCol);
+	int barLength = scaleBR.x - leftCol + 1;
+	vector<double> matchScore = testScale(img, imgSpec, scaleBR);
+	vector<int> minMax = jf.minMax(matchScore);
+	int iKM = viScale[minMax[1]];
+	double pixelPerKM = (double)barLength / (double)iKM;
+	return pixelPerKM;
+}
 vector<POINT> MAP::getPixel(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char>& RGBA)
 {
 	// Return the list of pixels matching the given colour for the given image.
@@ -45,9 +68,16 @@ POINT MAP::getOrigin(vector<unsigned char>& img, vector<int>& imgSpec, vector<PO
 POINT MAP::getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec)
 {
 	// Input img MUST have the MSBlack/White pattern along the zeroth column.
+	int startCol = 0;
+	POINT pCorner = getScaleCorner(img, imgSpec, startCol);
+	return pCorner;
+}
+POINT MAP::getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec, int& startCol)
+{
+	// Return POINT is the BR corner, and startCol is changed into the scale's left-most column.
 	vector<unsigned char> rgba, rgba1, rgba2;
 	POINT pAbove, pBelow, pCorner;
-	pBelow.x = 0;
+	pBelow.x = startCol;
 	pBelow.y = 0;
 	int count = 0;
 	while (1)
@@ -62,6 +92,18 @@ POINT MAP::getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec)
 	pAbove.y--;
 	rgba = im.pixelRGB(img, imgSpec, pAbove);
 	if (rgba != MSBlack) { jf.err("lost-pngm.getScaleIndex"); }
+	if (startCol > 0)
+	{
+		pCorner = pBelow;
+		rgba = im.pixelRGB(img, imgSpec, pCorner);
+		while (rgba != MSBlack)
+		{
+			pCorner.x -= 1;
+			if (pCorner.x < 0) { jf.err("lost-map.getScaleIndex"); }
+			rgba = im.pixelRGB(img, imgSpec, pCorner);
+		}
+		startCol = pCorner.x;
+	}
 	bool inside = 1;
 	while (inside)
 	{
@@ -84,23 +126,6 @@ POINT MAP::getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec)
 	pCorner.y -= 1;
 	return pCorner;
 }
-void MAP::qshow(string sMessage)
-{
-	if (pte == nullptr) { jf.err("No init-bm.qshow"); }
-	QString qMessage = QString::fromStdString(sMessage);
-	pte->setPlainText(qMessage);
-	if (isgui) { QCoreApplication::processEvents(); }
-}
-void MAP::recordButton(POINT& button, string buttonName)
-{
-	if (buttonName == "") { button = io.getCoord(VK_MBUTTON); return; }
-	string sMessage = "Middle Mouse Button:  " + buttonName;
-	qshow(sMessage);
-	button = io.getCoord(VK_MBUTTON);
-	sMessage = buttonName + ":  (" + to_string(button.x) + ",";
-	sMessage += to_string(button.y) + ")";
-	qshow(sMessage);
-}
 bool MAP::scanColourSquare(vector<POINT>& TLBR, vector<unsigned char> RGBA)
 {
 	// Capture the TLBR square. Return TRUE if every pixel matches the given colour. FALSE otherwise.
@@ -120,13 +145,9 @@ bool MAP::scanColourSquare(vector<POINT>& TLBR, vector<unsigned char> RGBA)
 	}
 	return 1;
 }
-void MAP::setPTE(QPlainTextEdit*& qPTE, bool isGUI)
-{
-	pte = qPTE;
-	isgui = isGUI;
-}
 vector<double> MAP::testScale(vector<unsigned char>& img, vector<int>& imgSpec, POINT pCorner)
 {
+	// For a given image and scaleBR (pCorner), return a list of match scores for each scale index. 
 	vector<POINT> largeTLBR = scaleLargeTLBR;
 	largeTLBR[0].x += pCorner.x;
 	largeTLBR[1].x += pCorner.x;
@@ -226,61 +247,164 @@ vector<double> MAP::testScale(vector<unsigned char>& img, vector<int>& imgSpec, 
 }
 
 
-void BINMAP::findFrames(vector<unsigned char>& img, vector<int>& imgSpec, POINT bHome) {}
-void BINMAP::init(QPlainTextEdit*& qPTE, bool isGUI, QTPAINT*& qpBIN)
+bool BINMAP::checkSpec(vector<int>& imgSpec)
 {
-	pte = qPTE;
-	isgui = isGUI;
-	qpBin = qpBIN;
+	// Returns TRUE if the given specifications match a main frame PNG, or an overview PNG. Else FALSE.
+	if (pngRes.size() != 3 || ovRes.size() != 3) { jf.err("No init-bm.checkSpec"); }
+	if (imgSpec == pngRes) { return 1; }
+	if (imgSpec == ovRes) { return 1; }
+	return 0;
+}
+void BINMAP::drawRect(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>> rgba, int iMargin)
+{
+	// Upon a given image, draw a rectangle encompassing the given colour, with a margin on all sides.
+	// rgba has form [target colour, rectangle colour].
+
+
+}
+vector<int> BINMAP::extractPosition(vector<unsigned char>& imgSuper, vector<int>& imgSpecSuper, vector<unsigned char>& imgHome, vector<int>& imgSpecHome)
+{
+	// Returns the region's displacement relative to the HomeOV reference image. 
+	vector<int> DxDy(2);
+	POINT TL;
+	TL.x = 0;
+	TL.y = imgSpecHome[1] - 1;
+	vector<unsigned char> botRowHome = im.pngExtractRow(imgHome, imgSpecHome, TL);
+	TL.y = 0;
+	vector<unsigned char> topRowHome = im.pngExtractRow(imgHome, imgSpecHome, TL);
+	vector<unsigned char> topRowSuper, botRowSuper, tempRow;
+	vector<unsigned char> rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+	if (rgba == Black)
+	{
+		while (rgba == Black)
+		{
+			TL.x++;
+			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		}
+		DxDy[0] = TL.x;
+		TL.x--;
+		rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		while (rgba == Black)
+		{
+			TL.y++;
+			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		}
+		DxDy[1] = TL.y;
+		TL.x = 0;
+		TL.y = 0;
+		tempRow = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
+		topRowSuper.assign(tempRow.begin() + (DxDy[0] * imgSpecSuper[2]), tempRow.end());
+		if (topRowSuper == topRowHome) 
+		{ 
+			DxDy[0] *= -1;
+			return DxDy; 
+		}  
+		TL.y = imgSpecSuper[1] - 1;
+		botRowSuper = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
+		botRowSuper.resize(botRowSuper.size() - (DxDy[0] * imgSpecSuper[2]));
+		if (botRowSuper == botRowHome) { DxDy[1] *= -1; }
+		else { jf.err("Failure-bm.extractPosition"); }
+	}
+	else
+	{
+		TL.y = imgSpecSuper[1] - 1;
+		rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		while (rgba == Black)
+		{
+			TL.x++;
+			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		}
+		DxDy[0] = TL.x;
+		TL.x--;
+		rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		while (rgba == Black)
+		{
+			TL.y--;
+			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		}
+		TL.y++;
+		DxDy[1] = imgSpecSuper[1] - TL.y;
+		TL.x = 0;
+		TL.y = 0;
+		topRowSuper = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
+		topRowSuper.resize(topRowSuper.size() - (DxDy[0] * imgSpecSuper[2]));
+		if (topRowSuper == topRowHome) { return DxDy; }  // Both displacements were positive.
+		TL.y = imgSpecSuper[1] - 1;
+		tempRow = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
+		botRowSuper.assign(tempRow.begin() + (DxDy[0] * imgSpecSuper[2]), tempRow.end());
+		if (botRowSuper == botRowHome)
+		{
+			DxDy[0] *= -1;
+			DxDy[1] *= -1;
+		}
+		else { jf.err("Failure-bm.extractPosition"); }
+	}
+	return DxDy;
+}
+void BINMAP::findFrames(vector<unsigned char>& img, vector<int>& imgSpec, POINT bHome) {}
+void BINMAP::initialize()
+{
 	string circlePath = sroot + "\\ScanCircles6.png";
 	im.initScanCircles(circlePath);
-	pngRes = { 1632, 817, 4 };
+	pngRes = { 1632, 818, 4 };
 	fullRes = { 3840, 1080, 4 };
+	ovRes = { 300, 213, 4 };
 	viScale = { 600, 300, 200, 100, 40, 20, 10 };
-	fOVCropped.resize(2);
-	fOVCropped[0].x = 1332;
-	fOVCropped[0].y = 605;
-	fOVCropped[1].x = 1631;
-	fOVCropped[1].y = 817;
+	vpOVCropped.resize(2);
+	vpOVCropped[0].x = 1332;
+	vpOVCropped[0].y = 605;
+	vpOVCropped[1].x = 1631;
+	vpOVCropped[1].y = 817;
 
-	/*
-	fMain.resize(3);
-	fMain[0].x = 2207;
-	fMain[0].y = 156;
-	fMain[1].x = 3838;
-	fMain[1].y = 972;
-	fMain[2].x = 3022;
-	fMain[2].y = 563;
-	fOverview.resize(3);
-	fOverview[0].x = 3540;
-	fOverview[0].y = 760;
-	fOverview[1].x = 3838;
-	fOverview[1].y = 972;
-	fOverview[2].x = 3689;
-	fOverview[2].y = 866;
-	fOVCropped.resize(3);
-	fOVCropped[0].x = fOverview[0].x - fMain[0].x;
-	fOVCropped[0].y = fOverview[0].y - fMain[0].y;
-	fOVCropped[1].x = fOverview[1].x - fMain[0].x;
-	fOVCropped[1].y = fOverview[1].y - fMain[0].y;
-	fOVCropped[2].x = fOverview[2].x - fMain[0].x;
-	fOVCropped[2].y = fOverview[2].y - fMain[0].y;
-	*/
+	scaleLargeTLBR.resize(2);
+	scaleLargeTLBR[0].x = -8;
+	scaleLargeTLBR[0].y = 2;
+	scaleLargeTLBR[1].x = 53;
+	scaleLargeTLBR[1].y = 15;
+	scaleSmallTLBR.resize(2);
+	scaleSmallTLBR[0].x = -9;
+	scaleSmallTLBR[0].y = 2;
+	scaleSmallTLBR[1].x = 42;
+	scaleSmallTLBR[1].y = 15;
 
 	Black = { 0, 0, 0, 255 };
 	Canada = { 240, 240, 240, 255 };
 	CanadaSel = { 192, 192, 243, 255 };
 	Green = { 34, 177, 76, 255 };
 	MSBlack = { 68, 68, 68, 255 };
+	MSText = { 102, 102, 102, 255 };
 	Navy = { 51, 80, 117, 255 };
 	Usa = { 215, 215, 215, 255 };
 	Water = { 179, 217, 247, 255 };
 	WaterSel = { 143, 174, 249, 255 };
 	White = { 255, 255, 255, 255 };
-}
-void BINMAP::pngToBin(string& pngPath)
-{
 
+	string scalePath, temp;
+	vector<int> imgSpec;
+	vector<unsigned char> img;
+	scaleMST.resize(viScale.size());
+	setScaleMST.resize(viScale.size());
+	for (int ii = 0; ii < scaleMST.size(); ii++)
+	{
+		scalePath = sroot + "\\font\\" + to_string(viScale[ii]) + "km.png";
+		im.pngLoadHere(scalePath, img, imgSpec);
+		scaleMST[ii] = getPixel(img, imgSpec, MSText);
+		for (int jj = 0; jj < scaleMST[ii].size(); jj++)
+		{
+			temp = jf.stringifyCoord(scaleMST[ii][jj]);
+			setScaleMST[ii].emplace(temp);
+		}
+	}
+}
+void BINMAP::qshow(string sMessage)
+{
+	if (pte == nullptr) { jf.err("No init-bm.qshow"); }
+	QString qMessage = QString::fromStdString(sMessage);
+	pte->setPlainText(qMessage);
+	if (isgui)
+	{
+		QCoreApplication::processEvents();
+	}
 }
 void BINMAP::recordPoint(POINT& point, string pointName)
 {
@@ -289,9 +413,10 @@ void BINMAP::recordPoint(POINT& point, string pointName)
 	QCoreApplication::processEvents();
 	point = io.getCoord(VK_MBUTTON);
 }
-void BINMAP::setPTE(QPlainTextEdit*& qPTE)
+void BINMAP::setPTE(QPlainTextEdit*& qPTE, bool isGUI)
 {
 	pte = qPTE;
+	isgui = isGUI;
 }
 
 
@@ -880,6 +1005,31 @@ int PNGMAP::initParentChild(vector<vector<string>>& geo)
 	}
 	return numPNG;
 }
+void PNGMAP::recordButton(POINT& button, string buttonName)
+{
+	if (buttonName == "") { button = io.getCoord(VK_MBUTTON); return; }
+	string sMessage = "Middle Mouse Button:  " + buttonName;
+	qshow(sMessage);
+	button = io.getCoord(VK_MBUTTON);
+	sMessage = buttonName + ":  (" + to_string(button.x) + ",";
+	sMessage += to_string(button.y) + ")";
+	qshow(sMessage);
+}
+void PNGMAP::qshow(string sMessage)
+{
+	if (pte == nullptr) { jf.err("No init-bm.qshow"); }
+	QString qMessage = QString::fromStdString(sMessage);
+	pte->setPlainText(qMessage);
+	if (isgui)
+	{
+		QCoreApplication::processEvents();
+	}
+}
+void PNGMAP::setPTE(QPlainTextEdit*& qPTE, bool isGUI)
+{
+	pte = qPTE;
+	isgui = isGUI;
+}
 
 
 int OVERLAY::checkColour(vector<unsigned char>& rgb)
@@ -980,28 +1130,6 @@ void OVERLAY::initPNG(vector<unsigned char>& imgBot, vector<int>& imgSpecBot)
 	colours[1] = Usa;
 	colours[2] = Water;
 	depth = 3;
-
-	/*
-	substrate.clear();
-	int index = 0, colourIndex;
-	vector<unsigned char> rgbx(length);
-	string sCoord, sColour;
-	for (int ii = 0; ii < pngSpecBot[1]; ii++)
-	{
-		for (int jj = 0; jj < pngSpecBot[0]; jj++)
-		{
-			for (int kk = 0; kk < length; kk++)
-			{
-				rgbx[kk] = pngBot[index + kk];
-			}
-			index += length;
-			colourIndex = checkColour(rgbx);
-			if (colourIndex < 0) { continue; }
-			sCoord = to_string(jj) + "," + to_string(ii);
-			substrate.emplace(sCoord, colourIndex);
-		}
-	}
-	*/
 
 	substrate.clear();
 	substrate.resize(imgSpecBot[1], vector<int>(imgSpecBot[0], -1));
@@ -1130,14 +1258,15 @@ void OVERLAY::printSuperposition(string& pngPath, vector<int> TL)
 	}
 	im.pngPrint(pngPath, imgSuper, imgSpecSuper);
 }
-void OVERLAY::reportSuperposition(SWITCHBOARD& sbgui, vector<vector<int>>& match, OVERLAY ov, int myIndex)
+void OVERLAY::reportSuperposition(SWITCHBOARD& sbgui, vector<vector<int>>& match, OVERLAY ov)
 {
 	thread::id myid = this_thread::get_id();
 	vector<int> mycomm;
-	sbgui.answer_call(myid, mycomm);
-	vector<string> prompt = sbgui.get_prompt();
-	int startRow = stoi(prompt[myIndex * 2]);
-	int stopRow = stoi(prompt[(myIndex * 2) + 1]);
+	int myIndex = sbgui.answer_call(myid, mycomm) - 2;  // GUI and manager occupy 0,1
+	int startRow = match[0][0];
+	match[0][0] = 0;
+	int stopRow = match[0][1];
+	match[0][1] = 0;
 	if (ov.substrate.size() < 1) { jf.err("No init-ov.createSuperposition"); }
 	int matchSize = match.size(), colourIndexTop;
 	vector<int> matchTemp(3);
@@ -1189,6 +1318,7 @@ void OVERLAY::reportSuperposition(SWITCHBOARD& sbgui, vector<vector<int>>& match
 	}
 	mycomm[0] = 1;
 	sbgui.update(myid, mycomm);
+	sbgui.terminateSelf(myid);
 }
 vector<int> OVERLAY::setTopPNG(vector<unsigned char>& img, vector<int>& imgSpec)
 {

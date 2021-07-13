@@ -966,20 +966,158 @@ void MainWindow::createChildPNG(SWITCHBOARD& sbgui, SQLFUNC& sfgui, PNGMAP& pngm
     mycomm[0] = 1;
     sbgui.update(myid, mycomm);
 }
-void MainWindow::createBinMap(SWITCHBOARD& sbgui, BINMAP& bmgui)
+void MainWindow::createBinMap(SWITCHBOARD& sbgui)
 {
     thread::id myid = this_thread::get_id();
-    vector<int> mycomm;
-    sbgui.answer_call(myid, mycomm);
+    vector<vector<int>> comm(2, vector<int>());
+    sbgui.answer_call(myid, comm[1]);
     vector<string> pngPath = sbgui.get_prompt();
+    vector<unsigned char> img;
+    vector<int> imgSpec, minMax;
+    vector<string> dirt = { ".png" }, soap = { ".bin" };
+    string binPath, binFile, binFileNew, temp, pixelPerKM;
+    size_t pos1, pos2;
+    bm.initialize();
     for (int ii = 0; ii < pngPath.size(); ii++)
     {
-        bmgui.pngToBin(pngPath[ii]);
-        mycomm[1]++;
-        sbgui.update(myid, mycomm);
+        comm[1][3] = ii + 1;
+        comm = sbgui.update(myid, comm[1]);
+
+        im.pngLoadHere(pngPath[ii], img, imgSpec);
+        if (!bm.checkSpec(imgSpec)) { jf.err("Incorrect PNG resolution-MainWindow.createBinMap"); }
+        binPath = pngPath[ii];
+        jf.clean(binPath, dirt, soap);
+        bool scale = 0, position = 0, border = 0;
+        if (wf.file_exist(binPath))
+        {
+            binFile = wf.load(binPath);
+            pos1 = binFile.find("//scale");
+            if (pos1 < binFile.size()) { scale = 1; }
+            pos1 = binFile.find("//position");
+            if (pos1 < binFile.size()) { position = 1; }
+            pos1 = binFile.find("//border");
+            if (pos1 < binFile.size()) { border = 1; }
+            if (scale && position && border) { continue; }
+        }
+
+        // Get the map's scale (pixels per kilometer).
+        if (!scale)
+        {
+            double PPKM = bm.extractScale(img, imgSpec);
+            pixelPerKM = to_string(PPKM);
+        }
+        else
+        {
+            pos1 = binFile.find("//scale");
+            pos1 = binFile.find('\n', pos1) + 1;
+            pos2 = binFile.find_first_of("\r\n", pos1);
+            pixelPerKM = binFile.substr(pos1, pos2 - pos1);
+        }
+        binFileNew = "//scale\n" + pixelPerKM + "\n\n";
+        wf.printer(binPath, binFileNew);
+
+        // Get the map's position relative to the Home map.
+        if (!position)
+        {
+            string botPath = sroot + "\\HomeOV.png";
+            vector<unsigned char> imgBot, imgTop, imgSuper, rgba;
+            vector<int> imgSpecBot, imgSpecTop, imgSpecSuper, DxDy;
+            im.pngLoadHere(botPath, imgBot, imgSpecBot);
+            OVERLAY ov;
+            ov.initPNG(imgBot, imgSpecBot);
+            pos1 = pngPath[ii].rfind(".png");
+            string superposPath = pngPath[ii];
+            superposPath.insert(pos1, "(superposition)");
+            if (!wf.file_exist(superposPath))
+            {
+                imgTop = img;
+                imgSpecTop = imgSpec;
+                bm.cropToOverview(imgTop, imgSpecTop);
+                vector<int> minMaxTL = ov.setTopPNG(imgTop, imgSpecTop);
+                vector<vector<vector<int>>> matchResult(3, vector<vector<int>>(5, vector<int>(3, 0)));
+                int taskSize = minMaxTL[1] - minMaxTL[0] + 1;
+                comm[1][2] = taskSize;
+                sbgui.update(myid, comm[1]);
+                int workload = taskSize / 5, iNum;
+                matchResult[0][0][0] = minMaxTL[0];
+                matchResult[0][0][1] = minMaxTL[0] + (2 * workload);
+                matchResult[1][0][0] = minMaxTL[0] + (2 * workload) + 1;
+                matchResult[1][0][1] = minMaxTL[0] + (3 * workload);
+                matchResult[2][0][0] = minMaxTL[0] + (3 * workload) + 1;
+                matchResult[2][0][1] = minMaxTL[1];
+                std::thread thr0(&OVERLAY::reportSuperposition, &ov, ref(sbgui), ref(matchResult[0]), ov);
+                thr0.detach();
+                Sleep(50);
+                std::thread thr1(&OVERLAY::reportSuperposition, &ov, ref(sbgui), ref(matchResult[1]), ov);
+                thr1.detach();
+                Sleep(50);
+                std::thread thr2(&OVERLAY::reportSuperposition, &ov, ref(sbgui), ref(matchResult[2]), ov);
+                thr2.detach();
+                Sleep(50);
+                while (1)
+                {
+                    Sleep(gui_sleep);
+                    comm = sbgui.update(myid, comm[1]);
+                    iNum = 0;
+                    for (int jj = 2; jj < comm.size(); jj++)
+                    {
+                        iNum += comm[jj][0];
+                    }
+                    if (iNum == 3) 
+                    { 
+                        for (int jj = comm.size() - 1; jj > 1; jj--)
+                        {
+                            sbgui.terminateWorker(myid, jj);
+                        }
+                        break; 
+                    }
+                }
+                int maxMatch = 0;
+                vector<int> maxIndex = { -1, -1 };
+                for (int jj = 0; jj < 3; jj++)
+                {
+                    for (int kk = 0; kk < matchResult[jj].size(); kk++)
+                    {
+                        if (matchResult[jj][kk][0] > maxMatch)
+                        {
+                            maxMatch = matchResult[jj][kk][0];
+                            maxIndex = { jj, kk };
+                        }
+                    }
+                }
+                vector<int> viTL = { matchResult[maxIndex[0]][maxIndex[1]][1], matchResult[maxIndex[0]][maxIndex[1]][2] };
+                ov.printSuperposition(superposPath, viTL);
+            }
+            im.pngLoadHere(superposPath, imgSuper, imgSpecSuper);
+            DxDy = bm.extractPosition(imgSuper, imgSpecSuper, imgBot, imgSpecBot);
+            binFileNew += "//position\n" + to_string(DxDy[0]) + "," + to_string(DxDy[1]) + "\n\n";
+        }
+        else
+        {
+            pos1 = binFile.find("//position");
+            pos2 = binFile.find('\n', pos1) + 1;
+            pos2 = binFile.find_first_of("\r\n", pos2);
+            binFileNew += binFile.substr(pos1, pos2 - pos1) + "\n\n";
+        }
+        wf.printer(binPath, binFileNew);
+
+        // Get the map's border coordinates relative to a TLBR frame with given margins.
+        if (!border)
+        {
+            string paintedPath = pngPath[ii];
+            pos1 = paintedPath.rfind(".png");
+            paintedPath.insert(pos1, "(painted)");
+            if (!wf.file_exist(paintedPath))
+            {
+                
+            }
+        }
+
+        comm[1][3]++;
+        sbgui.update(myid, comm[1]);
     }
-    mycomm[0] = 1;
-    sbgui.update(myid, mycomm);
+    comm[1][0] = 1;
+    sbgui.update(myid, comm[1]);
 }
 void MainWindow::on_pB_createmap_clicked() 
 {
@@ -1087,28 +1225,30 @@ void MainWindow::on_pB_createmap_clicked()
     {
         QList<QTreeWidgetItem*> qSel = ui->treeW_maplocal->selectedItems();
         if (qSel.size() != 1) { return; }
-        string folderPath = qf.getBranchPath(qSel[0], sroot);
-        vector<string> pngList = wf.get_file_list(folderPath, "*.png");
+        string folderPath = qf.getBranchPath(qSel[0], sroot), sMessage;
+        vector<string> pngList = wf.get_file_list(folderPath, "*.png"), prompt;
         if (pngList.size() < 1)
         {
             qshow("ERROR: No PNG files in the selected directory.");
             return;
         }
-        vector<string> prompt(pngList.size());
-        for (int ii = 0; ii < prompt.size(); ii++)
+        size_t pos1;
+        for (int ii = 0; ii < pngList.size(); ii++)
         {
-            prompt[ii] = folderPath + "\\" + pngList[ii];
+            pos1 = pngList[ii].find("(superposition)");
+            if (pos1 < pngList[ii].size()) { continue; }
+            pos1 = pngList[ii].find("(painted)");
+            if (pos1 < pngList[ii].size()) { continue; }
+            prompt.push_back(folderPath + "\\" + pngList[ii]);
         }
         thread::id myid = this_thread::get_id();
         vector<vector<int>> comm(1, vector<int>());
-        comm[0].assign(comm_length, 0);
+        comm[0].assign(comm_length, 0);  // Form [status, bar progress, bar max, file progress]
         sb.set_prompt(prompt);
-        bm.init(ui->pte_search, 0, ui->qp_maplocal);
-        sb.start_call(myid, 1, comm[0]);
+        sb.start_call(myid, 4, comm[0]);
         std::thread thr(&MainWindow::createBinMap, this, ref(sb));
         thr.detach();
-        comm[0][2] = prompt.size();
-        barReset(comm[0][2], "Creating BIN maps from PNGs ...");
+        int numFile = prompt.size();
         while (1)
         {
             Sleep(gui_sleep);
@@ -1121,11 +1261,28 @@ void MainWindow::on_pB_createmap_clicked()
             Sleep(gui_sleep);
             QCoreApplication::processEvents();
             comm = sb.update(myid, comm[0]);
-            if (comm[1][1] > comm[0][1])
+            if (comm[1][3] > comm[0][3])
             {
-                comm[0][1] = comm[1][1];
-                barUpdate(comm[0][1]);
+                if (comm[1][2] > 0) { comm[0][2] = comm[1][2]; }
+                else { comm[0][2] = 1; }
+                comm[0][3] = comm[1][3];
+                sMessage = "Creating BIN maps from PNGs (" + to_string(comm[0][3]) + "/";
+                sMessage += to_string(numFile) + ")";
+                barReset(comm[0][2], sMessage);
             }
+            else if (comm[1][2] > comm[0][2])
+            {
+                comm[0][2] = comm[1][2];
+                sMessage = "Creating BIN maps from PNGs (" + to_string(comm[0][3]) + "/";
+                sMessage += to_string(numFile) + ")";
+                barReset(comm[0][2], sMessage);
+            }
+            comm[0][1] = 0;
+            for (int ii = 0; ii < comm.size(); ii++)
+            {
+                comm[0][1] += comm[ii][1];
+            }
+            barUpdate(comm[0][1]);
             if (comm[1][0] == 1)
             {
                 barUpdate(comm[0][2]);
@@ -1288,7 +1445,8 @@ void MainWindow::on_pB_insertmap_clicked()
     pos2 = tnameGeo.find('$', pos1);
     string sCata = tnameGeo.substr(pos1, pos2 - pos1);
 
-    bm.init(ui->pte_search, 0);    
+    bm.initialize();   
+    bm.setPTE(ui->pte_search, 0);
     thread::id myid = this_thread::get_id();
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);
@@ -1961,7 +2119,7 @@ void MainWindow::on_pB_test_clicked()
             to_string(minMaxTL[1])
         };
         sb.set_prompt(prompt);
-        std::thread thr0(&OVERLAY::reportSuperposition, &ov, ref(sb), ref(matchResult[0]), ov, 0);
+        std::thread thr0(&OVERLAY::reportSuperposition, &ov, ref(sb), ref(matchResult[0]), ov);
         thr0.detach();
         while (1)
         {
@@ -1969,7 +2127,7 @@ void MainWindow::on_pB_test_clicked()
             comm = sb.update(myid, comm[0]);
             if (comm.size() == 2) { break; }
         }
-        std::thread thr1(&OVERLAY::reportSuperposition, &ov, ref(sb), ref(matchResult[1]), ov, 1);
+        std::thread thr1(&OVERLAY::reportSuperposition, &ov, ref(sb), ref(matchResult[1]), ov);
         thr1.detach();
         while (1)
         {
@@ -1977,7 +2135,7 @@ void MainWindow::on_pB_test_clicked()
             comm = sb.update(myid, comm[0]);
             if (comm.size() == 3) { break; }
         }
-        std::thread thr2(&OVERLAY::reportSuperposition, &ov, ref(sb), ref(matchResult[2]), ov, 2);
+        std::thread thr2(&OVERLAY::reportSuperposition, &ov, ref(sb), ref(matchResult[2]), ov);
         thr2.detach();
         while (1)
         {
@@ -2498,7 +2656,8 @@ void MainWindow::on_pB_test_clicked()
             "20km",
             "10km"
         };
-        bm.init(ui->pte_search, 1);
+        bm.initialize();
+        bm.setPTE(ui->pte_search, 1);
         string sMessage, pngPath, pngPathCropped, temp;
         for (int ii = 0; ii < scale.size(); ii++)
         {

@@ -66,14 +66,21 @@ int SWITCHBOARD::end_call(thread::id id)
 	return 0;
 }
 
-// Allows the manager thread to remove a worker thread.
-int SWITCHBOARD::terminateCall(thread::id id, int pindex)
+// Allows a manager thread to remove a worker thread's integer data.
+int SWITCHBOARD::terminateWorker(thread::id id, int pindex)
 {
 	lock_guard<mutex> addrem(m_sb);
 	int myIndex = map_phone.at(id);
-	if (myIndex != 0) { return 1; }
-	phone_lines.erase(phone_lines.begin() + pindex);
+	if (myIndex < pindex) { phone_lines.erase(phone_lines.begin() + pindex); }
+	else { return 1; }
 	return 0;
+}
+
+// Allows a worker thread to remove itself from the map, but does not remove its final report.
+void SWITCHBOARD::terminateSelf(thread::id id)
+{
+	lock_guard<mutex> addrem(m_sb);
+	map_phone.erase(id);
 }
 
 // Any thread can simultaneously give an update on its comm, and receive the current comm status for the job.

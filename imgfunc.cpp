@@ -455,7 +455,7 @@ void IMGFUNC::pngCanvas(vector<int>& imgSpec, vector<unsigned char>& img, vector
 vector<unsigned char> IMGFUNC::pngExtractRow(vector<unsigned char>& img, vector<int>& imgSpec, POINT pLeft)
 {
     vector<unsigned char> vRow;
-    vRow.resize(4 * imgSpec[0]);
+    vRow.resize(imgSpec[0] * imgSpec[2]);
     int offset = getOffset(pLeft, imgSpec);
     for (int ii = 0; ii < vRow.size(); ii++)
     {
