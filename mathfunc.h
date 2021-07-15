@@ -21,7 +21,8 @@ public:
 	double coordDist(vector<int>& iv1, vector<int>& iv2);
 	double coordDistPoint(POINT origin, POINT test);
 	double coordDistPointSum(POINT& origin, vector<POINT>& testList);
-	void coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList, vector<double>& resultList);
+	vector<double> coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList);
+	vector<double> coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList, int depth);
 	void coordOnCircle(vector<double>& origin, double& radius, double& angle, vector<double>& coord);
 	void coordOnCircle(vector<int>& origin, int& radius, double& angle, vector<int>& coord);
 	double hypoteneuse(double& Dx, double& Dy);

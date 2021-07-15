@@ -1,6 +1,19 @@
 #include "stdafx.h"
 #include "imgfunc.h"
 
+int IMGFUNC::checkColour(vector<vector<unsigned char>>& rgbaList, vector<unsigned char>& rgba)
+{
+    // Return the colourIndex if the given colour matches one of the rows in rgbaList. Else -1.
+    for (int ii = 0; ii < rgbaList.size(); ii++)
+    {
+        for (int jj = 0; jj < rgba.size(); jj++)
+        {
+            if (rgba[jj] != rgbaList[ii][jj]) { break; }
+            else if (jj == rgba.size() - 1) { return ii; }
+        }
+    }
+    return -1;
+}
 string IMGFUNC::convertColour(vector<unsigned char>& rgbx)
 {
     if (mapDecHex.size() < 1) { initHex(); }
@@ -195,19 +208,52 @@ void IMGFUNC::drawSquare(vector<unsigned char>& img, vector<int>& imgSpec, POINT
         }
     }
 }
-void IMGFUNC::filterColour(vector<POINT>& pList, vector<vector<unsigned char>>& rgbList, vector<unsigned char> rgb)
+void IMGFUNC::filterColour(vector<POINT>& pList, vector<vector<unsigned char>>& rgbList, vector<unsigned char> rgbx)
 {
+    // Given a list of points and matching list of colours, remove those that do not match the filter.
     if (pList.size() != rgbList.size()) { jf.err("Size mismatch-im.filterColour"); }
     for (int ii = rgbList.size() - 1; ii >= 0; ii--)
     {
-        if (rgbList[ii] != rgb)
+        if (rgbList[ii] != rgbx)
         {
             rgbList.erase(rgbList.begin() + ii);
             pList.erase(pList.begin() + ii);
         }
     }
 }
-vector<POINT> IMGFUNC::findColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGB, vector<POINT> TLBR)
+void IMGFUNC::filterDeadCone(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbList)
+{
+    // Define a forward vector using the last three border points. Remove all candidates
+    // which are within (plus or minus) deadCone/2 of the forward vector's opposite. 
+    if (vpBorder.size() < 3) { jf.err("Insufficient vpBorder length-im.filterDeadCone"); }
+    if (vpCandidate.size() != rgbList.size()) { jf.err("Parameter size mismatch-im.filterDeadCone"); }
+    int borderIndex = vpBorder.size() - 1;
+    double deviation; 
+    vector<vector<double>> pastPresentCandidate(3);
+    double xPast = ((double)vpBorder[borderIndex - 1].x + (double)vpBorder[borderIndex - 2].x) / 2.0;
+    double yPast = ((double)vpBorder[borderIndex - 1].y + (double)vpBorder[borderIndex - 2].y) / 2.0;
+    pastPresentCandidate[0] = { xPast, yPast };
+    pastPresentCandidate[1] = { (double)vpBorder[borderIndex].x, (double)vpBorder[borderIndex].y };
+    for (int ii = 0; ii < vpCandidate.size(); ii++)
+    {
+        pastPresentCandidate[2] = { (double)vpCandidate[ii].x, (double)vpCandidate[ii].y };
+        if (pastPresentCandidate[2] == pastPresentCandidate[0])
+        {
+            vpCandidate.erase(vpCandidate.begin() + ii);
+            rgbList.erase(rgbList.begin() + ii);
+            ii--;
+            continue;
+        }
+        deviation = mf.angleBetweenVectors(pastPresentCandidate);
+        if (abs(180.0 - deviation) <= deadCone / 2.0 )
+        {
+            vpCandidate.erase(vpCandidate.begin() + ii);
+            rgbList.erase(rgbList.begin() + ii);
+            ii--;
+        }
+    }
+}
+vector<POINT> IMGFUNC::findTLBRColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGB, vector<POINT> TLBR)
 {
     // Return a list of points that match the given colour, within the specified TLBR.
     vector<unsigned char> rgb;
@@ -266,17 +312,190 @@ int IMGFUNC::getBandCenter(vector<int>& candidates)
     frontrunner[1] -= frontrunner[0] / 2;
     return frontrunner[1];
 }
+POINT IMGFUNC::getBorderPoint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<double> greenBlueOutside, vector<vector<double>> vvdInside)
+{
+    // greenBlue is the decimal ratio of green divided by blue in a pixel. The greenBlue vectors
+    // indicate min/max values for the acceptable interval, outside or inside. 
+    // vdInside has form [greenBlueInside, redBlueInside, redGreenInside].
+    if (startStop[0].x < 0 || startStop[1].x < 0) { jf.err("startStop out of bounds-im.getBorderPoint"); }
+    if (startStop[0].y < 0 || startStop[1].y < 0) { jf.err("startStop out of bounds-im.getBorderPoint"); }
+    if (startStop[0].x >= imgSpec[0] || startStop[1].x >= imgSpec[0]) { jf.err("startStop out of bounds-im.getBorderPoint"); }
+    if (startStop[0].y >= imgSpec[1] || startStop[1].y >= imgSpec[1]) { jf.err("startStop out of bounds-im.getBorderPoint"); }
+    vector<unsigned char> rgba;
+    int idx, idy, colourIndex;
+    double ddx, ddy, dDx, dDy, xMid, yMid, greenBlue, redBlue, redGreen;
+    bool perpendicular = 0;
+    if (startStop[0].x == startStop[1].x)
+    {
+        idx = 0;
+        if (startStop[1].y > startStop[0].y) { idy = 1; }
+        else { idy = -1; }
+        perpendicular = 1;
+    }
+    if (startStop[0].y == startStop[1].y)
+    {
+        idy = 0;
+        if (startStop[1].x > startStop[0].x) { idx = 1; }
+        else { idx = -1; }
+        perpendicular = 1;
+    }
+    if (!perpendicular)
+    {
+        double Dx = (double)(startStop[1].x - startStop[0].x);
+        double Dy = (double)(startStop[1].y - startStop[0].y);
+        if (abs(Dx) > abs(Dy))
+        {
+            ddy = Dy / abs(Dx);
+            if (Dx > 0) { idx = 1; }
+            else { idx = -1; }
+            idy = 0;
+        }
+        else
+        {
+            ddx = Dx / abs(Dy);
+            if (Dy > 0) { idy = 1; }
+            else { idy = -1; }
+            idx = 0;
+        }
+        dDx = (double)startStop[0].x;
+        dDy = (double)startStop[0].y;
+    }
+    POINT p1 = startStop[0], pOutside = startStop[0], pBorder;
+    pBorder.x = -1;
+    pBorder.y = -1;
+    if (startStop[1].y > 600)
+    {
+        int bbq = 1;  // RESUME HERE
+    }
+    while (p1.x != startStop[1].x || p1.y != startStop[1].y)
+    {
+        rgba = pixelRGB(img, imgSpec, p1);
+        greenBlue = (double)rgba[1] / (double)rgba[2];
+        if (greenBlue >= greenBlueOutside[0] && greenBlue < greenBlueOutside[1])
+        {
+            pOutside = p1;
+            if (perpendicular)
+            {
+                p1.x += idx;
+                p1.y += idy;
+                continue;
+            }
+            else if (!idx)
+            {
+                p1.y += idy;
+                dDx += ddx;
+                p1.x = int(round(dDx));
+                continue;
+            }
+            else
+            {
+                p1.x += idx;
+                dDy += ddy;
+                p1.y = int(round(dDy));
+                continue;
+            }
+        }
+        else if (greenBlue >= vvdInside[0][0] && greenBlue < vvdInside[0][1])
+        {
+            redBlue = (double)rgba[0] / (double)rgba[2];
+            if (redBlue >= vvdInside[1][0] && redBlue < vvdInside[1][1])
+            {
+                xMid = ((double)p1.x + (double)pOutside.x) / 2.0;
+                yMid = ((double)p1.y + (double)pOutside.y) / 2.0;
+                pBorder.x = int(round(xMid));
+                pBorder.y = int(round(yMid));
+                break;
+            }
+            else
+            {
+                redGreen = (double)rgba[0] / (double)rgba[1];
+                if (redGreen >= vvdInside[2][0] && redGreen < vvdInside[2][1])
+                {
+                    xMid = ((double)p1.x + (double)pOutside.x) / 2.0;
+                    yMid = ((double)p1.y + (double)pOutside.y) / 2.0;
+                    pBorder.x = int(round(xMid));
+                    pBorder.y = int(round(yMid));
+                    break;
+                }
+            }
+
+        }
+        if (perpendicular)
+        {
+            p1.x += idx;
+            p1.y += idy;
+            continue;
+        }
+        else if (!idx)
+        {
+            p1.y += idy;
+            dDx += ddx;
+            p1.x = int(round(dDx));
+            continue;
+        }
+        else
+        {
+            p1.x += idx;
+            dDy += ddy;
+            p1.y = int(round(dDy));
+            continue;
+        }
+    }
+    return pBorder;
+}
 vector<POINT> IMGFUNC::getCircle(POINT pCenter, int radius)
 {
+    // Return a list of POINTs that form a rough circle around the given center and radius.
     if (scanCircles.size() < 1) { jf.err("No init for scanCircles-im.getCircle"); }
     if (radius < 1 || radius >= scanCircles.size()) { jf.err("Bad radius-im.getCircle"); }
     vector<POINT> circle = scanCircles[radius - 1];
     for (int ii = 0; ii < circle.size(); ii++)
     {
-        circle[ii].x += pCenter.x - 9;
-        circle[ii].y += pCenter.y - 9;
+        circle[ii].x += pCenter.x - pScanCircleCenter.x;
+        circle[ii].y += pCenter.y - pScanCircleCenter.y;
     }
     return circle;
+}
+vector<POINT> IMGFUNC::getCircle(POINT pCenter, int radius, vector<int>& imgSpec)
+{
+    // Return a list of POINTs that form a rough circle around the given center and radius.
+    // If a circle point would step out of bounds, constrain it to the boundary.
+    if (scanCircles.size() < 1) { jf.err("No init for scanCircles-im.getCircle"); }
+    if (radius < 1 || radius >= scanCircles.size()) { jf.err("Bad radius-im.getCircle"); }
+    vector<POINT> circle = scanCircles[radius - 1];
+    for (int ii = 0; ii < circle.size(); ii++)
+    {
+        circle[ii].x += pCenter.x - pScanCircleCenter.x;
+        if (circle[ii].x < 0) { circle[ii].x = 0; }
+        if (circle[ii].x >= imgSpec[0]) { circle[ii].x = imgSpec[0] - 1; }
+        circle[ii].y += pCenter.y - pScanCircleCenter.y;
+        if (circle[ii].y < 0) { circle[ii].y = 0; }
+        if (circle[ii].y >= imgSpec[1]) { circle[ii].y = imgSpec[1] - 1; }
+    }
+    return circle;
+}
+POINT IMGFUNC::getFirstColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGBX)
+{
+    // Reading through the image, return the first POINT which has the given colour.
+    POINT p1;
+    vector<unsigned char> rgbx;
+    bool letmeout = 0;
+    for (int ii = 0; ii < imgSpec[1]; ii++)
+    {
+        p1.y = ii;
+        for (int jj = 0; jj < imgSpec[0]; jj++)
+        {
+            p1.x = jj;
+            rgbx = pixelRGB(img, imgSpec, p1);
+            if (rgbx == RGBX)
+            {
+                letmeout = 1;
+                break;
+            }
+        }
+        if (letmeout) { break; }
+    }
+    return p1;
 }
 POINT IMGFUNC::getTLImgImg(string& targetPath, string& bgPath)
 {
@@ -360,10 +579,10 @@ void IMGFUNC::initScanCircles(string& pngPath)
     string sRGB;
     unordered_map<string, int> mapRgbIndex;
     pngLoadHere(pngPath, img, imgSpec);
-    POINT pCenter, p1;
-    pCenter.x = imgSpec[0] / 2;
-    pCenter.y = imgSpec[1] / 2;
-    p1 = pCenter;
+    POINT p1;
+    pScanCircleCenter.x = imgSpec[0] / 2;
+    pScanCircleCenter.y = imgSpec[1] / 2;
+    p1 = pScanCircleCenter;
     while (p1.x < imgSpec[0])
     {
         p1.x++;
@@ -383,15 +602,42 @@ void IMGFUNC::initScanCircles(string& pngPath)
         {
             p1.x = jj;
             rgb = pixelRGB(img, imgSpec, p1);
-            if (rgb == White || rgb == Black) { continue; }
+            if (rgb == White4 || rgb == Black4) { continue; }
             sRGB = jf.stringifyCoord(rgb);
             index = mapRgbIndex.at(sRGB);
             scanCircles[index].push_back(p1);
         }
     }
 }
+vector<POINT> IMGFUNC::loadBox(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGBX)
+{
+    // Given an image with an existing rgbx rectangle on it, return that rectangle's TLBR.
+    if (RGBX.size() != imgSpec[2]) { jf.err("rgbx parameter mismatch-im.loadBox"); }
+    vector<POINT> TLBR(2);
+    POINT p1 = getFirstColour(img, imgSpec, RGBX);
+    TLBR[0] = p1;
+    vector<unsigned char> rgbx = pixelRGB(img, imgSpec, p1);
+    while (rgbx == RGBX)
+    {
+        p1.x++;
+        if (p1.x == imgSpec[0]) { break; }
+        rgbx = pixelRGB(img, imgSpec, p1);
+    }
+    p1.x--;
+    rgbx = pixelRGB(img, imgSpec, p1);
+    while (rgbx == RGBX)
+    {
+        p1.y++;
+        if (p1.y == imgSpec[1]) { break; }
+        rgbx = pixelRGB(img, imgSpec, p1);
+    }
+    p1.y--;
+    TLBR[1] = p1;
+    return TLBR;
+}
 void IMGFUNC::linePaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<unsigned char> rgbx)
 {
+    // Paint every pixel inside startStop, extrapolating a straight line between the points.
     vector<POINT> path = linePath(startStop);
     for (int ii = 0; ii < path.size(); ii++)
     {
@@ -400,6 +646,7 @@ void IMGFUNC::linePaint(vector<unsigned char>& img, vector<int>& imgSpec, vector
 }
 vector<vector<unsigned char>> IMGFUNC::lineRGB(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> vpList)
 {
+    // Return a list of colours, one for each pixel (POINT) given.
     vector<vector<unsigned char>> rgbList(vpList.size(), vector<unsigned char>());
     for (int ii = 0; ii < rgbList.size(); ii++)
     {

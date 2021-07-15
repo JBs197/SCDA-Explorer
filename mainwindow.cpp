@@ -1104,14 +1104,46 @@ void MainWindow::createBinMap(SWITCHBOARD& sbgui)
         // Get the map's border coordinates relative to a TLBR frame with given margins.
         if (!border)
         {
+            vector<unsigned char> imgPainted, imgBorder;
+            vector<int> imgSpecPainted, imgSpecBorder;
+            vector<POINT> TLBR, vpBorder(1);
             string paintedPath = pngPath[ii];
             pos1 = paintedPath.rfind(".png");
             paintedPath.insert(pos1, "(painted)");
             if (!wf.file_exist(paintedPath))
             {
-                
+                imgPainted = img;
+                imgSpecPainted = imgSpec;
+                TLBR = bm.drawRect(imgPainted, imgSpecPainted, mapMargin);
+                bm.sprayRegion(imgPainted, imgSpecPainted, TLBR);
+                im.pngPrint(paintedPath, imgPainted, imgSpecPainted);
             }
+            else 
+            { 
+                im.pngLoadHere(paintedPath, imgPainted, imgSpecPainted); 
+                TLBR = im.loadBox(imgPainted, imgSpecPainted, { 255, 0, 0, 255 });
+            }
+            imgBorder = imgPainted;
+            imgSpecBorder = imgSpecPainted;
+            im.crop(imgBorder, imgSpecBorder, TLBR);
+            vpBorder[0] = im.getFirstColour(imgBorder, imgSpecBorder, { 34, 177, 76, 255 });
+            bm.borderPlus(imgBorder, imgSpecBorder, vpBorder);
+            bm.borderPlus(imgBorder, imgSpecBorder, vpBorder);
+            bm.borderComplete(imgBorder, imgSpecBorder, vpBorder);
+            binFileNew += "//border";
+            for (int jj = 0; jj < vpBorder.size(); jj++)
+            {
+                binFileNew += "\n" + jf.stringifyCoord(vpBorder[jj]);
+            }
+            binFileNew += "\n\n";
         }
+        else
+        {
+            pos1 = binFile.find("//border");
+            pos2 = binFile.find("\n\n", pos1);
+            binFileNew += binFile.substr(pos1, pos2 - pos1) + "\n\n";
+        }
+        wf.printer(binPath, binFileNew);
 
         comm[1][3]++;
         sbgui.update(myid, comm[1]);
@@ -2376,6 +2408,159 @@ void MainWindow::on_pB_test_clicked()
         im.pngPrint(legend, legendSpec, outputPath);
         break;
     }
+    case 8:  // Histograms(ish) of colour ratios. 
+    {
+        string insidePath = sroot + "\\debug\\ColourRatios\\LakeInside.png", temp;
+        string outsidePath = sroot + "\\debug\\ColourRatios\\LakeOutside.png";
+        vector<unsigned char> imgInside, imgOutside, rgba;
+        vector<int> imgSpecInside, imgSpecOutside;
+        POINT p1;
+        int numFalse = 0, numLow = 0;
+        double redBlue, greenBlue, minRBI = 0.7, maxRBO = 0.6, redGreen;
+        vector<vector<double>> vvdColourRatio(10, vector<double>(7));
+        vector<vector<int>> vviColourRatio(10, vector<int>(7, 0));
+        im.pngLoadHere(outsidePath, imgOutside, imgSpecOutside);
+        for (int ii = 0; ii < imgSpecOutside[1]; ii++)
+        {
+            p1.y = ii;
+            for (int jj = 0; jj < imgSpecOutside[0]; jj++)
+            {
+                p1.x = jj;
+                rgba = im.pixelRGB(imgOutside, imgSpecOutside, p1);
+                redBlue = (double)rgba[0] / (double)rgba[2];
+                if (redBlue < 0.1) { vviColourRatio[0][0]++; }
+                else if (redBlue < 0.2) { vviColourRatio[1][0]++; }
+                else if (redBlue < 0.3) { vviColourRatio[2][0]++; }
+                else if (redBlue < 0.4) { vviColourRatio[3][0]++; }
+                else if (redBlue < 0.5) { vviColourRatio[4][0]++; }
+                else if (redBlue < 0.6) { vviColourRatio[5][0]++; }
+                else if (redBlue < 0.7) { vviColourRatio[6][0]++; }
+                else if (redBlue < 0.8) { vviColourRatio[7][0]++; }
+                else if (redBlue < 0.9) { vviColourRatio[8][0]++; }
+                else { vviColourRatio[9][0]++; }
+                greenBlue = (double)rgba[1] / (double)rgba[2];
+                if (greenBlue < 0.1) { vviColourRatio[0][1]++; }
+                else if (greenBlue < 0.2) { vviColourRatio[1][1]++; }
+                else if (greenBlue < 0.3) { vviColourRatio[2][1]++; }
+                else if (greenBlue < 0.4) { vviColourRatio[3][1]++; }
+                else if (greenBlue < 0.5) { vviColourRatio[4][1]++; }
+                else if (greenBlue < 0.6) { vviColourRatio[5][1]++; }
+                else if (greenBlue < 0.7) { vviColourRatio[6][1]++; }
+                else if (greenBlue < 0.8) 
+                { 
+                    vviColourRatio[7][1]++; 
+                    numFalse++;
+                    if (redBlue > maxRBO) { maxRBO = redBlue; }
+                    if (redBlue < 0.1) { vviColourRatio[0][4]++; }
+                    else if (redBlue < 0.2) { vviColourRatio[1][4]++; }
+                    else if (redBlue < 0.3) { vviColourRatio[2][4]++; }
+                    else if (redBlue < 0.4) { vviColourRatio[3][4]++; }
+                    else if (redBlue < 0.5) { vviColourRatio[4][4]++; }
+                    else if (redBlue < 0.6) { vviColourRatio[5][4]++; }
+                    else if (redBlue < 0.7) { vviColourRatio[6][4]++; }
+                    else if (redBlue < 0.8) { vviColourRatio[7][4]++; }
+                    else if (redBlue < 0.9) { vviColourRatio[8][4]++; }
+                    else { vviColourRatio[9][4]++; }
+                    redGreen = (double)rgba[0] / (double)rgba[1];
+                    if (redGreen < 0.1) { vviColourRatio[0][5]++; }
+                    else if (redGreen < 0.2) { vviColourRatio[1][5]++; }
+                    else if (redGreen < 0.3) { vviColourRatio[2][5]++; }
+                    else if (redGreen < 0.4) { vviColourRatio[3][5]++; }
+                    else if (redGreen < 0.5) { vviColourRatio[4][5]++; }
+                    else if (redGreen < 0.6) { vviColourRatio[5][5]++; }
+                    else if (redGreen < 0.7) { vviColourRatio[6][5]++; }
+                    else if (redGreen < 0.8) { vviColourRatio[7][5]++; }
+                    else if (redGreen < 0.9) { vviColourRatio[8][5]++; }
+                    else { vviColourRatio[9][5]++; }
+                }
+                else if (greenBlue < 0.9) { vviColourRatio[8][1]++; }
+                else { vviColourRatio[9][1]++; }
+            }
+        }
+        im.pngLoadHere(insidePath, imgInside, imgSpecInside);
+        for (int ii = 0; ii < imgSpecInside[1]; ii++)
+        {
+            p1.y = ii;
+            for (int jj = 0; jj < imgSpecInside[0]; jj++)
+            {
+                p1.x = jj;
+                rgba = im.pixelRGB(imgInside, imgSpecInside, p1);
+                redBlue = (double)rgba[0] / (double)rgba[2];
+                if (redBlue < 0.1) { vviColourRatio[0][2]++; }
+                else if (redBlue < 0.2) { vviColourRatio[1][2]++; }
+                else if (redBlue < 0.3) { vviColourRatio[2][2]++; }
+                else if (redBlue < 0.4) { vviColourRatio[3][2]++; }
+                else if (redBlue < 0.5) { vviColourRatio[4][2]++; }
+                else if (redBlue < 0.6) { vviColourRatio[5][2]++; }
+                else if (redBlue < 0.7) { vviColourRatio[6][2]++; }
+                else if (redBlue < 0.8) { vviColourRatio[7][2]++; }
+                else if (redBlue < 0.9) { vviColourRatio[8][2]++; }
+                else { vviColourRatio[9][2]++; }
+                greenBlue = (double)rgba[1] / (double)rgba[2];
+                if (greenBlue < 0.1) { vviColourRatio[0][3]++; }
+                else if (greenBlue < 0.2) { vviColourRatio[1][3]++; }
+                else if (greenBlue < 0.3) { vviColourRatio[2][3]++; }
+                else if (greenBlue < 0.4) { vviColourRatio[3][3]++; }
+                else if (greenBlue < 0.5) { vviColourRatio[4][3]++; }
+                else if (greenBlue < 0.6) { vviColourRatio[5][3]++; }
+                else if (greenBlue < 0.7) { vviColourRatio[6][3]++; }
+                else if (greenBlue < 0.8) 
+                { 
+                    vviColourRatio[7][3]++; 
+                    if (redBlue < minRBI) { minRBI = redBlue; }
+                    if (redBlue < 0.7)
+                    {
+                        numLow++;
+                        redGreen = (double)rgba[0] / (double)rgba[1];
+                        if (redGreen < 0.1) { vviColourRatio[0][6]++; }
+                        else if (redGreen < 0.2) { vviColourRatio[1][6]++; }
+                        else if (redGreen < 0.3) { vviColourRatio[2][6]++; }
+                        else if (redGreen < 0.4) { vviColourRatio[3][6]++; }
+                        else if (redGreen < 0.5) { vviColourRatio[4][6]++; }
+                        else if (redGreen < 0.6) { vviColourRatio[5][6]++; }
+                        else if (redGreen < 0.7) { vviColourRatio[6][6]++; }
+                        else if (redGreen < 0.8) { vviColourRatio[7][6]++; }
+                        else if (redGreen < 0.9) { vviColourRatio[8][6]++; }
+                        else { vviColourRatio[9][6]++; }
+                    }
+                }
+                else if (greenBlue < 0.9) { vviColourRatio[8][3]++; }
+                else { vviColourRatio[9][3]++; }
+            }
+        }
+
+        double outsideSize = (double)(imgSpecOutside[0] * imgSpecOutside[1]);
+        double insideSize = (double)(imgSpecInside[0] * imgSpecInside[1]);
+        for (int ii = 0; ii < 10; ii++)
+        {
+            for (int jj = 0; jj < 2; jj++)
+            {
+                vvdColourRatio[ii][jj] = 100.0 * (double)vviColourRatio[ii][jj] / outsideSize;
+            }
+            for (int jj = 2; jj < 4; jj++)
+            {
+                vvdColourRatio[ii][jj] = 100.0 * (double)vviColourRatio[ii][jj] / insideSize;
+            }
+            vvdColourRatio[ii][4] = 100.0 * (double)vviColourRatio[ii][4] / numFalse;
+            vvdColourRatio[ii][5] = 100.0 * (double)vviColourRatio[ii][5] / numFalse;
+            vvdColourRatio[ii][6] = 100.0 * (double)vviColourRatio[ii][6] / numLow;
+        }
+
+        vector<vector<string>> header(2, vector<string>());
+        header[0] = { "RedBlue Outside", "GreenBlue Outside", "RedBlue Inside", "GreenBlue Inside", "RedBlue Outside When FALSE", "RedGreen Outside When FALSE", "RedGreen Inside When RBI Low"};
+        for (int ii = 0; ii < 10; ii++)
+        {
+            temp = "0." + to_string(ii);
+            if (ii < 9) { temp += " - 0." + to_string(ii + 1); }
+            else { temp += " - 1.0"; }
+            header[1].push_back(temp);
+        }
+        qf.displayTable(ui->tableW_debug, vvdColourRatio, header);
+        ui->tabW_main->setCurrentIndex(3);
+        temp = "minRBI: " + to_string(minRBI) + "\nmaxRBO: " + to_string(maxRBO);
+        qshow(temp);
+        break;
+    }
     case 9:  // Load a desktop image, and draw bars on the overview for a given pattern.
     {
         string inputPath = sroot + "\\debug\\testNorthwestOrigin.png";
@@ -2434,7 +2619,7 @@ void MainWindow::on_pB_test_clicked()
         mainTLBR[0].y = 157;
         mainTLBR[1].x = 3836;
         mainTLBR[1].y = 971;
-        vector<POINT> vpAlberta = im.findColour(img, imgSpec, highlighted, mainTLBR);
+        vector<POINT> vpAlberta = im.findTLBRColour(img, imgSpec, highlighted, mainTLBR);
         vector<POINT> albertaTLBR = im.makeTLBR(vpAlberta);
         vector<vector<unsigned char>> rgbList;
         im.countPixelColour(img, imgSpec, rgbList, freqList, albertaTLBR);
@@ -2515,7 +2700,7 @@ void MainWindow::on_pB_test_clicked()
         mainTLBR[0].y = 157;
         mainTLBR[1].x = 3836;
         mainTLBR[1].y = 971;
-        vector<POINT> vpAlberta = im.findColour(img, imgSpec, highlighted, mainTLBR);
+        vector<POINT> vpAlberta = im.findTLBRColour(img, imgSpec, highlighted, mainTLBR);
         vector<POINT> albertaTLBR = im.makeTLBR(vpAlberta);
         albertaTLBR[0].x -= 10;
         albertaTLBR[0].y -= 10;

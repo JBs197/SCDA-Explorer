@@ -126,6 +126,10 @@ POINT MAP::getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec, int&
 	pCorner.y -= 1;
 	return pCorner;
 }
+void MAP::initScanCircles(string& pngPath)
+{
+	im.initScanCircles(pngPath);
+}
 bool MAP::scanColourSquare(vector<POINT>& TLBR, vector<unsigned char> RGBA)
 {
 	// Capture the TLBR square. Return TRUE if every pixel matches the given colour. FALSE otherwise.
@@ -247,6 +251,149 @@ vector<double> MAP::testScale(vector<unsigned char>& img, vector<int>& imgSpec, 
 }
 
 
+void BINMAP::borderCheck(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbaList)
+{
+	// Look back into the entire border list, and eliminate candidates that already exist there. 
+	int borderSize = vpBorder.size();
+	borderCheck(vpBorder, vpCandidate, rgbaList, borderSize);
+}
+void BINMAP::borderCheck(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbaList, int depth)
+{
+	// Look back into the border list a certain depth, and eliminate candidates that already exist there. 
+	if (depth < 1) { jf.err("Invalid depth-bm.borderCheck"); }
+	if (vpCandidate.size() != rgbaList.size()) { jf.err("Parameter size mismatch-bm.borderCheck"); }
+	for (int ii = vpCandidate.size() - 1; ii >= 0; ii--)
+	{
+		for (int jj = 1; jj <= depth; jj++)
+		{
+			if (vpCandidate[ii].x == vpBorder[vpBorder.size() - jj].x && vpCandidate[ii].y == vpBorder[vpBorder.size() - jj].y)
+			{
+				vpCandidate.erase(vpCandidate.begin() + ii);
+				rgbaList.erase(rgbaList.begin() + ii);
+				break;
+			}
+		}
+	}
+}
+void BINMAP::borderComplete(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder)
+{
+	// Jump along the painted border, adding to the border list, until the region's border list is complete.
+	if (vpBorder.size() < 3) { jf.err("vpBorder missing starters-bm.borderComplete"); }
+	vector<vector<unsigned char>> rgbaList;
+	vector<double> vdCandidateDistance;
+	vector<int> minMax;
+	vector<POINT> vpCandidate;
+	int borderIndex = vpBorder.size() - 1, radius, candidateSize;
+	double distHome;
+	bool noplacelikehome = 0;
+	while (!noplacelikehome)  // For every point along the border...
+	{
+		radius = 2;
+		while (1)  // For every list of candidates obtained with this radius...
+		{
+			vpCandidate = im.getCircle(vpBorder[borderIndex], radius);
+			rgbaList = im.lineRGB(img, imgSpec, vpCandidate);
+			im.filterColour(vpCandidate, rgbaList, Green);
+			borderCheck(vpBorder, vpCandidate, rgbaList, 3);
+			im.filterDeadCone(vpBorder, vpCandidate, rgbaList);
+			candidateSize = vpCandidate.size();
+			if (candidateSize == 0) 
+			{ 
+				radius++;
+				if (radius > 13) { jf.err("Failed to locate border candidates-bm.borderComplete"); }
+				continue;
+			}
+			vdCandidateDistance = mf.coordDistPointSumList(vpCandidate, vpBorder, 3);
+			if (candidateSize == 1)  // Is this candidate worthy? 
+			{
+				if (vdCandidateDistance[0] < 4.0 * (double)radius)
+				{
+					radius++;
+					if (radius > 13) { jf.err("Failed to locate border candidates-bm.borderComplete"); }
+					continue;
+				}
+				else
+				{
+					vpBorder.push_back(vpCandidate[0]);
+					break;
+				}
+			}
+			else
+			{
+				minMax = jf.minMax(vdCandidateDistance);
+				vpBorder.push_back(vpCandidate[minMax[1]]);
+				break;
+			}
+		}
+		borderIndex = vpBorder.size() - 1;
+		if (borderIndex >= 20)
+		{
+			distHome = mf.coordDistPoint(vpBorder[0], vpBorder[borderIndex]);
+			if (distHome < 6.0) { noplacelikehome = 1; }
+		}
+	}
+}
+void BINMAP::borderPlus(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder)
+{
+	// Given a starter border point, add another along a clockwise direction.
+	int radius = 2, candidateSize, borderSize = vpBorder.size();
+	if (borderSize < 1) { jf.err("pBorder invalid-bm.borderInit"); }
+	vector<POINT> vpCandidate; 
+	vector<vector<unsigned char>> rgbaList; 
+	vector<int> xMax, yMax;
+	while (1)
+	{
+		vpCandidate = im.getCircle(vpBorder[borderSize - 1], radius, imgSpec);
+		rgbaList = im.lineRGB(img, imgSpec, vpCandidate);
+		im.filterColour(vpCandidate, rgbaList, Green);
+		borderCheck(vpBorder, vpCandidate, rgbaList);
+		candidateSize = vpCandidate.size();
+		if (candidateSize == 0) { radius++; }
+		else if (candidateSize == 1)
+		{
+			vpBorder.push_back(vpCandidate[0]);
+			return;
+		}
+		else
+		{
+			xMax = { -1, -1 };
+			for (int ii = 0; ii < candidateSize; ii++)
+			{
+				if (vpCandidate[ii].x > xMax[0])
+				{
+					xMax.resize(2);
+					xMax[0] = vpCandidate[ii].x;
+					xMax[1] = ii;
+				}
+				else if (vpCandidate[ii].x == xMax[0])
+				{
+					xMax.push_back(ii);
+				}
+			}
+			if (xMax.size() == 2)
+			{
+				vpBorder.push_back(vpCandidate[xMax[1]]);
+				return;
+			}
+			else
+			{
+				yMax = { -1, -1 };
+				for (int ii = 1; ii < xMax.size(); ii++)
+				{
+					if (vpCandidate[xMax[ii]].y > yMax[0])
+					{
+						yMax[0] = vpCandidate[xMax[ii]].y;
+						yMax[1] = xMax[ii];
+					}
+				}
+				vpBorder.push_back(vpCandidate[yMax[1]]);
+				return;
+			}
+		}
+	}
+
+
+}
 bool BINMAP::checkSpec(vector<int>& imgSpec)
 {
 	// Returns TRUE if the given specifications match a main frame PNG, or an overview PNG. Else FALSE.
@@ -255,12 +402,55 @@ bool BINMAP::checkSpec(vector<int>& imgSpec)
 	if (imgSpec == ovRes) { return 1; }
 	return 0;
 }
-void BINMAP::drawRect(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>> rgba, int iMargin)
+vector<POINT> BINMAP::drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin)
+{
+	vector<POINT> TLBR = drawRect(img, imgSpec, iMargin, { CanadaSel, Red });
+	return TLBR;
+}
+vector<POINT> BINMAP::drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin, vector<vector<unsigned char>> rgba)
 {
 	// Upon a given image, draw a rectangle encompassing the given colour, with a margin on all sides.
-	// rgba has form [target colour, rectangle colour].
-
-
+	// rgba has form [target colour, rectangle colour]. Image will be resized if necessary. 
+	vector<vector<int>> selBox = im.makeBox(img, imgSpec, rgba[0], iMargin);
+	int rightMargin = imgSpec[0] - selBox[1][0] - 1;
+	int botMargin = imgSpec[1] - selBox[1][1] - 1;
+	if (selBox[0][0] < 0 || selBox[0][1] < 0 || rightMargin < 0 || botMargin < 0)
+	{
+		vector<unsigned char> imgOld = img;
+		vector<int> imgSpecOld = imgSpec;
+		img.clear();
+		POINT TL;
+		TL.x = 0;
+		TL.y = 0;
+		int space;
+		if (selBox[0][0] < 0) 
+		{ 
+			space = abs(selBox[0][0]);
+			TL.x += space;
+			imgSpec[0] += space; 
+			selBox[0][0] = 0;
+			selBox[1][0] += space;
+		}
+		if (selBox[0][1] < 0) 
+		{ 
+			space = abs(selBox[0][1]);
+			TL.y += space;
+			imgSpec[1] += space; 
+			selBox[0][1] = 0;
+			selBox[1][1] += space;
+		}
+		if (rightMargin < 0) { imgSpec[0] += abs(rightMargin); }
+		if (botMargin < 0) { imgSpec[1] += abs(botMargin); }
+		im.pngCanvas(imgSpec, img, Black);
+		im.pngPaste(img, imgSpec, imgOld, imgSpecOld, TL);
+	}
+	vector<POINT> TLBR(2);
+	TLBR[0].x = selBox[0][0];
+	TLBR[0].y = selBox[0][1];
+	TLBR[1].x = selBox[1][0];
+	TLBR[1].y = selBox[1][1];
+	im.rectPaint(img, imgSpec, TLBR, rgba[1]);
+	return TLBR;
 }
 vector<int> BINMAP::extractPosition(vector<unsigned char>& imgSuper, vector<int>& imgSpecSuper, vector<unsigned char>& imgHome, vector<int>& imgSpecHome)
 {
@@ -344,7 +534,7 @@ vector<int> BINMAP::extractPosition(vector<unsigned char>& imgSuper, vector<int>
 void BINMAP::findFrames(vector<unsigned char>& img, vector<int>& imgSpec, POINT bHome) {}
 void BINMAP::initialize()
 {
-	string circlePath = sroot + "\\ScanCircles6.png";
+	string circlePath = sroot + "\\ScanCircles13.png";
 	im.initScanCircles(circlePath);
 	pngRes = { 1632, 818, 4 };
 	fullRes = { 3840, 1080, 4 };
@@ -374,10 +564,16 @@ void BINMAP::initialize()
 	MSBlack = { 68, 68, 68, 255 };
 	MSText = { 102, 102, 102, 255 };
 	Navy = { 51, 80, 117, 255 };
+	Red = { 255, 0, 0, 255 };
 	Usa = { 215, 215, 215, 255 };
 	Water = { 179, 217, 247, 255 };
 	WaterSel = { 143, 174, 249, 255 };
 	White = { 255, 255, 255, 255 };
+
+	greenBlueOutside = { 0.8, 1.01 };
+	greenBlueInside = { 0.69, 0.8 };
+	redBlueInside = { 0.72, 1.01 };
+	redGreenInside = { 0.92, 1.01 };
 
 	string scalePath, temp;
 	vector<int> imgSpec;
@@ -417,6 +613,69 @@ void BINMAP::setPTE(QPlainTextEdit*& qPTE, bool isGUI)
 {
 	pte = qPTE;
 	isgui = isGUI;
+}
+void BINMAP::sprayRegion(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR)
+{
+	// Travel along TLBR and paint the midpoint pixel between a region's "out" and "in" colour ratios.
+	vector<vector<double>> vvdInside = { greenBlueInside, redBlueInside, redGreenInside };
+	POINT pBorder;
+	vector<POINT> startStop(2);
+	startStop[0].x = TLBR[0].x + 1;
+	startStop[0].y = TLBR[0].y + 1;
+	startStop[1].x = startStop[0].x;
+	startStop[1].y = TLBR[1].y - 1;
+	while (startStop[0].x < TLBR[1].x)
+	{
+		pBorder = im.getBorderPoint(img, imgSpec, startStop, greenBlueOutside, vvdInside);
+		if (pBorder.x >= 0)
+		{
+			im.pixelPaint(img, imgSpec, Green, pBorder);
+		}
+		startStop[0].x++;
+		startStop[1].x++;
+	}
+	startStop[0].x = TLBR[1].x - 1;
+	startStop[0].y = TLBR[0].y + 1;
+	startStop[1].x = TLBR[0].x + 1;
+	startStop[1].y = startStop[0].y;
+	while (startStop[0].y < TLBR[1].y)
+	{
+		pBorder = im.getBorderPoint(img, imgSpec, startStop, greenBlueOutside, vvdInside);
+		if (pBorder.x >= 0)
+		{
+			im.pixelPaint(img, imgSpec, Green, pBorder);
+		}
+		startStop[0].y++;
+		startStop[1].y++;
+	}
+	startStop[0].x = TLBR[1].x - 1;
+	startStop[0].y = TLBR[1].y - 1;
+	startStop[1].x = startStop[0].x;
+	startStop[1].y = TLBR[0].y + 1;
+	while (startStop[0].x > TLBR[0].x)
+	{
+		pBorder = im.getBorderPoint(img, imgSpec, startStop, greenBlueOutside, vvdInside);
+		if (pBorder.x >= 0)
+		{
+			im.pixelPaint(img, imgSpec, Green, pBorder);
+		}
+		startStop[0].x--;
+		startStop[1].x--;
+	}
+	startStop[0].x = TLBR[0].x + 1;
+	startStop[0].y = TLBR[1].y - 1;
+	startStop[1].x = TLBR[1].x - 1;
+	startStop[1].y = startStop[0].y;
+	while (startStop[0].y > TLBR[0].y)
+	{
+		pBorder = im.getBorderPoint(img, imgSpec, startStop, greenBlueOutside, vvdInside);
+		if (pBorder.x >= 0)
+		{
+			im.pixelPaint(img, imgSpec, Green, pBorder);
+		}
+		startStop[0].y--;
+		startStop[1].y--;
+	}
 }
 
 
@@ -953,14 +1212,6 @@ void PNGMAP::initialize(vector<string>& GeoLayers)
 		}
 	}
 
-}
-void PNGMAP::initPaint()
-{
-	Canada = { 240, 240, 240, 255 };
-	CanadaSel = { 192, 192, 243, 255 };
-	Green = { 34, 177, 76, 255 };
-	Water = { 179, 217, 247, 255 };
-	WaterSel = { 143, 174, 249, 255 };
 }
 int PNGMAP::initParentChild(vector<vector<string>>& geo)
 {

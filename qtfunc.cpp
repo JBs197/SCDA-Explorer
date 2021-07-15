@@ -118,6 +118,19 @@ void QTFUNC::displayTable(QTableWidget*& qTable, vector<vector<int>>& data, vect
 	}
 	displayTable(qTable, qData, header);
 }
+void QTFUNC::displayTable(QTableWidget*& qTable, vector<vector<double>>& data, vector<vector<string>>& header)
+{
+	vector<vector<QString>> qData(data.size(), vector<QString>());
+	for (int ii = 0; ii < qData.size(); ii++)
+	{
+		qData[ii].resize(data[ii].size());
+		for (int jj = 0; jj < qData[ii].size(); jj++)
+		{
+			qData[ii][jj] = QString::number(data[ii][jj]);
+		}
+	}
+	displayTable(qTable, qData, header);
+}
 void QTFUNC::displayText(QLabel* ql, string stext)
 {
 	const QString qtemp = QString::fromUtf8(stext.c_str());

@@ -51,6 +51,7 @@ public:
 	void displayTable(QTableWidget*& qTable, vector<vector<QString>>& data, vector<vector<string>>& header);
 	void displayTable(QTableWidget*& qTable, vector<vector<string>>& data, vector<vector<string>>& header);
 	void displayTable(QTableWidget*& qTable, vector<vector<int>>& data, vector<vector<string>>& header);
+	void displayTable(QTableWidget*& qTable, vector<vector<double>>& data, vector<vector<string>>& header);
 	void displayText(QLabel*, string stext);
 	void display_subt(QTreeWidget*, QTreeWidgetItem*);
 	void drawDotsDebug(QPainter& qpaint, vector<vector<double>>& dots);

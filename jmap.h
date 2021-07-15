@@ -40,12 +40,15 @@ public:
 	vector<POINT> getPixel(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char>& rgba);
 	POINT getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec);
 	POINT getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec, int& startCol);
+	void initScanCircles(string& pngPath);
 	bool scanColourSquare(vector<POINT>& TLBR, vector<unsigned char> rgba);
 	vector<double> testScale(vector<unsigned char>& img, vector<int>& imgSpec, POINT pCorner);
 };
 
 class BINMAP : public MAP
 {
+	//vector<vector<unsigned char>> inColour, outColour;
+	vector<double> greenBlueOutside, greenBlueInside, redBlueInside, redGreenInside;
 	bool isgui;
 	QPlainTextEdit* pte = nullptr;
 
@@ -53,14 +56,20 @@ public:
 	BINMAP() {}
 	~BINMAP() {}
 
+	void borderCheck(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbaList);
+	void borderCheck(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbaList, int depth);
+	void borderComplete(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder);
+	void borderPlus(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder);
 	bool checkSpec(vector<int>& imgSpec);
-	void drawRect(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>> rgba, int iMargin);
+	vector<POINT> drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin);
+	vector<POINT> drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin, vector<vector<unsigned char>> rgba);
 	vector<int> extractPosition(vector<unsigned char>& imgSuper, vector<int>& imgSpecSuper, vector<unsigned char>& imgHome, vector<int>& imgSpecHome);
 	void findFrames(vector<unsigned char>& img, vector<int>& imgSpec, POINT bHome);
 	void initialize();
 	void qshow(string sMessage);
 	void recordPoint(POINT& point, string pointName);
 	void setPTE(QPlainTextEdit*& qPTE, bool isGUI);
+	void sprayRegion(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR);
 };
 
 class PNGMAP : public MAP
@@ -85,7 +94,6 @@ public:
 	int getParentScaleIndex(string& searchText);
 	int getNumChildren();
 	int getScaleIndex();
-	void initPaint();
 	int initParentChild(vector<vector<string>>& geo);
 	void initialize(vector<string>& GeoLayers);
 	void qshow(string sMessage);

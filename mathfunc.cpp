@@ -223,6 +223,7 @@ double MATHFUNC::coordDist(vector<int>& iv1, vector<int>& iv2)
 }
 double MATHFUNC::coordDistPoint(POINT origin, POINT test)
 {
+	// Return the decimal distance between two points.
 	double xTemp = pow((double)(test.x - origin.x), 2.0);
 	double yTemp = pow((double)(test.y - origin.y), 2.0);
 	double radius = sqrt(xTemp + yTemp);
@@ -230,6 +231,7 @@ double MATHFUNC::coordDistPoint(POINT origin, POINT test)
 }
 double MATHFUNC::coordDistPointSum(POINT& origin, vector<POINT>& testList)
 {
+	// Return the sum total of distances between the origin point and each listed test point.
 	double dsum = 0.0;
 	for (int ii = 0; ii < testList.size(); ii++)
 	{
@@ -237,13 +239,31 @@ double MATHFUNC::coordDistPointSum(POINT& origin, vector<POINT>& testList)
 	}
 	return dsum;
 }
-void MATHFUNC::coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList, vector<double>& resultList)
+vector<double> MATHFUNC::coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList)
 {
-	resultList.resize(originList.size());
+	// For each point in the origin (candidate) list, determine the sum total of distances between
+	// it and the list of test points. The returned list matches the given list of origin points. 
+	vector<double> resultList(originList.size());
 	for (int ii = 0; ii < resultList.size(); ii++)
 	{
 		resultList[ii] = coordDistPointSum(originList[ii], testList);
 	}
+	return resultList;
+}
+vector<double> MATHFUNC::coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList, int depth)
+{
+	// For each point in the origin (candidate) list, determine the sum total of distances between
+	// it and the list of test points (going back up to "depth"). The returned list matches the 
+	// given list of origin points. 
+	vector<double> resultList(originList.size());
+	int testSize = testList.size();
+	vector<POINT> vpTest;
+	vpTest.assign(testList.begin() + testSize - depth, testList.end());
+	for (int ii = 0; ii < resultList.size(); ii++)
+	{
+		resultList[ii] = coordDistPointSum(originList[ii], vpTest);
+	}
+	return resultList;
 }
 void MATHFUNC::coordOnCircle(vector<double>& origin, double& radius, double& angle, vector<double>& coord)
 {

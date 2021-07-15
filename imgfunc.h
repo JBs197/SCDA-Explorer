@@ -21,6 +21,7 @@ class IMGFUNC
     int candidateRelativeLengthMin = 50;
     int candidateRelativeWidthMin = 50;
     vector<unsigned char> dataPNG, debugDataPNG;
+    const double deadCone = 30.0;  // Rear cone width from which to disqualify candidates. 
 	bool debug = 1;
     double defaultAngleIncrement = 5.0;
     double defaultCandidateDistanceTolerance = 0.33;  
@@ -57,12 +58,14 @@ class IMGFUNC
     int rabbitHole = 0;
     const int rabbitHoleDepth = 16;
     vector<vector<vector<int>>> savePoints;  // Form [point index][sizeVBP, Origin, Candidate0, ... , CandidateChosen][x,y coords].
+    POINT pScanCircleCenter;
     vector<vector<POINT>> scanCircles;  // Form [radius - 1][points]
     int searchRadiusIncrease = 0;
     double stretchFactor;
     vector<int> textFound;
 
     vector<unsigned char> Black = { 0, 0, 0 };
+    vector<unsigned char> Black4 = { 0, 0, 0, 255 };
     vector<unsigned char> Blue = { 0, 0, 255 };
     vector<unsigned char> Gold = { 255, 170, 0 };
     vector<unsigned char> Green = { 0, 255, 0 };
@@ -73,12 +76,14 @@ class IMGFUNC
     vector<unsigned char> Teal = { 0, 155, 255 };
     vector<unsigned char> Violet = { 127, 0, 255 };
     vector<unsigned char> White = { 255, 255, 255 };
+    vector<unsigned char> White4 = { 255, 255, 255, 255 };
     vector<unsigned char> Yellow = { 255, 255, 0 };
 
 public:
 	IMGFUNC() {}
 	~IMGFUNC() {}
 
+    int checkColour(vector<vector<unsigned char>>& rgbaList, vector<unsigned char>& rgba);
     string convertColour(vector<unsigned char>& rgbx);
     vector<unsigned char> convertColour(string& srgbx);
     POINT coordFromOffset(int offset, vector<int> imgSpec);
@@ -90,14 +95,20 @@ public:
     void cropSaveOld(vector<string>& filePath, vector<POINT> TLBR);
     void drawSquare(vector<unsigned char>& img, vector<int>& imgSpec, POINT coord);
     void filterColour(vector<POINT>& pList, vector<vector<unsigned char>>& rgbList, vector<unsigned char> rgb);
-    vector<POINT> findColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGB, vector<POINT> TLBR);
+    void filterDeadCone(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbList);
+    vector<POINT> findTLBRColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGB, vector<POINT> TLBR);
     void flatten(string& filePath);
     int getBandCenter(vector<int>& candidates);
+    POINT getBorderPoint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<double> greenBlueOutside, vector<vector<double>> vvdInside);
     vector<POINT> getCircle(POINT pCenter, int radius);
+    vector<POINT> getCircle(POINT pCenter, int radius, vector<int>& imgSpec);
+    POINT getFirstColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> rgbx);
     POINT getTLImgImg(string& targetPath, string& bgPath);
     void initHex();
     void initScanCircles(string& pngPath);
+    vector<POINT> loadBox(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> rgbx);
     void linePaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<unsigned char> rgbx);
+    vector<vector<unsigned char>> lineRGB(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> vpList);
     vector<POINT> makeTLBR(vector<POINT>& vpRegion);
     void markTargetTL(string& targetPath, string& bgPath);
     void pngCanvas(vector<int>& imgSpec, vector<unsigned char>& img, vector<unsigned char> rgbx);
@@ -144,7 +155,6 @@ public:
     vector<POINT> linePath(vector<POINT>& startStop);
     vector<vector<int>> linePathToEdge(vector<vector<int>>& startMid);
 	vector<vector<unsigned char>> lineRGB(vector<vector<int>>& vVictor, int length);
-    vector<vector<unsigned char>> lineRGB(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> vpList);
     void loadRecentSavePoint(vector<vector<int>>& vBorderPath);
     void makePositionPNG(string& pngPath, string& pngFramePath);
     bool mapIsInit();
@@ -849,6 +859,40 @@ public:
                 }
             }
         }
+        return TLBR;
+    }
+    template<> vector<vector<int>> makeBox<vector<unsigned char>, vector<int>, vector<unsigned char>, int>(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char>& rgbTarget, int& iMargin)
+    {
+        // NOTE: This function CAN return out-of-bounds coordinates. 
+        if (img.size() < 1) { jf.err("No image-im.makeBox"); }
+        if (imgSpec.size() < 3) { jf.err("Missing imgSpec-im.makeBox"); }
+        if (rgbTarget.size() != imgSpec[2]) { jf.err("rgb-spec mismatch-im.makeBox"); }
+        if (iMargin < 0) { jf.err("Invalid margin-im.makeBox"); }
+        vector<vector<int>> TLBR(2, vector<int>(2));
+        TLBR[0] = { 2147483647, 2147483647 };
+        TLBR[1] = { 0, 0 };
+        vector<unsigned char> rgb;
+        POINT p1;
+        for (int ii = 0; ii < imgSpec[1]; ii++)
+        {
+            p1.y = ii;
+            for (int jj = 0; jj < imgSpec[0]; jj++)
+            {
+                p1.x = jj;
+                rgb = pixelRGB(img, imgSpec, p1);
+                if (rgb == rgbTarget)
+                {
+                    if (p1.x < TLBR[0][0]) { TLBR[0][0] = p1.x; }
+                    else if (p1.x > TLBR[1][0]) { TLBR[1][0] = p1.x; }
+                    if (p1.y < TLBR[0][1]) { TLBR[0][1] = p1.y; }
+                    else if (p1.y > TLBR[1][1]) { TLBR[1][1] = p1.y; }
+                }
+            }
+        }
+        TLBR[0][0] -= iMargin;
+        TLBR[0][1] -= iMargin;
+        TLBR[1][0] += iMargin;
+        TLBR[1][1] += iMargin;
         return TLBR;
     }
 
