@@ -13,6 +13,45 @@
 using namespace std;
 extern const string sroot;
 
+class CANDIDATES
+{
+    const double deadCone = 30.0;  // Rear cone width from which to disqualify candidates. 
+    const double distRunnerUp = 0.7;  // Percent threshold to disregard candidates of lesser distance.
+    vector<unsigned char> img; 
+    vector<int> imgSpec;
+    JFUNC jf;
+    MATHFUNC mf;
+    POINT pScanCircleCenter;
+    vector<vector<POINT>> scanCircles;
+
+    int getOffset(POINT& p1);
+
+public:
+    CANDIDATES() {}
+    ~CANDIDATES() {}
+
+    vector<POINT> pList;
+    enum ratio { RG, RB, GB };
+    vector<vector<unsigned char>> rgbaList;
+
+    void centerOfMass(vector<double>& vdDist);
+    int colourCount(vector<unsigned char>& rgbx);
+    int fromCircle(POINT pCenter, int radius);
+    POINT getCandidate(int index);
+    POINT getClockwiseCandidate();
+    void initialize(vector<vector<POINT>>& ScanCircles, POINT& pCenter);
+    int judgeDist(vector<double>& vdDist);
+    int keepColour(vector<unsigned char> rgbx);
+    int removeColour(vector<unsigned char> rgbx);
+    int removeColourRatio(int ratio, vector<double> vdInterval);
+    int removeDeadEnd(vector<POINT>& vpDeadEnd);
+    int removePast(vector<POINT>& vpPast, int depth);
+    int removeRearCone(vector<POINT>& vpPast);
+    vector<double> reportDist(vector<POINT>& vpPast);
+    void setImg(vector<unsigned char>& img, vector<int>& imgSpec);
+
+};
+
 class IMGFUNC
 {
     bool backtrack = 0;
@@ -21,7 +60,6 @@ class IMGFUNC
     int candidateRelativeLengthMin = 50;
     int candidateRelativeWidthMin = 50;
     vector<unsigned char> dataPNG, debugDataPNG;
-    const double deadCone = 30.0;  // Rear cone width from which to disqualify candidates. 
 	bool debug = 1;
     double defaultAngleIncrement = 5.0;
     double defaultCandidateDistanceTolerance = 0.33;  
@@ -67,6 +105,8 @@ class IMGFUNC
     vector<unsigned char> Black = { 0, 0, 0 };
     vector<unsigned char> Black4 = { 0, 0, 0, 255 };
     vector<unsigned char> Blue = { 0, 0, 255 };
+    vector<unsigned char> Canada = { 240, 240, 240, 255 };
+    vector<unsigned char> CanadaSel = { 192, 192, 243, 255 };
     vector<unsigned char> Gold = { 255, 170, 0 };
     vector<unsigned char> Green = { 0, 255, 0 };
     vector<unsigned char> Orange = { 255, 155, 55 };
@@ -75,6 +115,8 @@ class IMGFUNC
     vector<unsigned char> Red = { 255, 0, 0 };
     vector<unsigned char> Teal = { 0, 155, 255 };
     vector<unsigned char> Violet = { 127, 0, 255 };
+    vector<unsigned char> Water = { 179, 217, 247, 255 };
+    vector<unsigned char> WaterSel = { 143, 174, 249, 255 };
     vector<unsigned char> White = { 255, 255, 255 };
     vector<unsigned char> White4 = { 255, 255, 255, 255 };
     vector<unsigned char> Yellow = { 255, 255, 0 };
@@ -94,18 +136,21 @@ public:
     void cropSave(vector<string>& filePath, vector<POINT> TLBR);
     void cropSaveOld(vector<string>& filePath, vector<POINT> TLBR);
     void drawSquare(vector<unsigned char>& img, vector<int>& imgSpec, POINT coord);
-    void filterColour(vector<POINT>& pList, vector<vector<unsigned char>>& rgbList, vector<unsigned char> rgb);
-    void filterDeadCone(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbList);
     vector<POINT> findTLBRColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGB, vector<POINT> TLBR);
     void flatten(string& filePath);
     int getBandCenter(vector<int>& candidates);
-    POINT getBorderPoint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<double> greenBlueOutside, vector<vector<double>> vvdInside);
+    POINT getBorderPoint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<vector<double>> vvdInside);
+    POINT getBorderPoint(vector<unsigned char>& img, vector<int>& imgSpec, POINT pStart, double angle, vector<POINT> TLBR, vector<vector<double>> vvdInside);
     vector<POINT> getCircle(POINT pCenter, int radius);
     vector<POINT> getCircle(POINT pCenter, int radius, vector<int>& imgSpec);
     POINT getFirstColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> rgbx);
+    double getGB(vector<unsigned char>& rgbx);
+    double getRB(vector<unsigned char>& rgbx);
+    double getRG(vector<unsigned char>& rgbx);
     POINT getTLImgImg(string& targetPath, string& bgPath);
+    void initCandidates(CANDIDATES& cd);
     void initHex();
-    void initScanCircles(string& pngPath);
+    int initScanCircles(string& pngPath);
     vector<POINT> loadBox(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> rgbx);
     void linePaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> startStop, vector<unsigned char> rgbx);
     vector<vector<unsigned char>> lineRGB(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> vpList);

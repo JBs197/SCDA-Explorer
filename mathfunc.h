@@ -9,6 +9,7 @@ using namespace std;
 class MATHFUNC
 {
 	JFUNC jf;
+	const double pi = 3.14159265;
 
 public:
 	explicit MATHFUNC() {}
@@ -27,5 +28,5 @@ public:
 	void coordOnCircle(vector<int>& origin, int& radius, double& angle, vector<int>& coord);
 	double hypoteneuse(double& Dx, double& Dy);
 	double hypoteneuse(int& Ix, int& Iy);
-
+	vector<POINT> imgVectorPath(POINT pStart, double angleDeg, vector<POINT>& boundaryTLBR);
 };

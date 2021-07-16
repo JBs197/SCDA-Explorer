@@ -1107,6 +1107,7 @@ void MainWindow::createBinMap(SWITCHBOARD& sbgui)
             vector<unsigned char> imgPainted, imgBorder;
             vector<int> imgSpecPainted, imgSpecBorder;
             vector<POINT> TLBR, vpBorder(1);
+            vector<double> angleDeviation = { 0.0, 30.0, 60.0 };
             string paintedPath = pngPath[ii];
             pos1 = paintedPath.rfind(".png");
             paintedPath.insert(pos1, "(painted)");
@@ -1115,7 +1116,7 @@ void MainWindow::createBinMap(SWITCHBOARD& sbgui)
                 imgPainted = img;
                 imgSpecPainted = imgSpec;
                 TLBR = bm.drawRect(imgPainted, imgSpecPainted, mapMargin);
-                bm.sprayRegion(imgPainted, imgSpecPainted, TLBR);
+                bm.sprayRegion(imgPainted, imgSpecPainted, TLBR, angleDeviation);
                 im.pngPrint(paintedPath, imgPainted, imgSpecPainted);
             }
             else 
@@ -1126,10 +1127,9 @@ void MainWindow::createBinMap(SWITCHBOARD& sbgui)
             imgBorder = imgPainted;
             imgSpecBorder = imgSpecPainted;
             im.crop(imgBorder, imgSpecBorder, TLBR);
-            vpBorder[0] = im.getFirstColour(imgBorder, imgSpecBorder, { 34, 177, 76, 255 });
-            bm.borderPlus(imgBorder, imgSpecBorder, vpBorder);
-            bm.borderPlus(imgBorder, imgSpecBorder, vpBorder);
-            bm.borderComplete(imgBorder, imgSpecBorder, vpBorder);
+            vpBorder[0] = bm.borderPreStart(imgBorder, imgSpecBorder);
+            bm.borderStart(imgBorder, imgSpecBorder, vpBorder);
+            bm.borderComplete(vpBorder);
             binFileNew += "//border";
             for (int jj = 0; jj < vpBorder.size(); jj++)
             {
@@ -1332,21 +1332,16 @@ void MainWindow::on_pB_createmap_clicked()
 // Local map review.
 void MainWindow::on_pB_reviewmap_clicked()
 {
-    /*
-    QList<QListWidgetItem*> qSel = ui->listW_map->selectedItems();
+    QList<QTreeWidgetItem*> qSel = ui->treeW_maplocal->selectedItems();
     if (qSel.size() != 1) { return; }
-    QString qTemp = ui->listW_map->item(0)->text();
-    qTemp.append("\\" + qSel[0]->text() + ".bin");
-    string temp8 = qTemp.toStdString();
-    vector<string> prompt = { jf.utf8ToAscii(temp8) };
-    vector<BINMAP> binMaps;
+    string mapPath = qf.getBranchPath(qSel[0], sroot);
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);
     thread::id myid = this_thread::get_id();
-    sb.set_prompt(prompt);
+    //sb.set_prompt(prompt);
     sb.start_call(myid, 1, comm[0]);
-    std::thread thr(&MainWindow::populateBinFamily, this, ref(sb), ref(binMaps));
-    thr.detach();
+    //std::thread thr(&MainWindow::populateBinFamily, this, ref(sb), ref(binMaps));
+    //thr.detach();
     while (1)
     {
         Sleep(gui_sleep);
@@ -1355,45 +1350,7 @@ void MainWindow::on_pB_reviewmap_clicked()
         if (comm.size() > 1 && comm[1][0] == 1) { break; }
     }
     sb.end_call(myid);
-    ui->qp_maplocal->drawFamilyBlue(binMaps);
-    vector<vector<string>> tableData = getBinGpsTable(binMaps);
-    tablePopulate(ui->tableW_maplocal, tableData);
-    string temp = to_string(binMaps.size() - 1);
-    string sMessage = "Displaying parent region " + binMaps[0].myName;
-    sMessage += " and " + temp + " child regions.";
-    barMessage(sMessage);
-    */
-}
-void MainWindow::populateBinFamily(SWITCHBOARD& sbgui, vector<BINMAP>& vBM)
-{
-    /*
-    thread::id myid = this_thread::get_id();
-    vector<int> mycomm;
-    sbgui.answer_call(myid, mycomm);
-    vector<string> prompt = sbgui.get_prompt();
-    BINMAP binChild;
-    binChild.loadFromPath(prompt[0]);
-    string pathParent = binChild.getPathParent();
-    string pathGeo = binChild.getPathGeo();
-    vBM.clear();
-    int index = 0;
-    BINMAP binBlank;
-    vBM.emplace_back(binBlank);
-    vBM[index].loadFromPath(pathParent);
-    vBM[index].childrenFromGeo(pathGeo);
-    vector<string> pathList = vBM[index].getPathChildren(1);
-    for (int ii = 0; ii < pathList.size(); ii++)
-    {
-        index = vBM.size();
-        BINMAP binBlank;
-        vBM.emplace_back(binBlank);
-        vBM[index].loadFromPath(pathList[ii]);
-        vBM[index].makeBlueDot();
-        if (pathList[ii] == prompt[0]) { vBM[index].isSelected = 1; mycomm[1]++; }
-    }
-    mycomm[0] = 1;
-    sbgui.update(myid, mycomm);
-    */
+
 }
 void MainWindow::on_listW_map_itemSelectionChanged()
 {
@@ -2092,7 +2049,7 @@ void MainWindow::on_treeW_cataonline_itemSelectionChanged()
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 0;
+    int mode = 9;
 
     switch (mode)
     {
@@ -2410,8 +2367,8 @@ void MainWindow::on_pB_test_clicked()
     }
     case 8:  // Histograms(ish) of colour ratios. 
     {
-        string insidePath = sroot + "\\debug\\ColourRatios\\LakeInside.png", temp;
-        string outsidePath = sroot + "\\debug\\ColourRatios\\LakeOutside.png";
+        string insidePath = sroot + "\\debug\\ColourRatios\\Inside2.png", temp;
+        string outsidePath = sroot + "\\debug\\ColourRatios\\Outside2.png";
         vector<unsigned char> imgInside, imgOutside, rgba;
         vector<int> imgSpecInside, imgSpecOutside;
         POINT p1;
@@ -2561,49 +2518,65 @@ void MainWindow::on_pB_test_clicked()
         qshow(temp);
         break;
     }
-    case 9:  // Load a desktop image, and draw bars on the overview for a given pattern.
+    case 9:  // RGB patterns along a map line. 
     {
-        string inputPath = sroot + "\\debug\\testNorthwestOrigin.png";
-        vector<unsigned char> img, Canada, CanadaShaded, Red, Usa, UsaShaded, Water, WaterShaded;
+        string inputPath = sroot + "\\debug\\ColourRatios\\Outside3.png";
+        QList<QTableWidgetItem*> qList;
+        QTableWidgetItem* qCell;
+        QColor qColour;
+        QBrush qBrush(Qt::SolidPattern);
+        vector<unsigned char> img, rgba;
         vector<int> imgSpec;
         im.pngLoadHere(inputPath, img, imgSpec);
-        vector<POINT> fOverview(2);
-        fOverview[0].x = 3540;
-        fOverview[0].y = 760;
-        fOverview[1].x = 3838;
-        fOverview[1].y = 972;
-        Canada = { 240, 240, 240, 255 };
-        CanadaShaded = { 198, 197, 196, 255 };
-        Red = { 255, 0, 0, 255 };
-        Usa = { 215, 215, 215, 255 };
-        UsaShaded = { 181, 181, 180, 255 };
-        Water = { 179, 217, 247, 255 };
-        WaterShaded = { 158, 182, 201, 255 };
-        vector<vector<vector<unsigned char>>> hPattern(2), vPattern(2);
-        vPattern[0] = { Water, Usa, Water, Usa, Water };
-        vPattern[1] = { WaterShaded, UsaShaded, WaterShaded, UsaShaded, WaterShaded };
-        hPattern[0] = { Water, Canada, Water, Canada, Water, Canada };
-        hPattern[1] = { WaterShaded, CanadaShaded, WaterShaded, CanadaShaded, WaterShaded, CanadaShaded };
-        vector<int> viResultH, viResultV;
-        im.scanPatternLineH(img, imgSpec, hPattern, viResultH, fOverview);
-        im.scanPatternLineV(img, imgSpec, vPattern, viResultV, fOverview);
-        int row = im.getBandCenter(viResultH);
-        int col = viResultV[0];
+        vector<vector<string>> header(2, vector<string>());
+        header[0] = { "GB", "RB", "RG", "R+G" };
         POINT p1;
-        p1.y = row;
-        for (int jj = 3540; jj < 3838; jj++)
+        int index;
+        vector<double> greenBlueInside = { 0.6, 0.81 };
+        vector<double> redBlueInside = { 0.54, 0.81 };
+        vector<double> redGreenInside = { 0.8, 1.01 };
+        double greenBlue, redBlue, redGreen;
+        vector<vector<double>> vvdData, vvdInside = { greenBlueInside, redBlueInside, redGreenInside };
+        for (int ii = 0; ii < imgSpec[1]; ii++)
         {
-            p1.x = jj;
-            im.pixelPaint(img, imgSpec, Red, p1);
+            p1.y = ii;
+            for (int jj = 0; jj < imgSpec[0]; jj++)
+            {
+                p1.x = jj;
+                rgba = im.pixelRGB(img, imgSpec, p1);
+
+                greenBlue = im.getGB(rgba);
+                redBlue = im.getRB(rgba);
+                redGreen = im.getRG(rgba);
+
+                if (greenBlue >= vvdInside[0][1] || greenBlue < vvdInside[0][0]) { continue; }
+                else if (redBlue >= vvdInside[1][1] || redBlue < vvdInside[1][0]) { continue; }
+                else if (redGreen >= vvdInside[2][1] || redGreen < vvdInside[2][0]) { continue; }
+                else if (rgba[0] == rgba[1] && rgba[1] == rgba[2]) { continue; }
+
+                index = vvdData.size();
+                vvdData.push_back(vector<double>(4));
+
+                vvdData[index][0] = im.getGB(rgba);
+                vvdData[index][1] = im.getRB(rgba);
+                vvdData[index][2] = im.getRG(rgba);
+                vvdData[index][3] = (double)(rgba[0] + rgba[1]);
+                header[1].push_back(jf.stringifyCoord(p1));
+                qCell = new QTableWidgetItem(" ");
+                qColour.setRgb((int)rgba[0], (int)rgba[1], (int)rgba[2], (int)rgba[3]);
+                qBrush.setColor(qColour);
+                qCell->setBackground(qBrush);
+                qList.append(qCell);
+            }
+
         }
-        p1.x = col;
-        for (int jj = 760; jj < 972; jj++)
+        qf.displayTable(ui->tableW_debug, vvdData, header);
+        ui->tableW_debug->insertColumn(4);
+        for (int ii = 0; ii < qList.size(); ii++)
         {
-            p1.y = jj;
-            im.pixelPaint(img, imgSpec, Red, p1);
+            ui->tableW_debug->setItem(ii, 4, qList[ii]);
         }
-        string outputPath = sroot + "\\debug\\testNorthwestOriginBars.png";
-        im.pngPrint(outputPath, img, imgSpec);
+        ui->tabW_main->setCurrentIndex(3);
         qshow("Done!");
         break;
     }

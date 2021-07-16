@@ -251,77 +251,92 @@ vector<double> MAP::testScale(vector<unsigned char>& img, vector<int>& imgSpec, 
 }
 
 
-void BINMAP::borderCheck(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbaList)
-{
-	// Look back into the entire border list, and eliminate candidates that already exist there. 
-	int borderSize = vpBorder.size();
-	borderCheck(vpBorder, vpCandidate, rgbaList, borderSize);
-}
-void BINMAP::borderCheck(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbaList, int depth)
-{
-	// Look back into the border list a certain depth, and eliminate candidates that already exist there. 
-	if (depth < 1) { jf.err("Invalid depth-bm.borderCheck"); }
-	if (vpCandidate.size() != rgbaList.size()) { jf.err("Parameter size mismatch-bm.borderCheck"); }
-	for (int ii = vpCandidate.size() - 1; ii >= 0; ii--)
-	{
-		for (int jj = 1; jj <= depth; jj++)
-		{
-			if (vpCandidate[ii].x == vpBorder[vpBorder.size() - jj].x && vpCandidate[ii].y == vpBorder[vpBorder.size() - jj].y)
-			{
-				vpCandidate.erase(vpCandidate.begin() + ii);
-				rgbaList.erase(rgbaList.begin() + ii);
-				break;
-			}
-		}
-	}
-}
-void BINMAP::borderComplete(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder)
+void BINMAP::borderComplete(vector<POINT>& vpBorder)
 {
 	// Jump along the painted border, adding to the border list, until the region's border list is complete.
 	if (vpBorder.size() < 3) { jf.err("vpBorder missing starters-bm.borderComplete"); }
-	vector<vector<unsigned char>> rgbaList;
+	vector<POINT> vpDeadEnd;
 	vector<double> vdCandidateDistance;
 	vector<int> minMax;
-	vector<POINT> vpCandidate;
-	int borderIndex = vpBorder.size() - 1, radius, candidateSize;
+	int borderIndex = vpBorder.size() - 1, radius, numCandidate, backtrack;
 	double distHome;
 	bool noplacelikehome = 0;
 	while (!noplacelikehome)  // For every point along the border...
 	{
 		radius = 2;
+		backtrack = min(20, (int)vpBorder.size());
 		while (1)  // For every list of candidates obtained with this radius...
 		{
-			vpCandidate = im.getCircle(vpBorder[borderIndex], radius);
-			rgbaList = im.lineRGB(img, imgSpec, vpCandidate);
-			im.filterColour(vpCandidate, rgbaList, Green);
-			borderCheck(vpBorder, vpCandidate, rgbaList, 3);
-			im.filterDeadCone(vpBorder, vpCandidate, rgbaList);
-			candidateSize = vpCandidate.size();
-			if (candidateSize == 0) 
-			{ 
+			if (radius > maxRadius)
+			{
+				vpDeadEnd.push_back(vpBorder[borderIndex]);
+				vpBorder.pop_back();
+				borderIndex--;
+				radius = 2;
+				if (vpDeadEnd.size() > 5000) { jf.err("Excessive dead ends-bm.borderComplete"); }
+			}
+			numCandidate = cd.fromCircle(vpBorder[borderIndex], radius);
+			numCandidate = cd.keepColour(Green);
+			if (!numCandidate)
+			{
 				radius++;
-				if (radius > 13) { jf.err("Failed to locate border candidates-bm.borderComplete"); }
 				continue;
 			}
-			vdCandidateDistance = mf.coordDistPointSumList(vpCandidate, vpBorder, 3);
-			if (candidateSize == 1)  // Is this candidate worthy? 
+			numCandidate = cd.removePast(vpBorder, backtrack);
+			if (!numCandidate)
+			{
+				radius++;
+				continue;
+			}
+			numCandidate = cd.removeRearCone(vpBorder);
+			if (!numCandidate)
+			{ 
+				radius++;
+				continue;
+			}
+			numCandidate = cd.removeDeadEnd(vpDeadEnd);
+			if (!numCandidate)
+			{
+				radius++;
+				continue;
+			}
+			vdCandidateDistance = cd.reportDist(vpBorder);
+			if (numCandidate == 1)  // Is this candidate worthy? 
 			{
 				if (vdCandidateDistance[0] < 4.0 * (double)radius)
 				{
 					radius++;
-					if (radius > 13) { jf.err("Failed to locate border candidates-bm.borderComplete"); }
 					continue;
 				}
 				else
 				{
-					vpBorder.push_back(vpCandidate[0]);
+					vpBorder.push_back(cd.getCandidate(0));
 					break;
 				}
 			}
+			numCandidate = cd.judgeDist(vdCandidateDistance);
+			if (numCandidate == 1)  // Is this candidate worthy? 
+			{
+				if (vdCandidateDistance[0] < 4.0 * (double)radius)
+				{
+					radius++;
+					continue;
+				}
+				else
+				{
+					vpBorder.push_back(cd.getCandidate(0));
+					break;
+				}
+			}
+			cd.centerOfMass(vdCandidateDistance);
+			if (vdCandidateDistance[0] < 4.0 * (double)radius)
+			{
+				radius++;
+				continue;
+			}
 			else
 			{
-				minMax = jf.minMax(vdCandidateDistance);
-				vpBorder.push_back(vpCandidate[minMax[1]]);
+				vpBorder.push_back(cd.getCandidate(0));
 				break;
 			}
 		}
@@ -333,66 +348,42 @@ void BINMAP::borderComplete(vector<unsigned char>& img, vector<int>& imgSpec, ve
 		}
 	}
 }
-void BINMAP::borderPlus(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder)
+POINT BINMAP::borderPreStart(vector<unsigned char>& img, vector<int>& imgSpec)
 {
-	// Given a starter border point, add another along a clockwise direction.
-	int radius = 2, candidateSize, borderSize = vpBorder.size();
-	if (borderSize < 1) { jf.err("pBorder invalid-bm.borderInit"); }
-	vector<POINT> vpCandidate; 
-	vector<vector<unsigned char>> rgbaList; 
-	vector<int> xMax, yMax;
-	while (1)
+	vector<unsigned char> rgba;
+	bool doOver = 1;
+	POINT pMidTop;
+	pMidTop.x = imgSpec[0] / 2;
+	while (doOver)
 	{
-		vpCandidate = im.getCircle(vpBorder[borderSize - 1], radius, imgSpec);
-		rgbaList = im.lineRGB(img, imgSpec, vpCandidate);
-		im.filterColour(vpCandidate, rgbaList, Green);
-		borderCheck(vpBorder, vpCandidate, rgbaList);
-		candidateSize = vpCandidate.size();
-		if (candidateSize == 0) { radius++; }
-		else if (candidateSize == 1)
+		pMidTop.x++;
+		for (int ii = 0; ii < imgSpec[1]; ii++)
 		{
-			vpBorder.push_back(vpCandidate[0]);
-			return;
-		}
-		else
-		{
-			xMax = { -1, -1 };
-			for (int ii = 0; ii < candidateSize; ii++)
-			{
-				if (vpCandidate[ii].x > xMax[0])
-				{
-					xMax.resize(2);
-					xMax[0] = vpCandidate[ii].x;
-					xMax[1] = ii;
-				}
-				else if (vpCandidate[ii].x == xMax[0])
-				{
-					xMax.push_back(ii);
-				}
-			}
-			if (xMax.size() == 2)
-			{
-				vpBorder.push_back(vpCandidate[xMax[1]]);
-				return;
-			}
-			else
-			{
-				yMax = { -1, -1 };
-				for (int ii = 1; ii < xMax.size(); ii++)
-				{
-					if (vpCandidate[xMax[ii]].y > yMax[0])
-					{
-						yMax[0] = vpCandidate[xMax[ii]].y;
-						yMax[1] = xMax[ii];
-					}
-				}
-				vpBorder.push_back(vpCandidate[yMax[1]]);
-				return;
-			}
+			pMidTop.y = ii;
+			rgba = im.pixelRGB(img, imgSpec, pMidTop);
+			if (rgba == Green) { doOver = 0;  break; }
 		}
 	}
-
-
+	return pMidTop;
+}
+void BINMAP::borderStart(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder)
+{
+	// Given a starter border point, add two more along a clockwise direction.
+	if (vpBorder.size() < 1) { jf.err("pBorder invalid-bm.borderStart"); }
+	int radius = 2, numCandidate, borderSize; 
+	vector<int> xMax, yMax;
+	cd.setImg(img, imgSpec);
+	while (1)
+	{
+		borderSize = vpBorder.size();
+		if (borderSize > 2) { break; }
+		numCandidate = cd.fromCircle(vpBorder[borderSize - 1], radius);
+		numCandidate = cd.keepColour(Green);
+		numCandidate = cd.removePast(vpBorder, borderSize);
+		if (numCandidate == 0) { radius++; }
+		else if (numCandidate == 1) { vpBorder.push_back(cd.getCandidate(0)); }
+		else { vpBorder.push_back(cd.getClockwiseCandidate()); }
+	}
 }
 bool BINMAP::checkSpec(vector<int>& imgSpec)
 {
@@ -535,7 +526,8 @@ void BINMAP::findFrames(vector<unsigned char>& img, vector<int>& imgSpec, POINT 
 void BINMAP::initialize()
 {
 	string circlePath = sroot + "\\ScanCircles13.png";
-	im.initScanCircles(circlePath);
+	maxRadius = im.initScanCircles(circlePath);
+	im.initCandidates(cd);
 	pngRes = { 1632, 818, 4 };
 	fullRes = { 3840, 1080, 4 };
 	ovRes = { 300, 213, 4 };
@@ -570,10 +562,9 @@ void BINMAP::initialize()
 	WaterSel = { 143, 174, 249, 255 };
 	White = { 255, 255, 255, 255 };
 
-	greenBlueOutside = { 0.8, 1.01 };
-	greenBlueInside = { 0.69, 0.8 };
-	redBlueInside = { 0.72, 1.01 };
-	redGreenInside = { 0.92, 1.01 };
+	greenBlueInside = { 0.6, 0.81 };
+	redBlueInside = { 0.54, 0.81 };
+	redGreenInside = { 0.8, 1.01 };
 
 	string scalePath, temp;
 	vector<int> imgSpec;
@@ -614,67 +605,63 @@ void BINMAP::setPTE(QPlainTextEdit*& qPTE, bool isGUI)
 	pte = qPTE;
 	isgui = isGUI;
 }
-void BINMAP::sprayRegion(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR)
+void BINMAP::sprayRegion(vector<unsigned char>&img, vector<int>&imgSpec, vector<POINT> TLBR, vector<double> angleDeviation)
 {
-	// Travel along TLBR and paint the midpoint pixel between a region's "out" and "in" colour ratios.
+	// Travel along TLBR and spray paint the border between the region and the outside. 
+	// Each side of the rectangle sprays inward twice (plus or minus deviation from perpendicular).
+	vector<unsigned char> imgClean = img;
 	vector<vector<double>> vvdInside = { greenBlueInside, redBlueInside, redGreenInside };
-	POINT pBorder;
-	vector<POINT> startStop(2);
-	startStop[0].x = TLBR[0].x + 1;
-	startStop[0].y = TLBR[0].y + 1;
-	startStop[1].x = startStop[0].x;
-	startStop[1].y = TLBR[1].y - 1;
-	while (startStop[0].x < TLBR[1].x)
+	int widthTLBR = TLBR[1].x - TLBR[0].x + 1;
+	int heightTLBR = TLBR[1].y - TLBR[0].y + 1;	
+	POINT pStart, pBorder;
+
+	for (int hh = 0; hh < angleDeviation.size(); hh++)
 	{
-		pBorder = im.getBorderPoint(img, imgSpec, startStop, greenBlueOutside, vvdInside);
-		if (pBorder.x >= 0)
+		if (angleDeviation[hh] < 0.0 || angleDeviation[hh] >= 90.0) { jf.err("Invalid angle-bm.sprayRegion"); }
+		pStart.y = TLBR[0].y;
+		for (int ii = 1; ii < widthTLBR - 1; ii++)
 		{
-			im.pixelPaint(img, imgSpec, Green, pBorder);
+			pStart.x = TLBR[0].x + ii;
+			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 90.0 - angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			if (angleDeviation[hh] == 0.0) { continue; }
+			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 90.0 + angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
 		}
-		startStop[0].x++;
-		startStop[1].x++;
-	}
-	startStop[0].x = TLBR[1].x - 1;
-	startStop[0].y = TLBR[0].y + 1;
-	startStop[1].x = TLBR[0].x + 1;
-	startStop[1].y = startStop[0].y;
-	while (startStop[0].y < TLBR[1].y)
-	{
-		pBorder = im.getBorderPoint(img, imgSpec, startStop, greenBlueOutside, vvdInside);
-		if (pBorder.x >= 0)
+
+		pStart.x = TLBR[1].x;
+		for (int ii = 1; ii < heightTLBR - 1; ii++)
 		{
-			im.pixelPaint(img, imgSpec, Green, pBorder);
+			pStart.y = TLBR[0].y + ii;
+			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 180.0 - angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			if (angleDeviation[hh] == 0.0) { continue; }
+			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 180.0 + angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
 		}
-		startStop[0].y++;
-		startStop[1].y++;
-	}
-	startStop[0].x = TLBR[1].x - 1;
-	startStop[0].y = TLBR[1].y - 1;
-	startStop[1].x = startStop[0].x;
-	startStop[1].y = TLBR[0].y + 1;
-	while (startStop[0].x > TLBR[0].x)
-	{
-		pBorder = im.getBorderPoint(img, imgSpec, startStop, greenBlueOutside, vvdInside);
-		if (pBorder.x >= 0)
+
+		pStart.y = TLBR[1].y;
+		for (int ii = 1; ii < widthTLBR - 1; ii++)
 		{
-			im.pixelPaint(img, imgSpec, Green, pBorder);
+			pStart.x = TLBR[0].x + ii;
+			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 270.0 - angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			if (angleDeviation[hh] == 0.0) { continue; }
+			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 270.0 + angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
 		}
-		startStop[0].x--;
-		startStop[1].x--;
-	}
-	startStop[0].x = TLBR[0].x + 1;
-	startStop[0].y = TLBR[1].y - 1;
-	startStop[1].x = TLBR[1].x - 1;
-	startStop[1].y = startStop[0].y;
-	while (startStop[0].y > TLBR[0].y)
-	{
-		pBorder = im.getBorderPoint(img, imgSpec, startStop, greenBlueOutside, vvdInside);
-		if (pBorder.x >= 0)
+
+		pStart.x = TLBR[0].x;
+		for (int ii = 1; ii < heightTLBR - 1; ii++)
 		{
-			im.pixelPaint(img, imgSpec, Green, pBorder);
+			pStart.y = TLBR[0].y + ii;
+			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			if (angleDeviation[hh] == 0.0) { continue; }
+			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 360.0 - angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
 		}
-		startStop[0].y--;
-		startStop[1].y--;
+
 	}
 }
 

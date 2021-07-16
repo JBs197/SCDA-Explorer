@@ -21,6 +21,7 @@ public:
 	vector<unsigned char> Black, MSBlack, MSText, Navy, Red, White;
 	vector<unsigned char> Canada, CanadaShaded, Usa, UsaShaded, Water, WaterShaded;
 	vector<unsigned char> CanadaSel, Green, WaterSel;
+	CANDIDATES cd;
 	GDIFUNC gdi;
 	IOFUNC io;
 	IMGFUNC im;
@@ -47,19 +48,18 @@ public:
 
 class BINMAP : public MAP
 {
-	//vector<vector<unsigned char>> inColour, outColour;
 	vector<double> greenBlueOutside, greenBlueInside, redBlueInside, redGreenInside;
 	bool isgui;
+	int maxRadius;
 	QPlainTextEdit* pte = nullptr;
 
 public:
 	BINMAP() {}
 	~BINMAP() {}
 
-	void borderCheck(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbaList);
-	void borderCheck(vector<POINT>& vpBorder, vector<POINT>& vpCandidate, vector<vector<unsigned char>>& rgbaList, int depth);
-	void borderComplete(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder);
-	void borderPlus(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder);
+	void borderComplete(vector<POINT>& vpBorder);
+	POINT borderPreStart(vector<unsigned char>& img, vector<int>& imgSpec);
+	void borderStart(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder);
 	bool checkSpec(vector<int>& imgSpec);
 	vector<POINT> drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin);
 	vector<POINT> drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin, vector<vector<unsigned char>> rgba);
@@ -69,7 +69,7 @@ public:
 	void qshow(string sMessage);
 	void recordPoint(POINT& point, string pointName);
 	void setPTE(QPlainTextEdit*& qPTE, bool isGUI);
-	void sprayRegion(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR);
+	void sprayRegion(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<double> angleDeviation);
 };
 
 class PNGMAP : public MAP
