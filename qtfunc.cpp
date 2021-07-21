@@ -267,6 +267,14 @@ int QTFUNC::get_display_root(QTreeWidget* name)
 	int index = map_display_root.value(name, -1);
 	return index;
 }
+QPointF QTFUNC::getQPF(vector<double>& vdCoord)
+{
+	if (vdCoord.size() < 2) { jf.err("vdCoord missing-qf.getQPF"); }
+	QPointF qpf;
+	qpf.setX(vdCoord[0]);
+	qpf.setY(vdCoord[1]);
+	return qpf;
+}
 vector<vector<int>> QTFUNC::getTLBR(vector<vector<int>>& borderPath)
 {
 	vector<vector<int>> TLBR = im.makeBox(borderPath);
@@ -588,4 +596,12 @@ void QTFUNC::set_display_root(QTreeWidget* name, int val)
 {
 	map_display_root.insert(name, val);
 }
-
+vector<QPointF> QTFUNC::vpToVQPF(vector<POINT>& vp)
+{
+	vector<QPointF> vQPF(vp.size());
+	for (int ii = 0; ii < vQPF.size(); ii++)
+	{
+		vQPF[ii] = QPointF((double)vp[ii].x, (double)vp[ii].y);
+	}
+	return vQPF;
+}

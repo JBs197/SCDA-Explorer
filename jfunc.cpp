@@ -386,6 +386,19 @@ vector<double> JFUNC::destringifyCoordD(string& sCoord)
 	catch (invalid_argument) { err("stod-jf.destringifyCoordD"); }
 	return coord;
 }
+POINT JFUNC::destringifyCoordP(string& sCoord)
+{
+	POINT p1;
+	size_t pos1 = sCoord.find(',');
+	if (pos1 > sCoord.size()) { err("No comma found-jf.destringifyCoordP"); }
+	try
+	{
+		p1.x = stoi(sCoord.substr(0, pos1));
+		p1.y = stoi(sCoord.substr(pos1 + 1));
+	}
+	catch (invalid_argument) { err("stoi-jf.destringifyCoordP"); }
+	return p1;
+}
 void JFUNC::err(string func)
 {
 	lock_guard<mutex> lock(m_err);
@@ -648,6 +661,36 @@ vector<int> JFUNC::minMax(vector<double>& dList)
 		}
 	}
 	return result;
+}
+vector<vector<int>> JFUNC::minMax(vector<POINT>& vpList)
+{
+	// Return form [xCoords, yCoords][minIndex, maxIndex]
+	vector<vector<int>> vviMinMax(2, vector<int>(2, 0));
+	int xMin = vpList[0].x, xMax = vpList[0].x, yMin = vpList[0].y, yMax = vpList[0].y;
+	for (int ii = 1; ii < vpList.size(); ii++)
+	{
+		if (vpList[ii].x < xMin)
+		{
+			xMin = vpList[ii].x;
+			vviMinMax[0][0] = ii;
+		}
+		else if (vpList[ii].x > xMax)
+		{
+			xMax = vpList[ii].x;
+			vviMinMax[0][1] = ii;
+		}
+		if (vpList[ii].y < yMin)
+		{
+			yMin = vpList[ii].y;
+			vviMinMax[1][0] = ii;
+		}
+		else if (vpList[ii].y > yMax)
+		{
+			yMax = vpList[ii].y;
+			vviMinMax[1][1] = ii;
+		}
+	}
+	return vviMinMax;
 }
 string JFUNC::nameFromPath(string& path)
 {

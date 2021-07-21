@@ -75,6 +75,7 @@ private slots:
     void on_pB_insertmap_clicked();
     void on_pB_maplocal_clicked();
     void on_pB_resolution_clicked();
+    void on_pB_resume_clicked();
     void on_pB_reviewmap_clicked();
     void on_pB_search_clicked();
     void on_pB_test_clicked();
@@ -86,13 +87,14 @@ private slots:
     void on_treeW_catadb_itemSelectionChanged();
     void on_treeW_catalocal_itemSelectionChanged();
     void on_treeW_cataonline_itemSelectionChanged();
+    void on_treeW_maplocal_itemDoubleClicked(QTreeWidgetItem* qFolder, int column);
     void on_treeW_maplocal_itemSelectionChanged();
 
 private:
     Ui::MainWindow *ui;
 
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
-    const int cores = 3, treeLength = 40, mapMargin = 20;
+    const int cores = 3, treeLength = 40, mapMargin = 1;
     const long long csvMaxSize = 200000000;  // Bytes
     string db_path;
     const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
@@ -104,6 +106,7 @@ private:
     QWidget* recentClick = nullptr;
     vector<int> resDesktop = { 1920, 1080 };
     vector<double> resScaling = { 1.0, 1.0 };
+    int statusResume;
     long long time;
 
     void autoExpand(QTreeWidget*& qTree, int maxNum);
@@ -112,8 +115,7 @@ private:
     void barUpdate(int iCurrent);
     void bind(string&, vector<string>&);
     void createBinMap(SWITCHBOARD& sbgui);
-    void createChildPNG(SWITCHBOARD& sbgui, SQLFUNC& sfgui, PNGMAP& pngmgui);
-    void createParentPNG(SWITCHBOARD& sbgui, SQLFUNC& sfgui, PNGMAP& pngmgui);
+    void createParentChildPNG(string& tnameGeoLayers, string& tnameGeo);
     void displayTable(QTableWidget*& qTable, string tname);
     void downloadCatalogue(string sYear, string sCata);
     void GetDesktopResolution(int& horizontal, int& vertical);
@@ -124,6 +126,7 @@ private:
     void insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui, BINMAP& bmgui);
     void insertGeoLayers(string sYear, string sCata);
     void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
+    void pauseDebugMap(string mapPath);
     void qshow(string message);
     void qshow(vector<string> message);
     void reportTable(QTableWidget*& qTable);

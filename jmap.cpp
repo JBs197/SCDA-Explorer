@@ -1,6 +1,17 @@
 #include "stdafx.h"
 #include "jmap.h"
 
+QPointF MAP::centerToImgTL(QPointF& qpfCenter, double imgPPKM)
+{
+	QPointF qpfTL;
+	int iDelta = fullRes[0] / 2;
+	double dDelta = (double)iDelta / imgPPKM;
+	qpfTL.setX(qpfCenter.rx() - dDelta);
+	iDelta = fullRes[1] / 2;
+	dDelta = (double)iDelta / imgPPKM;
+	qpfTL.setY(qpfCenter.ry() - dDelta);
+	return qpfTL;
+}
 void MAP::cropToOverview(vector<unsigned char>& img, vector<int>& imgSpec)
 {
 	if (imgSpec != pngRes) { jf.err("No init or bad parameter-map.cropToOverview"); }
@@ -17,12 +28,36 @@ double MAP::extractScale(vector<unsigned char> img, vector<int> imgSpec)
 	im.crop(img, imgSpec, TLBR);
 	int leftCol = 4;
 	POINT scaleBR = getScaleCorner(img, imgSpec, leftCol);
-	int barLength = scaleBR.x - leftCol + 1;
+	int barLength = scaleBR.x - leftCol - 1;
 	vector<double> matchScore = testScale(img, imgSpec, scaleBR);
 	vector<int> minMax = jf.minMax(matchScore);
 	int iKM = viScale[minMax[1]];
 	double pixelPerKM = (double)barLength / (double)iKM;
 	return pixelPerKM;
+}
+POINT MAP::getImgTL(vector<unsigned char>& img, vector<int>& imgSpec)
+{
+	// Return the image's top-left pixel, ignoring red and black pixels.
+	POINT p1, pTL;
+	p1.x = 0;
+	p1.y = imgSpec[1] / 2;
+	vector<unsigned char> rgbx = im.pixelRGB(img, imgSpec, p1);
+	while (rgbx == Red || rgbx == Black)
+	{
+		p1.x++;
+		rgbx = im.pixelRGB(img, imgSpec, p1);
+	}
+	pTL.x = p1.x;
+	p1.x = imgSpec[0] / 2;
+	p1.y = 0;
+	rgbx = im.pixelRGB(img, imgSpec, p1);
+	while (rgbx == Red || rgbx == Black)
+	{
+		p1.y++;
+		rgbx = im.pixelRGB(img, imgSpec, p1);
+	}
+	pTL.y = p1.y;
+	return pTL;
 }
 vector<POINT> MAP::getPixel(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char>& RGBA)
 {
@@ -129,6 +164,44 @@ POINT MAP::getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec, int&
 void MAP::initScanCircles(string& pngPath)
 {
 	im.initScanCircles(pngPath);
+}
+vector<POINT> MAP::makeBox(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> rgba, int iMargin)
+{
+	// Returns a TLBR around a given colour, plus a margin around all sides. 
+	vector<POINT> TLBR(2);
+	vector<vector<int>> vviBox = im.makeBox(img, imgSpec, rgba, iMargin);
+	TLBR[0].x = vviBox[0][0];
+	TLBR[0].y = vviBox[0][1];
+	TLBR[1].x = vviBox[1][0];
+	TLBR[1].y = vviBox[1][1];
+	if (TLBR[0].x < 0) { TLBR[0].x = 0; }
+	if (TLBR[0].y < 0) { TLBR[0].y = 0; }
+	if (TLBR[1].x >= imgSpec[0]) { TLBR[1].x = imgSpec[0] - 1; }
+	if (TLBR[1].y >= imgSpec[1]) { TLBR[1].y = imgSpec[1] - 1; }
+	return TLBR;
+}
+vector<POINT> MAP::makeBoxSel(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin)
+{
+	// makeBox, using a region's selected colours. 
+	vector<POINT> TLBR(2);
+	vector<vector<unsigned char>> rgbaList = { CanadaSel, CitySel, ProvinceSel, WaterSel };
+	vector<vector<int>> vviBox = im.makeBox(img, imgSpec, rgbaList, iMargin);
+	TLBR[0].x = vviBox[0][0];
+	TLBR[0].y = vviBox[0][1];
+	TLBR[1].x = vviBox[1][0];
+	TLBR[1].y = vviBox[1][1];
+	if (TLBR[0].x < 0) { TLBR[0].x = 0; }
+	if (TLBR[0].y < 0) { TLBR[0].y = 0; }
+	if (TLBR[1].x >= imgSpec[0]) { TLBR[1].x = imgSpec[0] - 1; }
+	if (TLBR[1].y >= imgSpec[1]) { TLBR[1].y = imgSpec[1] - 1; }
+	return TLBR;
+}
+QPointF MAP::ovPixelToKM(vector<int> ovDisp)
+{
+	QPointF qpf;
+	qpf.setX((double)ovDisp[0] / xOverviewPPKM);
+	qpf.setY((double)ovDisp[1] / yOverviewPPKM);
+	return qpf;
 }
 bool MAP::scanColourSquare(vector<POINT>& TLBR, vector<unsigned char> RGBA)
 {
@@ -250,16 +323,41 @@ vector<double> MAP::testScale(vector<unsigned char>& img, vector<int>& imgSpec, 
 	return vdResult;
 }
 
-
-void BINMAP::borderComplete(vector<POINT>& vpBorder)
+void BINMAP::addBorderPoint(vector<POINT>& vpBorder, vector<POINT>& vpDeadEnd, POINT& pNew)
+{
+	vpBorder.push_back(pNew);
+	pNew.x--;
+	pNew.y--;
+	vpDeadEnd.push_back(pNew);
+	pNew.x++;
+	vpDeadEnd.push_back(pNew);
+	pNew.x++;
+	vpDeadEnd.push_back(pNew);
+	pNew.y++;
+	vpDeadEnd.push_back(pNew);
+	pNew.y++;
+	vpDeadEnd.push_back(pNew);
+	pNew.x--;
+	vpDeadEnd.push_back(pNew);
+	pNew.x--;
+	vpDeadEnd.push_back(pNew);
+	pNew.y--;
+	vpDeadEnd.push_back(pNew);
+}
+void BINMAP::borderComplete(SWITCHBOARD& sbgui, vector<POINT>& vpBorder)
 {
 	// Jump along the painted border, adding to the border list, until the region's border list is complete.
 	if (vpBorder.size() < 3) { jf.err("vpBorder missing starters-bm.borderComplete"); }
+	thread::id myid = this_thread::get_id();
+	vector<vector<int>> comm(2, vector<int>());
 	vector<POINT> vpDeadEnd;
+	POINT pNew;
 	vector<double> vdCandidateDistance;
-	vector<int> minMax;
-	int borderIndex = vpBorder.size() - 1, radius, numCandidate, backtrack;
-	double distHome;
+	vector<int> minMax, viPrompt = sbgui.getIPrompt();
+	if (!viPrompt[1]) { viPrompt[1] = 100; }
+	vector<string> prompt(1);
+	int borderIndex = vpBorder.size() - 1, radius, numCandidate, backtrack, borderIndexMax = 1;
+	double distHome, remaining, twins;
 	bool noplacelikehome = 0;
 	while (!noplacelikehome)  // For every point along the border...
 	{
@@ -273,7 +371,16 @@ void BINMAP::borderComplete(vector<POINT>& vpBorder)
 				vpBorder.pop_back();
 				borderIndex--;
 				radius = 2;
-				if (vpDeadEnd.size() > 5000) { jf.err("Excessive dead ends-bm.borderComplete"); }
+				remaining = (double)borderIndex / (double)borderIndexMax;
+				if (remaining < 0.9 && borderIndexMax > 50)
+				{
+					vector<unsigned char> imgDebug;
+					vector<int> imgSpecDebug;
+					cd.getImg(imgDebug, imgSpecDebug);
+					im.printDebugMap(imgDebug, imgSpecDebug, vpBorder);
+					jf.err("vpBorder failure-bm.borderComplete");
+				}
+				if (vpDeadEnd.size() > 50000) { jf.err("Excessive dead ends-bm.borderComplete"); }
 			}
 			numCandidate = cd.fromCircle(vpBorder[borderIndex], radius);
 			numCandidate = cd.keepColour(Green);
@@ -310,41 +417,63 @@ void BINMAP::borderComplete(vector<POINT>& vpBorder)
 				}
 				else
 				{
-					vpBorder.push_back(cd.getCandidate(0));
+					pNew = cd.getCandidate(0);
+					addBorderPoint(vpBorder, vpDeadEnd, pNew);
 					break;
 				}
 			}
 			numCandidate = cd.judgeDist(vdCandidateDistance);
 			if (numCandidate == 1)  // Is this candidate worthy? 
 			{
-				if (vdCandidateDistance[0] < 4.0 * (double)radius)
+				if (vdCandidateDistance[0] < (2.0 * (double)radius) + 4.0)
 				{
 					radius++;
 					continue;
 				}
 				else
 				{
-					vpBorder.push_back(cd.getCandidate(0));
+					pNew = cd.getCandidate(0);
+					addBorderPoint(vpBorder, vpDeadEnd, pNew);
 					break;
 				}
 			}
-			cd.centerOfMass(vdCandidateDistance);
-			if (vdCandidateDistance[0] < 4.0 * (double)radius)
+			else if (numCandidate == 2)
 			{
-				radius++;
-				continue;
+				if (cd.siblings())
+				{
+					cd.centerOfMass(vdCandidateDistance);
+					pNew = cd.getCandidate(0);
+					addBorderPoint(vpBorder, vpDeadEnd, pNew);
+					break;
+				}
 			}
-			else
-			{
-				vpBorder.push_back(cd.getCandidate(0));
-				break;
-			}
+			radius++;
 		}
 		borderIndex = vpBorder.size() - 1;
+		if (borderIndex > borderIndexMax) { borderIndexMax = borderIndex; }
 		if (borderIndex >= 20)
 		{
 			distHome = mf.coordDistPoint(vpBorder[0], vpBorder[borderIndex]);
 			if (distHome < 6.0) { noplacelikehome = 1; }
+		}
+
+		if (mode == 1 && borderIndex % viPrompt[1] == viPrompt[1] - 1)
+		{
+			vector<unsigned char> imgDebug;
+			vector<int> imgSpecDebug;
+			cd.getImg(imgDebug, imgSpecDebug);
+			prompt[0] = im.printDebugMap(imgDebug, imgSpecDebug, vpBorder);
+			sbgui.set_prompt(prompt);
+			comm[1] = sbgui.getMyComm(myid);
+			comm[1][0] = 2;
+			comm = sbgui.update(myid, comm[1]);
+			while (comm[0][0] >= 0)
+			{
+				Sleep(50);
+				comm = sbgui.update(myid, comm[1]);
+			}
+			comm[1][0] = 0;
+			sbgui.update(myid, comm[1]);
 		}
 	}
 }
@@ -395,14 +524,16 @@ bool BINMAP::checkSpec(vector<int>& imgSpec)
 }
 vector<POINT> BINMAP::drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin)
 {
-	vector<POINT> TLBR = drawRect(img, imgSpec, iMargin, { CanadaSel, Red });
+	vector<POINT> TLBR = drawRect(img, imgSpec, iMargin, { Red, CanadaSel, ProvinceSel, WaterSel });
 	return TLBR;
 }
-vector<POINT> BINMAP::drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin, vector<vector<unsigned char>> rgba)
+vector<POINT> BINMAP::drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin, vector<vector<unsigned char>> rgbaList)
 {
 	// Upon a given image, draw a rectangle encompassing the given colour, with a margin on all sides.
-	// rgba has form [target colour, rectangle colour]. Image will be resized if necessary. 
-	vector<vector<int>> selBox = im.makeBox(img, imgSpec, rgba[0], iMargin);
+	// rgba has form [rectangle colour, target colour 1, ... ]. Image will be resized if necessary. 
+	vector<vector<unsigned char>> rgbaTargets;
+	rgbaTargets.assign(rgbaList.begin() + 1, rgbaList.end());
+	vector<vector<int>> selBox = im.makeBox(img, imgSpec, rgbaTargets, iMargin);
 	int rightMargin = imgSpec[0] - selBox[1][0] - 1;
 	int botMargin = imgSpec[1] - selBox[1][1] - 1;
 	if (selBox[0][0] < 0 || selBox[0][1] < 0 || rightMargin < 0 || botMargin < 0)
@@ -440,12 +571,12 @@ vector<POINT> BINMAP::drawRect(vector<unsigned char>& img, vector<int>& imgSpec,
 	TLBR[0].y = selBox[0][1];
 	TLBR[1].x = selBox[1][0];
 	TLBR[1].y = selBox[1][1];
-	im.rectPaint(img, imgSpec, TLBR, rgba[1]);
+	im.rectPaint(img, imgSpec, TLBR, rgbaList[0]);
 	return TLBR;
 }
-vector<int> BINMAP::extractPosition(vector<unsigned char>& imgSuper, vector<int>& imgSpecSuper, vector<unsigned char>& imgHome, vector<int>& imgSpecHome)
+vector<int> BINMAP::extractImgDisplacement(vector<unsigned char>& imgSuper, vector<int>& imgSpecSuper, vector<unsigned char>& imgHome, vector<int>& imgSpecHome)
 {
-	// Returns the region's displacement relative to the HomeOV reference image. 
+	// Returns the region's pixel displacement relative to the HomeOV reference image. 
 	vector<int> DxDy(2);
 	POINT TL;
 	TL.x = 0;
@@ -522,14 +653,77 @@ vector<int> BINMAP::extractPosition(vector<unsigned char>& imgSuper, vector<int>
 	}
 	return DxDy;
 }
+vector<POINT> BINMAP::getFrame(vector<unsigned char>& img, vector<int>& imgSpec)
+{
+	vector<POINT> TLBR = getFrame(img, imgSpec, Red);
+	return TLBR;
+}
+vector<POINT> BINMAP::getFrame(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGBX)
+{
+	if (RGBX.size() != imgSpec[2]) { jf.err("Colour size mismatch-bm.getFrame"); }
+	vector<POINT> TLBR(2);
+	POINT p1;
+	bool letmeout = 0;
+	vector<unsigned char> rgbx;
+	for (int ii = 0; ii < imgSpec[1]; ii++)
+	{
+		p1.y = ii;
+		for (int jj = 0; jj < imgSpec[0]; jj++)
+		{
+			p1.x = jj;
+			rgbx = im.pixelRGB(img, imgSpec, p1);
+			if (rgbx == RGBX)
+			{
+				letmeout = 1;
+				break;
+			}
+		}
+		if (letmeout) { break; }
+		if (ii == imgSpec[1] - 1) { jf.err("Colour not found-bm.getFrame"); }
+	}
+	TLBR[0] = p1;
+	while (rgbx == RGBX)
+	{
+		p1.x++;
+		if (p1.x == imgSpec[0]) { break; }
+		rgbx = im.pixelRGB(img, imgSpec, p1);
+	}
+	p1.x--;
+	rgbx = im.pixelRGB(img, imgSpec, p1);
+	while (rgbx == RGBX)
+	{
+		p1.y++;
+		if (p1.y == imgSpec[1]) { break; }
+		rgbx = im.pixelRGB(img, imgSpec, p1);
+	}
+	p1.y--;
+	TLBR[1] = p1;
+	return TLBR;
+}
 void BINMAP::findFrames(vector<unsigned char>& img, vector<int>& imgSpec, POINT bHome) {}
+QPointF BINMAP::imgTLToFrameTL(QPointF& qpfImgTL, POINT& imgTL, POINT& frameTL, double imgPPKM)
+{
+	QPointF qpfFrameTL;
+	int iDelta = frameTL.x - imgTL.x;
+	double dDelta = (double)iDelta / imgPPKM;
+	qpfFrameTL.setX(qpfImgTL.rx() + dDelta);
+	iDelta = frameTL.y - imgTL.y;
+	dDelta = (double)iDelta / imgPPKM;
+	qpfFrameTL.setY(qpfImgTL.ry() + dDelta);
+	return qpfFrameTL;
+}
 void BINMAP::initialize()
 {
+	initialize(0);
+}
+void BINMAP::initialize(int iMode)
+{
+	mode = iMode;
 	string circlePath = sroot + "\\ScanCircles13.png";
 	maxRadius = im.initScanCircles(circlePath);
 	im.initCandidates(cd);
 	pngRes = { 1632, 818, 4 };
-	fullRes = { 3840, 1080, 4 };
+	fullRes = { 1632, 924, 4 };
 	ovRes = { 300, 213, 4 };
 	viScale = { 600, 300, 200, 100, 40, 20, 10 };
 	vpOVCropped.resize(2);
@@ -552,19 +746,23 @@ void BINMAP::initialize()
 	Black = { 0, 0, 0, 255 };
 	Canada = { 240, 240, 240, 255 };
 	CanadaSel = { 192, 192, 243, 255 };
+	City = { 235, 226, 200, 255 };
+	CitySel = { 188, 181, 211, 255 };
 	Green = { 34, 177, 76, 255 };
 	MSBlack = { 68, 68, 68, 255 };
 	MSText = { 102, 102, 102, 255 };
 	Navy = { 51, 80, 117, 255 };
+	Province = { 225, 225, 225, 255 };
+	ProvinceSel = { 180, 180, 231, 255 };
 	Red = { 255, 0, 0, 255 };
 	Usa = { 215, 215, 215, 255 };
 	Water = { 179, 217, 247, 255 };
 	WaterSel = { 143, 174, 249, 255 };
 	White = { 255, 255, 255, 255 };
 
-	greenBlueInside = { 0.6, 0.81 };
-	redBlueInside = { 0.54, 0.81 };
-	redGreenInside = { 0.8, 1.01 };
+	greenBlueInside = { 0.6, 0.867 };
+	redBlueInside = { 0.54, 0.892 };
+	redGreenInside = { 0.8, 1.04 };
 
 	string scalePath, temp;
 	vector<int> imgSpec;
@@ -582,6 +780,59 @@ void BINMAP::initialize()
 			setScaleMST[ii].emplace(temp);
 		}
 	}
+}
+vector<POINT> BINMAP::loadBorder(string& binFile)
+{
+	vector<POINT> vpBorder;
+	string sCoord;
+	size_t pos1 = binFile.find("//border");
+	if (pos1 > binFile.size()) { jf.err("No border found-bm.loadBorder"); }
+	size_t pos2 = binFile.find('\n', pos1);
+	pos1 = pos2 + 1;
+	size_t posEnd = binFile.find("\n\n", pos1);
+	if (posEnd > binFile.size()) { jf.err("Missing newlines-bm.loadBorder"); }
+	while (pos1 < posEnd)
+	{
+		pos2 = binFile.find('\n', pos1);
+		sCoord = binFile.substr(pos1, pos2 - pos1);
+		vpBorder.push_back(jf.destringifyCoordP(sCoord));
+		pos1 = pos2 + 1;
+	}
+	return vpBorder;
+}
+vector<POINT> BINMAP::loadFrame(string& binFile)
+{
+	vector<POINT> TLBR(2);
+	size_t pos1 = binFile.find("//frame");
+	pos1 = binFile.find('\n', pos1) + 1;
+	size_t pos2 = binFile.find('\n', pos1);
+	string sCoord = binFile.substr(pos1, pos2 - pos1);
+	TLBR[0] = jf.destringifyCoordP(sCoord);
+	pos1 = pos2 + 1;
+	pos2 = binFile.find('\n', pos1);
+	sCoord = binFile.substr(pos1, pos2 - pos1);
+	TLBR[1] = jf.destringifyCoordP(sCoord);
+	return TLBR;
+}
+QPointF BINMAP::loadPosition(string& binFile)
+{
+	size_t pos1 = binFile.find("//position");
+	pos1 = binFile.find('\n', pos1) + 1;
+	size_t pos2 = binFile.find('\n', pos1);
+	string sCoord = binFile.substr(pos1, pos2 - pos1);
+	vector<double> vdPosition = jf.destringifyCoordD(sCoord);
+	QPointF qpfPosition = qf.getQPF(vdPosition);
+	return qpfPosition;
+}
+double BINMAP::loadScale(string& binFile)
+{
+	size_t pos1 = binFile.find("//scale");
+	pos1 = binFile.find('\n', pos1) + 1;
+	size_t pos2 = binFile.find('\n', pos1);
+	double scale;
+	try { scale = stod(binFile.substr(pos1, pos2 - pos1)); }
+	catch (invalid_argument) { jf.err("stod-bm.loadScale"); }
+	return scale;
 }
 void BINMAP::qshow(string sMessage)
 {
@@ -623,7 +874,8 @@ void BINMAP::sprayRegion(vector<unsigned char>&img, vector<int>&imgSpec, vector<
 		{
 			pStart.x = TLBR[0].x + ii;
 			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 90.0 - angleDeviation[hh], TLBR, vvdInside);
-			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			if (pBorder.x >= 0) 
+			{ im.pixelPaint(img, imgSpec, Green, pBorder); }
 			if (angleDeviation[hh] == 0.0) { continue; }
 			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 90.0 + angleDeviation[hh], TLBR, vvdInside);
 			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
@@ -666,7 +918,7 @@ void BINMAP::sprayRegion(vector<unsigned char>&img, vector<int>&imgSpec, vector<
 }
 
 
-int PNGMAP::createAllParents()
+void PNGMAP::createAllParents(QProgressBar*& qpb, int& progress)
 {
 	POINT pOrigin, pTL, p1;
 	string sMessage, pngPath, pngPathManual, temp;
@@ -689,7 +941,7 @@ int PNGMAP::createAllParents()
 	}
 
 	bool manual = 0;
-	int count = 0, scaleHome, scaleParent;
+	int scaleHome, scaleParent;
 	for (int ii = 0; ii < geoLayers.size(); ii++)
 	{
 		if (geoLayers[ii] == "") { sMessage = "NUM1: Configure map screen for canada"; }
@@ -699,7 +951,8 @@ int PNGMAP::createAllParents()
 		if (io.signal(VK_NUMPAD1)) {}
 		for (int jj = 0; jj < nameParent[ii].size(); jj++)
 		{
-			count++;
+			progress++;
+			qpb->setValue(progress);
 			pngPath = folderPathParent[ii] + "\\" + nameParent[ii][jj] + ".png";
 			pngPathManual = folderPathParent[ii] + "\\" + nameParent[ii][jj] + "(manual).png";
 			if (wf.file_exist(pngPath)) { continue; }
@@ -757,9 +1010,9 @@ int PNGMAP::createAllParents()
 			im.pngPrint(img, imgSpec, pngPath);
 		}
 	}
-	return count;
+
 }
-void PNGMAP::createAllChildren(SWITCHBOARD& sbgui, vector<int> mycomm)
+void PNGMAP::createAllChildren(QProgressBar*& qpb, int& progress)
 {
 	string pngPath, sMessage, childPath, childPathManual, parentPath, temp, childPathANSI;
 	vector<unsigned char> img, imgMini;
@@ -795,16 +1048,16 @@ void PNGMAP::createAllChildren(SWITCHBOARD& sbgui, vector<int> mycomm)
 			{
 				nameChild[ii].erase(nameChild[ii].begin() + jj);
 				jj--;
-				mycomm[1]++;
-				sbgui.update(myid, mycomm);
+				progress++;
+				qpb->setValue(progress);
 			}
 			else if (wf.file_exist(parentPath))
 			{
 				wf.copyFile(parentPath, childPath);
 				nameChild[ii].erase(nameChild[ii].begin() + jj);
 				jj--;
-				mycomm[1]++;
-				sbgui.update(myid, mycomm);
+				progress++;
+				qpb->setValue(progress);
 			}
 		}
 		if (nameChild[ii].size() < 1) { continue; }
@@ -814,6 +1067,8 @@ void PNGMAP::createAllChildren(SWITCHBOARD& sbgui, vector<int> mycomm)
 		if (io.signal(VK_NUMPAD1)) {}
 		for (int jj = 0; jj < nameChild[ii].size(); jj++)
 		{
+			progress++;
+			qpb->setValue(progress);
 			childPath = folderPathChild[ii] + "\\" + nameChild[ii][jj] + ".png";
 			childPathManual = folderPathChild[ii] + "\\" + nameChild[ii][jj] + "(manual).png";
 			if (wf.file_exist(childPathManual)) { manual = 1; }
@@ -1140,7 +1395,7 @@ void PNGMAP::initialize(vector<string>& GeoLayers)
 	White = { 255, 255, 255, 255 };
 
 	pngRes = { 1632, 818, 4 };
-	fullRes = { 3840, 1080, 4 };
+	fullRes = { 1632, 924, 4 };
 	viScale = { 600, 300, 200, 100, 40, 20, 10 };
 
 	// Index 0 = standard, 1 = standardShaded, 2 = northwest, 3 = northwestShaded.
@@ -1255,7 +1510,7 @@ void PNGMAP::recordButton(POINT& button, string buttonName)
 }
 void PNGMAP::qshow(string sMessage)
 {
-	if (pte == nullptr) { jf.err("No init-bm.qshow"); }
+	if (pte == nullptr) { jf.err("No init-pngm.qshow"); }
 	QString qMessage = QString::fromStdString(sMessage);
 	pte->setPlainText(qMessage);
 	if (isgui)

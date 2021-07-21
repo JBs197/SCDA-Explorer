@@ -106,11 +106,36 @@ void SWITCHBOARD::set_prompt(vector<string>& prompt)
 {
 	lock_guard<mutex> addrem(m_sb);
 	sprompt = prompt;
-	int bbq = 1;
 }
 vector<string> SWITCHBOARD::get_prompt()
 {
 	lock_guard<mutex> locksbuf(m_sb);
+	return sprompt;
+}
+void SWITCHBOARD::setIPrompt(vector<int>& viPrompt)
+{
+	lock_guard<mutex> addrem(m_sb);
+	iPrompt = viPrompt;
+}
+vector<int> SWITCHBOARD::getIPrompt()
+{
+	lock_guard<mutex> locksbuf(m_sb);
+	return iPrompt;
+}
+vector<string> SWITCHBOARD::requestToGUI(thread::id id, vector<string> sQuery)
+{
+	m_sb.lock();
+	sprompt = sQuery;
+	int phone_index;
+	try { phone_index = map_phone.at(id); }
+	catch (out_of_range) { err("map_phone-sb.update"); }
+	phone_lines[phone_index][0] = 3;
+	onHold = 1;
+	m_sb.unlock();
+	while (onHold)
+	{
+		this_thread::sleep_for(50ms);
+	}
 	return sprompt;
 }
 

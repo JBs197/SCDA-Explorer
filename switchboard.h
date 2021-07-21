@@ -16,7 +16,8 @@ class SWITCHBOARD                                   // comm protocol:
 	unordered_map<thread::id, int> map_phone;       // comm[3] = max table name parameters 
 	vector<vector<int>> phone_lines;          // Form [phone index][data understood by participants].
 	vector<string> sprompt;                   // Form [prompt0, prompt1, ...].	
-	int workers;
+	vector<int> iPrompt;
+	int workers, onHold = 0;
 	int manager_use;
 	vector<vector<vector<double>>> sbDoubleData;
 	string errorPath;
@@ -28,18 +29,21 @@ public:
 	int answer_call(thread::id, vector<int>&);      // 2 = cancelled task
 	int end_call(thread::id);                       // 3 = paused task
 	void err(string func);
-	int terminateWorker(thread::id id, int pindex);
-	void terminateSelf(thread::id);
+	bool done(thread::id);
+	void getDoubleData(vector<vector<vector<double>>>& doubleData);
+	vector<int> getIPrompt();
 	vector<string> get_prompt();
 	vector<int> getMyComm(thread::id);
-	void set_prompt(vector<string>&);
-	bool done(thread::id);
 	bool push(thread::id);
 	bool pushHard(thread::id);
 	int pull(thread::id, int);
-	vector<vector<int>> update(thread::id, vector<int>&);
-	void getDoubleData(vector<vector<vector<double>>>& doubleData);
+	vector<string> requestToGUI(thread::id id, vector<string> sQuery);
 	void setDoubleData(vector<vector<vector<double>>>& doubleData);
 	void setErrorPath(string errPath);
+	void setIPrompt(vector<int>& viPrompt);
+	void set_prompt(vector<string>&);
+	void terminateSelf(thread::id);
+	int terminateWorker(thread::id id, int pindex);
+	vector<vector<int>> update(thread::id, vector<int>&);
 };
 

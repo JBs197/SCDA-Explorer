@@ -49,6 +49,7 @@ public:
 	string decToHex(unsigned char& ucdec);
 	vector<int> destringifyCoord(string& sCoord);
 	vector<double> destringifyCoordD(string& sCoord);
+	POINT destringifyCoordP(string& sCoord);
 	void err(string);
 	string get_error_path();
 	void isort_ilist(vector<int>& iList, int type);
@@ -64,6 +65,7 @@ public:
 	void logTime(string func, long long timer);
 	int maxNumCol(vector<vector<wstring>>& task);
 	vector<int> minMax(vector<double>& dList);
+	vector<vector<int>> minMax(vector<POINT>& vpList);
 	string nameFromPath(string& path);
 	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
 	void navParser(string& sfile, vector<vector<string>>& search);

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1840</width>
+    <width>1899</width>
     <height>1017</height>
    </rect>
   </property>
@@ -110,7 +110,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>3</number>
+     <number>1</number>
     </property>
     <widget class="QWidget" name="tab_cata">
      <attribute name="title">
@@ -209,7 +209,7 @@
        <rect>
         <x>451</x>
         <y>0</y>
-        <width>611</width>
+        <width>601</width>
         <height>451</height>
        </rect>
       </property>
@@ -222,7 +222,7 @@
      <widget class="QTPAINT" name="qp_maplocal" native="true">
       <property name="geometry">
        <rect>
-        <x>1071</x>
+        <x>1061</x>
         <y>0</y>
         <width>800</width>
         <height>800</height>
@@ -234,7 +234,7 @@
        <rect>
         <x>450</x>
         <y>460</y>
-        <width>611</width>
+        <width>601</width>
         <height>341</height>
        </rect>
       </property>
@@ -249,6 +249,11 @@
        </rect>
       </property>
      </widget>
+     <zorder>treeW_maplocal</zorder>
+     <zorder>treeW_mapdb</zorder>
+     <zorder>tableW_maplocal</zorder>
+     <zorder>listW_map</zorder>
+     <zorder>qp_maplocal</zorder>
     </widget>
     <widget class="QWidget" name="tab_table">
      <attribute name="title">
@@ -631,13 +636,39 @@ Table</string>
 Positioning</string>
     </property>
    </widget>
+   <widget class="QCheckBox" name="checkB_debug">
+    <property name="geometry">
+     <rect>
+      <x>549</x>
+      <y>880</y>
+      <width>81</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Debug Mode</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="qlabel_pngdebug">
+    <property name="geometry">
+     <rect>
+      <x>1080</x>
+      <y>30</y>
+      <width>20</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1840</width>
+     <width>1899</width>
      <height>21</height>
     </rect>
    </property>

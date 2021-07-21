@@ -4,6 +4,7 @@
 #include <QColumnView>
 #include <QListWidget>
 #include <QListView>
+#include <QProgressBar>
 #include <QTableWidget>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
@@ -62,9 +63,10 @@ public:
 	int getBranchGen(QTreeWidgetItem*& qBranch);
 	string getBranchPath(QTreeWidgetItem*& qBranch, string rootDir);
 	vector<QPointF> getCrosshairs(QPointF center, double radius);
-	int getLastMap() { return lastMap; }
 	QBitmap getEraser(int width);
 	int get_display_root(QTreeWidget*);
+	int getLastMap() { return lastMap; }
+	QPointF getQPF(vector<double>& vdCoord);
 	vector<vector<int>> getTLBR(vector<vector<int>>& borderPath);
 	void initPixmap(QLabel* qlabel);
 	int loadBinMap(string& pathBin, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent, vector<vector<int>>& border);
@@ -80,6 +82,7 @@ public:
 	void setDebugMapPath(string spath);
 	void set_display_root(QTreeWidget*, int);
 	void undoEraser(QLabel*& qlabel);
+	vector<QPointF> vpToVQPF(vector<POINT>& vp);
 
 	// TEMPLATES
 	template<typename ... Args> void debugMapSelected(QLabel*& qlabel, Args ... args)

@@ -39,6 +39,7 @@ public:
     int fromCircle(POINT pCenter, int radius);
     POINT getCandidate(int index);
     POINT getClockwiseCandidate();
+    void getImg(vector<unsigned char>& img, vector<int>& imgSpec);
     void initialize(vector<vector<POINT>>& ScanCircles, POINT& pCenter);
     int judgeDist(vector<double>& vdDist);
     int keepColour(vector<unsigned char> rgbx);
@@ -49,7 +50,7 @@ public:
     int removeRearCone(vector<POINT>& vpPast);
     vector<double> reportDist(vector<POINT>& vpPast);
     void setImg(vector<unsigned char>& img, vector<int>& imgSpec);
-
+    bool siblings();
 };
 
 class IMGFUNC
@@ -82,6 +83,7 @@ class IMGFUNC
     vector<vector<unsigned char>> font;  // Index is ascii minus 32.
     int fontHeight = 32;  // Pixels.
 	JFUNC jf;
+    vector<vector<double>> keyColour;
     vector<unsigned char> legendColourBox;
 	unordered_map<string, string> mapColour;
     unordered_map<unsigned char, char> mapDecHex;
@@ -107,10 +109,14 @@ class IMGFUNC
     vector<unsigned char> Blue = { 0, 0, 255 };
     vector<unsigned char> Canada = { 240, 240, 240, 255 };
     vector<unsigned char> CanadaSel = { 192, 192, 243, 255 };
+    vector<unsigned char> City = { 235, 226, 200, 255 };
+    vector<unsigned char> CitySel = { 188, 181, 211, 255 };
     vector<unsigned char> Gold = { 255, 170, 0 };
     vector<unsigned char> Green = { 0, 255, 0 };
     vector<unsigned char> Orange = { 255, 155, 55 };
     vector<unsigned char> Pink = { 255, 0, 255 };
+    vector<unsigned char> Province = { 225, 225, 225, 255 };
+    vector<unsigned char> ProvinceSel = { 180, 180, 231, 255 };
     vector<unsigned char> Purple = { 160, 50, 255 };
     vector<unsigned char> Red = { 255, 0, 0 };
     vector<unsigned char> Teal = { 0, 155, 255 };
@@ -136,6 +142,7 @@ public:
     void cropSave(vector<string>& filePath, vector<POINT> TLBR);
     void cropSaveOld(vector<string>& filePath, vector<POINT> TLBR);
     void drawSquare(vector<unsigned char>& img, vector<int>& imgSpec, POINT coord);
+    void drawSquare(vector<unsigned char>& img, vector<int>& imgSpec, POINT coord, int width, vector<unsigned char> rgba);
     vector<POINT> findTLBRColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGB, vector<POINT> TLBR);
     void flatten(string& filePath);
     int getBandCenter(vector<int>& candidates);
@@ -143,6 +150,7 @@ public:
     POINT getBorderPoint(vector<unsigned char>& img, vector<int>& imgSpec, POINT pStart, double angle, vector<POINT> TLBR, vector<vector<double>> vvdInside);
     vector<POINT> getCircle(POINT pCenter, int radius);
     vector<POINT> getCircle(POINT pCenter, int radius, vector<int>& imgSpec);
+    void getColourSpectrum(vector<vector<unsigned char>>& rgbaList);
     POINT getFirstColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> rgbx);
     double getGB(vector<unsigned char>& rgbx);
     double getRB(vector<unsigned char>& rgbx);
@@ -160,6 +168,7 @@ public:
     vector<unsigned char> pngExtractRow(vector<unsigned char>& img, vector<int>& imgSpec, POINT pLeft);
     void pngLoadHere(string& pngPath, vector<unsigned char>& pngData, vector<int>& spec);
     void pngLoadString(string& pngPath, string& pngData, vector<int>& spec);
+    string printDebugMap(vector<unsigned char> img, vector<int> imgSpec, vector<POINT>& vpBorder);
     void rectPaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<unsigned char> rgba);
     void rectPaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<vector<unsigned char>> rgba);
     void removePeriodic(vector<unsigned char>& img, int modulus);
@@ -169,6 +178,7 @@ public:
     void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<vector<unsigned char>>>& colourList, vector<int>& viResult);
     void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<vector<unsigned char>>>& colourList, vector<int>& viResult, vector<POINT> TLBR);
     void scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<vector<unsigned char>>>& colourList, vector<int>& viResult, vector<vector<int>> startStop);
+    void stretch(vector<unsigned char>& img, vector<int>& imgSpec, vector<int> imgSpecNew);
 
     int areaRect(vector<vector<int>> TLBR);
 	vector<int> borderFindNext(SWITCHBOARD& sbgui, vector<vector<int>> tracks);
@@ -931,6 +941,44 @@ public:
                     else if (p1.x > TLBR[1][0]) { TLBR[1][0] = p1.x; }
                     if (p1.y < TLBR[0][1]) { TLBR[0][1] = p1.y; }
                     else if (p1.y > TLBR[1][1]) { TLBR[1][1] = p1.y; }
+                }
+            }
+        }
+        TLBR[0][0] -= iMargin;
+        TLBR[0][1] -= iMargin;
+        TLBR[1][0] += iMargin;
+        TLBR[1][1] += iMargin;
+        return TLBR;
+    }
+    template<> vector<vector<int>> makeBox<vector<unsigned char>, vector<int>, vector<vector<unsigned char>>, int>(vector<unsigned char>& img, vector<int>& imgSpec, vector<vector<unsigned char>>& rgbTargets, int& iMargin)
+    {
+        // NOTE: This function CAN return out-of-bounds coordinates. 
+        if (img.size() < 1) { jf.err("No image-im.makeBox"); }
+        if (imgSpec.size() < 3) { jf.err("Missing imgSpec-im.makeBox"); }
+        if (rgbTargets[0].size() != imgSpec[2]) { jf.err("rgb-spec mismatch-im.makeBox"); }
+        if (iMargin < 0) { jf.err("Invalid margin-im.makeBox"); }
+        vector<vector<int>> TLBR(2, vector<int>(2));
+        TLBR[0] = { 2147483647, 2147483647 };
+        TLBR[1] = { 0, 0 };
+        vector<unsigned char> rgb;
+        POINT p1;
+        for (int ii = 0; ii < imgSpec[1]; ii++)
+        {
+            p1.y = ii;
+            for (int jj = 0; jj < imgSpec[0]; jj++)
+            {
+                p1.x = jj;
+                rgb = pixelRGB(img, imgSpec, p1);
+                for (int kk = 0; kk < rgbTargets.size(); kk++)
+                {
+                    if (rgb == rgbTargets[kk])
+                    {
+                        if (p1.x < TLBR[0][0]) { TLBR[0][0] = p1.x; }
+                        else if (p1.x > TLBR[1][0]) { TLBR[1][0] = p1.x; }
+                        if (p1.y < TLBR[0][1]) { TLBR[0][1] = p1.y; }
+                        else if (p1.y > TLBR[1][1]) { TLBR[1][1] = p1.y; }
+                        break;
+                    }
                 }
             }
         }

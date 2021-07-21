@@ -90,6 +90,11 @@ POINT CANDIDATES::getClockwiseCandidate()
     }
     return pList[yMax[1]];
 }
+void CANDIDATES::getImg(vector<unsigned char>& imgOut, vector<int>& imgSpecOut)
+{
+    imgOut = img;
+    imgSpecOut = imgSpec;
+}
 int CANDIDATES::getOffset(POINT& p1)
 {
     int offRow = p1.y * imgSpec[0] * imgSpec[2];
@@ -252,9 +257,12 @@ vector<double> CANDIDATES::reportDist(vector<POINT>& vpPast)
 {
     // For each candidate, determine the sum total distance between it and the previous two points. 
     if (vpPast.size() < 3) { jf.err("Insufficient vpPast length-cd.reportDist"); }
-    vector<POINT> vpPrevious(2);
-    vpPrevious[0] = vpPast[vpPast.size() - 3];
-    vpPrevious[1] = vpPast[vpPast.size() - 2];
+    int previous = min(4, (int)vpPast.size());
+    vector<POINT> vpPrevious(previous);
+    for (int ii = 0; ii < previous; ii++)
+    {
+        vpPrevious[ii] = vpPast[vpPast.size() - previous + ii];
+    }
     vector<double> vdDist = mf.coordDistPointSumList(pList, vpPrevious);
     return vdDist;
 }
@@ -262,6 +270,14 @@ void CANDIDATES::setImg(vector<unsigned char>& image, vector<int>& imageSpec)
 {
     img = image;
     imgSpec = imageSpec;
+}
+bool CANDIDATES::siblings()
+{
+    // Return TRUE if there are only two candidates, and they are adjacent.
+    if (pList.size() != 2) { return 0; }
+    double dist = mf.coordDistPoint(pList[0], pList[1]);
+    if (dist > 1.43) { return 0; }
+    return 1;
 }
 
 int IMGFUNC::checkColour(vector<vector<unsigned char>>& rgbaList, vector<unsigned char>& rgba)
@@ -460,14 +476,19 @@ void IMGFUNC::cropSaveOld(vector<string>& filePath, vector<POINT> TLBR)
 void IMGFUNC::drawSquare(vector<unsigned char>& img, vector<int>& imgSpec, POINT coord)
 {
     // Paint a 5x5 red square on the selected map/point.
+    drawSquare(img, imgSpec, coord, 5, Red);
+}
+void IMGFUNC::drawSquare(vector<unsigned char>& img, vector<int>& imgSpec, POINT coord, int width, vector<unsigned char> rgba)
+{
+    // Paint a (width x width) rgba square on the selected map/point.
     POINT p1;
-    for (int ii = 0; ii < 5; ii++)
+    for (int ii = 0; ii < width; ii++)
     {
-        p1.y = coord.y - 2 + ii;
-        for (int jj = 0; jj < 5; jj++)
+        p1.y = coord.y - (width / 2) + ii;
+        for (int jj = 0; jj < width; jj++)
         {
-            p1.x = coord.x - 2 + jj;
-            pixelPaint(img, imgSpec, Red, p1);
+            p1.x = coord.x - (width / 2) + jj;
+            pixelPaint(img, imgSpec, rgba, p1);
         }
     }
 }
@@ -671,9 +692,13 @@ POINT IMGFUNC::getBorderPoint(vector<unsigned char>& img, vector<int>& imgSpec, 
         size1 = cd.fromCircle(vpPath[ii], 2);
         size2 = cd.removeColour(Canada);
         if (size2 != size1) { continue; }
+        size2 = cd.removeColour(City);
+        if (size2 != size1) { continue; }
+        size2 = cd.removeColour(Province);
+        if (size2 != size1) { continue; }
         size2 = cd.removeColour(Water);
         if (size2 != size1) { continue; }
-        size2 = cd.removeColourRatio(CANDIDATES::GB, { 0.81, 1.0 });
+        size2 = cd.removeColourRatio(CANDIDATES::GB, { 0.9, 1.0 });
         if (size2 != size1) { continue; }
 
         return vpPath[ii];
@@ -710,6 +735,53 @@ vector<POINT> IMGFUNC::getCircle(POINT pCenter, int radius, vector<int>& imgSpec
         if (circle[ii].y >= imgSpec[1]) { circle[ii].y = imgSpec[1] - 1; }
     }
     return circle;
+}
+void IMGFUNC::getColourSpectrum(vector<vector<unsigned char>>& rgbaList)
+{
+    if (rgbaList.size() < 1) { jf.err("No size specified-im.getColourSpectrum"); }
+    if (keyColour.size() < 1)
+    {
+        keyColour.resize(6);
+        keyColour[0] = { 255.0, 0.0, 0.0, 255.0 };  // Red
+        keyColour[1] = { 255.0, 255.0, 0.0, 255.0 };  // Yellow
+        keyColour[2] = { 0.0, 255.0, 0.0, 255.0 };  // Green
+        keyColour[3] = { 0.0, 255.0, 255.0, 255.0 };  // Teal
+        keyColour[4] = { 0.0, 0.0, 255.0, 255.0 };  // Blue
+        keyColour[5] = { 127.0, 0.0, 255.0, 255.0 };  // Violet
+    }
+    vector<vector<double>> keyColourBand(keyColour.size() - 1, vector<double>(4, 0.0));
+    for (int ii = 0; ii < keyColourBand.size(); ii++)
+    {
+        for (int jj = 0; jj < 4; jj++)
+        {
+            keyColourBand[ii][jj] = keyColour[ii + 1][jj] - keyColour[ii][jj];
+        }
+    }
+    vector<double> vdColour(4);
+    double colourMax = (double)(keyColour.size() - 1), myColour, myColourStart, myColourStop;
+    double colourInterval = colourMax / (double)rgbaList.size();
+    double dR, dG, dB;
+    int iBand;
+    for (int ii = 0; ii < rgbaList.size(); ii++)
+    {
+        myColour = (double)ii * colourInterval;
+        myColourStart = floor(myColour);
+        myColourStop = myColour - myColourStart;
+        iBand = (int)myColourStart;
+        dR = keyColourBand[iBand][0] * myColourStop;
+        dG = keyColourBand[iBand][1] * myColourStop;
+        dB = keyColourBand[iBand][2] * myColourStop;
+        vdColour = {
+            keyColour[iBand][0] + dR,
+            keyColour[iBand][1] + dG,
+            keyColour[iBand][2] + dB,
+            255.0
+        };
+        for (int jj = 0; jj < 4; jj++)
+        {
+            rgbaList[ii][jj] = (unsigned char)vdColour[jj];
+        }
+    }
 }
 POINT IMGFUNC::getFirstColour(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> RGBX)
 {
@@ -1010,6 +1082,51 @@ void IMGFUNC::pngLoadString(string& pngPath, string& pngData, vector<int>& spec)
     pngData.resize(sizeTemp);
     copy(dataTemp, dataTemp + sizeTemp, pngData.begin());
 }
+string IMGFUNC::printDebugMap(vector<unsigned char> img, vector<int> imgSpec, vector<POINT>& vpBorder)
+{
+    if (keyColour.size() < 1)
+    {
+        keyColour.resize(6);
+        keyColour[0] = { 255.0, 0.0, 0.0, 255.0 };  // Red
+        keyColour[1] = { 255.0, 255.0, 0.0, 255.0 };  // Yellow
+        keyColour[2] = { 0.0, 255.0, 0.0, 255.0 };  // Green
+        keyColour[3] = { 0.0, 255.0, 255.0, 255.0 };  // Teal
+        keyColour[4] = { 0.0, 0.0, 255.0, 255.0 };  // Blue
+        keyColour[5] = { 127.0, 0.0, 255.0, 255.0 };  // Violet
+    }
+    vector<vector<unsigned char>> rgbaList(vpBorder.size(), vector<unsigned char>(4));
+    int numBand = keyColour.size() - 1;
+    int rgbaBandWidth = vpBorder.size() / numBand, index = 0, iNum;
+    int rgbaBandRemainder = vpBorder.size() % numBand;
+    double dNum, dR, dG, dB, DR, DG, DB;
+    for (int ii = 0; ii < numBand; ii++)
+    {
+        if (ii > 0) { iNum = rgbaBandWidth; }
+        else { iNum = rgbaBandWidth + rgbaBandRemainder; }
+        dNum = (double)iNum;
+        dR = (keyColour[ii + 1][0] - keyColour[ii][0]) / dNum;
+        dG = (keyColour[ii + 1][1] - keyColour[ii][1]) / dNum;
+        dB = (keyColour[ii + 1][2] - keyColour[ii][2]) / dNum;
+        for (int jj = 0; jj < iNum; jj++)
+        {
+            DR = (double)jj * dR;
+            DG = (double)jj * dG;
+            DB = (double)jj * dB;
+            rgbaList[index][0] = (unsigned char)(keyColour[ii][0] + round(DR));
+            rgbaList[index][1] = (unsigned char)(keyColour[ii][1] + round(DG));
+            rgbaList[index][2] = (unsigned char)(keyColour[ii][2] + round(DB));
+            rgbaList[index][3] = 255;
+            index++;
+        }
+    }
+    for (int ii = 0; ii < vpBorder.size(); ii++)
+    {
+        drawSquare(img, imgSpec, vpBorder[ii], 3, rgbaList[ii]);
+    }
+    string outputPath = sroot + "\\debug\\ImgDebugMap\\ErrorMap" + to_string(vpBorder.size()) + ".png";
+    pngPrint(outputPath, img, imgSpec);
+    return outputPath;
+}
 void IMGFUNC::rectPaint(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<unsigned char> rgba)
 {
     vector<POINT> startStop = TLBR;
@@ -1239,6 +1356,35 @@ void IMGFUNC::scanPatternLineV(vector<unsigned char>& img, vector<int>& imgSpec,
                 break;
             }
         }
+    }
+}
+void IMGFUNC::stretch(vector<unsigned char>& img, vector<int>& imgSpec, vector<int> imgSpecNew)
+{
+    // NOTE: UNFINISHED.
+    vector<unsigned char> imgOld, pngRow;
+    double oldNewRatio, dRow;
+    long long index;
+    POINT p1;
+    if (imgSpecNew[1] < imgSpec[1])
+    {
+        imgOld = img;
+        oldNewRatio = (double)imgSpec[1] / (double)imgSpecNew[1];
+        dRow = 0.0;
+        p1.x = 0;
+        index = 0;
+        for (int ii = 0; ii < imgSpecNew[1]; ii++)
+        {
+            dRow += oldNewRatio;
+            p1.y = int(floor(dRow));
+            pngRow = pngExtractRow(imgOld, imgSpec, p1);
+            for (int jj = 0; jj < pngRow.size(); jj++)
+            {
+                img[index + jj] = pngRow[jj];
+            }
+            index += pngRow.size();
+        }
+        img.resize(index);
+        imgSpec[1] = imgSpecNew[1];
     }
 }
 
