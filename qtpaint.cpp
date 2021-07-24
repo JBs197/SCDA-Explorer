@@ -3,30 +3,12 @@
 
 void QTPAINT::addArea(vector<vector<double>>& border)
 {
+	double dWidth = (double)this->width();
+	double dHeight = (double)this->height();
 	int areaIndex = areas.size();
 	areas.push_back(vector<QPointF>(border.size()));
 	for (int ii = 0; ii < border.size(); ii++)
 	{
-		if (border[ii][0] < 0.0) 
-		{ 
-			if (border[ii][0] > -1.0 * defaultMargin) { border[ii][0] = 0.0; }
-			else { jf.err("Bad xCoord-qp.addArea"); }
-		}
-		else if (border[ii][0] > Width)
-		{
-			if (border[ii][0] < Width + defaultMargin) { border[ii][0] = Width - 1.0; }
-			else { jf.err("Bad xCoord-qp.addArea"); }
-		}
-		if (border[ii][1] < 0.0)
-		{
-			if (border[ii][1] > -1.0 * defaultMargin) { border[ii][1] = 0.0; }
-			else { jf.err("Bad yCoord-qp.addArea"); }
-		}
-		else if (border[ii][1] > Height)
-		{
-			if (border[ii][1] < Height + defaultMargin) { border[ii][1] = Height - 1.0; }
-			else { jf.err("Bad yCoord-qp.addArea"); }
-		}
 		areas[areaIndex][ii].setX(border[ii][0]);
 		areas[areaIndex][ii].setY(border[ii][1]);
 	}
@@ -34,6 +16,10 @@ void QTPAINT::addArea(vector<vector<double>>& border)
 void QTPAINT::addArea(vector<QPointF>& border)
 {
 	areas.push_back(border);
+}
+void QTPAINT::addAreaColour(QColor& qColour)
+{
+	areaColour.push_back(qColour);
 }
 void QTPAINT::addAreaColour(vector<int> rgbx)
 {
@@ -63,34 +49,38 @@ void QTPAINT::addAreaColour(vector<double> rgbx)
 		areaColour.push_back(qC);
 	}
 }
-void QTPAINT::addChild(vector<QPointF>& border, double scale, QPointF position, vector<POINT> frameTLBR)
+void QTPAINT::addChild(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border)
 {
-	if (parentPositionKM.isNull() || areas.size() < 1) { jf.err("No parent-qp.addChild"); }
-	QPointF disp, myPositionKM;  // myPositionKM is relative to the parent's position relative to "Home".
-	myPositionKM.setX(position.rx() - parentPositionKM.rx());
-	myPositionKM.setY(position.ry() - parentPositionKM.ry());
-	disp.setX(myPositionKM.rx() * widgetPPKM);
-	disp.setY((myPositionKM.ry()) * widgetPPKM);
-	scaleChildToWidget(border, scale);
-	displaceChildToParent(border, disp);
+	if (areas.size() < 1) { jf.err("No parent-qp.addChild"); }
+	vector<double> dispParentTL(2);  // Child's TL widget pixel displacement from (0,0). 
+	dispParentTL[0] = frameTLBR[0][0] - parentFrameTLKM[0];
+	dispParentTL[1] = frameTLBR[0][1] - parentFrameTLKM[1];
+	dispParentTL[0] *= widgetPPKM;
+	dispParentTL[1] *= widgetPPKM;
+	scaleChildToWidget(frameTLBR, border);
+	displaceChildToParent(dispParentTL, frameTLBR[0], border);	
 	addArea(border);
 }
-void QTPAINT::addParent(vector<QPointF>& border, double scale, QPointF position, vector<POINT> frameTLBR)
-{
-	vector<int> viDummy;
-	addParent(border, scale, position, frameTLBR, viDummy);
-}
-void QTPAINT::addParent(vector<QPointF>& border, double scale, QPointF position, vector<POINT> frameTLBR, vector<int> rgbaBG)
+void QTPAINT::addParent(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border)
 {
 	clear();
-	parentPositionKM = position;
+	parentFrameTLKM = frameTLBR[0];
+	displaceParentToWidget(border);
 	scaleParentToWidget(border, scale, frameTLBR);
 	addArea(border);
 	addAreaColour(keyColourExtra);
-	if (rgbaBG.size() > 2)
-	{
-		qBG.setRgb(rgbaBG[0], rgbaBG[1], rgbaBG[2]);
-	}
+}
+void QTPAINT::addParentBG(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border, vector<unsigned char> rgbxBG)
+{
+	// Adds the parent region and a background colour for it. 
+	if (rgbxBG.size() < 3) { jf.err("No BG colour given-qp.addParentBG"); }
+	clear();
+	parentFrameTLKM = frameTLBR[0];
+	displaceParentToWidget(border);
+	scaleParentToWidget(border, scale, frameTLBR);
+	addArea(border);
+	addAreaColour(keyColourExtra);
+	qBG.setRgb((int)rgbxBG[0], (int)rgbxBG[1], (int)rgbxBG[2]);
 }
 void QTPAINT::areaColourFillSpectrum()
 {
@@ -128,11 +118,23 @@ void QTPAINT::drawAreas()
 	areaColourFillSpectrum();
 	update();
 }
-void QTPAINT::displaceChildToParent(vector<QPointF>& vQPF, QPointF disp)
+void QTPAINT::displaceChildToParent(vector<double> dispParentTL, vector<double> TL, vector<vector<double>>& border)
 {
-	for (int ii = 0; ii < vQPF.size(); ii++)
+	vector<double> vdShift(2);
+	vdShift[0] = dispParentTL[0] - TL[0];
+	vdShift[1] = dispParentTL[1] - TL[1];
+	for (int ii = 0; ii < border.size(); ii++)
 	{
-		vQPF[ii] += disp;
+		border[ii][0] += vdShift[0];
+		border[ii][1] += vdShift[1];
+	}
+}
+void QTPAINT::displaceParentToWidget(vector<vector<double>>& border)
+{
+	for (int ii = 0; ii < border.size(); ii++)
+	{
+		border[ii][0] -= parentFrameTLKM[0];
+		border[ii][1] -= parentFrameTLKM[1];
 	}
 }
 void QTPAINT::drawSelectedDot(string regionName)
@@ -147,25 +149,24 @@ void QTPAINT::drawSelectedDot(string regionName)
 QColor QTPAINT::getColourFromSpectrum(double zeroOne)
 {
 	// Return a QColor from a position [0.0, 1.0] within the full colour spectrum (red->violet).
-	if (keyColourBand.size() < 1) { jf.err("No init-qp.getColourFromSpectrum"); }
-	double myPos = zeroOne * (double)keyColourBand.size();
-	int iBase = (int)myPos;
-	double remainder = myPos - (double)iBase;
-	int iR = 0, iG = 0, iB = 0, iA = 0;
-	if (iBase < keyColourBand.size())
+	if (keyColour.size() < 1) { jf.err("No init-qp.getColourFromSpectrum"); }
+	double myPos = zeroOne * (double)(keyColour.size() - 1);  // [0.0, 5.0]
+	int iBase = (int)myPos;  // [0, 5]
+	double remainder = myPos - (double)iBase;  // [0.0, 1.0)
+	QColor qColour;
+	double dR, dG, dB, dA;
+	if (iBase < keyColour.size() - 1)
 	{
-		iR = (int)(keyColourBand[iBase][0] * remainder);
-		iG = (int)(keyColourBand[iBase][1] * remainder);
-		iB = (int)(keyColourBand[iBase][2] * remainder);
-		iA = (int)(keyColourBand[iBase][3] * remainder);
+		dR = remainder * (keyColour[iBase + 1].redF() - keyColour[iBase].redF());
+		dG = remainder * (keyColour[iBase + 1].greenF() - keyColour[iBase].greenF());
+		dB = remainder * (keyColour[iBase + 1].blueF() - keyColour[iBase].blueF());
+		dA = remainder * (keyColour[iBase + 1].alphaF() - keyColour[iBase].alphaF());
+		qColour.setRedF(keyColour[iBase].redF() + dR);
+		qColour.setGreenF(keyColour[iBase].greenF() + dG);
+		qColour.setBlueF(keyColour[iBase].blueF() + dB);
+		qColour.setAlphaF(keyColour[iBase].alphaF() + dA);
 	}
-	vector<int> rgba = {
-		(int)keyColour[iBase][0],
-		(int)keyColour[iBase][1],
-		(int)keyColour[iBase][2],
-		(int)keyColour[iBase][3]
-	};
-	QColor qColour(rgba[0] + iR, rgba[1] + iG, rgba[2] + iB, rgba[3] + iA);
+	else { qColour = keyColour[keyColour.size() - 1]; }
 	return qColour;
 }
 vector<QPointF> QTPAINT::getTLBR(vector<QPointF>& vQPF)
@@ -183,27 +184,15 @@ vector<QPointF> QTPAINT::getTLBR(vector<QPointF>& vQPF)
 }
 void QTPAINT::initialize()
 {
-	Width = (double)this->width();
-	Height = (double)this->height();
-
 	keyColour.resize(6);
-	keyColour[0] = { 255.0, 0.0, 0.0, 255.0 };  // Red
-	keyColour[1] = { 255.0, 255.0, 0.0, 255.0 };  // Yellow
-	keyColour[2] = { 0.0, 255.0, 0.0, 255.0 };  // Green
-	keyColour[3] = { 0.0, 255.0, 255.0, 255.0 };  // Teal
-	keyColour[4] = { 0.0, 0.0, 255.0, 255.0 };  // Blue
-	keyColour[5] = { 127.0, 0.0, 255.0, 255.0 };  // Violet
+	keyColour[0].setRgbF(1.0, 0.0, 0.0, 1.0 );  // Red
+	keyColour[1].setRgbF(1.0, 1.0, 0.0, 1.0 );  // Yellow
+	keyColour[2].setRgbF(0.0, 1.0, 0.0, 1.0 );  // Green
+	keyColour[3].setRgbF(0.0, 1.0, 1.0, 1.0 );  // Teal
+	keyColour[4].setRgbF(0.0, 0.0, 1.0, 1.0 );  // Blue
+	keyColour[5].setRgbF(0.5, 0.0, 1.0, 1.0 );  // Violet
 
-	keyColourBand.resize(5, vector<double>(4));  // Represents the RGBA change from kC[ii] to kC[ii + 1].
-	for (int ii = 0; ii < keyColourBand.size(); ii++)
-	{
-		for (int jj = 0; jj < 4; jj++)
-		{
-			keyColourBand[ii][jj] = keyColour[ii + 1][jj] - keyColour[ii][jj];
-		}
-	}
-
-	keyColourExtra = { 255.0, 0.0, 127.0, 255.0 };  // Pink
+	keyColourExtra.setRgbF(1.0, 0.0, 0.5, 1.0 );  // Pink
 }
 void QTPAINT::paintArea(QPainter& painter)
 {
@@ -253,38 +242,32 @@ void QTPAINT::paintEvent(QPaintEvent* event)
 	QPainter painter(this);
 	paintArea(painter);
 }
-void QTPAINT::scaleChildToWidget(vector<QPointF>& vQPF, double PPKM)
+void QTPAINT::scaleChildToWidget(vector<vector<double>>& frameTLBR, vector<vector<double>>& border)
 {
-	double ratio = widgetPPKM / PPKM;
-	for (int ii = 0; ii < vQPF.size(); ii++)
+	frameTLBR[0][0] *= widgetPPKM;
+	frameTLBR[0][1] *= widgetPPKM;
+	frameTLBR[1][0] *= widgetPPKM;
+	frameTLBR[1][1] *= widgetPPKM;
+	for (int ii = 0; ii < border.size(); ii++)
 	{
-		vQPF[ii] *= ratio;
+		border[ii][0] *= widgetPPKM;
+		border[ii][1] *= widgetPPKM;
 	}
 }
-void QTPAINT::scaleParentToWidget(vector<QPointF>& vQPF, double PPKM, vector<POINT> frameTLBR)
+void QTPAINT::scaleParentToWidget(vector<vector<double>>& border, double PPKM, vector<vector<double>> frameTLBR)
 {
-	int iWidth = this->width();
-	int iHeight = this->height();
-	double xRatio = (double)(frameTLBR[1].x - frameTLBR[0].x + 1) / iWidth;
-	double yRatio = (double)(frameTLBR[1].y - frameTLBR[0].y + 1) / iHeight;
+	double widgetWidth = (double)this->width();
+	double widgetHeight = (double)this->height();
+	double imgWidth = (frameTLBR[1][0] - frameTLBR[0][0]) * PPKM;
+	double imgHeight = (frameTLBR[1][1] - frameTLBR[0][1]) * PPKM;
+	double xRatio = (imgWidth + 1.0) / widgetWidth;
+	double yRatio = (imgHeight + 1.0) / widgetHeight;
 	double ratio = max(xRatio, yRatio);
-	for (int ii = 0; ii < vQPF.size(); ii++)
+	for (int ii = 0; ii < border.size(); ii++)
 	{
-		vQPF[ii] /= ratio;
+		border[ii][0] *= (PPKM / ratio);
+		border[ii][1] *= (PPKM / ratio);
 	}
 	widgetPPKM = PPKM / ratio;
-	int bbq = 1;
 }
-void QTPAINT::scaleToWidget(vector<QPointF>& vQPF)
-{
-	vector<QPointF> TLBRf = getTLBR(vQPF);  // top, left, bot, right ???
-	//QPointF margin(defaultMargin, defaultMargin);
-	//TLBRf[1] += margin;
-	double xRatio = TLBRf[3].rx() / Width;
-	double yRatio = TLBRf[2].ry() / Height;
-	double ratio = max(xRatio, yRatio);
-	for (int ii = 0; ii < vQPF.size(); ii++)
-	{
-		vQPF[ii] /= ratio;
-	}
-}
+

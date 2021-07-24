@@ -161,6 +161,17 @@ POINT MAP::getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec, int&
 	pCorner.y -= 1;
 	return pCorner;
 }
+int MAP::getScaleIndex(double PPKM)
+{
+	// ScaleIndex corresponds to { 600km, 300km, 200km, 100km, 40km, 20km, 10km }.
+	double diff;
+	for (int ii = 0; ii < mainPPKM.size(); ii++)
+	{
+		diff = abs(PPKM - mainPPKM[ii]);
+		if (diff <= 0.1) { return ii; }
+	}
+	return -1;
+}
 void MAP::initScanCircles(string& pngPath)
 {
 	im.initScanCircles(pngPath);
@@ -196,12 +207,12 @@ vector<POINT> MAP::makeBoxSel(vector<unsigned char>& img, vector<int>& imgSpec, 
 	if (TLBR[1].y >= imgSpec[1]) { TLBR[1].y = imgSpec[1] - 1; }
 	return TLBR;
 }
-QPointF MAP::ovPixelToKM(vector<int> ovDisp)
+vector<double> MAP::ovPixelToKM(vector<int> ovDisp, int scaleIndex)
 {
-	QPointF qpf;
-	qpf.setX((double)ovDisp[0] / xOverviewPPKM);
-	qpf.setY((double)ovDisp[1] / yOverviewPPKM);
-	return qpf;
+	vector<double> vdKM(2);
+	vdKM[0] = (double)ovDisp[0] / OVPPKM[scaleIndex][0];
+	vdKM[1] = (double)ovDisp[1] / OVPPKM[scaleIndex][1];
+	return vdKM;
 }
 bool MAP::scanColourSquare(vector<POINT>& TLBR, vector<unsigned char> RGBA)
 {
@@ -344,13 +355,12 @@ void BINMAP::addBorderPoint(vector<POINT>& vpBorder, vector<POINT>& vpDeadEnd, P
 	pNew.y--;
 	vpDeadEnd.push_back(pNew);
 }
-void BINMAP::borderComplete(SWITCHBOARD& sbgui, vector<POINT>& vpBorder)
+void BINMAP::borderComplete(SWITCHBOARD& sbgui)
 {
 	// Jump along the painted border, adding to the border list, until the region's border list is complete.
 	if (vpBorder.size() < 3) { jf.err("vpBorder missing starters-bm.borderComplete"); }
 	thread::id myid = this_thread::get_id();
 	vector<vector<int>> comm(2, vector<int>());
-	vector<POINT> vpDeadEnd;
 	POINT pNew;
 	vector<double> vdCandidateDistance;
 	vector<int> minMax, viPrompt = sbgui.getIPrompt();
@@ -477,31 +487,43 @@ void BINMAP::borderComplete(SWITCHBOARD& sbgui, vector<POINT>& vpBorder)
 		}
 	}
 }
-POINT BINMAP::borderPreStart(vector<unsigned char>& img, vector<int>& imgSpec)
+void BINMAP::borderStart(vector<POINT>& tempTLBR)
 {
+	// Given a painted PNG, crop it to tempTLBR, then make the first three border POINTs.
+	imgBorder = imgPainted;
+	imgSpecBorder = imgSpecPainted;
+	im.crop(imgBorder, imgSpecBorder, tempTLBR);
+	vpBorder.clear();
+	vpDeadEnd.clear();
+
+	int doOver = 1, iNext = 1;
 	vector<unsigned char> rgba;
-	bool doOver = 1;
-	POINT pMidTop;
-	pMidTop.x = imgSpec[0] / 2;
+	POINT pNew;
+	pNew.x = imgSpecBorder[0] / 2;
 	while (doOver)
 	{
-		pMidTop.x++;
-		for (int ii = 0; ii < imgSpec[1]; ii++)
+		pNew.x += iNext;
+		if (pNew.x >= imgSpecBorder[0]) // Because corners can be jagged and unpredictable.
+		{ 
+			pNew.x = imgSpecBorder[0] / 2;
+			iNext = -1;
+		}
+		for (int ii = 0; ii < imgSpecBorder[1]; ii++)
 		{
-			pMidTop.y = ii;
-			rgba = im.pixelRGB(img, imgSpec, pMidTop);
-			if (rgba == Green) { doOver = 0;  break; }
+			pNew.y = ii;
+			rgba = im.pixelRGB(imgBorder, imgSpecBorder, pNew);
+			if (rgba == Green) 
+			{ 
+				doOver = 0;  
+				addBorderPoint(vpBorder, vpDeadEnd, pNew);
+				break; 
+			}
 		}
 	}
-	return pMidTop;
-}
-void BINMAP::borderStart(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder)
-{
-	// Given a starter border point, add two more along a clockwise direction.
-	if (vpBorder.size() < 1) { jf.err("pBorder invalid-bm.borderStart"); }
+
 	int radius = 2, numCandidate, borderSize; 
 	vector<int> xMax, yMax;
-	cd.setImg(img, imgSpec);
+	cd.setImg(imgBorder, imgSpecBorder);
 	while (1)
 	{
 		borderSize = vpBorder.size();
@@ -509,10 +531,35 @@ void BINMAP::borderStart(vector<unsigned char>& img, vector<int>& imgSpec, vecto
 		numCandidate = cd.fromCircle(vpBorder[borderSize - 1], radius);
 		numCandidate = cd.keepColour(Green);
 		numCandidate = cd.removePast(vpBorder, borderSize);
+		numCandidate = cd.removeDeadEnd(vpDeadEnd);
 		if (numCandidate == 0) { radius++; }
-		else if (numCandidate == 1) { vpBorder.push_back(cd.getCandidate(0)); }
-		else { vpBorder.push_back(cd.getClockwiseCandidate()); }
+		else if (numCandidate == 1) 
+		{ 
+			pNew = cd.getCandidate(0);
+			if (pNew.x > vpBorder[borderSize - 1].x) { addBorderPoint(vpBorder, vpDeadEnd, pNew); }
+			else { radius++; }
+		}
+		else 
+		{ 
+			pNew = cd.getClockwiseCandidate();
+			addBorderPoint(vpBorder, vpDeadEnd, pNew);
+		}
 	}
+}
+vector<vector<double>> BINMAP::borderTempToKM(vector<vector<double>>& TLBR, double imgPPKM)
+{
+	// Return the border as KM coordinates relative to Home.
+	if (vpBorder.size() < 1) { jf.err("No vpBorder to convert-bm.borderTempToKM"); }
+	vector<vector<double>> border(vpBorder.size(), vector<double>(2));
+	double dx, dy;
+	for (int ii = 0; ii < border.size(); ii++)
+	{
+		dx = (double)vpBorder[ii].x / imgPPKM;
+		dy = (double)vpBorder[ii].y / imgPPKM;
+		border[ii][0] = TLBR[0][0] + dx;
+		border[ii][1] = TLBR[0][1] + dy;
+	}
+	return border;
 }
 bool BINMAP::checkSpec(vector<int>& imgSpec)
 {
@@ -574,84 +621,22 @@ vector<POINT> BINMAP::drawRect(vector<unsigned char>& img, vector<int>& imgSpec,
 	im.rectPaint(img, imgSpec, TLBR, rgbaList[0]);
 	return TLBR;
 }
-vector<int> BINMAP::extractImgDisplacement(vector<unsigned char>& imgSuper, vector<int>& imgSpecSuper, vector<unsigned char>& imgHome, vector<int>& imgSpecHome)
+vector<vector<double>> BINMAP::getFrame(vector<double> centerKM, double imgPPKM, vector<POINT>& TLBR)
 {
-	// Returns the region's pixel displacement relative to the HomeOV reference image. 
-	vector<int> DxDy(2);
-	POINT TL;
-	TL.x = 0;
-	TL.y = imgSpecHome[1] - 1;
-	vector<unsigned char> botRowHome = im.pngExtractRow(imgHome, imgSpecHome, TL);
-	TL.y = 0;
-	vector<unsigned char> topRowHome = im.pngExtractRow(imgHome, imgSpecHome, TL);
-	vector<unsigned char> topRowSuper, botRowSuper, tempRow;
-	vector<unsigned char> rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
-	if (rgba == Black)
-	{
-		while (rgba == Black)
-		{
-			TL.x++;
-			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
-		}
-		DxDy[0] = TL.x;
-		TL.x--;
-		rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
-		while (rgba == Black)
-		{
-			TL.y++;
-			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
-		}
-		DxDy[1] = TL.y;
-		TL.x = 0;
-		TL.y = 0;
-		tempRow = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
-		topRowSuper.assign(tempRow.begin() + (DxDy[0] * imgSpecSuper[2]), tempRow.end());
-		if (topRowSuper == topRowHome) 
-		{ 
-			DxDy[0] *= -1;
-			return DxDy; 
-		}  
-		TL.y = imgSpecSuper[1] - 1;
-		botRowSuper = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
-		botRowSuper.resize(botRowSuper.size() - (DxDy[0] * imgSpecSuper[2]));
-		if (botRowSuper == botRowHome) { DxDy[1] *= -1; }
-		else { jf.err("Failure-bm.extractPosition"); }
-	}
-	else
-	{
-		TL.y = imgSpecSuper[1] - 1;
-		rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
-		while (rgba == Black)
-		{
-			TL.x++;
-			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
-		}
-		DxDy[0] = TL.x;
-		TL.x--;
-		rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
-		while (rgba == Black)
-		{
-			TL.y--;
-			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
-		}
-		TL.y++;
-		DxDy[1] = imgSpecSuper[1] - TL.y;
-		TL.x = 0;
-		TL.y = 0;
-		topRowSuper = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
-		topRowSuper.resize(topRowSuper.size() - (DxDy[0] * imgSpecSuper[2]));
-		if (topRowSuper == topRowHome) { return DxDy; }  // Both displacements were positive.
-		TL.y = imgSpecSuper[1] - 1;
-		tempRow = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
-		botRowSuper.assign(tempRow.begin() + (DxDy[0] * imgSpecSuper[2]), tempRow.end());
-		if (botRowSuper == botRowHome)
-		{
-			DxDy[0] *= -1;
-			DxDy[1] *= -1;
-		}
-		else { jf.err("Failure-bm.extractPosition"); }
-	}
-	return DxDy;
+	// Return the painted image frame's TLBR in KM relative to Home.
+	POINT pCenter;
+	pCenter.x = fullRes[0] / 2;
+	pCenter.y = fullRes[1] / 2;
+	double xKM = (double)(TLBR[0].x - pCenter.x) / imgPPKM;
+	double yKM = (double)(TLBR[0].y - pCenter.y) / imgPPKM;
+	vector<vector<double>> TLBRKM(2, vector<double>(2));
+	TLBRKM[0][0] = centerKM[0] + xKM;
+	TLBRKM[0][1] = centerKM[1] + yKM;
+	xKM = (double)(TLBR[1].x - pCenter.x) / imgPPKM;
+	yKM = (double)(TLBR[1].y - pCenter.y) / imgPPKM;
+	TLBRKM[1][0] = centerKM[0] + xKM;
+	TLBRKM[1][1] = centerKM[1] + yKM;
+	return TLBRKM;
 }
 vector<POINT> BINMAP::getFrame(vector<unsigned char>& img, vector<int>& imgSpec)
 {
@@ -719,13 +704,14 @@ void BINMAP::initialize()
 void BINMAP::initialize(int iMode)
 {
 	mode = iMode;
+
 	string circlePath = sroot + "\\ScanCircles13.png";
 	maxRadius = im.initScanCircles(circlePath);
 	im.initCandidates(cd);
 	pngRes = { 1632, 818, 4 };
 	fullRes = { 1632, 924, 4 };
 	ovRes = { 300, 213, 4 };
-	viScale = { 600, 300, 200, 100, 40, 20, 10 };
+	viScale = { 600, 300, 200, 100, 40, 20, 10 };  // 10km scale is broken - OV zooms in.
 	vpOVCropped.resize(2);
 	vpOVCropped[0].x = 1332;
 	vpOVCropped[0].y = 605;
@@ -781,9 +767,19 @@ void BINMAP::initialize(int iMode)
 		}
 	}
 }
-vector<POINT> BINMAP::loadBorder(string& binFile)
+bool BINMAP::initPainted(string& cleanPath)
 {
-	vector<POINT> vpBorder;
+	// Return TRUE or FALSE if the painted PNG already exists. Loads if possible.
+	size_t pos1 = cleanPath.rfind(".png");
+	paintedPath = cleanPath;
+	paintedPath.insert(pos1, "(painted)");
+	if (!wf.file_exist(paintedPath)) { return 0; }
+	im.pngLoadHere(paintedPath, imgPainted, imgSpecPainted);
+	return 1;
+}
+vector<vector<double>> BINMAP::loadBorder(string& binFile)
+{
+	vector<vector<double>> border;
 	string sCoord;
 	size_t pos1 = binFile.find("//border");
 	if (pos1 > binFile.size()) { jf.err("No border found-bm.loadBorder"); }
@@ -795,34 +791,33 @@ vector<POINT> BINMAP::loadBorder(string& binFile)
 	{
 		pos2 = binFile.find('\n', pos1);
 		sCoord = binFile.substr(pos1, pos2 - pos1);
-		vpBorder.push_back(jf.destringifyCoordP(sCoord));
+		border.push_back(jf.destringifyCoordD(sCoord));
 		pos1 = pos2 + 1;
 	}
-	return vpBorder;
+	return border;
 }
-vector<POINT> BINMAP::loadFrame(string& binFile)
+vector<vector<double>> BINMAP::loadFrame(string& binFile)
 {
-	vector<POINT> TLBR(2);
+	vector<vector<double>> TLBR(2, vector<double>());
 	size_t pos1 = binFile.find("//frame");
 	pos1 = binFile.find('\n', pos1) + 1;
 	size_t pos2 = binFile.find('\n', pos1);
-	string sCoord = binFile.substr(pos1, pos2 - pos1);
-	TLBR[0] = jf.destringifyCoordP(sCoord);
+	string temp = binFile.substr(pos1, pos2 - pos1);
+	TLBR[0] = jf.destringifyCoordD(temp);
 	pos1 = pos2 + 1;
 	pos2 = binFile.find('\n', pos1);
-	sCoord = binFile.substr(pos1, pos2 - pos1);
-	TLBR[1] = jf.destringifyCoordP(sCoord);
+	temp = binFile.substr(pos1, pos2 - pos1);
+	TLBR[1] = jf.destringifyCoordD(temp);
 	return TLBR;
 }
-QPointF BINMAP::loadPosition(string& binFile)
+vector<double> BINMAP::loadPosition(string& binFile)
 {
 	size_t pos1 = binFile.find("//position");
 	pos1 = binFile.find('\n', pos1) + 1;
 	size_t pos2 = binFile.find('\n', pos1);
 	string sCoord = binFile.substr(pos1, pos2 - pos1);
-	vector<double> vdPosition = jf.destringifyCoordD(sCoord);
-	QPointF qpfPosition = qf.getQPF(vdPosition);
-	return qpfPosition;
+	vector<double> position = jf.destringifyCoordD(sCoord);
+	return position;
 }
 double BINMAP::loadScale(string& binFile)
 {
@@ -833,6 +828,18 @@ double BINMAP::loadScale(string& binFile)
 	try { scale = stod(binFile.substr(pos1, pos2 - pos1)); }
 	catch (invalid_argument) { jf.err("stod-bm.loadScale"); }
 	return scale;
+}
+vector<POINT> BINMAP::paintRegionFrame()
+{
+	// Paint a red rectangle immediately outside the painted green border, return its TLBR.
+	if (imgPainted.size() < 1) { jf.err("Cannot frame before spraying-bm.paintRegionFrame"); }
+	vector<POINT> TLBR = makeBox(imgPainted, imgSpecPainted, Green, 1);
+	im.rectPaint(imgPainted, imgSpecPainted, TLBR, Red);
+	return TLBR;
+}
+void BINMAP::printPaintedMap()
+{
+	im.pngPrint(paintedPath, imgPainted, imgSpecPainted);
 }
 void BINMAP::qshow(string sMessage)
 {
@@ -856,16 +863,17 @@ void BINMAP::setPTE(QPlainTextEdit*& qPTE, bool isGUI)
 	pte = qPTE;
 	isgui = isGUI;
 }
-void BINMAP::sprayRegion(vector<unsigned char>&img, vector<int>&imgSpec, vector<POINT> TLBR, vector<double> angleDeviation)
+void BINMAP::sprayRegion(vector<unsigned char>& img, vector<int>& imgSpec, vector<double> angleDeviation)
 {
 	// Travel along TLBR and spray paint the border between the region and the outside. 
 	// Each side of the rectangle sprays inward twice (plus or minus deviation from perpendicular).
-	vector<unsigned char> imgClean = img;
+	imgPainted = img;
+	imgSpecPainted = imgSpec;
+	vector<POINT> TLBR = makeBoxSel(imgPainted, imgSpecPainted, 10);
 	vector<vector<double>> vvdInside = { greenBlueInside, redBlueInside, redGreenInside };
 	int widthTLBR = TLBR[1].x - TLBR[0].x + 1;
-	int heightTLBR = TLBR[1].y - TLBR[0].y + 1;	
+	int heightTLBR = TLBR[1].y - TLBR[0].y + 1;
 	POINT pStart, pBorder;
-
 	for (int hh = 0; hh < angleDeviation.size(); hh++)
 	{
 		if (angleDeviation[hh] < 0.0 || angleDeviation[hh] >= 90.0) { jf.err("Invalid angle-bm.sprayRegion"); }
@@ -873,48 +881,369 @@ void BINMAP::sprayRegion(vector<unsigned char>&img, vector<int>&imgSpec, vector<
 		for (int ii = 1; ii < widthTLBR - 1; ii++)
 		{
 			pStart.x = TLBR[0].x + ii;
-			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 90.0 - angleDeviation[hh], TLBR, vvdInside);
-			if (pBorder.x >= 0) 
-			{ im.pixelPaint(img, imgSpec, Green, pBorder); }
+			pBorder = im.getBorderPoint(img, imgSpec, pStart, 90.0 - angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(imgPainted, imgSpec, Green, pBorder); }
 			if (angleDeviation[hh] == 0.0) { continue; }
-			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 90.0 + angleDeviation[hh], TLBR, vvdInside);
-			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			pBorder = im.getBorderPoint(img, imgSpec, pStart, 90.0 + angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(imgPainted, imgSpec, Green, pBorder); }
 		}
 
 		pStart.x = TLBR[1].x;
 		for (int ii = 1; ii < heightTLBR - 1; ii++)
 		{
 			pStart.y = TLBR[0].y + ii;
-			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 180.0 - angleDeviation[hh], TLBR, vvdInside);
-			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			pBorder = im.getBorderPoint(img, imgSpec, pStart, 180.0 - angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(imgPainted, imgSpec, Green, pBorder); }
 			if (angleDeviation[hh] == 0.0) { continue; }
-			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 180.0 + angleDeviation[hh], TLBR, vvdInside);
-			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			pBorder = im.getBorderPoint(img, imgSpec, pStart, 180.0 + angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(imgPainted, imgSpec, Green, pBorder); }
 		}
 
 		pStart.y = TLBR[1].y;
 		for (int ii = 1; ii < widthTLBR - 1; ii++)
 		{
 			pStart.x = TLBR[0].x + ii;
-			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 270.0 - angleDeviation[hh], TLBR, vvdInside);
-			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			pBorder = im.getBorderPoint(img, imgSpec, pStart, 270.0 - angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(imgPainted, imgSpec, Green, pBorder); }
 			if (angleDeviation[hh] == 0.0) { continue; }
-			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 270.0 + angleDeviation[hh], TLBR, vvdInside);
-			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			pBorder = im.getBorderPoint(img, imgSpec, pStart, 270.0 + angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(imgPainted, imgSpec, Green, pBorder); }
 		}
 
 		pStart.x = TLBR[0].x;
 		for (int ii = 1; ii < heightTLBR - 1; ii++)
 		{
 			pStart.y = TLBR[0].y + ii;
-			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, angleDeviation[hh], TLBR, vvdInside);
-			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			pBorder = im.getBorderPoint(img, imgSpec, pStart, angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(imgPainted, imgSpec, Green, pBorder); }
 			if (angleDeviation[hh] == 0.0) { continue; }
-			pBorder = im.getBorderPoint(imgClean, imgSpec, pStart, 360.0 - angleDeviation[hh], TLBR, vvdInside);
-			if (pBorder.x >= 0) { im.pixelPaint(img, imgSpec, Green, pBorder); }
+			pBorder = im.getBorderPoint(img, imgSpec, pStart, 360.0 - angleDeviation[hh], TLBR, vvdInside);
+			if (pBorder.x >= 0) { im.pixelPaint(imgPainted, imgSpec, Green, pBorder); }
 		}
-
 	}
+}
+
+
+POINT OVERLAY::bestMatch(vector<vector<vector<int>>>& matchResult)
+{
+	// Go through all threads' match percentages, and return the best one's TL point.
+	if (matchResult.size() < 1) { jf.err("Empty matchResult-ov.bestMatch"); }
+	int maxMatch = 0;
+	vector<int> maxIndex = { -1, -1 };
+	for (int jj = 0; jj < matchResult.size(); jj++)
+	{
+		for (int kk = 0; kk < matchResult[jj].size(); kk++)
+		{
+			if (matchResult[jj][kk][0] > maxMatch)
+			{
+				maxMatch = matchResult[jj][kk][0];
+				maxIndex = { jj, kk };
+			}
+		}
+	}
+	POINT TL;
+	TL.x = matchResult[maxIndex[0]][maxIndex[1]][1];
+	TL.y = matchResult[maxIndex[0]][maxIndex[1]][2];
+	return TL;
+}
+int OVERLAY::checkColour(vector<unsigned char>& rgbx)
+{
+	// Return the colourIndex if the given colour matches one of the rows in 'colours'. Else -1.
+	for (int ii = 0; ii < depth; ii++)
+	{
+		for (int jj = 0; jj < length; jj++)
+		{
+			if (rgbx[jj] != colours[ii][jj]) { break; }
+			else if (jj == length - 1) { return ii; }
+		}
+	}
+	return -1;
+}
+vector<int> OVERLAY::extractImgDisplacement()
+{
+	// Returns the region's pixel displacement relative to the HomeOV reference image.
+	if (imgBot.size() < 1) { im.pngLoadHere(botPath, imgBot, imgSpecBot); }
+	im.pngLoadHere(superPath, imgSuper, imgSpecSuper);
+	vector<int> DxDy(2);
+	POINT TL;
+	TL.x = 0;
+	TL.y = imgSpecBot[1] - 1;
+	vector<unsigned char> botRowHome = im.pngExtractRow(imgBot, imgSpecBot, TL);
+	TL.y = 0;
+	vector<unsigned char> topRowHome = im.pngExtractRow(imgBot, imgSpecBot, TL);
+	vector<unsigned char> topRowSuper, botRowSuper, tempRow;
+	vector<unsigned char> rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+	if (rgba == Black)
+	{
+		while (rgba == Black)
+		{
+			TL.x++;
+			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		}
+		DxDy[0] = TL.x;
+		TL.x--;
+		rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		while (rgba == Black)
+		{
+			TL.y++;
+			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		}
+		DxDy[1] = TL.y;
+		TL.x = 0;
+		TL.y = 0;
+		tempRow = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
+		topRowSuper.assign(tempRow.begin() + (DxDy[0] * imgSpecSuper[2]), tempRow.end());
+		if (topRowSuper == topRowHome)
+		{
+			DxDy[0] *= -1;
+			return DxDy;
+		}
+		TL.y = imgSpecSuper[1] - 1;
+		botRowSuper = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
+		botRowSuper.resize(botRowSuper.size() - (DxDy[0] * imgSpecSuper[2]));
+		if (botRowSuper == botRowHome) { DxDy[1] *= -1; }
+		else { jf.err("Failure-bm.extractPosition"); }
+	}
+	else
+	{
+		TL.y = imgSpecSuper[1] - 1;
+		rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		while (rgba == Black)
+		{
+			TL.x++;
+			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		}
+		DxDy[0] = TL.x;
+		TL.x--;
+		rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		while (rgba == Black)
+		{
+			TL.y--;
+			rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
+		}
+		TL.y++;
+		DxDy[1] = imgSpecSuper[1] - TL.y;
+		TL.x = 0;
+		TL.y = 0;
+		topRowSuper = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
+		topRowSuper.resize(topRowSuper.size() - (DxDy[0] * imgSpecSuper[2]));
+		if (topRowSuper == topRowHome) { return DxDy; }  // Both displacements were positive.
+		TL.y = imgSpecSuper[1] - 1;
+		tempRow = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
+		botRowSuper.assign(tempRow.begin() + (DxDy[0] * imgSpecSuper[2]), tempRow.end());
+		if (botRowSuper == botRowHome)
+		{
+			DxDy[0] *= -1;
+			DxDy[1] *= -1;
+		}
+		else { jf.err("Failure-bm.extractPosition"); }
+	}
+	return DxDy;
+}
+int OVERLAY::initBotTop()
+{
+	// Initialization to make a superpos PNG.
+	im.pngLoadHere(botPath, imgBot, imgSpecBot);
+	BR.x = imgSpecBot[0] - 1;
+	BR.y = imgSpecBot[1] - 1;
+	length = imgSpecBot[2];
+	im.pngLoadHere(topPath, imgTop, imgSpecTop);
+	if (imgSpecTop[2] != length) { jf.err("Top bot length mismatch-ov.initBotTop"); }
+	im.crop(imgTop, imgSpecTop, vpOVCropped);
+
+	substrate.clear();
+	substrate.resize(imgSpecBot[1], vector<int>(imgSpecBot[0], -1));
+	int index = 0, colourIndex;
+	vector<unsigned char> rgbx(length);
+	for (int ii = 0; ii < imgSpecBot[1]; ii++)
+	{
+		for (int jj = 0; jj < imgSpecBot[0]; jj++)
+		{
+			for (int kk = 0; kk < length; kk++)
+			{
+				rgbx[kk] = imgBot[index + kk];
+			}
+			index += length;
+			colourIndex = checkColour(rgbx);
+			substrate[ii][jj] = colourIndex;
+		}
+	}
+
+	minMaxTL = { 1 - imgSpecTop[1], BR.y };
+	int taskSize = minMaxTL[1] - minMaxTL[0] + 1;
+	return taskSize;
+}
+bool OVERLAY::initialize(string& tP, string& bP)
+{
+	// topPath refers to the full (clean) PNG, while botPath refers to the cropped OV reference.
+	botPath = bP;
+	topPath = tP;
+	size_t pos1 = topPath.rfind(".png");
+	superPath = topPath;
+	superPath.insert(pos1, "(superposition)");
+
+	pngRes = { 1632, 818, 4, 255 };
+	fullRes = { 1632, 924, 4, 255 };
+	ovRes = { 300, 213, 4, 255 };
+	viScale = { 600, 300, 200, 100, 40, 20, 10 };
+	vpOVCropped.resize(2);
+	vpOVCropped[0].x = 1332;
+	vpOVCropped[0].y = 605;
+	vpOVCropped[1].x = 1631;
+	vpOVCropped[1].y = 817;
+
+	OVPPKM = {
+	{0.054, 0.053},
+	{0.055, 0.0547619048},
+	{0.0553125, 0.0545941558},
+	{0.0553125, 0.0574675325},
+	{0.0583180147, 0.057224026},
+	{0.0518382353, 0.0457792208}
+	};  // 600km, 300km, 200km, 100km, 40km, 20km.
+
+	mainPPKM = { 0.22, 0.44, 0.885, 1.77, 3.525, 7.05, 14.1 };
+
+	Black = { 0, 0, 0, 255 };
+	Canada = { 240, 240, 240, 255 };  // colourIndex = 0
+	Usa = { 215, 215, 215, 255 };     // colourIndex = 1
+	Water = { 179, 217, 247, 255 };   // colourIndex = 2
+	colours.resize(3);
+	colours[0] = Canada;
+	colours[1] = Usa;
+	colours[2] = Water;
+	depth = 3;
+
+	if (!wf.file_exist(superPath)) { return 0; }
+	return 1;
+}
+vector<vector<vector<int>>> OVERLAY::initMatchResult()
+{
+	// Return the 3D vector to be used as a repository for each thread's results.
+	vector<vector<vector<int>>> matchResult(3, vector<vector<int>>(5, vector<int>(3, 0)));
+	int workload = (minMaxTL[1] - minMaxTL[0] + 1) / 5;
+	matchResult[0][0][0] = minMaxTL[0];
+	matchResult[0][0][1] = minMaxTL[0] + (2 * workload);
+	matchResult[1][0][0] = minMaxTL[0] + (2 * workload) + 1;
+	matchResult[1][0][1] = minMaxTL[0] + (3 * workload);
+	matchResult[2][0][0] = minMaxTL[0] + (3 * workload) + 1;
+	matchResult[2][0][1] = minMaxTL[1];
+	return matchResult;
+}
+void OVERLAY::loadSuperpos()
+{
+	im.pngLoadHere(superPath, imgSuper, imgSpecSuper);
+}
+void OVERLAY::printSuperposition(POINT& TL)
+{
+	imgSpecSuper.resize(3);
+	if (TL.x < 0) { imgSpecSuper[0] = BR.x - TL.x + 1; }
+	else { imgSpecSuper[0] = TL.x + imgSpecTop[0]; }
+	if (TL.y < 0) { imgSpecSuper[1] = BR.y - TL.y + 1; }
+	else { imgSpecSuper[1] = TL.y + imgSpecTop[1]; }
+	imgSpecSuper[2] = length;
+	im.pngCanvas(imgSpecSuper, imgSuper, Black);
+	POINT topTL, botTL;
+	if (TL.x > 0)
+	{
+		topTL.x = 0;
+		botTL.x = TL.x;
+		if (TL.y > 0)
+		{
+			topTL.y = 0;
+			botTL.y = TL.y;
+			im.pngPaste(imgSuper, imgSpecSuper, imgBot, imgSpecBot, botTL);
+			im.pngPaste(imgSuper, imgSpecSuper, imgTop, imgSpecTop, topTL);
+		}
+		else
+		{
+			topTL.y = abs(TL.y);
+			botTL.y = 0;
+			im.pngPaste(imgSuper, imgSpecSuper, imgBot, imgSpecBot, botTL);
+			im.pngPaste(imgSuper, imgSpecSuper, imgTop, imgSpecTop, topTL);
+		}
+	}
+	else
+	{
+		topTL.x = abs(TL.x);
+		botTL.x = 0;
+		if (TL.y > 0)
+		{
+			topTL.y = 0;
+			botTL.y = TL.y;
+			im.pngPaste(imgSuper, imgSpecSuper, imgBot, imgSpecBot, botTL);
+			im.pngPaste(imgSuper, imgSpecSuper, imgTop, imgSpecTop, topTL);
+		}
+		else
+		{
+			topTL.y = abs(TL.y);
+			botTL.y = 0;
+			im.pngPaste(imgSuper, imgSpecSuper, imgBot, imgSpecBot, botTL);
+			im.pngPaste(imgSuper, imgSpecSuper, imgTop, imgSpecTop, topTL);
+		}
+	}
+	im.pngPrint(superPath, imgSuper, imgSpecSuper);
+}
+void OVERLAY::reportSuperposition(SWITCHBOARD& sbgui, vector<vector<int>>& match, OVERLAY ov)
+{
+	thread::id myid = this_thread::get_id();
+	vector<int> mycomm;
+	int myIndex = sbgui.answer_call(myid, mycomm) - 2;  // GUI and manager occupy 0,1
+	int startRow = match[0][0];
+	match[0][0] = 0;
+	int stopRow = match[0][1];
+	match[0][1] = 0;
+	if (ov.substrate.size() < 1) { jf.err("No init-ov.createSuperposition"); }
+	int matchSize = match.size(), colourIndexTop;
+	vector<int> matchTemp(3);
+	vector<unsigned char> rgbxTop;
+	POINT TL, p1;
+
+	TL.y = startRow;
+	while (TL.y <= stopRow)
+	{
+		TL.x = 1 - ov.imgSpecTop[0];
+		while (TL.x <= ov.BR.x)
+		{
+			matchTemp = { 0, TL.x, TL.y };
+			for (int ii = 0; ii < ov.imgSpecTop[1]; ii++)
+			{
+				p1.y = TL.y + ii;
+				if (p1.y < 0 || p1.y > ov.BR.y) { continue; }
+				for (int jj = 0; jj < ov.imgSpecTop[0]; jj++)
+				{
+					p1.x = TL.x + jj;
+					if (p1.x < 0 || p1.x > ov.BR.x) { continue; }
+					rgbxTop = im.pixelRGB(ov.imgTop, ov.imgSpecTop, p1);
+					colourIndexTop = checkColour(rgbxTop);
+					if (colourIndexTop < 0) { continue; }
+					if (colourIndexTop == ov.substrate[ii][jj]) { matchTemp[0]++; }
+				}
+			}
+			if (matchTemp[0] > match[matchSize - 1][0])
+			{
+				for (int ii = 0; ii < matchSize; ii++)
+				{
+					if (matchTemp[0] > match[ii][0])
+					{
+						for (int jj = matchSize - 1; jj >= 1; jj--)
+						{
+							if (jj == ii) { break; }
+							match[jj] = match[jj - 1];
+						}
+						match[ii] = matchTemp;
+						break;
+					}
+				}
+			}
+			TL.x++;
+		}
+		mycomm[1]++;
+		sbgui.update(myid, mycomm);
+		TL.y++;
+	}
+	mycomm[0] = 1;
+	sbgui.update(myid, mycomm);
+	sbgui.terminateSelf(myid);
 }
 
 
@@ -1524,299 +1853,3 @@ void PNGMAP::setPTE(QPlainTextEdit*& qPTE, bool isGUI)
 	isgui = isGUI;
 }
 
-
-int OVERLAY::checkColour(vector<unsigned char>& rgb)
-{
-	// Return the colourIndex if the given colour matches one of the rows in 'colours'. Else -1.
-	for (int ii = 0; ii < depth; ii++)
-	{
-		for (int jj = 0; jj < length; jj++)
-		{
-			if (rgb[jj] != colours[ii][jj]) { break; }
-			else if (jj == length - 1) { return ii; }
-		}
-	}
-	return -1;
-}
-void OVERLAY::createSuperposition(vector<unsigned char>& imgTop, vector<int>& imgSpecTop, vector<unsigned char>& imgSuper, vector<int>& imgSpecSuper)
-{
-	if (substrate.size() < 1) { jf.err("No init-ov.createSuperposition"); }
-	if (imgSpecTop[2] != length) { jf.err("Pixel size mismatch-ov.createSuperposition"); }
-	vector<vector<int>> matchTest = matchAll(imgTop, imgSpecTop);
-	int maxMatch = 0, maxIndex = -1;
-	for (int ii = 0; ii < matchTest.size(); ii++)
-	{
-		if (matchTest[ii][0] > maxMatch)
-		{
-			maxMatch = matchTest[ii][0];
-			maxIndex = ii;
-		}
-	}
-	if (maxIndex < 0) { jf.err("No matches found-ov.createSuperposition"); }
-
-	imgSuper.clear();
-	imgSpecSuper.resize(3);
-	if (matchTest[maxIndex][1] < 0) { imgSpecSuper[0] = BR.x - matchTest[maxIndex][1] + 1; }
-	else { imgSpecSuper[0] = matchTest[maxIndex][1] + imgSpecTop[0]; }
-	if (matchTest[maxIndex][2] < 0) { imgSpecSuper[1] = BR.y - matchTest[maxIndex][2] + 1; }
-	else { imgSpecSuper[1] = matchTest[maxIndex][2] + imgSpecTop[1]; }
-	imgSpecSuper[2] = length;
-	vector<unsigned char> rgbx;
-	if (length == 3) { rgbx = { 0, 0, 0 }; }
-	else if (length == 4) { rgbx = { 0, 0, 0, 255 }; }
-	im.pngCanvas(imgSpecSuper, imgSuper, rgbx);
-	POINT topTL, botTL;
-	if (matchTest[maxIndex][1] < 0)
-	{
-		topTL.x = 0;
-		botTL.x = abs(matchTest[maxIndex][1]);
-		if (matchTest[maxIndex][2] < 0)
-		{
-			topTL.y = 0;
-			botTL.y = abs(matchTest[maxIndex][2]);
-			im.pngPaste(imgSuper, imgSpecSuper, pngBot, pngSpecBot, botTL);
-			im.pngPaste(imgSuper, imgSpecSuper, imgTop, imgSpecTop, topTL);
-		}
-		else
-		{
-			topTL.y = matchTest[maxIndex][2];
-			botTL.y = 0;
-			im.pngPaste(imgSuper, imgSpecSuper, pngBot, pngSpecBot, botTL);
-			im.pngPaste(imgSuper, imgSpecSuper, imgTop, imgSpecTop, topTL);
-		}
-	}
-	else
-	{
-		topTL.x = matchTest[maxIndex][1];
-		botTL.x = 0;
-		if (matchTest[maxIndex][2] < 0)
-		{
-			topTL.y = 0;
-			botTL.y = abs(matchTest[maxIndex][2]);
-			im.pngPaste(imgSuper, imgSpecSuper, pngBot, pngSpecBot, botTL);
-			im.pngPaste(imgSuper, imgSpecSuper, imgTop, imgSpecTop, topTL);
-		}
-		else
-		{
-			topTL.y = matchTest[maxIndex][2];
-			botTL.y = 0;
-			im.pngPaste(imgSuper, imgSpecSuper, pngBot, pngSpecBot, botTL);
-			im.pngPaste(imgSuper, imgSpecSuper, imgTop, imgSpecTop, topTL);
-		}
-	}
-
-}
-void OVERLAY::initPNG(vector<unsigned char>& imgBot, vector<int>& imgSpecBot)
-{
-	pngBot = imgBot;
-	pngSpecBot = imgSpecBot;
-	BR.x = imgSpecBot[0] - 1;
-	BR.y = imgSpecBot[1] - 1;
-	length = pngSpecBot[2];
-
-	Canada = { 240, 240, 240, 255 };  // colourIndex = 0
-	Usa = { 215, 215, 215, 255 };     // colourIndex = 1
-	Water = { 179, 217, 247, 255 };   // colourIndex = 2
-
-	colours.resize(3);
-	colours[0] = Canada;
-	colours[1] = Usa;
-	colours[2] = Water;
-	depth = 3;
-
-	substrate.clear();
-	substrate.resize(imgSpecBot[1], vector<int>(imgSpecBot[0], -1));
-	int index = 0, colourIndex;
-	vector<unsigned char> rgbx(length);
-	for (int ii = 0; ii < imgSpecBot[1]; ii++)
-	{
-		for (int jj = 0; jj < imgSpecBot[0]; jj++)
-		{
-			for (int kk = 0; kk < length; kk++)
-			{
-				rgbx[kk] = imgBot[index + kk];
-			}
-			index += length;
-			colourIndex = checkColour(rgbx);
-			substrate[ii][jj] = colourIndex;
-		}
-	}
-
-}
-vector<vector<int>> OVERLAY::matchAll(vector<unsigned char>& img, vector<int>& imgSpec)
-{
-	// Return form [possibility index][# of matches, img TLx, img TLy]
-	// All coordinates are relative to the substrate's dimensions [0, BR]
-	if (imgSpec[2] != length) { jf.err("rgbx mismatch-ov.matchAll"); }
-	int matchSize = 10, colourIndexTop;
-	vector<vector<int>> match(matchSize, vector<int>(3, 0));
-	vector<int> matchTemp(3);
-	vector<unsigned char> rgbxTop;
-	POINT TL, p1;
-
-	TL.y = 1 - imgSpec[1];
-	while (TL.y <= BR.y)
-	{
-		TL.x = 1 - imgSpec[0];
-		while (TL.x <= BR.x)
-		{
-			matchTemp = { 0, TL.x, TL.y };
-			for (int ii = 0; ii < imgSpec[1]; ii++)
-			{
-				p1.y = TL.y + ii;
-				if (p1.y < 0 || p1.y > BR.y) { continue; }
-				for (int jj = 0; jj < imgSpec[0]; jj++)
-				{
-					p1.x = TL.x + jj;
-					if ( p1.x < 0 || p1.x > BR.x) { continue; }
-					rgbxTop = im.pixelRGB(img, imgSpec, p1);
-					colourIndexTop = checkColour(rgbxTop);
-					if (colourIndexTop < 0) { continue; }
-					if (colourIndexTop == substrate[ii][jj]) { matchTemp[0]++; }
-				}
-			}
-			if (matchTemp[0] > match[matchSize - 1][0])
-			{
-				for (int ii = 0; ii < matchSize; ii++)
-				{
-					if (matchTemp[0] > match[ii][0])
-					{
-						for (int jj = matchSize - 1; jj >= 1; jj--)
-						{
-							if (jj == ii) { break; }
-							match[jj] = match[jj - 1];
-						}
-						match[ii] = matchTemp;
-						break;
-					}
-				}
-			}
-			TL.x++;
-		}
-		TL.y++;
-	}
-	return match;
-}
-void OVERLAY::printSuperposition(string& pngPath, vector<int> TL)
-{
-	vector<unsigned char> imgSuper;
-	vector<int> imgSpecSuper(3);
-	if (TL[0] < 0) { imgSpecSuper[0] = BR.x - TL[0] + 1; }
-	else { imgSpecSuper[0] = TL[0] + pngSpecTop[0]; }
-	if (TL[1] < 0) { imgSpecSuper[1] = BR.y - TL[1] + 1; }
-	else { imgSpecSuper[1] = TL[1] + pngSpecTop[1]; }
-	imgSpecSuper[2] = length;
-	vector<unsigned char> rgbx;
-	if (length == 3) { rgbx = { 0, 0, 0 }; }
-	else if (length == 4) { rgbx = { 0, 0, 0, 255 }; }
-	im.pngCanvas(imgSpecSuper, imgSuper, rgbx);
-	POINT topTL, botTL;
-	if (TL[0] > 0)
-	{
-		topTL.x = 0;
-		botTL.x = TL[0];
-		if (TL[1] > 0)
-		{
-			topTL.y = 0;
-			botTL.y = TL[1];
-			im.pngPaste(imgSuper, imgSpecSuper, pngBot, pngSpecBot, botTL);
-			im.pngPaste(imgSuper, imgSpecSuper, pngTop, pngSpecTop, topTL);
-		}
-		else
-		{
-			topTL.y = abs(TL[1]);
-			botTL.y = 0;
-			im.pngPaste(imgSuper, imgSpecSuper, pngBot, pngSpecBot, botTL);
-			im.pngPaste(imgSuper, imgSpecSuper, pngTop, pngSpecTop, topTL);
-		}
-	}
-	else
-	{
-		topTL.x = abs(TL[0]);
-		botTL.x = 0;
-		if (TL[1] > 0)
-		{
-			topTL.y = 0;
-			botTL.y = TL[1];
-			im.pngPaste(imgSuper, imgSpecSuper, pngBot, pngSpecBot, botTL);
-			im.pngPaste(imgSuper, imgSpecSuper, pngTop, pngSpecTop, topTL);
-		}
-		else
-		{
-			topTL.y = abs(TL[1]);
-			botTL.y = 0;
-			im.pngPaste(imgSuper, imgSpecSuper, pngBot, pngSpecBot, botTL);
-			im.pngPaste(imgSuper, imgSpecSuper, pngTop, pngSpecTop, topTL);
-		}
-	}
-	im.pngPrint(pngPath, imgSuper, imgSpecSuper);
-}
-void OVERLAY::reportSuperposition(SWITCHBOARD& sbgui, vector<vector<int>>& match, OVERLAY ov)
-{
-	thread::id myid = this_thread::get_id();
-	vector<int> mycomm;
-	int myIndex = sbgui.answer_call(myid, mycomm) - 2;  // GUI and manager occupy 0,1
-	int startRow = match[0][0];
-	match[0][0] = 0;
-	int stopRow = match[0][1];
-	match[0][1] = 0;
-	if (ov.substrate.size() < 1) { jf.err("No init-ov.createSuperposition"); }
-	int matchSize = match.size(), colourIndexTop;
-	vector<int> matchTemp(3);
-	vector<unsigned char> rgbxTop;
-	POINT TL, p1;
-
-	TL.y = startRow;
-	while (TL.y <= stopRow)
-	{
-		TL.x = 1 - ov.pngSpecTop[0];
-		while (TL.x <= ov.BR.x)
-		{
-			matchTemp = { 0, TL.x, TL.y };
-			for (int ii = 0; ii < ov.pngSpecTop[1]; ii++)
-			{
-				p1.y = TL.y + ii;
-				if (p1.y < 0 || p1.y > ov.BR.y) { continue; }
-				for (int jj = 0; jj < ov.pngSpecTop[0]; jj++)
-				{
-					p1.x = TL.x + jj;
-					if (p1.x < 0 || p1.x > ov.BR.x) { continue; }
-					rgbxTop = im.pixelRGB(ov.pngTop, ov.pngSpecTop, p1);
-					colourIndexTop = checkColour(rgbxTop);
-					if (colourIndexTop < 0) { continue; }
-					if (colourIndexTop == ov.substrate[ii][jj]) { matchTemp[0]++; }
-				}
-			}
-			if (matchTemp[0] > match[matchSize - 1][0])
-			{
-				for (int ii = 0; ii < matchSize; ii++)
-				{
-					if (matchTemp[0] > match[ii][0])
-					{
-						for (int jj = matchSize - 1; jj >= 1; jj--)
-						{
-							if (jj == ii) { break; }
-							match[jj] = match[jj - 1];
-						}
-						match[ii] = matchTemp;
-						break;
-					}
-				}
-			}
-			TL.x++;
-		}
-		mycomm[1]++;
-		sbgui.update(myid, mycomm);
-		TL.y++;
-	}
-	mycomm[0] = 1;
-	sbgui.update(myid, mycomm);
-	sbgui.terminateSelf(myid);
-}
-vector<int> OVERLAY::setTopPNG(vector<unsigned char>& img, vector<int>& imgSpec)
-{
-	pngTop = img;
-	pngSpecTop = imgSpec;
-	vector<int> minMax = { 1 - imgSpec[1], BR.y };
-	return minMax;
-}

@@ -722,6 +722,20 @@ void WINFUNC::make_tree_local_helper1(vector<vector<int>>& tree_st, vector<strin
 		}
 	}
 }
+vector<double> WINFUNC::pointToDouble(POINT& p1)
+{
+	vector<double> vd = { (double)p1.x, (double)p1.y };
+	return vd;
+}
+vector<vector<double>> WINFUNC::pointToDouble(vector<POINT>& vPoint)
+{
+	vector<vector<double>> vvd(vPoint.size(), vector<double>());
+	for (int ii = 0; ii < vvd.size(); ii++)
+	{
+		vvd[ii] = { (double)vPoint[ii].x, (double)vPoint[ii].y };
+	}
+	return vvd;
+}
 void WINFUNC::printer(string path, string& file)
 {
 	while (!(file[file.size() - 2] == '\n' && file[file.size() - 1] == '\n'))

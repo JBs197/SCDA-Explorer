@@ -15,6 +15,7 @@ class STATSCAN
 	vector<string> cataColTitles, geoHistory;
 	string cataName, cataPath, cataYear, description, metaFile, topic;
 	vector<vector<string>> geo;
+	bool ignoreSplitRegions = 1;
 	JFUNC jf;
 	string nl;
 	unordered_map<string, int> mapGeoCode;  // Passively updated by loadGeoList
@@ -67,6 +68,7 @@ public:
 	vector<string> makeInsertGeo(vector<vector<string>>& geoList);
 	string makeInsertYear();
 
+	unordered_map<string, string> mapGeoCodeToPart(vector<vector<string>>& geoList);
 	vector<vector<string>> parseNavSearch(string& navSearchBlob);
 
 	vector<vector<int>> readBinBorder(string& binFile);

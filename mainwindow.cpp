@@ -168,6 +168,10 @@ void MainWindow::reportTable(QTableWidget*& qTable)
     pteDefault->clear();
     pteDefault->setPlainText(qMessage);
 }
+void MainWindow::on_pB_clearsearch_clicked()
+{
+    ui->pte_search->clear();
+}
 
 // Table shared functions.
 void MainWindow::tablePopulate(QTableWidget*& qTable, vector<vector<string>>& sData)
@@ -642,19 +646,12 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 
     // Determine the number of regions, and update the GUI thread progress bar.
     vector<vector<string>> geoList = sc.loadGeoList(geoPath);
-    unordered_map<string, string> mapGeoPart;
-    for (int ii = 0; ii < geoList.size(); ii++)
-    {
-        mapGeoPart.emplace(geoList[ii][0], geoList[ii][2]);
-    }
+    unordered_map<string, string> mapGeoPart = sc.mapGeoCodeToPart(geoList);
     mycomm[2] = geoList.size();
-    string tname = "Census$" + prompt[0] + "$" + prompt[1] + "$Geo";
+    string tname = "Geo$" + prompt[0] + "$" + prompt[1];
     vector<string> vsResult, search = { "GEO_CODE" };
-    if (sfgui.table_exist(tname))
-    {
-        sfgui.select(search, tname, vsResult);
-    }
-    vector<string> geoToDo = sc.compareGeoListDB(geoList, vsResult);  // Form [# already in DB, geoIndex of first absence].
+    if (sfgui.table_exist(tname)) { sfgui.select(search, tname, vsResult); }
+    vector<string> geoToDo = sc.compareGeoListDB(geoList, vsResult); // List of GEO_CODEs present in geoList but absent from the DB.
     if (geoToDo.size() < 1) { goto FTL1; }
     mycomm[1] += (geoList.size() - geoToDo.size());
     sbgui.update(myid, mycomm);
@@ -715,7 +712,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     // Add ancestry columns to the geo table, if necessary.
     vsResult.clear();
     search = { "GEO_LEVEL" };
-    tname = "Census$" + prompt[0] + "$" + prompt[1] + "$Geo";
+    tname = "Geo$" + prompt[0] + "$" + prompt[1];
     sfgui.select(search, tname, vsResult);
     int numCol = sfgui.get_num_col(tname), maxLevel = -1, inum, iGeoLevel;
     for (int ii = 0; ii < vsResult.size(); ii++)
@@ -739,6 +736,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 FTL1:
     // Insert ancestry values into the geo table.
     vector<string> ancestry, conditions, revisions;
+    search = { "GEO_LEVEL" };
     for (int ii = 0; ii < geoList.size(); ii++)
     {
         result.clear();
@@ -776,7 +774,7 @@ FTL1:
 void MainWindow::insertGeoLayers(string sYear, string sCata)
 {
     string stmt;
-    string tname = "Census$" + sYear + "$GeoLayers";
+    string tname = "GeoLayers$" + sYear;
     if (!sf.table_exist(tname))
     {
         stmt = sc.makeCreateGeoLayers(sYear);
@@ -977,9 +975,9 @@ void MainWindow::createBinMap(SWITCHBOARD& sbgui)
     vector<unsigned char> img, Green = { 34, 177, 76, 255 }, Red = { 255, 0, 0, 255 };
     vector<int> imgSpec, minMax, viPrompt = sbgui.getIPrompt();
     vector<string> dirt = { ".png" }, soap = { ".bin" };
-    string binPath, binFile, binFileNew, temp, pixelPerKM;
+    string binPath, binFile, binFileNew, temp;
     size_t pos1, pos2;
-    int iMargin = 1;
+    int iMargin = 1, iNum;
     bm.initialize(viPrompt[0]);
     for (int ii = 0; ii < pngPath.size(); ii++)
     {
@@ -1005,92 +1003,37 @@ void MainWindow::createBinMap(SWITCHBOARD& sbgui)
             if (scale && position && frame && border) { continue; }
         }
 
-        // Get the map's scale (pixels per kilometer).
+        // Get the PNG map's scale (pixels per kilometer).
         double imgPPKM;
         if (!scale)
         {
             imgPPKM = bm.extractScale(img, imgSpec);
-            pixelPerKM = to_string(imgPPKM);
+            binFileNew = "//scale\n" + to_string(imgPPKM) + "\n\n";
         }
         else
         {
             pos1 = binFile.find("//scale");
+            pos2 = binFile.find("\n\n", pos1);
+            binFileNew = binFile.substr(pos1, pos2 - pos1) + "\n\n";
             pos1 = binFile.find('\n', pos1) + 1;
-            pos2 = binFile.find_first_of("\r\n", pos1);
-            pixelPerKM = binFile.substr(pos1, pos2 - pos1);
-            try { imgPPKM = stod(pixelPerKM); }
+            temp = binFile.substr(pos1, pos2 - pos1);
+            try { imgPPKM = stod(temp); }
             catch (invalid_argument) { jf.err("stod-MainWindow.createBinMap"); }
         }
-        binFileNew = "//scale\n" + pixelPerKM + "\n\n";
         wf.printer(binPath, binFileNew);
 
-        // Get the painted frame's top-left and bottom-right coordinates.
-        vector<unsigned char> imgPainted;
-        vector<int> imgSpecPainted;
-        vector<POINT> frameTLBR, tempFrameTLBR;  // coords correspond to imgPainted.
-        if (!frame)
-        {
-            string paintedPath = pngPath[ii];
-            pos1 = paintedPath.rfind(".png");
-            paintedPath.insert(pos1, "(painted)");
-            if (!wf.file_exist(paintedPath))
-            {
-                vector<double> angleDeviation = { 0.0, 15.0, 30.0, 60.0 };
-                imgPainted = img;
-                imgSpecPainted = imgSpec;
-                tempFrameTLBR = bm.makeBoxSel(imgPainted, imgSpecPainted, 10);
-                bm.sprayRegion(imgPainted, imgSpecPainted, tempFrameTLBR, angleDeviation);
-                frameTLBR = bm.makeBox(imgPainted, imgSpecPainted, Green, 1);
-                im.rectPaint(imgPainted, imgSpecPainted, frameTLBR, Red);
-                im.pngPrint(paintedPath, imgPainted, imgSpecPainted);
-            }
-            else
-            {
-                im.pngLoadHere(paintedPath, imgPainted, imgSpecPainted);
-                frameTLBR = bm.getFrame(imgPainted, imgSpecPainted);
-            }
-            binFileNew += "//frame\n" + to_string(frameTLBR[0].x) + "," + to_string(frameTLBR[0].y);
-            binFileNew += "\n" + to_string(frameTLBR[1].x) + "," + to_string(frameTLBR[1].y) + "\n\n";
-        }
-        else
-        {
-            pos1 = binFile.find("//frame");
-            pos2 = binFile.find('\n', pos1) + 1;
-            pos2 = binFile.find('\n', pos2) + 1;
-            pos2 = binFile.find_first_of("\r\n", pos2);
-            binFileNew += binFile.substr(pos1, pos2 - pos1) + "\n\n";
-        }
-        wf.printer(binPath, binFileNew);
-
-        // Get the frame's top-left position (in kilometers) relative to Home.
+        // Get the PNG map's center position, in kilometers relative to Home.
+        vector<double> centerFromHomeKM;
         if (!position)
         {
-            string botPath = sroot + "\\HomeOV.png";
-            vector<unsigned char> imgBot, imgTop, imgSuper, rgba;
-            vector<int> imgSpecBot, imgSpecTop, imgSpecSuper, DxDy;
-            im.pngLoadHere(botPath, imgBot, imgSpecBot);
             OVERLAY ov;
-            ov.initPNG(imgBot, imgSpecBot);
-            pos1 = pngPath[ii].rfind(".png");
-            string superposPath = pngPath[ii];
-            superposPath.insert(pos1, "(superposition)");
-            if (!wf.file_exist(superposPath))
+            string botPath = sroot + "\\HomeOV.png";
+            bool superpos = ov.initialize(pngPath[ii], botPath);  // Returns TRUE if superpos already exists.
+            if (!superpos)
             {
-                imgTop = img;
-                imgSpecTop = imgSpec;
-                bm.cropToOverview(imgTop, imgSpecTop);
-                vector<int> minMaxTL = ov.setTopPNG(imgTop, imgSpecTop);
-                vector<vector<vector<int>>> matchResult(3, vector<vector<int>>(5, vector<int>(3, 0)));
-                int taskSize = minMaxTL[1] - minMaxTL[0] + 1;
-                comm[1][2] = taskSize;
+                comm[1][2] = ov.initBotTop();
                 sbgui.update(myid, comm[1]);
-                int workload = taskSize / 5, iNum;
-                matchResult[0][0][0] = minMaxTL[0];
-                matchResult[0][0][1] = minMaxTL[0] + (2 * workload);
-                matchResult[1][0][0] = minMaxTL[0] + (2 * workload) + 1;
-                matchResult[1][0][1] = minMaxTL[0] + (3 * workload);
-                matchResult[2][0][0] = minMaxTL[0] + (3 * workload) + 1;
-                matchResult[2][0][1] = minMaxTL[1];
+                vector<vector<vector<int>>> matchResult = ov.initMatchResult();
                 std::thread thr0(&OVERLAY::reportSuperposition, &ov, ref(sbgui), ref(matchResult[0]), ov);
                 thr0.detach();
                 Sleep(50);
@@ -1118,64 +1061,81 @@ void MainWindow::createBinMap(SWITCHBOARD& sbgui)
                         break;
                     }
                 }
-                int maxMatch = 0;
-                vector<int> maxIndex = { -1, -1 };
-                for (int jj = 0; jj < 3; jj++)
-                {
-                    for (int kk = 0; kk < matchResult[jj].size(); kk++)
-                    {
-                        if (matchResult[jj][kk][0] > maxMatch)
-                        {
-                            maxMatch = matchResult[jj][kk][0];
-                            maxIndex = { jj, kk };
-                        }
-                    }
-                }
-                vector<int> viTL = { matchResult[maxIndex[0]][maxIndex[1]][1], matchResult[maxIndex[0]][maxIndex[1]][2] };
-                ov.printSuperposition(superposPath, viTL);
+                POINT TL = ov.bestMatch(matchResult);
+                ov.printSuperposition(TL);
             }
-            im.pngLoadHere(superposPath, imgSuper, imgSpecSuper);
-            DxDy = bm.extractImgDisplacement(imgSuper, imgSpecSuper, imgBot, imgSpecBot);
-            QPointF centerFromHomeKM = bm.ovPixelToKM(DxDy);
-            QPointF imgTLFromHomeKM = bm.centerToImgTL(centerFromHomeKM, imgPPKM);
-            POINT imgTL = bm.getImgTL(imgPainted, imgSpecPainted);
-            QPointF frameTLFromHomeKM = bm.imgTLToFrameTL(imgTLFromHomeKM, imgTL, frameTLBR[0], imgPPKM);
-            binFileNew += "//position\n" + to_string(frameTLFromHomeKM.rx()) + ","; 
-            binFileNew += to_string(frameTLFromHomeKM.ry()) + "\n\n";
+            else { ov.loadSuperpos(); }
+            int scaleIndex = ov.getScaleIndex(imgPPKM);
+            vector<int> DxDy = ov.extractImgDisplacement();
+            centerFromHomeKM = ov.ovPixelToKM(DxDy, scaleIndex);
+            binFileNew += "//position\n" + to_string(centerFromHomeKM[0]) + ",";
+            binFileNew += to_string(centerFromHomeKM[1]) + "\n\n";
         }
         else
         {
             pos1 = binFile.find("//position");
-            pos2 = binFile.find('\n', pos1) + 1;
-            pos2 = binFile.find_first_of("\r\n", pos2);
+            pos2 = binFile.find("\n\n", pos1);
             binFileNew += binFile.substr(pos1, pos2 - pos1) + "\n\n";
+            pos1 = binFile.find('\n', pos1) + 1;
+            temp = binFile.substr(pos1, pos2 - pos1);
+            centerFromHomeKM = jf.destringifyCoordD(temp);
         }
         wf.printer(binPath, binFileNew);
 
-        // Get the map's border coordinates relative to the painted frame.
+        // Get the painted frame's top-left and bottom-right coordinates (KM from Home).
+        vector<vector<double>> frameTLBR;
+        vector<POINT> tempTLBR;
+        if (!frame)
+        {
+            bool painted = bm.initPainted(pngPath[ii]);
+            if (!painted)
+            {
+                vector<double> angleDeviation = { 0.0, 15.0, 30.0, 60.0 };               
+                bm.sprayRegion(img, imgSpec, angleDeviation);  // Does not spray the original img. Just in case you were worried...
+                tempTLBR = bm.paintRegionFrame();
+                bm.printPaintedMap();
+            }
+            else { tempTLBR = bm.paintRegionFrame(); }
+            frameTLBR = bm.getFrame(centerFromHomeKM, imgPPKM, tempTLBR);
+            binFileNew += "//frame\n" + to_string(frameTLBR[0][0]) + ",";
+            binFileNew += to_string(frameTLBR[0][1]) + "\n" + to_string(frameTLBR[1][0]);
+            binFileNew += "," + to_string(frameTLBR[1][1]) + "\n\n";
+        }
+        else
+        {
+            pos1 = binFile.find("//frame");
+            pos2 = binFile.find("\n\n", pos1);
+            binFileNew += binFile.substr(pos1, pos2 - pos1) + "\n\n";
+            frameTLBR.resize(2);
+            pos1 = binFile.find('\n', pos1) + 1;
+            pos2 = binFile.find('\n', pos1);
+            temp = binFile.substr(pos1, pos2 - pos1);
+            frameTLBR[0] = jf.destringifyCoordD(temp);
+            pos1 = pos2 + 1;
+            pos2 = binFile.find('\n', pos1);
+            temp = binFile.substr(pos1, pos2 - pos1);
+            frameTLBR[1] = jf.destringifyCoordD(temp);
+        }
+        wf.printer(binPath, binFileNew);
+
+        // Get the map's border coordinates (KM from Home).
+        vector<vector<double>> borderKM;
         if (!border)
         {
-            vector<unsigned char> imgBorder;
-            vector<int> imgSpecBorder;
-            vector<POINT> vpBorder(1);
-            if (frameTLBR.size() < 1)
+            if (tempTLBR.size() < 1)
             {
-                string paintedPath = pngPath[ii];
-                pos1 = paintedPath.rfind(".png");
-                paintedPath.insert(pos1, "(painted)");
-                im.pngLoadHere(paintedPath, imgPainted, imgSpecPainted);
-                frameTLBR = bm.getFrame(imgPainted, imgSpecPainted);
+                bool painted = bm.initPainted(pngPath[ii]);
+                if (!painted) { jf.err("No paintedPNG-bm.createBinMap"); }
+                tempTLBR = bm.paintRegionFrame();
             }
-            imgBorder = imgPainted;
-            imgSpecBorder = imgSpecPainted;
-            im.crop(imgBorder, imgSpecBorder, frameTLBR);
-            vpBorder[0] = bm.borderPreStart(imgBorder, imgSpecBorder);
-            bm.borderStart(imgBorder, imgSpecBorder, vpBorder);
-            bm.borderComplete(sbgui, vpBorder);
+            bm.borderStart(tempTLBR);
+            bm.borderComplete(sbgui);
+            borderKM = bm.borderTempToKM(frameTLBR, imgPPKM);
             binFileNew += "//border";
-            for (int jj = 0; jj < vpBorder.size(); jj++)
+            for (int jj = 0; jj < borderKM.size(); jj++)
             {
-                binFileNew += "\n" + jf.stringifyCoord(vpBorder[jj]);
+                binFileNew += "\n" + to_string(borderKM[jj][0]);
+                binFileNew += "," + to_string(borderKM[jj][1]);
             }
             binFileNew += "\n\n";
         }
@@ -1352,11 +1312,10 @@ void MainWindow::on_pB_reviewmap_clicked()
     string binPath = mapFolder + "\\" + mapName;
     string binFile = wf.load(binPath);
     double scale = bm.loadScale(binFile);
-    vector<POINT> frameTLBR = bm.loadFrame(binFile);
-    QPointF position = bm.loadPosition(binFile);
-    vector<POINT> vpBorder = bm.loadBorder(binFile);
-    vector<QPointF> vqpfBorder = qf.vpToVQPF(vpBorder);
-    ui->qp_maplocal->addParent(vqpfBorder, scale, position, frameTLBR);
+    vector<vector<double>> frameTLBR = bm.loadFrame(binFile);
+    vector<double> position = bm.loadPosition(binFile);
+    vector<vector<double>> border = bm.loadBorder(binFile);
+    ui->qp_maplocal->addParent(scale, frameTLBR, border);
     ui->qp_maplocal->update();
 
     /*
@@ -1386,7 +1345,6 @@ void MainWindow::on_listW_map_itemSelectionChanged()
         ui->pB_insertmap->setEnabled(1);
     }
 }
-
 
 // Database map functions.
 void MainWindow::insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui, BINMAP& bmgui)
@@ -2069,7 +2027,7 @@ void MainWindow::on_treeW_cataonline_itemSelectionChanged()
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 2;
+    int mode = 10;
 
     switch (mode)
     {
@@ -2092,55 +2050,6 @@ void MainWindow::on_pB_test_clicked()
         sMessage += "\nHeight: " + to_string(qSize.height());
         QString qMessage = QString::fromStdString(sMessage);
         ui->pte_search->setPlainText(qMessage);
-        break;
-    }
-    case 2:  // Parent-Child air pressure correction.
-    {
-        QRect qrQPaint = ui->qp_maplocal->geometry();
-        int iShift = qrQPaint.x();
-        qrQPaint.adjust(-1 * iShift, 0, iShift, 0);
-        ui->qp_maplocal->setGeometry(qrQPaint);
-        vector<int> viBlack = { 0, 0, 0, 255 }, imgSpec;
-        vector<unsigned char> img;
-
-        vector<string> binPath = { sroot + "\\mapParent\\Canada.bin" };
-        string mapFolder = sroot + "\\mapChild\\province";
-        vector<string> childName = wf.get_file_list(mapFolder, "*.bin");
-        for (int ii = 0; ii < childName.size(); ii++)
-        {
-            binPath.push_back(mapFolder + "\\" + childName[ii]);
-        }
-        string binFile = wf.load(binPath[0]);
-        double scale = bm.loadScale(binFile);
-        vector<POINT> frameTLBR = bm.loadFrame(binFile);
-        QPointF position = bm.loadPosition(binFile);
-        vector<POINT> vpBorder = bm.loadBorder(binFile);
-        vector<QPointF> vqpfBorder = qf.vpToVQPF(vpBorder);
-        ui->qp_maplocal->addParent(vqpfBorder, scale, position, frameTLBR, viBlack);
-        for (int ii = 1; ii < binPath.size(); ii++)
-        {
-            binFile = wf.load(binPath[ii]);
-            scale = bm.loadScale(binFile);
-            frameTLBR = bm.loadFrame(binFile);
-            position = bm.loadPosition(binFile);
-            vpBorder = bm.loadBorder(binFile);
-            vqpfBorder = qf.vpToVQPF(vpBorder);
-            ui->qp_maplocal->addChild(vqpfBorder, scale, position, frameTLBR);
-        }
-        ui->tabW_main->setCurrentIndex(1);
-        ui->qp_maplocal->drawAreas();
-        QCoreApplication::processEvents();
-        vector<POINT> corrTLBR(2);
-        corrTLBR[0].x = 13;
-        corrTLBR[0].y = 56;
-        corrTLBR[1].x = 1195;
-        corrTLBR[1].y = 855;
-        if (io.signal(VK_NUMPAD1)) {}
-        gdi.capture(img, imgSpec, corrTLBR);
-        string outPath = sroot + "\\debug\\Correction\\parentChildren.png";
-        im.pngPrint(outPath, img, imgSpec);
-
-        qshow("Done!");
         break;
     }
     case 3:  // Upgrade a given SC geo file.
@@ -2548,10 +2457,10 @@ void MainWindow::on_pB_test_clicked()
     }
     case 10:  // Display parent + children (Canada + provinces)
     {
-        QRect qrQPaint = ui->qp_maplocal->geometry();
-        int iShift = qrQPaint.x();
-        qrQPaint.adjust(-1 * iShift, 0, iShift, 0);
-        ui->qp_maplocal->setGeometry(qrQPaint);
+        //QRect qrQPaint = ui->qp_maplocal->geometry();
+        //int iShift = qrQPaint.x();
+        //qrQPaint.adjust(-1 * iShift, 0, iShift, 0);
+        //ui->qp_maplocal->setGeometry(qrQPaint);
         vector<int> viBlack = { 0, 0, 0, 255 };
 
         vector<string> binPath = { sroot + "\\mapParent\\Canada.bin" };
@@ -2563,20 +2472,17 @@ void MainWindow::on_pB_test_clicked()
         }
         string binFile = wf.load(binPath[0]);
         double scale = bm.loadScale(binFile);
-        vector<POINT> frameTLBR = bm.loadFrame(binFile);
-        QPointF position = bm.loadPosition(binFile);
-        vector<POINT> vpBorder = bm.loadBorder(binFile);
-        vector<QPointF> vqpfBorder = qf.vpToVQPF(vpBorder);
-        ui->qp_maplocal->addParent(vqpfBorder, scale, position, frameTLBR);
+        vector<vector<double>> frameTLBR = bm.loadFrame(binFile);
+        //vector<double> position = bm.loadPosition(binFile);
+        vector<vector<double>> border = bm.loadBorder(binFile);
+        ui->qp_maplocal->addParent(scale, frameTLBR, border);
         for (int ii = 1; ii < binPath.size(); ii++)
         {
             binFile = wf.load(binPath[ii]);
             scale = bm.loadScale(binFile);
             frameTLBR = bm.loadFrame(binFile);
-            position = bm.loadPosition(binFile);
-            vpBorder = bm.loadBorder(binFile);
-            vqpfBorder = qf.vpToVQPF(vpBorder);
-            ui->qp_maplocal->addChild(vqpfBorder, scale, position, frameTLBR);
+            border = bm.loadBorder(binFile);
+            ui->qp_maplocal->addChild(scale, frameTLBR, border);
         }
         ui->tabW_main->setCurrentIndex(1);
         ui->qp_maplocal->drawAreas();

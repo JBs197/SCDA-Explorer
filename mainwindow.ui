@@ -662,6 +662,20 @@ Positioning</string>
      <string/>
     </property>
    </widget>
+   <widget class="QPushButton" name="pB_clearsearch">
+    <property name="geometry">
+     <rect>
+      <x>820</x>
+      <y>930</y>
+      <width>81</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Clear
+Search Box</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
@@ -669,7 +683,7 @@ Positioning</string>
      <x>0</x>
      <y>0</y>
      <width>1899</width>
-     <height>21</height>
+     <height>26</height>
     </rect>
    </property>
   </widget>

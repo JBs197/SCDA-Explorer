@@ -8,14 +8,13 @@ class QTPAINT : public QWidget
 
 private:
 	JFUNC jf;
-	vector<vector<double>> keyColour, keyColourBand;
-	vector<double> keyColourExtra;
+	vector<QColor> keyColour;
+	QColor keyColourExtra;
 	unordered_map<string, int> mapDotIndex;
-	QPointF parentPositionKM;  // Relative to "Home".
+	vector<double> parentFrameTLKM;  // Relative to "Home".
 	QColor qBG;
 	QTFUNC qf;
 	double widgetPPKM = -1.0;
-	double Width, Height;
 
 public:
 	explicit QTPAINT(QWidget* qwParent) : QWidget(qwParent) {}
@@ -31,14 +30,16 @@ public:
 
 	void addArea(vector<vector<double>>& border);
 	void addArea(vector<QPointF>& border);
+	void addAreaColour(QColor& qColour);
 	void addAreaColour(vector<int> rgbx);
 	void addAreaColour(vector<double> rgbx);
-	void addChild(vector<QPointF>& border, double scale, QPointF position, vector<POINT> frameTLBR);
-	void addParent(vector<QPointF>& border, double scale, QPointF position, vector<POINT> frameTLBR);
-	void addParent(vector<QPointF>& border, double scale, QPointF position, vector<POINT> frameTLBR, vector<int> rgbaBG);
+	void addChild(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border);
+	void addParent(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border);
+	void addParentBG(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border, vector<unsigned char> rgbxBG);
 	void areaColourFillSpectrum();
 	void clear();
-	void displaceChildToParent(vector<QPointF>& vQPF, QPointF disp);
+	void displaceChildToParent(vector<double> dispParentTL, vector<double> TL, vector<vector<double>>& border);
+	void displaceParentToWidget(vector<vector<double>>& border);
 	void drawAreas();
 	void drawSelectedDot(string regionName);
 	QColor getColourFromSpectrum(double zeroOne);
@@ -46,9 +47,8 @@ public:
 	void initialize();
 	void paintArea(QPainter& painter);
 	void paintArea(QPainter& painter, vector<int>& viArea);
-	void scaleChildToWidget(vector<QPointF>& vQPF, double PPKM);
-	void scaleParentToWidget(vector<QPointF>& vQPF, double PPKM, vector<POINT> frameTLBR);
-	void scaleToWidget(vector<QPointF>& vQPF);
+	void scaleChildToWidget(vector<vector<double>>& frameTLBR, vector<vector<double>>& border);
+	void scaleParentToWidget(vector<vector<double>>& border, double PPKM, vector<vector<double>> frameTLBR);
 
 protected:
 	void paintEvent(QPaintEvent* event) override;

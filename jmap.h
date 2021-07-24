@@ -26,10 +26,10 @@ public:
 	IOFUNC io;
 	IMGFUNC im;
 	JFUNC jf;
+	vector<double> mainPPKM;
 	MATHFUNC mf;
 	vector<vector<vector<unsigned char>>> originPatternH, originPatternV;
-	const double xOverviewPPKM = 0.055;
-	const double yOverviewPPKM = 0.055;
+	vector<vector<double>> OVPPKM;  // Overview pixels per km. Form [scale index][xAxis, yAxis].
 	vector<int> ovRes, pngRes, fullRes, viScale;
 	QTFUNC qf;
 	vector<POINT> scaleLargeTLBR, scaleSmallTLBR, vpOVCropped;
@@ -45,10 +45,11 @@ public:
 	vector<POINT> getPixel(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char>& rgba);
 	POINT getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec);
 	POINT getScaleCorner(vector<unsigned char>& img, vector<int>& imgSpec, int& startCol);
+	int getScaleIndex(double PPKM);
 	void initScanCircles(string& pngPath);
 	vector<POINT> makeBox(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> rgba, int iMargin);
 	vector<POINT> makeBoxSel(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin);
-	QPointF ovPixelToKM(vector<int> ovDisp);
+	vector<double> ovPixelToKM(vector<int> ovDisp, int scaleIndex);
 	bool scanColourSquare(vector<POINT>& TLBR, vector<unsigned char> rgba);
 	vector<double> testScale(vector<unsigned char>& img, vector<int>& imgSpec, POINT pCorner);
 };
@@ -56,36 +57,68 @@ public:
 class BINMAP : public MAP
 {
 	vector<double> greenBlueOutside, greenBlueInside, redBlueInside, redGreenInside;
+	vector<unsigned char> imgPainted, imgBorder;
+	vector<int> imgSpecPainted, imgSpecBorder;
 	bool isgui;
 	int maxRadius, mode;
+	string paintedPath;
 	QPlainTextEdit* pte = nullptr;
+	vector<POINT> vpBorder, vpDeadEnd;
 
 public:
 	BINMAP() {}
 	~BINMAP() {}
 
 	void addBorderPoint(vector<POINT>& vpBorder, vector<POINT>& vpDeadEnd, POINT& pNew);
-	void borderComplete(SWITCHBOARD& sbgui, vector<POINT>& vpBorder);
-	POINT borderPreStart(vector<unsigned char>& img, vector<int>& imgSpec);
-	void borderStart(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& vpBorder);
+	void borderComplete(SWITCHBOARD& sbgui);
+	void borderStart(vector<POINT>& tempTLBR);
+	vector<vector<double>> borderTempToKM(vector<vector<double>>& TLBR, double imgPPKM);
 	bool checkSpec(vector<int>& imgSpec);
 	vector<POINT> drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin);
 	vector<POINT> drawRect(vector<unsigned char>& img, vector<int>& imgSpec, int iMargin, vector<vector<unsigned char>> rgbaList);
-	vector<int> extractImgDisplacement(vector<unsigned char>& imgSuper, vector<int>& imgSpecSuper, vector<unsigned char>& imgHome, vector<int>& imgSpecHome);
 	void findFrames(vector<unsigned char>& img, vector<int>& imgSpec, POINT bHome);
+	vector<vector<double>> getFrame(vector<double> centerKM, double imgPPKM, vector<POINT>& tempTLBR);
 	vector<POINT> getFrame(vector<unsigned char>& img, vector<int>& imgSpec);
 	vector<POINT> getFrame(vector<unsigned char>& img, vector<int>& imgSpec, vector<unsigned char> rgbx);
 	QPointF imgTLToFrameTL(QPointF& qpfImgTL, POINT& imgTL, POINT& frameTL, double imgPPKM);
 	void initialize();
 	void initialize(int iMode);
-	vector<POINT> loadBorder(string& binFile);
-	vector<POINT> loadFrame(string& binFile);
-	QPointF loadPosition(string& binFile);
+	bool initPainted(string& cleanPath);
+	vector<vector<double>> loadBorder(string& binFile);
+	vector<vector<double>> loadFrame(string& binFile);
+	vector<double> loadPosition(string& binFile);
 	double loadScale(string& binFile);
+	vector<POINT> paintRegionFrame();
+	void printPaintedMap();
 	void qshow(string sMessage);
 	void recordPoint(POINT& point, string pointName);
 	void setPTE(QPlainTextEdit*& qPTE, bool isGUI);
-	void sprayRegion(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR, vector<double> angleDeviation);
+	void sprayRegion(vector<unsigned char>& img, vector<int>& imgSpec, vector<double> angleDeviation);
+};
+
+class OVERLAY : public MAP
+{
+	string botPath, superPath, topPath;
+	POINT BR;
+	vector<vector<unsigned char>> colours;
+	int depth, length;  // length is rgb or rgba
+	vector<int> minMaxTL, imgSpecBot, imgSpecSuper, imgSpecTop;
+	vector<unsigned char> imgBot, imgSuper, imgTop;
+	vector<vector<int>> substrate;
+
+public:
+	OVERLAY() {}
+	~OVERLAY() {}
+
+	POINT bestMatch(vector<vector<vector<int>>>& matchResult);
+	int checkColour(vector<unsigned char>& rgbx);
+	vector<int> extractImgDisplacement();
+	int initBotTop();
+	bool initialize(string& topPath, string& botPath);
+	vector<vector<vector<int>>> initMatchResult();
+	void loadSuperpos();
+	void printSuperposition(POINT& TL);
+	void reportSuperposition(SWITCHBOARD& sbgui, vector<vector<int>>& match, OVERLAY ov);
 };
 
 class PNGMAP : public MAP
@@ -117,25 +150,3 @@ public:
 	void setPTE(QPlainTextEdit*& qPTE, bool isGUI);
 };
 
-class OVERLAY : public MAP
-{
-	vector<vector<unsigned char>> colours;
-
-public:
-	OVERLAY() {}
-	~OVERLAY() {}
-
-	POINT BR;
-	int depth, length;  // length is rgb or rgba
-	vector<unsigned char> pngBot, pngTop;
-	vector<int> pngSpecBot, pngSpecTop;
-	vector<vector<int>> substrate;
-
-	int checkColour(vector<unsigned char>& rgb);
-	void createSuperposition(vector<unsigned char>& imgTop, vector<int>& imgSpecTop, vector<unsigned char>& imgSuper, vector<int>& imgSpecSuper);
-	void initPNG(vector<unsigned char>& imgBot, vector<int>& imgSpecBot);
-	vector<vector<int>> matchAll(vector<unsigned char>& img, vector<int>& imgSpec);
-	void printSuperposition(string& pngPath, vector<int> TL);
-	void reportSuperposition(SWITCHBOARD& sbgui, vector<vector<int>>& match, OVERLAY ov);
-	vector<int> setTopPNG(vector<unsigned char>& img, vector<int>& imgSpec);
-};

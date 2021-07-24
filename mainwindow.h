@@ -68,6 +68,7 @@ private slots:
     void on_listW_map_itemSelectionChanged();
     void on_listW_searchresult_itemDoubleClicked(QListWidgetItem* qItem);
     void on_listW_searchresult_itemSelectionChanged();
+    void on_pB_clearsearch_clicked();
     void on_pB_createmap_clicked();
     void on_pB_deletetable_clicked();
     void on_pB_download_clicked();

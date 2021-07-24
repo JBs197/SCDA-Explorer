@@ -422,8 +422,8 @@ vector<vector<string>> STATSCAN::loadGeoList(string geoPath)
     string geoFile = wf.load(geoPath);
     if (geoFile.size() < 1) { jf.err("Empty geoFile-sc.loadGeoList"); }
     mapGeoCode.clear();
-    vector<vector<string>> geoList;  // Form [region index][GEO_CODE, Region Name].
-    size_t pos1 = geoFile.find_first_of("1234567890"), pos2, index;
+    vector<vector<string>> geoList;  // Form [region index][GEO_CODE, Region Name, PART begin, PART end].
+    size_t pos1 = geoFile.find_first_of("1234567890"), pos2, posPart, index;
     while (pos1 < geoFile.size())
     {
         index = geoList.size();
@@ -434,6 +434,18 @@ vector<vector<string>> STATSCAN::loadGeoList(string geoPath)
         pos1 = pos2 + 1;
         pos2 = geoFile.find(',', pos1);
         geoList[index][1] = geoFile.substr(pos1, pos2 - pos1);
+        if (ignoreSplitRegions)
+        {
+            posPart = geoList[index][1].find(" part)");
+            if (posPart < geoList[index][1].size())
+            {
+                mapGeoCode.erase(geoList[index][0]);
+                geoList.pop_back();
+                pos2 = geoFile.find_first_of(nl, pos1);
+                pos1 = geoFile.find_first_of("1234567890", pos2);
+                continue;
+            }
+        }
         pos1 = pos2 + 1;
         pos2 = geoFile.find(',', pos1);
         geoList[index][2] = geoFile.substr(pos1, pos2 - pos1);
@@ -581,14 +593,14 @@ string STATSCAN::makeCreateGeo()
     // Note this table is created with zero 'Ancestor' columns. Those are added
     // during insertion of rows, on an as-needed basis. 
     if (metaFile.size() < 1) { jf.err("No init-sc.makeCreateGeo"); }
-    string stmt = "CREATE TABLE IF NOT EXISTS \"Census$" + cataYear + "$";
-    stmt += cataName + "$Geo\" (GEO_CODE INTEGER PRIMARY KEY, \"Region Name\" TEXT";
+    string stmt = "CREATE TABLE IF NOT EXISTS \"Geo$" + cataYear + "$";
+    stmt += cataName + "\" (GEO_CODE INTEGER PRIMARY KEY, \"Region Name\" TEXT";
     stmt += ", GEO_LEVEL INT);";
     return stmt;
 }
 string STATSCAN::makeCreateGeoLayers(string sYear)
 {
-    string tname = "Census$" + sYear + "$GeoLayers";
+    string tname = "GeoLayers$" + sYear;
     string stmt = "CREATE TABLE IF NOT EXISTS \"" + tname + "\" (Catalogue TEXT";
     stmt += ", Level0 TEXT, UNIQUE(Catalogue));";
     return stmt;
@@ -840,7 +852,7 @@ vector<string> STATSCAN::makeInsertData(string GEO_CODE, string& geoStmt)
     int sizeDIM = mapDIM.size(), sizeDim = mapDim.size();
     string csvLine, csvBuffer, temp;
     string tname = "Census$" + cataYear + "$" + cataName + "$" + GEO_CODE;
-    string tnameGeo = "Census$" + cataYear + "$" + cataName + "$Geo";
+    string tnameGeo = "Geo$" + cataYear + "$" + cataName;
 
     // Make the template statement.
     string stmt0 = "INSERT OR IGNORE INTO \"" + tname + "\" VALUES (";
@@ -1010,6 +1022,17 @@ string STATSCAN::makeInsertYear()
     return stmt;
 }
 
+unordered_map<string, string> STATSCAN::mapGeoCodeToPart(vector<vector<string>>& geoList)
+{
+    // Return an unordered_map connecting GEO_CODE->PART. PART is the CSV wherein 
+    // that GEO_CODE begins (not necessarily ends). 
+    unordered_map<string, string> mapGeoPart;
+    for (int ii = 0; ii < geoList.size(); ii++)
+    {
+        mapGeoPart.emplace(geoList[ii][0], geoList[ii][2]);
+    }
+    return mapGeoPart;
+}
 vector<vector<string>> STATSCAN::parseNavSearch(string& navSearchBlob)
 {
     vector<vector<string>> navSearch;
