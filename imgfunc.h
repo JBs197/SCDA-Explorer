@@ -2456,7 +2456,8 @@ public:
         {
             bufferUC[ii] = img[ii];
         }
-        int error = stbi_write_png(filePath.c_str(), imgSpec[0], imgSpec[1], imgSpec[2], bufferUC, 0);
+        string filePathASCII = jf.asciiOnly(filePath);
+        int error = stbi_write_png(filePathASCII.c_str(), imgSpec[0], imgSpec[1], imgSpec[2], bufferUC, 0);
         delete[] bufferUC;
     }
 

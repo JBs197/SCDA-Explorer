@@ -1090,7 +1090,7 @@ void MainWindow::createBinMap(SWITCHBOARD& sbgui)
             bool painted = bm.initPainted(pngPath[ii]);
             if (!painted)
             {
-                vector<double> angleDeviation = { 0.0, 15.0, 30.0, 60.0 };               
+                vector<double> angleDeviation = { 0.0, 10.0, 20.0, 30.0, 60.0, 70.0, 80.0 };               
                 bm.sprayRegion(img, imgSpec, angleDeviation);  // Does not spray the original img. Just in case you were worried...
                 tempTLBR = bm.paintRegionFrame();
                 bm.printPaintedMap();
@@ -2436,7 +2436,7 @@ void MainWindow::on_pB_test_clicked()
                 vvdData[index][1] = im.getRB(rgba);
                 vvdData[index][2] = im.getRG(rgba);
                 vvdData[index][3] = (double)(rgba[0] + rgba[1]);
-                header[1].push_back(jf.stringifyCoord(p1));
+                header[1].push_back(gdi.stringifyCoord(p1));
                 qCell = new QTableWidgetItem(" ");
                 qColour.setRgb((int)rgba[0], (int)rgba[1], (int)rgba[2], (int)rgba[3]);
                 qBrush.setColor(qColour);

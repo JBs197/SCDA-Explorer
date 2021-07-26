@@ -9,11 +9,13 @@ CONFIG += c++14
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    binmap.cpp \
+    gdifunc.cpp \
     gsfunc.cpp \
     imgfunc.cpp \
     iofunc.cpp \
     jfunc.cpp \
+	jmap.cpp \
+	jtree.cpp \
     main.cpp \
     mainwindow.cpp \
     mathfunc.cpp \
@@ -21,16 +23,19 @@ SOURCES += \
     qtpaint.cpp \
     sqlfunc.cpp \
     statscan.cpp \
+	stdafx.cpp \
     switchboard.cpp \
     winfunc.cpp \
     zipfunc.cpp
 
 HEADERS += \
-    binmap.h \
+    gdifunc.h \
     gsfunc.h \
     imgfunc.h \
     iofunc.h \
-    jfunc.cpp \
+    jfunc.h \
+	jmap.h \
+	jtree.h \
     mainwindow.h \
     mathfunc.h \
     qtfunc.h \
@@ -41,6 +46,7 @@ HEADERS += \
     stb_image.h \
     stb_image_write.h \
     stb_truetype.h \
+	stdafx.h \
     switchboard.h \
     ui_mainwindow.h \
     winfunc.h \

@@ -2,6 +2,8 @@
 
 #include "jfunc.h"
 
+using namespace Gdiplus;
+
 class GDIFUNC
 {
 	GdiplusStartupInput gdiplusStartupInput;
@@ -23,7 +25,9 @@ public:
 	}
 
 	void capture(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR);
+	POINT destringifyCoordP(string& sCoord);
+	vector<vector<int>> minMax(vector<POINT>& vpList);
 	void screenshot(std::string& pngPath);
-
+	string stringifyCoord(POINT coord);
 };
 

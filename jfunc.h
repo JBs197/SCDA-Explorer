@@ -49,7 +49,6 @@ public:
 	string decToHex(unsigned char& ucdec);
 	vector<int> destringifyCoord(string& sCoord);
 	vector<double> destringifyCoordD(string& sCoord);
-	POINT destringifyCoordP(string& sCoord);
 	void err(string);
 	string get_error_path();
 	void isort_ilist(vector<int>& iList, int type);
@@ -65,7 +64,6 @@ public:
 	void logTime(string func, long long timer);
 	int maxNumCol(vector<vector<wstring>>& task);
 	vector<int> minMax(vector<double>& dList);
-	vector<vector<int>> minMax(vector<POINT>& vpList);
 	string nameFromPath(string& path);
 	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
 	void navParser(string& sfile, vector<vector<string>>& search);
@@ -78,11 +76,12 @@ public:
 	void removeBlanks(vector<string>& task);
 	void removeBlanks(vector<vector<string>>& task);
 	void removeBlanks(vector<vector<wstring>>& task);
+	void setErrorPath(string sEP) { error_path = sEP; }
+	void setLogPath(string sLP) { log_path = sLP; }
 	void set_navigator_asset_path(string&);
 	//void sortLinkedList(vector<int>& viList, vector<vector<unsigned char>>& vvucList, int type);
 	string stringifyCoord(vector<int>& coord);
 	string stringifyCoord(vector<unsigned char>& coord);
-	string stringifyCoord(POINT coord);
 	vector<int> svectorToIvector(vector<string>&);
 	void tclean(string&, char, string);
 	vector<string> textParser(string&, vector<string>&);

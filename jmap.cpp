@@ -265,19 +265,19 @@ vector<double> MAP::testScale(vector<unsigned char>& img, vector<int>& imgSpec, 
 	vector<POINT> vpLarge = getPixel(imgLarge, imgSpecLarge, MSText);
 	for (int ii = 0; ii < vpLarge.size(); ii++)
 	{
-		temp = jf.stringifyCoord(vpLarge[ii]);
+		temp = gdi.stringifyCoord(vpLarge[ii]);
 		setLarge.emplace(temp);
 	}
 	vector<POINT> vpMedium = getPixel(imgMedium, imgSpecMedium, MSText);
 	for (int ii = 0; ii < vpMedium.size(); ii++)
 	{
-		temp = jf.stringifyCoord(vpMedium[ii]);
+		temp = gdi.stringifyCoord(vpMedium[ii]);
 		setMedium.emplace(temp);
 	}
 	vector<POINT> vpSmall = getPixel(imgSmall, imgSpecSmall, MSText);
 	for (int ii = 0; ii < vpSmall.size(); ii++)
 	{
-		temp = jf.stringifyCoord(vpSmall[ii]);
+		temp = gdi.stringifyCoord(vpSmall[ii]);
 		setSmall.emplace(temp);
 	}
 
@@ -289,12 +289,12 @@ vector<double> MAP::testScale(vector<unsigned char>& img, vector<int>& imgSpec, 
 		errorUnder = 0;
 		for (int jj = 0; jj < scaleMST[ii].size(); jj++)
 		{
-			temp = jf.stringifyCoord(scaleMST[ii][jj]);
+			temp = gdi.stringifyCoord(scaleMST[ii][jj]);
 			if (!setLarge.count(temp)) { errorUnder++; }
 		}
 		for (int jj = 0; jj < vpLarge.size(); jj++)
 		{
-			temp = jf.stringifyCoord(vpLarge[jj]);
+			temp = gdi.stringifyCoord(vpLarge[jj]);
 			if (!setScaleMST[ii].count(temp)) { errorOver++; }
 		}
 		vdResult[ii] = (double)(imgLarge.size() - errorOver - errorUnder) / (double)imgLarge.size();
@@ -305,28 +305,28 @@ vector<double> MAP::testScale(vector<unsigned char>& img, vector<int>& imgSpec, 
 		errorUnder = 0;
 		for (int jj = 0; jj < scaleMST[ii].size(); jj++)
 		{
-			temp = jf.stringifyCoord(scaleMST[ii][jj]);
+			temp = gdi.stringifyCoord(scaleMST[ii][jj]);
 			if (!setMedium.count(temp)) { errorUnder++; }
 		}
 		for (int jj = 0; jj < vpMedium.size(); jj++)
 		{
-			temp = jf.stringifyCoord(vpMedium[jj]);
+			temp = gdi.stringifyCoord(vpMedium[jj]);
 			if (!setScaleMST[ii].count(temp)) { errorOver++; }
 		}
 		vdResult[ii] = (double)(imgMedium.size() - errorOver - errorUnder) / (double)imgMedium.size();
 	}
-	for (int ii = 4; ii < 7; ii++)
+	for (int ii = 4; ii < 6; ii++)
 	{
 		errorOver = 0;
 		errorUnder = 0;
 		for (int jj = 0; jj < scaleMST[ii].size(); jj++)
 		{
-			temp = jf.stringifyCoord(scaleMST[ii][jj]);
+			temp = gdi.stringifyCoord(scaleMST[ii][jj]);
 			if (!setSmall.count(temp)) { errorUnder++; }
 		}
 		for (int jj = 0; jj < vpSmall.size(); jj++)
 		{
-			temp = jf.stringifyCoord(vpSmall[jj]);
+			temp = gdi.stringifyCoord(vpSmall[jj]);
 			if (!setScaleMST[ii].count(temp)) { errorOver++; }
 		}
 		vdResult[ii] = (double)(imgSmall.size() - errorOver - errorUnder) / (double)imgSmall.size();
@@ -762,7 +762,7 @@ void BINMAP::initialize(int iMode)
 		scaleMST[ii] = getPixel(img, imgSpec, MSText);
 		for (int jj = 0; jj < scaleMST[ii].size(); jj++)
 		{
-			temp = jf.stringifyCoord(scaleMST[ii][jj]);
+			temp = gdi.stringifyCoord(scaleMST[ii][jj]);
 			setScaleMST[ii].emplace(temp);
 		}
 	}
@@ -1778,7 +1778,7 @@ void PNGMAP::initialize(vector<string>& GeoLayers)
 		scaleMST[ii] = getPixel(img, imgSpec, MSText);
 		for (int jj = 0; jj < scaleMST[ii].size(); jj++)
 		{
-			temp = jf.stringifyCoord(scaleMST[ii][jj]);
+			temp = gdi.stringifyCoord(scaleMST[ii][jj]);
 			setScaleMST[ii].emplace(temp);
 		}
 	}

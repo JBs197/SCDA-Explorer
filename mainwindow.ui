@@ -110,7 +110,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>3</number>
     </property>
     <widget class="QWidget" name="tab_cata">
      <attribute name="title">
@@ -303,9 +303,32 @@ Resolution</string>
        <rect>
         <x>230</x>
         <y>10</y>
-        <width>1591</width>
+        <width>1611</width>
         <height>791</height>
        </rect>
+      </property>
+     </widget>
+     <widget class="QListWidget" name="listW_debug">
+      <property name="geometry">
+       <rect>
+        <x>1850</x>
+        <y>10</y>
+        <width>20</width>
+        <height>20</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QLabel" name="qlabel_debug">
+      <property name="geometry">
+       <rect>
+        <x>1850</x>
+        <y>40</y>
+        <width>20</width>
+        <height>20</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>TextLabel</string>
       </property>
      </widget>
     </widget>

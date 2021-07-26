@@ -48,6 +48,19 @@ BITMAPINFOHEADER GDIFUNC::createBitmapHeader(int width, int height)
 
     return bi;
 }
+POINT GDIFUNC::destringifyCoordP(string& sCoord)
+{
+    POINT p1;
+    size_t pos1 = sCoord.find(',');
+    if (pos1 > sCoord.size()) { jf.err("No comma found-gdi.destringifyCoordP"); }
+    try
+    {
+        p1.x = stoi(sCoord.substr(0, pos1));
+        p1.y = stoi(sCoord.substr(pos1 + 1));
+    }
+    catch (invalid_argument) { jf.err("stoi-gdi.destringifyCoordP"); }
+    return p1;
+}
 HBITMAP GDIFUNC::GdiPlusScreenCapture(HWND hWnd)
 {
     // get handles to a device context (DC)
@@ -84,6 +97,36 @@ HBITMAP GDIFUNC::GdiPlusScreenCapture(HWND hWnd)
     ReleaseDC(hWnd, hwindowDC);
 
     return hbwindow;
+}
+vector<vector<int>> GDIFUNC::minMax(vector<POINT>& vpList)
+{
+    // Return form [xCoords, yCoords][minIndex, maxIndex]
+    vector<vector<int>> vviMinMax(2, vector<int>(2, 0));
+    int xMin = vpList[0].x, xMax = vpList[0].x, yMin = vpList[0].y, yMax = vpList[0].y;
+    for (int ii = 1; ii < vpList.size(); ii++)
+    {
+        if (vpList[ii].x < xMin)
+        {
+            xMin = vpList[ii].x;
+            vviMinMax[0][0] = ii;
+        }
+        else if (vpList[ii].x > xMax)
+        {
+            xMax = vpList[ii].x;
+            vviMinMax[0][1] = ii;
+        }
+        if (vpList[ii].y < yMin)
+        {
+            yMin = vpList[ii].y;
+            vviMinMax[1][0] = ii;
+        }
+        else if (vpList[ii].y > yMax)
+        {
+            yMax = vpList[ii].y;
+            vviMinMax[1][1] = ii;
+        }
+    }
+    return vviMinMax;
 }
 void GDIFUNC::screenshot(std::string& pngPath)
 {
@@ -127,4 +170,9 @@ bool GDIFUNC::saveToMemory(HBITMAP* hbitmap, std::vector<BYTE>& data, std::strin
     GlobalUnlock(hg);
     istream->Release();
     return true;
+}
+string GDIFUNC::stringifyCoord(POINT coord)
+{
+    string sCoord = to_string(coord.x) + "," + to_string(coord.y);
+    return sCoord;
 }
