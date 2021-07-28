@@ -34,7 +34,9 @@ public:
 	void addAreaColour(vector<int> rgbx);
 	void addAreaColour(vector<double> rgbx);
 	void addChild(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border);
+	void addChild(vector<vector<double>>& border, vector<vector<double>>& frame);
 	void addParent(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border);
+	void addParent(vector<vector<double>>& border, vector<vector<double>>& frame);
 	void addParentBG(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border, vector<unsigned char> rgbxBG);
 	void areaColourFillSpectrum();
 	void clear();
@@ -49,6 +51,7 @@ public:
 	void paintArea(QPainter& painter, vector<int>& viArea);
 	void scaleChildToWidget(vector<vector<double>>& frameTLBR, vector<vector<double>>& border);
 	void scaleParentToWidget(vector<vector<double>>& border, double PPKM, vector<vector<double>> frameTLBR);
+	void scaleParentToWidget(vector<vector<double>>& border, vector<vector<double>> frameTLBR);
 
 protected:
 	void paintEvent(QPaintEvent* event) override;

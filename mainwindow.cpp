@@ -14,6 +14,7 @@ MainWindow::MainWindow(QWidget *parent)
     initGUI();
     initImgFont("Sylfaen");
     this->showMaximized();
+
 }
 MainWindow::~MainWindow()
 {
@@ -220,10 +221,10 @@ void MainWindow::on_tableW_maplocal_currentCellChanged(int RowNow, int ColNow, i
 void MainWindow::autoExpand(QTreeWidget*& qTree, int maxNum)
 {
     QTreeWidgetItem* qRoot = qTree->topLevelItem(0);
-    int numKids = qRoot->childCount();
+    int numKids = qRoot->childCount(), myKids;
     if (numKids > maxNum) { return; }
     qRoot->setExpanded(1);
-    QList<QTreeWidgetItem*> gen1;
+    QList<QTreeWidgetItem*> gen1, gen2;
     for (int ii = 0; ii < numKids; ii++)
     {
         gen1.append(qRoot->child(ii));
@@ -236,6 +237,20 @@ void MainWindow::autoExpand(QTreeWidget*& qTree, int maxNum)
     for (int ii = 0; ii < gen1.size(); ii++)
     {
         gen1[ii]->setExpanded(1);
+        myKids = gen1[ii]->childCount();
+        for (int jj = 0; jj < myKids; jj++)
+        {
+            numKids += gen1[ii]->child(jj)->childCount();
+        }
+    }
+    if (numKids > maxNum) { return; }
+    for (int ii = 0; ii < gen1.size(); ii++)
+    {
+        myKids = gen1[ii]->childCount();
+        for (int jj = 0; jj < myKids; jj++)
+        {
+            gen1[ii]->child(jj)->setExpanded(1);
+        }
     }
 }
 void MainWindow::bind(string& stmt, vector<string>& param)
@@ -354,11 +369,6 @@ void MainWindow::on_pB_search_clicked()
             qTemp = QString::fromStdString(tableList[ii]);
             ui->listW_searchresult->addItem(qTemp);
         }
-        ui->tabW_main->setCurrentIndex(2);
-        sMessage = "Displaying " + to_string(tableList.size());
-        sMessage += " tables from the search criteria 'all'.";
-        qTemp = QString::fromStdString(sMessage);
-        ui->pte_search->setPlainText(qTemp);
     }
     else if (!wildcard)
     {
@@ -366,19 +376,25 @@ void MainWindow::on_pB_search_clicked()
         sf.all_tables(tableList);
         for (int ii = 0; ii < tableList.size(); ii++)
         {
-            if (tableList[ii] == query)
+            pos1 = tableList[ii].find(query);
+            if (pos1 < tableList[ii].size())
             {
                 qTemp = QString::fromStdString(tableList[ii]);
                 ui->listW_searchresult->addItem(qTemp);
             }
         }
-        int numTables = ui->listW_searchresult->count();
-        if (numTables == 1)
-        {
-            ui->listW_searchresult->item(0)->setSelected(1);
-            on_pB_viewtable_clicked();
-        }
     }
+    int numTables = ui->listW_searchresult->count();
+    if (numTables == 1)
+    {
+        ui->listW_searchresult->item(0)->setSelected(1);
+        on_pB_viewtable_clicked();
+    }
+    ui->tabW_main->setCurrentIndex(2);
+    sMessage = "Displaying " + to_string(numTables) + " tables from the ";
+    sMessage += "search criteria '" + query + "'.";
+    qTemp = QString::fromStdString(sMessage);
+    ui->pte_search->setPlainText(qTemp);
 }
 void MainWindow::on_listW_searchresult_itemSelectionChanged()
 {
@@ -549,10 +565,14 @@ void MainWindow::on_treeW_catadb_itemSelectionChanged()
     if (qList.size() == 0)
     {
         ui->pB_createmap->setEnabled(0);
+        ui->pB_insertmap->setEnabled(0);
     }
     else
     {
         ui->pB_createmap->setEnabled(1);
+        int type = qList[0]->type();
+        if (type == 2) { ui->pB_insertmap->setEnabled(1); }
+        else { ui->pB_insertmap->setEnabled(0); }
     }
 }
 
@@ -624,6 +644,7 @@ void MainWindow::on_pB_insert_clicked()
         sb.end_call(myid);
         updateDBCata();
     }
+
 }
 void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 {
@@ -632,7 +653,8 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     sbgui.answer_call(myid, mycomm);
     vector<string> prompt = sbgui.get_prompt();  // Form [sYear, sName].
     string cataPath = sroot + "\\" + prompt[0] + "\\" + prompt[1];
-    sc.init(cataPath);
+    STATSCAN scjudi;
+    scjudi.init(cataPath);
     vector<string> DIMList, dimList, colTitles;
     string result, stmt, temp;
 
@@ -641,68 +663,68 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     if (!wf.file_exist(geoPath))
     {
         string geoPathOld = cataPath + "\\Geo_starting_row_CSV.csv";
-        sc.convertSCgeo(geoPathOld);
+        scjudi.convertSCgeo(geoPathOld);
     }
 
     // Determine the number of regions, and update the GUI thread progress bar.
-    vector<vector<string>> geoList = sc.loadGeoList(geoPath);
-    unordered_map<string, string> mapGeoPart = sc.mapGeoCodeToPart(geoList);
+    vector<vector<string>> geoList = scjudi.loadGeoList(geoPath);
+    unordered_map<string, string> mapGeoPart = scjudi.mapGeoCodeToPart(geoList);
     mycomm[2] = geoList.size();
     string tname = "Geo$" + prompt[0] + "$" + prompt[1];
     vector<string> vsResult, search = { "GEO_CODE" };
     if (sfgui.table_exist(tname)) { sfgui.select(search, tname, vsResult); }
-    vector<string> geoToDo = sc.compareGeoListDB(geoList, vsResult); // List of GEO_CODEs present in geoList but absent from the DB.
+    vector<string> geoToDo = scjudi.compareGeoListDB(geoList, vsResult); // List of GEO_CODEs present in geoList but absent from the DB.
     if (geoToDo.size() < 1) { goto FTL1; }
     mycomm[1] += (geoList.size() - geoToDo.size());
     sbgui.update(myid, mycomm);
     try { temp = mapGeoPart.at(geoToDo[0]); }
     catch (out_of_range) { jf.err("mapGeoPart-MainWindow.judicator"); }
-    sc.initCSV(geoToDo[0], temp);
+    scjudi.initCSV(geoToDo[0], temp);
 
     // Add this year to the root census table. 
     tname = "Census";
     if (!sfgui.table_exist(tname))
     {
-        result = sc.makeCreateCensus();
+        result = scjudi.makeCreateCensus();
         sfgui.executor(result);
     }
-    result = sc.makeInsertCensus();
+    result = scjudi.makeInsertCensus();
     sfgui.executor(result);
 
     // Add this catalogue (and its topic) to the 'Year' table.
     tname = "Census$" + prompt[0];
     if (!sfgui.table_exist(tname))
     {
-        result = sc.makeCreateYear();
+        result = scjudi.makeCreateYear();
         sfgui.executor(result);
     }
-    result = sc.makeInsertYear();
+    result = scjudi.makeInsertYear();
     sfgui.executor(result);
 
     // Add this catalogue to the appropriate 'Topic' table.
     tname = "Census$" + prompt[0] + "$Topic";
     if (sfgui.table_exist(tname)) { sfgui.get_col_titles(tname, colTitles); }
-    vsResult = sc.makeCreateInsertTopic(colTitles);
+    vsResult = scjudi.makeCreateInsertTopic(colTitles);
     sfgui.executor(vsResult);
 
     // Create the catalogue's geo table. Rows are added later, with the CSV data.
-    result = sc.makeCreateGeo();
+    result = scjudi.makeCreateGeo();
     sfgui.executor(result);
 
     // Insert DIM/Dim tables.
-    vsResult = sc.makeCreateInsertDIMIndex(DIMList);
+    vsResult = scjudi.makeCreateInsertDIMIndex(DIMList);
     sfgui.executor(vsResult);
-    vsResult = sc.makeCreateInsertDIM();
+    vsResult = scjudi.makeCreateInsertDIM();
     sfgui.executor(vsResult);
-    vsResult = sc.makeCreateInsertDim(dimList);
+    vsResult = scjudi.makeCreateInsertDim(dimList);
     sfgui.executor(vsResult);
 
     // Create a data table for each GEO_CODE region.
-    vsResult = sc.makeCreateData(DIMList, dimList);
+    vsResult = scjudi.makeCreateData(DIMList, dimList);
     sfgui.insert_prepared(vsResult);
     for (int ii = 0; ii < geoToDo.size(); ii++)
     {
-        vsResult = sc.makeInsertData(geoToDo[ii], result);
+        vsResult = scjudi.makeInsertData(geoToDo[ii], result);
         sfgui.executor(result);
         sfgui.insertPreparedBind(vsResult);
         mycomm[1]++;
@@ -718,7 +740,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     for (int ii = 0; ii < vsResult.size(); ii++)
     {
         try { inum = stoi(vsResult[ii]); }
-        catch (invalid_argument) { jf.err("stoi-sc.makeInsertData"); }
+        catch (invalid_argument) { jf.err("stoi-scjudi.makeInsertData"); }
         if (inum > maxLevel) { maxLevel = inum; }
     }
     int needCol = maxLevel + 3 - numCol;
@@ -810,48 +832,51 @@ void MainWindow::insertGeoLayers(string sYear, string sCata)
 // Local map listings.
 void MainWindow::on_pB_maplocal_clicked()
 {
-    QString qTemp;
     vector<vector<int>> comm(1, vector<int>());
-    comm[0].assign(comm_length, 0);
     thread::id myid = this_thread::get_id();
     vector<string> prompt, binNameList, geoTableList;
-
-    // Display the list of geo tables in the database.
-    vector<string> yearList, search = { "Year" };
-    string tname = "Census";
-    sf.select(search, tname, yearList);
-    vector<vector<string>> cataList(yearList.size(), vector<string>());
-    search = { "Catalogue" };
-    for (int ii = 0; ii < yearList.size(); ii++)
-    {
-        tname = "Census$" + yearList[ii];
-        sf.select(search, tname, cataList[ii]);
-    }
-    for (int ii = 0; ii < cataList.size(); ii++)
-    {
-        for (int jj = 0; jj < cataList[ii].size(); jj++)
-        {
-            tname = "Census$" + yearList[ii] + "$" + cataList[ii][jj] + "$Geo";
-            if (sf.table_exist(tname))
-            {
-                geoTableList.push_back(tname);
-            }
-        }
-    }
-    ui->listW_map->clear();
-    for (int ii = 0; ii < geoTableList.size(); ii++)
-    {
-        qTemp = QString::fromStdString(geoTableList[ii]);
-        ui->listW_map->addItem(qTemp);
-    }
-
-    // Display local maps by folder.
-    qTemp = ui->cB_drives->currentText();
+    QString qTemp = ui->cB_drives->currentText();
     string sDrive = qTemp.toStdString(), sCata, sYear;
     sDrive.pop_back();
     while (sDrive[0] == ' ') { sDrive.erase(sDrive.begin()); }
+
+    // If a catalogue is selected, populate the database map tree.
+    QList<QTreeWidgetItem*> qSel = ui->treeW_catadb->selectedItems();
+    if (qSel.size() == 1)
+    {
+        int type = qSel[0]->type();
+        if (type == 2)
+        {
+            prompt.resize(2);
+            qTemp = qSel[0]->text(0);
+            prompt[1] = qTemp.toStdString();
+            qTemp = qSel[0]->parent()->text(0);
+            prompt[0] = qTemp.toStdString();
+            sb.set_prompt(prompt);
+            mapCataToYear.emplace(prompt[1], prompt[0]);
+            jtMapDB.init(prompt[1], sDrive);
+            comm[0].assign(comm_length, 0);
+            sb.start_call(myid, 1, comm[0]);
+            std::thread thr0(&MainWindow::getCataMapDB, this, ref(sb), ref(sf), ref(jtMapDB));
+            thr0.detach();
+            while (1)
+            {
+                Sleep(gui_sleep);
+                QCoreApplication::processEvents();
+                comm = sb.update(myid, comm[0]);
+                if (comm.size() > 1 && comm[1][0] == 1) { break; }
+            }
+            sb.end_call(myid);
+            qf.populateTree(ui->treeW_mapdb, jtMapDB, 2);
+            autoExpand(ui->treeW_mapdb, 50);
+        }
+    }
+
+    // Display local maps by folder.
+    comm.resize(1);
+    comm[0].assign(comm_length, 0);
     jtMapLocal.init("Local Maps", sDrive);
-    prompt = { sDrive };
+    prompt = { sDrive + "\\maps" };
     sb.set_prompt(prompt);
     sb.start_call(myid, 1, comm[0]);
     std::thread thr(&MainWindow::scanLocalMap, this, ref(sb), ref(jtMapLocal));
@@ -866,45 +891,32 @@ void MainWindow::on_pB_maplocal_clicked()
     sb.end_call(myid);
     barMessage("Displaying local maps from drive " + sDrive);
     qf.populateTree(ui->treeW_maplocal, jtMapLocal, 2);
-    QTreeWidgetItem* qNode, * qRoot = ui->treeW_maplocal->topLevelItem(0);
-    qRoot->setExpanded(1);
-    int numKids = qRoot->childCount();
-    for (int ii = 0; ii < numKids; ii++)
-    {
-        qNode = qRoot->child(ii);
-        qNode->setExpanded(1);
-    }
+    autoExpand(ui->treeW_maplocal, 50);
     ui->tabW_main->setCurrentIndex(1);
-
 }
 void MainWindow::scanLocalMap(SWITCHBOARD& sbgui, JTREE& jtgui)
 {
     thread::id myid = this_thread::get_id();
     vector<int> mycomm, treePLi;
     sbgui.answer_call(myid, mycomm);
-    vector<string> prompt = sbgui.get_prompt();
-    vector<string> mapFolders = { "mapChild", "mapParent" };
-    vector<string> mapExt = { ".bin", ".bin" };
+    vector<string> mapRoot = sbgui.get_prompt();
+    string mapExt = ".bin";
     vector<vector<int>> treeST;
     vector<string> treePL;
-    string temp, folderRoot, treeRoot;
+    string temp, treeRoot;
     int finalFolderIndex;
-    for (int ii = 0; ii < mapFolders.size(); ii++)
+    treeST = { {0} };
+    treePL = { mapRoot[0] };                    // Firstly, make a tree from
+    wf.getTreeFolder(0, treeST, treePL);        // the relevant subfolders.        
+    treePLi.clear();
+    treePLi.resize(treeST.size());
+    finalFolderIndex = treeST.size() - 1;
+    for (int jj = 0; jj <= finalFolderIndex; jj++)
     {
-        folderRoot = prompt[0] + "\\" + mapFolders[ii];
-        treeST = { {0} };
-        treePL = { folderRoot };                    // Firstly, make a tree from
-        wf.getTreeFolder(0, treeST, treePL);        // the relevant subfolders.        
-        treePLi.clear();
-        treePLi.resize(treeST.size());
-        finalFolderIndex = treeST.size() - 1;
-        for (int jj = 0; jj <= finalFolderIndex; jj++)
-        {
-            treePLi[jj] = wf.get_file_path_number(treePL[jj], mapExt[ii]);
-        }
-        treeRoot = jtgui.getRootName();
-        jtgui.addBranchSTPL(treeST, treePL, treePLi, treeRoot);       
+        treePLi[jj] = wf.get_file_path_number(treePL[jj], mapExt);
     }
+    treeRoot = jtgui.getRootName();
+    jtgui.addBranchSTPL(treeST, treePL, treePLi, treeRoot);
     jtgui.setRemovePath(1);
     mycomm[0] = 1;
     sbgui.update(myid, mycomm);
@@ -948,23 +960,21 @@ void MainWindow::on_treeW_maplocal_itemDoubleClicked(QTreeWidgetItem* qFolder, i
 }
 
 // Local map creation or conversion.
-void MainWindow::createParentChildPNG(string& tnameGeoLayers, string& tnameGeo)
+void MainWindow::createPngMap(string& tnameGeoLayers, string& tnameGeo)
 {
     size_t pos1 = tnameGeo.rfind('$') + 1;
     string sCata = tnameGeo.substr(pos1);
     vector<string> search = { "*" }, geoLayers;
     vector<string> conditions = { "Catalogue LIKE " + sCata };
     sf.select(search, tnameGeoLayers, geoLayers, conditions);
-    pngm.initialize(geoLayers);
-    pngm.setPTE(ui->pte_search, 1);
     vector<vector<string>> geo;
     sf.select(search, tnameGeo, geo);
     jf.removeBlanks(geo);
-    int numPNG = pngm.initParentChild(geo);
+    int numPNG = pngm.initialize(geoLayers, geo);
+    pngm.setPTE(ui->pte_search, 1);
     barReset(numPNG, "Making PNGs for " + sCata);
     int progress = 0;
-    pngm.createAllParents(ui->progressbar, progress);
-    pngm.createAllChildren(ui->progressbar, progress);
+    pngm.createAllPNG(ui->progressbar, progress);
 }
 void MainWindow::createBinMap(SWITCHBOARD& sbgui)
 {
@@ -1202,7 +1212,7 @@ void MainWindow::on_pB_createmap_clicked()
         string sYear = qTemp.toStdString();
         string tnameGeoLayers = "GeoLayers$" + sYear;
         string tnameGeo = "Geo$" + sYear + "$" + sCata;
-        createParentChildPNG(tnameGeoLayers, tnameGeo);
+        createPngMap(tnameGeoLayers, tnameGeo);
         break;
     }
     case 1:
@@ -1300,35 +1310,127 @@ void MainWindow::on_pB_createmap_clicked()
 
 }
 
-// Local map review.
+// Local and DB bin map review.
+void MainWindow::getMapDBCoord(SWITCHBOARD& sbgui, SQLFUNC& sfgui, vector<vector<vector<double>>>& coord)
+{
+    // Given a parent GEO_CODE, assemble border and frame coords for it and its child regions.
+    // coord has form [parent, child0, child1, ...][border0, border1, ..., TL, BR][xC, yC]. 
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form [sYear, sCata, geoCodeParent].
+    vector<string> search = { "*" }, geoCodeList = { prompt[2] };
+    string tname = "Geo$" + prompt[0] + "$" + prompt[1];
+    vector<vector<string>> geo, vvsBorder, vvsFrame;
+    sfgui.select(search, tname, geo);
+    jf.removeBlanks(geo);
+    for (int ii = 0; ii < geo.size(); ii++)
+    {
+        if (geo[ii][geo[ii].size() - 1] == prompt[2])
+        {
+            geoCodeList.push_back(geo[ii][0]);
+        }
+    }
+    coord.resize(geoCodeList.size());
+    for (int ii = 0; ii < coord.size(); ii++)
+    {
+        tname = "Map$" + prompt[0] + "$" + geoCodeList[ii];
+        vvsBorder.clear();
+        sfgui.select(search, tname, vvsBorder);
+        coord[ii].assign(vvsBorder.size() + 2, vector<double>(2));
+        try
+        {
+            for (int jj = 0; jj < vvsBorder.size(); jj++)
+            {
+                coord[ii][jj][0] = stod(vvsBorder[jj][0]);
+                coord[ii][jj][1] = stod(vvsBorder[jj][1]);
+            }
+        }
+        catch (invalid_argument) { jf.err("stod-MainWindow.getMapDBCoord"); }
+
+        tname = "MapFrame$" + prompt[0] + "$" + geoCodeList[ii];
+        vvsFrame.clear();
+        sfgui.select(search, tname, vvsFrame);
+        try
+        {
+            coord[ii][coord[ii].size() - 2][0] = stod(vvsFrame[0][0]);
+            coord[ii][coord[ii].size() - 2][1] = stod(vvsFrame[0][1]);
+            coord[ii][coord[ii].size() - 1][0] = stod(vvsFrame[1][0]);
+            coord[ii][coord[ii].size() - 1][1] = stod(vvsFrame[1][1]);
+        }
+        catch (invalid_argument) { jf.err("stod-MainWindow.getMapDBCoord"); }
+    }
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+    sbgui.terminateSelf(myid);
+}
 void MainWindow::on_pB_reviewmap_clicked()
 {
-    QList<QListWidgetItem*> qSel = ui->listW_map->selectedItems();
-    if (qSel.size() != 1) { return; }
-    QString qTemp = qSel[0]->text();
-    string mapName = qTemp.toStdString();
-    qTemp = ui->listW_map->item(0)->text();
-    string mapFolder = qTemp.toStdString();
-    string binPath = mapFolder + "\\" + mapName;
-    string binFile = wf.load(binPath);
-    double scale = bm.loadScale(binFile);
-    vector<vector<double>> frameTLBR = bm.loadFrame(binFile);
-    vector<double> position = bm.loadPosition(binFile);
-    vector<vector<double>> border = bm.loadBorder(binFile);
-    ui->qp_maplocal->addParent(scale, frameTLBR, border);
-    ui->qp_maplocal->update();
-
-    /*
-    binFile = wf.load(binPathList[3]);
-    scale = bm.loadScale(binFile);
-    position = bm.loadPosition(binFile);
-    frameTLBR = bm.loadFrame(binFile);
-    vpBorder = bm.loadBorder(binFile);
-    vqpfBorder = qf.vpToVQPF(vpBorder);
-    ui->qp_maplocal->addChild(vqpfBorder, scale, position, frameTLBR);
-    ui->qp_maplocal->update();
-    */
-
+    QString qTemp = recentClick->objectName();
+    if (qTemp == "listW_map")
+    {
+        QList<QListWidgetItem*> qSel = ui->listW_map->selectedItems();
+        if (qSel.size() != 1) { return; }
+        qTemp = qSel[0]->text();
+        string mapName = qTemp.toStdString();
+        qTemp = ui->listW_map->item(0)->text();
+        string mapFolder = qTemp.toStdString();
+        string binPath = mapFolder + "\\" + mapName;
+        string binFile = wf.load(binPath);
+        double scale = bm.loadScale(binFile);
+        vector<vector<double>> frameTLBR = bm.loadFrame(binFile);
+        vector<double> position = bm.loadPosition(binFile);
+        vector<vector<double>> border = bm.loadBorder(binFile);
+        ui->qp_maplocal->addParent(scale, frameTLBR, border);
+        ui->qp_maplocal->update();
+    }
+    else if (qTemp == "treeW_mapdb")
+    {
+        QList<QTreeWidgetItem*> qSel = ui->treeW_mapdb->selectedItems();
+        if (qSel.size() != 1) { return; }
+        vector<string> prompt(3);  // Form [sYear, sCata, geoCodeParent].
+        qTemp = qSel[0]->text(1); 
+        prompt[2] = qTemp.toStdString();
+        QTreeWidgetItem* qRoot = ui->treeW_mapdb->topLevelItem(0);
+        qTemp = qRoot->text(0);
+        prompt[1] = qTemp.toStdString();
+        try { prompt[0] = mapCataToYear.at(prompt[1]); }
+        catch (out_of_range) { jf.err("mapCataToYear-MainWindow.on_pB_reviewmap_clicked"); }
+        sb.set_prompt(prompt);
+        vector<vector<vector<double>>> coord;
+        thread::id myid = this_thread::get_id();
+        vector<vector<int>> comm(1, vector<int>());
+        comm[0].assign(comm_length, 0);
+        sb.start_call(myid, 1, comm[0]);
+        std::thread thr(&MainWindow::getMapDBCoord, this, ref(sb), ref(sf), ref(coord));
+        thr.detach();
+        while (1)
+        {
+            Sleep(gui_sleep);
+            QCoreApplication::processEvents();
+            comm = sb.update(myid, comm[0]);
+            if (comm.size() > 1 && comm[1][0] == 1) { break; }
+        }
+        sb.end_call(myid);
+        vector<vector<double>> frame(2, vector<double>(2));
+        frame[0] = coord[0][coord[0].size() - 2];
+        frame[1] = coord[0][coord[0].size() - 1];
+        coord[0].resize(coord[0].size() - 2);
+        ui->qp_maplocal->addParent(coord[0], frame);
+        for (int ii = 1; ii < coord.size(); ii++)
+        {
+            frame[0] = coord[ii][coord[ii].size() - 2];
+            frame[1] = coord[ii][coord[ii].size() - 1];
+            coord[ii].resize(coord[ii].size() - 2);
+            ui->qp_maplocal->addChild(coord[ii], frame);
+        }
+        ui->qp_maplocal->drawAreas();
+    }
+    else 
+    { 
+        QString qTemp("Error: Unknown widget selected for map review.");
+        ui->pte_search->setPlainText(qTemp);
+    }
 }
 void MainWindow::on_listW_map_itemSelectionChanged()
 {
@@ -1347,80 +1449,135 @@ void MainWindow::on_listW_map_itemSelectionChanged()
 }
 
 // Database map functions.
-void MainWindow::insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui, BINMAP& bmgui)
+void MainWindow::getCataMapDB(SWITCHBOARD& sbgui, SQLFUNC& sfgui, JTREE& jtgui)
 {
+    // Populate the tree with a given catalogue's region maps. 
     thread::id myid = this_thread::get_id();
     vector<int> mycomm;
     sbgui.answer_call(myid, mycomm);
-    vector<string> prompt = sbgui.get_prompt();  // Form [sYear, sCata, tnameGeo].
-
-    // Get the geo layer info.
-    string stmt, tname = "Census$" + prompt[0] + "$GeoLayers";
-    if (!sf.table_exist(tname))
-    {
-        stmt = sc.makeCreateGeoLayers(prompt[0]);
-        sf.executor(stmt);
-    }
-    vector<string> geoLayers, search = { "*" };
-    vector<string> conditions = { "Catalogue LIKE " + prompt[1]};
-    sf.select(search, tname, geoLayers, conditions);
-    string folderPath = sroot + "\\mapChild", mapPath;
-    for (int ii = 2; ii < geoLayers.size(); ii++)
-    {
-        folderPath += "\\" + geoLayers[ii];
-        wf.makeDir(folderPath);
-    }
-
-    // Create PNG maps for each child region, if necessary.
+    vector<string> prompt = sbgui.get_prompt();  // Form [sYear, sCata].
+    vector<string> search = { "*" };
+    string tname = "Geo$" + prompt[0] + "$" + prompt[1];
     vector<vector<string>> geo;
-    vector<string> pngPathList;
-    int geoLevel;
-    sf.select(search, prompt[2], geo);
+    sfgui.select(search, tname, geo);
     jf.removeBlanks(geo);
+    vector<vector<int>>vviGeoLevel;
+    int geoLevel, index, geoCode, geoCodeParent;
     for (int ii = 0; ii < geo.size(); ii++)
     {
+        index = vviGeoLevel.size();
         try { geoLevel = stoi(geo[ii][2]); }
-        catch (invalid_argument) { jf.err("stoi-MainWindow.insertCataMaps"); }
-        if (geoLevel == 0) { continue; }  // Not a child region. 
-        mapPath = folderPath;
-        for (int jj = 0; jj < geoLevel; jj++)
+        catch (invalid_argument) { jf.err("stoi-MainWindow.getCataMapDB"); }
+        if (geoLevel >= index) { vviGeoLevel.push_back(vector<int>()); }
+        vviGeoLevel[geoLevel].push_back(ii);
+    }
+    for (int ii = 0; ii < vviGeoLevel.size(); ii++)
+    {
+        for (int jj = 0; jj < vviGeoLevel[ii].size(); jj++)
         {
-            mapPath += "\\" + geoLayers[jj + 2];
-        }
-        mapPath += "\\" + geo[ii][1] + ".png";
-        if (!wf.file_exist(mapPath))
-        {
-            pngPathList.push_back(mapPath);
+            index = vviGeoLevel[ii][jj];
+            try { geoCode = stoi(geo[index][0]); }
+            catch (invalid_argument) { jf.err("stoi-MainWindow.getCataMapDB"); }
+            if (ii == 0) { jtgui.addChild(geo[index][1], geoCode, -1); }  // Parent is root.
+            else
+            {
+                try { geoCodeParent = stoi(geo[index][geo[index].size() - 1]); }
+                catch (invalid_argument) { jf.err("stoi-MainWindow.getCataMapDB"); }
+                jtgui.addChild(geo[index][1], geoCode, geoCodeParent);
+            }
         }
     }
-    if (pngPathList.size() > 0)
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+    sbgui.terminateSelf(myid);
+}
+void MainWindow::insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
+{
+    // Insert a given catalogue's bin maps into the database.
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form [sYear, sCata].
+
+    // Get the folder paths.
+    string tname = "GeoLayers$" + prompt[0], stmt, mapPath, mapFile;
+    if (!sfgui.table_exist(tname))
     {
-        //bmgui.createMapsPNG(pngPathList);
+        stmt = sc.makeCreateGeoLayers(prompt[0]);
+        sfgui.executor(stmt);
+    }
+    vector<string> geoLayers, search = { "*" }, folderPath, vsRow;
+    vector<string> conditions = { "Catalogue LIKE " + prompt[1]};
+    sfgui.select(search, tname, geoLayers, conditions);
+    folderPath.resize(geoLayers.size() - 1);
+    for (int ii = 1; ii < geoLayers.size(); ii++)
+    {
+        folderPath[ii - 1] = mapRoot;
+        for (int jj = 1; jj <= ii; jj++)
+        {
+            if (geoLayers[jj] == "") { continue; }
+            folderPath[ii - 1] += "\\" + geoLayers[jj];
+        }
     }
 
+    // Get the geo data.
+    tname = "Geo$" + prompt[0] + "$" + prompt[1];
+    vector<vector<string>> geo;
+    sfgui.select(search, tname, geo);
+    mycomm[2] = geo.size();
+    sbgui.update(myid, mycomm);
+    jf.removeBlanks(geo);
+
+    // Load each map, and insert it.
+    int geoLevel;
+    for (int ii = 0; ii < geo.size(); ii++)
+    {
+        tname = "Map$" + prompt[0] + "$" + geo[ii][0];
+        if (!sfgui.table_exist(tname))
+        {
+            stmt = sc.makeCreateMap(tname);
+            sfgui.executor(stmt);
+
+            try { geoLevel = stoi(geo[ii][2]); }
+            catch (invalid_argument) { jf.err("stoi-MainWindow.insertCataMaps"); }
+            mapPath = folderPath[geoLevel] + "\\" + geo[ii][1] + ".bin";
+            vsRow = sc.makeInsertMap(tname, mapPath);
+            sfgui.insert_prepared(vsRow);
+        }
+        
+        tname = "MapFrame$" + prompt[0] + "$" + geo[ii][0];
+        if (!sfgui.table_exist(tname))
+        {
+            stmt = sc.makeCreateMapFrame(tname);
+            sfgui.executor(stmt);
+
+            try { geoLevel = stoi(geo[ii][2]); }
+            catch (invalid_argument) { jf.err("stoi-MainWindow.insertCataMaps"); }
+            mapPath = folderPath[geoLevel] + "\\" + geo[ii][1] + ".bin";
+            vsRow = sc.makeInsertMapFrame(tname, mapPath);
+            sfgui.insert_prepared(vsRow);
+        }
+        mycomm[1]++;
+        sbgui.update(myid, mycomm);
+    }
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
 }
 void MainWindow::on_pB_insertmap_clicked()
 {
-    QList<QListWidgetItem*> qSel = ui->listW_map->selectedItems();
+    QList<QTreeWidgetItem*> qSel = ui->treeW_catadb->selectedItems();
     if (qSel.size() != 1) { return; }
-    QString qTemp = qSel[0]->text();
-    string tnameGeo = qTemp.toStdString();
-    size_t pos1 = tnameGeo.find('$') + 1;
-    size_t pos2 = tnameGeo.find('$', pos1);
-    string sYear = tnameGeo.substr(pos1, pos2 - pos1);
-    pos1 = pos2 + 1;
-    pos2 = tnameGeo.find('$', pos1);
-    string sCata = tnameGeo.substr(pos1, pos2 - pos1);
-
-    bm.initialize();   
-    bm.setPTE(ui->pte_search, 0);
+    QString qTemp = qSel[0]->text(0);
+    string sCata = qTemp.toStdString();
+    qTemp = qSel[0]->parent()->text(0);
+    string sYear = qTemp.toStdString();
+    vector<string> prompt = { sYear, sCata };
+    sb.set_prompt(prompt);
     thread::id myid = this_thread::get_id();
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);
-    vector<string> prompt = { sYear, sCata, tnameGeo };
-    sb.set_prompt(prompt);
     sb.start_call(myid, 1, comm[0]);
-    std::thread thr(&MainWindow::insertCataMaps, this, ref(sb), ref(sf), ref(bm));
+    std::thread thr(&MainWindow::insertCataMaps, this, ref(sb), ref(sf));
     thr.detach();
     while (1)
     {
@@ -1455,7 +1612,22 @@ void MainWindow::on_pB_insertmap_clicked()
         }
     }
     sb.end_call(myid);
-
+}
+void MainWindow::on_treeW_mapdb_itemSelectionChanged()
+{
+    QList<QTreeWidgetItem*> qSel = ui->treeW_mapdb->selectedItems();
+    if (qSel.size() != 1) { return; }
+    recentClick = ui->treeW_mapdb;
+    QString qTemp = qSel[0]->text(1);
+    int geoCode = qTemp.toInt();
+    if (geoCode > 0)
+    {
+        ui->pB_reviewmap->setEnabled(1);
+    }
+    else
+    {
+        ui->pB_reviewmap->setEnabled(0);
+    }
 }
 
 // Database table review.
@@ -1563,11 +1735,13 @@ void MainWindow::on_pB_deletetable_clicked()
     case 0:
     {
         QList<QListWidgetItem*> qSel = ui->listW_searchresult->selectedItems();
-        if (qSel.size() != 1) { return; }
-        qTemp = qSel[0]->text();
-        tname = qTemp.toStdString();
-        sf.remove(tname);
-        qSel[0]->setHidden(1);
+        for (int ii = 0; ii < qSel.size(); ii++)
+        {
+            qTemp = qSel[ii]->text();
+            tname = qTemp.toStdString();
+            sf.remove(tname);
+            qSel[ii]->setHidden(1);
+        }
         break;
     }
     case 1:
@@ -2027,7 +2201,7 @@ void MainWindow::on_treeW_cataonline_itemSelectionChanged()
 // Modes: 0 = download given webpage
 void MainWindow::on_pB_test_clicked()
 {
-    int mode = 10;
+    int mode = 0;
 
     switch (mode)
     {
@@ -2848,8 +3022,6 @@ void MainWindow::on_pB_resolution_clicked()
     resScaling[1] = (double)resDesktop[1] / 1080.0;
 
     QRect TLWH = this->geometry();
-    qDebug() << "TL(" << TLWH.x() << ", " << TLWH.y() << ")";
-    qDebug() << "WH(" << TLWH.width() << ", " << TLWH.height() << ")";
     QList<QWidget*> widgets = this->findChildren<QWidget*>();    
     int x, y, w, h;
     for (int ii = 0; ii < widgets.size(); ii++)

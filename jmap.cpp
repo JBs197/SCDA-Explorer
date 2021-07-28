@@ -972,8 +972,54 @@ vector<int> OVERLAY::extractImgDisplacement()
 	TL.y = 0;
 	vector<unsigned char> topRowHome = im.pngExtractRow(imgBot, imgSpecBot, TL);
 	vector<unsigned char> topRowSuper, botRowSuper, tempRow;
+	vector<unsigned char> leftColHome, rightColHome, leftColSuper, rightColSuper;
 	vector<unsigned char> rgba = im.pixelRGB(imgSuper, imgSpecSuper, TL);
-	if (rgba == Black)
+	if (imgSpecSuper[0] == ovRes[0])
+	{
+		// No horizontal displacement relative to Home. 
+		DxDy[0] = 0;
+		topRowSuper = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
+		if (topRowSuper == topRowHome)
+		{
+			// Displacement is directly downward.
+			DxDy[1] = imgSpecSuper[1] - imgSpecBot[1];
+			return DxDy;
+		}
+		TL.y = imgSpecSuper[1] - 1;
+		botRowSuper = im.pngExtractRow(imgSuper, imgSpecSuper, TL);
+		if (botRowSuper == botRowHome)
+		{
+			// Displacement is directly upward.
+			DxDy[1] = imgSpecBot[1] - imgSpecSuper[1];
+			return DxDy;
+		}
+		else { jf.err("No horizontal disp, cannot match top or bot-ov.extractImgDisplacement"); }
+	}
+	else if (imgSpecSuper[1] == ovRes[1])
+	{
+		// No vertical displacement relative to Home. 
+		DxDy[1] = 0;
+		leftColHome = im.pngExtractCol(imgBot, imgSpecBot, TL);
+		leftColSuper = im.pngExtractCol(imgSuper, imgSpecSuper, TL);
+		if (leftColHome == leftColSuper)
+		{
+			// Displacement is directly rightward.
+			DxDy[0] = imgSpecSuper[0] - imgSpecBot[0];
+			return DxDy;
+		}
+		TL.x = imgSpecBot[0] - 1;
+		rightColHome = im.pngExtractCol(imgBot, imgSpecBot, TL);
+		TL.x = imgSpecSuper[0] - 1;
+		rightColSuper = im.pngExtractCol(imgSuper, imgSpecSuper, TL);
+		if (rightColHome == rightColSuper)
+		{
+			// Displacement is directly leftward.
+			DxDy[0] = imgSpecBot[0] - imgSpecSuper[0];
+			return DxDy;
+		}
+		else { jf.err("No vertical disp, cannot match left or right-ov.extractImgDisplacement"); }
+	}
+	else if (rgba == Black)
 	{
 		while (rgba == Black)
 		{
@@ -1093,12 +1139,12 @@ bool OVERLAY::initialize(string& tP, string& bP)
 	vpOVCropped[1].y = 817;
 
 	OVPPKM = {
-	{0.054, 0.053},
-	{0.055, 0.0547619048},
-	{0.0553125, 0.0545941558},
-	{0.0553125, 0.0574675325},
-	{0.0583180147, 0.057224026},
-	{0.0518382353, 0.0457792208}
+	{0.055, 0.055},
+	{0.055, 0.055},
+	{0.055, 0.055},
+	{0.055, 0.055},
+	{0.055, 0.055},
+	{0.055, 0.055}
 	};  // 600km, 300km, 200km, 100km, 40km, 20km.
 
 	mainPPKM = { 0.22, 0.44, 0.885, 1.77, 3.525, 7.05, 14.1 };
@@ -1247,7 +1293,7 @@ void OVERLAY::reportSuperposition(SWITCHBOARD& sbgui, vector<vector<int>>& match
 }
 
 
-void PNGMAP::createAllParents(QProgressBar*& qpb, int& progress)
+void PNGMAP::createAllPNG(QProgressBar*& qpb, int& progress)
 {
 	POINT pOrigin, pTL, p1;
 	string sMessage, pngPath, pngPathManual, temp;
@@ -1257,14 +1303,14 @@ void PNGMAP::createAllParents(QProgressBar*& qpb, int& progress)
 	if (vpMain.size() < 3)
 	{
 		pngPath = sroot + "\\Home.png";
-		if (!wf.file_exist(pngPath)) { jf.err("HomePNG-pngm.createAllParents"); }
+		if (!wf.file_exist(pngPath)) { jf.err("HomePNG-pngm.createAllPNG"); }
 		im.pngLoadHere(pngPath, img, imgSpec);
 		findFrames(img, imgSpec, bHome, vpMain, vpOverview);
 	}
 	if (vpOVCropped.size() < 3)
 	{
 		pngPath = sroot + "\\Home(cropped).png";
-		if (!wf.file_exist(pngPath)) { jf.err("HomePNG(cropped)-pngm.createAllParents"); }
+		if (!wf.file_exist(pngPath)) { jf.err("HomePNG(cropped)-pngm.createAllPNG"); }
 		im.pngLoadHere(pngPath, img, imgSpec);
 		findFrames(img, imgSpec, vpOVCropped);
 	}
@@ -1274,16 +1320,16 @@ void PNGMAP::createAllParents(QProgressBar*& qpb, int& progress)
 	for (int ii = 0; ii < geoLayers.size(); ii++)
 	{
 		if (geoLayers[ii] == "") { sMessage = "NUM1: Configure map screen for canada"; }
-		else if (nameParent[ii].size() < 1) { continue; }
+		else if (pngName[ii].size() < 1) { continue; }
 		else { sMessage = "NUM1: Configure map screen for " + geoLayers[ii]; }
 		qshow(sMessage);
 		if (io.signal(VK_NUMPAD1)) {}
-		for (int jj = 0; jj < nameParent[ii].size(); jj++)
+		for (int jj = 0; jj < pngName[ii].size(); jj++)
 		{
 			progress++;
 			qpb->setValue(progress);
-			pngPath = folderPathParent[ii] + "\\" + nameParent[ii][jj] + ".png";
-			pngPathManual = folderPathParent[ii] + "\\" + nameParent[ii][jj] + "(manual).png";
+			pngPath = folderPath[ii] + "\\" + pngName[ii][jj] + ".png";
+			pngPathManual = folderPath[ii] + "\\" + pngName[ii][jj] + "(manual).png";
 			if (wf.file_exist(pngPath)) { continue; }
 			if (wf.file_exist(pngPathManual)) { manual = 1; }
 			Sleep(1000);
@@ -1295,7 +1341,7 @@ void PNGMAP::createAllParents(QProgressBar*& qpb, int& progress)
 			Sleep(1000);
 			io.mouseClick(searchBar);
 			Sleep(1000);
-			io.kbInput(nameParent[ii][jj]);
+			io.kbInput(pngName[ii][jj]);
 			Sleep(1500);
 			while (!scanColourSquare(vpQuery, White))
 			{
@@ -1326,7 +1372,7 @@ void PNGMAP::createAllParents(QProgressBar*& qpb, int& progress)
 			}
 			else
 			{
-				sMessage = "NUM1: Position for " + nameParent[ii][jj];
+				sMessage = "NUM1: Position for " + pngName[ii][jj];
 				qshow(sMessage);
 				if (io.signal(VK_NUMPAD1)) { gdi.capture(img, imgSpec, vpMain); }
 				Sleep(1000);
@@ -1339,129 +1385,6 @@ void PNGMAP::createAllParents(QProgressBar*& qpb, int& progress)
 			im.pngPrint(img, imgSpec, pngPath);
 		}
 	}
-
-}
-void PNGMAP::createAllChildren(QProgressBar*& qpb, int& progress)
-{
-	string pngPath, sMessage, childPath, childPathManual, parentPath, temp, childPathANSI;
-	vector<unsigned char> img, imgMini;
-	vector<int> imgSpec, imgSpecMini;
-	thread::id myid = this_thread::get_id();
-	if (vpMain.size() < 3)
-	{
-		pngPath = sroot + "\\Home.png";
-		if (!wf.file_exist(pngPath)) { jf.err("HomePNG-pngm.createAllParents"); }
-		im.pngLoadHere(pngPath, img, imgSpec);
-		findFrames(img, imgSpec, bHome, vpMain, vpOverview);
-	}
-	if (vpOVCropped.size() < 3)
-	{
-		pngPath = sroot + "\\Home(cropped).png";
-		if (!wf.file_exist(pngPath)) { jf.err("HomePNG(cropped)-pngm.createAllParents"); }
-		im.pngLoadHere(pngPath, img, imgSpec);
-		findFrames(img, imgSpec, vpOVCropped);
-	}
-
-	POINT p1;
-	bool manual = 0;
-	int scaleHome = -1, scaleChild;
-	for (int ii = 0; ii < geoLayers.size(); ii++)
-	{
-		for (int jj = 0; jj < nameChild[ii].size(); jj++)
-		{
-			temp = nameChild[ii][jj];
-			nameChild[ii][jj] = jf.utf8ToAscii(temp);
-			childPath = folderPathChild[ii] + "\\" + nameChild[ii][jj] + ".png";
-			parentPath = folderPathParent[ii] + "\\" + nameChild[ii][jj] + ".png";
-			if (wf.file_exist(childPath))
-			{
-				nameChild[ii].erase(nameChild[ii].begin() + jj);
-				jj--;
-				progress++;
-				qpb->setValue(progress);
-			}
-			else if (wf.file_exist(parentPath))
-			{
-				wf.copyFile(parentPath, childPath);
-				nameChild[ii].erase(nameChild[ii].begin() + jj);
-				jj--;
-				progress++;
-				qpb->setValue(progress);
-			}
-		}
-		if (nameChild[ii].size() < 1) { continue; }
-
-		sMessage = "NUM1: Configure map screen for " + geoLayers[ii];
-		qshow(sMessage);
-		if (io.signal(VK_NUMPAD1)) {}
-		for (int jj = 0; jj < nameChild[ii].size(); jj++)
-		{
-			progress++;
-			qpb->setValue(progress);
-			childPath = folderPathChild[ii] + "\\" + nameChild[ii][jj] + ".png";
-			childPathManual = folderPathChild[ii] + "\\" + nameChild[ii][jj] + "(manual).png";
-			if (wf.file_exist(childPathManual)) { manual = 1; }
-			if (scaleHome < 0)
-			{
-				Sleep(1000);
-				io.mouseClick(bHome);
-				Sleep(3000);
-				scaleHome = getScaleIndex();
-			}
-			Sleep(1000);
-			io.mouseClick(searchBarClear);
-			Sleep(1000);
-			io.mouseClick(searchBar);
-			Sleep(1000);
-			temp = nameChild[ii][jj];
-			jf.asciiNearestFit(temp);
-			io.kbInput(temp);
-			Sleep(1500);
-			while (!scanColourSquare(vpQuery, White))
-			{
-				io.kbInput(VK_BACK);
-				Sleep(1500);
-			}
-			io.kbInput(VK_DOWN);
-			Sleep(1000);
-			io.kbInput(VK_RETURN);
-			Sleep(3500);
-			io.mouseClick(bPanel);
-			Sleep(2500);
-			p1.x = 3000;
-			p1.y = 10;
-			io.mouseMove(p1);
-			Sleep(1000);
-			if (!manual)
-			{
-				scaleChild = getScaleIndex();
-				gdi.capture(img, imgSpec, vpMain);  // Main frame only.
-				Sleep(1000);
-				for (int ii = scaleHome; ii < scaleChild; ii++)
-				{
-					io.mouseClick(bMinus);
-					Sleep(2500);
-				}
-				gdi.capture(imgMini, imgSpecMini, vpOverview);  // Shadeless Overview.
-			}
-			else
-			{
-				sMessage = "NUM1: Position for " + nameChild[ii][jj];
-				qshow(sMessage);
-				if (io.signal(VK_NUMPAD1)) { gdi.capture(img, imgSpec, vpMain); }
-				Sleep(1000);
-				sMessage = "NUM1: Zoom out to home scale";
-				qshow(sMessage);
-				if (io.signal(VK_NUMPAD1)) { gdi.capture(imgMini, imgSpecMini, vpOverview); }
-				manual = 0;
-			}
-			im.pngPaste(img, imgSpec, imgMini, imgSpecMini, vpOVCropped[0]);
-			childPathANSI = jf.asciiOnly(childPath);
-			im.pngPrint(img, imgSpec, childPathANSI);
-			if (childPathANSI != childPath) { wf.renameFile(childPathANSI, childPath); }
-		}
-	}
-
 }
 void PNGMAP::findFrames(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& fOVCropped)
 {
@@ -1671,15 +1594,6 @@ void PNGMAP::findFrames(vector<unsigned char>& img, vector<int>& imgSpec, POINT 
 	fOverview[2].x = (fOverview[0].x + fOverview[1].x) / 2;
 	fOverview[2].y = (fOverview[0].y + fOverview[1].y) / 2;
 }
-int PNGMAP::getNumChildren()
-{
-	int count = 0;
-	for (int ii = 0; ii < nameChild.size(); ii++)
-	{
-		count += nameChild[ii].size();
-	}
-	return count;
-}
 int PNGMAP::getScaleIndex()
 {
 	vector<POINT> TLBR(2);
@@ -1695,19 +1609,38 @@ int PNGMAP::getScaleIndex()
 	vector<int> minMax = jf.minMax(vdResult);
 	return minMax[1];
 }
-void PNGMAP::initialize(vector<string>& GeoLayers)
+int PNGMAP::initialize(vector<string>& GeoLayers, vector<vector<string>>& geo)
 {
 	if (GeoLayers.size() < 3) { jf.err("Missing GeoLayers-pngm.initialize"); }
+	folderPath.clear();
+	mapGCRow.clear();
 	activeCata = GeoLayers[0];
 	geoLayers.assign(GeoLayers.begin() + 1, GeoLayers.end());
-	string parentPath = sroot + "\\mapParent";
-	string childPath = sroot + "\\mapChild";
+	string currentFolder = sroot + "\\maps";
 	for (int ii = 1; ii < geoLayers.size(); ii++)
 	{
-		parentPath += "\\" + geoLayers[ii];
-		wf.makeDir(parentPath);
-		childPath += "\\" + geoLayers[ii];
-		wf.makeDir(childPath);
+		currentFolder += "\\" + geoLayers[ii];
+		wf.makeDir(currentFolder);
+	}
+	currentFolder = sroot + "\\maps";
+	for (int ii = 0; ii < geoLayers.size(); ii++)
+	{
+		pngName.push_back(vector<string>());
+		if (geoLayers[ii].size() > 0)
+		{
+			currentFolder += "\\" + geoLayers[ii];
+		}
+		folderPath.push_back(currentFolder);
+	}
+
+	int index, numPNG = 0;
+	for (int ii = 0; ii < geo.size(); ii++)
+	{
+		mapGCRow.emplace(geo[ii][0], ii);
+		try { index = stoi(geo[ii][2]); }
+		catch (invalid_argument) { jf.err("stoi-pngm.initialize"); }
+		pngName[index].push_back(geo[ii][1]);
+		numPNG++;
 	}
 
 	Black = { 0, 0, 0, 255 };
@@ -1723,10 +1656,6 @@ void PNGMAP::initialize(vector<string>& GeoLayers)
 	WaterShaded = { 158, 182, 201, 255 };
 	White = { 255, 255, 255, 255 };
 
-	pngRes = { 1632, 818, 4 };
-	fullRes = { 1632, 924, 4 };
-	viScale = { 600, 300, 200, 100, 40, 20, 10 };
-
 	// Index 0 = standard, 1 = standardShaded, 2 = northwest, 3 = northwestShaded.
 	originPatternH.resize(2);
 	originPatternH[0] = { Usa, Water, Usa, Water, Usa, Water };
@@ -1734,6 +1663,10 @@ void PNGMAP::initialize(vector<string>& GeoLayers)
 	originPatternV.resize(2);
 	originPatternV[0] = { Water, Canada, Water, Usa, Water, Usa };
 	originPatternV[1] = { WaterShaded, CanadaShaded, WaterShaded, UsaShaded, WaterShaded, UsaShaded };
+
+	pngRes = { 1632, 818, 4 };
+	fullRes = { 1632, 924, 4 };
+	viScale = { 600, 300, 200, 100, 40, 20, 10 };
 
 	bHome.x = 2260;
 	bHome.y = 300;
@@ -1783,48 +1716,6 @@ void PNGMAP::initialize(vector<string>& GeoLayers)
 		}
 	}
 
-}
-int PNGMAP::initParentChild(vector<vector<string>>& geo)
-{
-	if (geoLayers.size() < 1) { jf.err("No init-pngm.initParentChild"); }
-	string temp, parentGC;
-	int index, parentRow, numPNG = 0;
-	folderPathParent.clear();
-	folderPathChild.clear();
-	mapGCRow.clear();
-	setGCParent.clear();
-	string folderParent = sroot + "\\mapParent";
-	string folderChild = sroot + "\\mapChild";
-	for (int ii = 0; ii < geoLayers.size(); ii++)
-	{
-		nameParent.push_back(vector<string>());
-		nameChild.push_back(vector<string>());
-		if (geoLayers[ii].size() > 0)
-		{
-			folderParent += "\\" + geoLayers[ii];
-			folderChild += "\\" + geoLayers[ii];
-		}
-		folderPathParent.push_back(folderParent);
-		folderPathChild.push_back(folderChild);
-	}
-	for (int ii = 0; ii < geo.size(); ii++)
-	{
-		mapGCRow.emplace(geo[ii][0], ii);
-		if (geo[ii].size() < 4) { continue; }
-		try { index = stoi(geo[ii][2]); }
-		catch (invalid_argument) { jf.err("stoi-pngm.initParentChild"); }
-		nameChild[index].push_back(geo[ii][1]);
-		numPNG++;
-		parentGC = geo[ii].back();
-		if (!setGCParent.count(parentGC))
-		{
-			try { parentRow = mapGCRow.at(parentGC); }
-			catch (out_of_range) { jf.err("mapGCRow-pngm.initParentChild"); }
-			nameParent[index - 1].push_back(geo[parentRow][1]);
-			numPNG++;
-			setGCParent.emplace(parentGC);
-		}
-	}
 	return numPNG;
 }
 void PNGMAP::recordButton(POINT& button, string buttonName)

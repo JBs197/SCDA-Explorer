@@ -1035,6 +1035,23 @@ void IMGFUNC::pngCanvas(vector<int>& imgSpec, vector<unsigned char>& img, vector
         index += pixelSize;
     }
 }
+vector<unsigned char> IMGFUNC::pngExtractCol(vector<unsigned char>& img, vector<int>& imgSpec, POINT pTop)
+{
+    vector<unsigned char> vCol;
+    vCol.resize(imgSpec[1] * imgSpec[2]);
+    int offset, index = 0; 
+    for (int ii = 0; ii < imgSpec[1]; ii++)
+    {
+        pTop.y = ii;
+        offset = getOffset(pTop, imgSpec);
+        for (int jj = 0; jj < imgSpec[2]; jj++)
+        {
+            vCol[index] = img[offset + jj];
+            index++;
+        }
+    }
+    return vCol;
+}
 vector<unsigned char> IMGFUNC::pngExtractRow(vector<unsigned char>& img, vector<int>& imgSpec, POINT pLeft)
 {
     vector<unsigned char> vRow;

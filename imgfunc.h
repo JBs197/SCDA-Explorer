@@ -165,6 +165,7 @@ public:
     vector<POINT> makeTLBR(vector<POINT>& vpRegion);
     void markTargetTL(string& targetPath, string& bgPath);
     void pngCanvas(vector<int>& imgSpec, vector<unsigned char>& img, vector<unsigned char> rgbx);
+    vector<unsigned char> pngExtractCol(vector<unsigned char>& img, vector<int>& imgSpec, POINT pTop);
     vector<unsigned char> pngExtractRow(vector<unsigned char>& img, vector<int>& imgSpec, POINT pLeft);
     void pngLoadHere(string& pngPath, vector<unsigned char>& pngData, vector<int>& spec);
     void pngLoadString(string& pngPath, string& pngData, vector<int>& spec);

@@ -56,8 +56,14 @@ int MATHFUNC::coordCircleClockwise(vector<vector<double>>& coords)
 	double baseDy = coords[1][1] - coords[0][1];
 	double testDx = coords[2][0] - coords[1][0];
 	double testDy = coords[2][1] - coords[1][1];
-	if (baseDx == 0.0 && baseDy == 0.0) { jf.err("same coordinate-mf.coordCircleClockwise"); }
-	if (testDx == 0.0 && testDy == 0.0) { jf.err("same coordinate-mf.coordCircleClockwise"); }
+	if (baseDx == 0.0 && baseDy == 0.0) 
+	{ 
+		jf.err("same coordinate-mf.coordCircleClockwise"); 
+	}
+	if (testDx == 0.0 && testDy == 0.0) 
+	{ 
+		jf.err("same coordinate-mf.coordCircleClockwise"); 
+	}
 	int baseQuadrant, testQuadrant;  // [0,3] are real quadrants, and [4,7] are horizontal/vertical perpendiculars.
 	if (baseDx > 0.0)
 	{

@@ -84,6 +84,7 @@ public:
 	string stringifyCoord(vector<unsigned char>& coord);
 	vector<int> svectorToIvector(vector<string>&);
 	void tclean(string&, char, string);
+	bool testInt(string sNum);
 	vector<string> textParser(string&, vector<string>&);
 	void timerStart();
 	long long timerRestart();

@@ -918,6 +918,14 @@ void JFUNC::tclean(string& bbq, char marker, string preferred)
 		pos1 += psize;
 	}
 }
+bool JFUNC::testInt(string sNum)
+{
+	// Returns TRUE if the string can be converted into an integer. 
+	int iNum;
+	try { iNum = stoi(sNum); }
+	catch (invalid_argument) { return 0; }
+	return 1;
+}
 vector<string> JFUNC::textParser(string& sfile, vector<string>& search)
 {
 	// search[0] is a sanity check for the page

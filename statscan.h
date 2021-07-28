@@ -62,10 +62,15 @@ public:
 	vector<string> makeCreateInsertDIM();
 	vector<string> makeCreateInsertDim(vector<string>& dimList);
 	vector<string> makeCreateInsertTopic(vector<string>& colTitles);
+	string makeCreateMap(string tname);
+	string makeCreateMapFrame(string tname);
 	string makeCreateYear();
+
 	string makeInsertCensus();
 	vector<string> makeInsertData(string GEO_CODE, string& geoStmt);
 	vector<string> makeInsertGeo(vector<vector<string>>& geoList);
+	vector<string> makeInsertMap(string tname, string mapPath);
+	vector<string> makeInsertMapFrame(string tname, string mapPath);
 	string makeInsertYear();
 
 	unordered_map<string, string> mapGeoCodeToPart(vector<vector<string>>& geoList);

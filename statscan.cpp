@@ -33,7 +33,7 @@ void STATSCAN::convertSCgeo(string& geoPathOld)
     size_t pos1 = geoPathOld.rfind('\\'), pos2, posEnd;
     string folderPath = geoPathOld.substr(0, pos1), temp, currentAGC, lineAGC;
     string geoPathNew = folderPath + "\\Geo.txt";
-    vector<vector<string>> vvsData;
+    vector<vector<string>> vvsData;  // Form [region][ALT_GEO_CODE, Region Name, PART begin, PART end]
     int index, indexAGC, colIndex;
     pos1 = geoFile.find('\n');
     pos1 = geoFile.find('"', pos1);
@@ -61,6 +61,7 @@ void STATSCAN::convertSCgeo(string& geoPathOld)
         csvFile = wf.load(csvPath);
         if (ii == 1)
         {
+            // Determine the column index of 'ALT_GEO_CODE' (AGC).
             index = 0;
             posEnd = csvFile.find_first_of("\r\n");
             pos1 = csvFile.find('"');
@@ -81,6 +82,8 @@ void STATSCAN::convertSCgeo(string& geoPathOld)
                     pos2 = csvFile.find(',', pos2 + 1);
                 }
             }
+            
+            // Determine the first AGC.
             pos1 = posEnd;
             for (int jj = 0; jj < colIndex; jj++)
             {
@@ -114,6 +117,10 @@ void STATSCAN::convertSCgeo(string& geoPathOld)
         {
             csvLine = csvFile.substr(pos1, pos2 - pos1);
             lineAGC = extractCSVLineValue(csvLine, colIndex);
+            if (!jf.testInt(lineAGC))
+            {
+                jf.err("lineAGC parsing error-sc.convertSCgeo");
+            }
             if (lineAGC != currentAGC)
             {
                 vvsData[indexAGC][3] = to_string(ii);
@@ -144,12 +151,21 @@ void STATSCAN::convertSCgeo(string& geoPathOld)
 string STATSCAN::extractCSVLineValue(string& csvLine, int colIndex)
 {
     if (csvLine.size() < 1) { jf.err("No csvLine given-sc.extractCSVLineValue"); }
-    size_t pos1 = 0, posLast = csvLine.size() - 1;
-    for (int ii = 0; ii < colIndex; ii++)
+    bool inside = 0;
+    int index = 0;
+    size_t pos1 = csvLine.find_first_of(",\"");
+    while (pos1 < csvLine.size())
     {
-        pos1 = csvLine.find(',', pos1 + 1);
-        if (pos1 > posLast) { jf.err("colIndex exceeds csvLine width-sc.extractCSVLineValue"); }
+        if (csvLine[pos1] == '"' && !inside) { inside = 1; }
+        else if (csvLine[pos1] == '"' && inside) { inside = 0; }
+        else if (csvLine[pos1] == ',' && !inside)
+        {
+            index++;
+            if (index == colIndex) { break; }
+        }
+        pos1 = csvLine.find_first_of(",\"", pos1 + 1);
     }
+    if (index != colIndex) { jf.err("Failed to locate colIndex-sc.extractCSVLineValue"); }
     pos1++;
     if (csvLine[pos1] == '"') { pos1++; }
     size_t pos2 = csvLine.find(',', pos1);
@@ -432,7 +448,9 @@ vector<vector<string>> STATSCAN::loadGeoList(string geoPath)
         geoList[index][0] = geoFile.substr(pos1, pos2 - pos1);
         mapGeoCode.emplace(geoList[index][0], index);
         pos1 = pos2 + 1;
-        pos2 = geoFile.find(',', pos1);
+        pos2 = geoFile.find('\n', pos1);
+        pos2 = geoFile.rfind(',', pos2);
+        pos2 = geoFile.rfind(',', pos2 - 1);
         geoList[index][1] = geoFile.substr(pos1, pos2 - pos1);
         if (ignoreSplitRegions)
         {
@@ -612,19 +630,37 @@ vector<string> STATSCAN::makeCreateInsertDIMIndex(vector<string>& DIMList)
     vector<string> defn;
     int index;
     DIMList.clear();
-    size_t pos1 = metaFile.find("Definitions"), pos2, posMID;
+    size_t pos1 = metaFile.find("Definitions"), pos2, posMID, posFoot, posDefn;
+    size_t posPast = 0;
     posMID = metaFile.find("Member" + nl, pos1);
     while (posMID < metaFile.size())
     {
         index = DIMList.size();
-        pos2 = metaFile.rfind('.', posMID) + 1;
-        pos1 = metaFile.find_last_of("\r\n", pos2 - 1) + 1;
-        defn.push_back(metaFile.substr(pos1, pos2 - pos1));
-        pos2 = metaFile.rfind("Definition", pos1);
-        pos2 = metaFile.find_last_not_of("\r\n", pos2 - 1) + 1;
-        pos1 = metaFile.find_last_of("\r\n", pos2 - 1) + 1;
-        DIMList.push_back(metaFile.substr(pos1, pos2 - pos1));
-        trimMID(DIMList[index]);
+        posDefn = metaFile.rfind("Definition", posMID);
+        posFoot = metaFile.rfind("Footnote", posMID);
+        if (posDefn > posFoot && posDefn > posPast)  // This DIM has a definition.
+        {
+            pos2 = metaFile.find_last_not_of("\r\n", posDefn - 1) + 1;
+            pos1 = metaFile.find_last_of("\r\n", pos2 - 1) + 1;
+            DIMList.push_back(metaFile.substr(pos1, pos2 - pos1));
+            trimMID(DIMList[index]);
+            pos1 = metaFile.find_first_of("\r\n", posDefn);
+            pos1 = metaFile.find_first_not_of("\r\n", pos1);
+            pos1 = metaFile.find_first_of("\r\n", pos1);
+            pos1 = metaFile.find_first_not_of("\r\n", pos1);
+            if (pos1 > posMID) { jf.err("No definition before Member-sc.makeCreateInsertDefinitions"); }
+            pos2 = metaFile.rfind('.', posMID) + 1;
+            defn.push_back(metaFile.substr(pos1, pos2 - pos1));
+        }
+        else  // This DIM does not have a definition.
+        {
+            pos2 = metaFile.find_last_not_of("\r\n", posMID - 1) + 1;
+            pos1 = metaFile.find_last_of("\r\n", pos2 - 1) + 1;
+            DIMList.push_back(metaFile.substr(pos1, pos2 - pos1));
+            trimMID(DIMList[index]);
+            defn.push_back("");
+        }
+        posPast = posMID;
         posMID = metaFile.find("Member", posMID + 1);
     }
     if (DIMList.size() != defn.size()) { jf.err("Size mismatch-sc.makeCreateInsertDefinitions"); }
@@ -720,9 +756,11 @@ vector<string> STATSCAN::makeCreateInsertDim(vector<string>& dimList)
     vector<int> spaceHistory = { 0 };
     int index, inum, iextra = -1, space, indent, indexDim = 0;
     size_t posMID = metaFile.rfind("Member" + nl);
+    size_t posEnd = metaFile.find("Footnote", posMID);
+    if (posEnd > metaFile.size()) { posEnd = metaFile.size(); }
     size_t pos1 = metaFile.find_first_of("1234567890", posMID + 7), pos2;
     dimList.clear();
-    while (pos1 < metaFile.size())
+    while (pos1 < posEnd)
     {
         pos2 = metaFile.find('.', pos1);
         temp = metaFile.substr(pos1, pos2 - pos1);
@@ -830,6 +868,20 @@ vector<string> STATSCAN::makeCreateInsertTopic(vector<string>& colTitles)
     }
     return stmts;
 }
+string STATSCAN::makeCreateMap(string tname)
+{
+    if (tname.size() < 1 ) { jf.err("Missing input-sc.makeCreateMap"); }
+    string stmt = "CREATE TABLE \"" + tname;
+    stmt += "\" (xBorderKM NUMERIC, yBorderKM NUMERIC);";
+    return stmt;
+}
+string STATSCAN::makeCreateMapFrame(string tname)
+{
+    if (tname.size() < 1) { jf.err("Missing input-sc.makeCreateMapFrame"); }
+    string stmt = "CREATE TABLE \"" + tname;
+    stmt += "\" (xFrameKM NUMERIC, yFrameKM NUMERIC);";
+    return stmt;
+}
 string STATSCAN::makeCreateYear()
 {
     if (metaFile.size() < 1) { jf.err("No init-sc.makeCreateYear"); }
@@ -837,6 +889,7 @@ string STATSCAN::makeCreateYear()
     stmt += " Topic TEXT, UNIQUE(Catalogue));";
     return stmt;
 }
+
 string STATSCAN::makeInsertCensus()
 {
     if (metaFile.size() < 1) { jf.err("No init-sc.makeInsertCensus"); }
@@ -871,16 +924,25 @@ vector<string> STATSCAN::makeInsertData(string GEO_CODE, string& geoStmt)
     // Locate the first line containing the objective GEO_CODE.
     size_t pos1 = activeCSV.find(nl), posStart = 0;
     size_t pos2 = activeCSV.find(nl, pos1 + 1);
-    while (pos2 < activeCSV.size())
+    while (!posStart)
     {
-        csvLine = activeCSV.substr(pos1, pos2 - pos1);
-        temp = extractCSVLineValue(csvLine, geoCodeCol);
-        while (temp[0] == '0') { temp.erase(temp.begin()); }
-        if (temp == GEO_CODE) { posStart = pos1; break; }
-        pos1 = pos2;
-        pos2 = activeCSV.find(nl, pos1 + 1);
+        while (pos2 < activeCSV.size())
+        {
+            csvLine = activeCSV.substr(pos1, pos2 - pos1);
+            temp = extractCSVLineValue(csvLine, geoCodeCol);
+            while (temp[0] == '0') { temp.erase(temp.begin()); }
+            if (temp == GEO_CODE) { posStart = pos1; break; }
+            pos1 = pos2;
+            pos2 = activeCSV.find(nl, pos1 + 1);
+        }
+        if (!posStart) 
+        { 
+            advanceNextCSVpart();
+            pos1 = activeCSV.find(nl);
+            pos2 = activeCSV.find(nl, pos1 + 1);
+        }
     }
-    if (!posStart) { jf.err("Failed to locate first GEO_CODE line-sc.makeInsertData"); }
+
 
     // Specify (in order!) which columns are to be extracted.
     vector<int> scoopIndex = {
@@ -1010,6 +1072,56 @@ vector<string> STATSCAN::makeInsertGeo(vector<vector<string>>& geoList)
         stmts[ii] = stmt;
     }
     return stmts;
+}
+vector<string> STATSCAN::makeInsertMap(string tname, string mapPath)
+{
+    // Note that this function will cause duplication of border coordinates if the
+    // table already existed. Checks against that must be done prior. 
+    string mapFile = wf.load(mapPath), stmt, xC, yC;
+    if (mapFile.size() < 1) { jf.err("Failed to load binMap-sc.makeInsertMap"); }
+    vector<string> vsRow;
+    size_t pos1 = mapFile.find("//border"), pos2;
+    if (pos1 > mapFile.size()) { jf.err("No border found-sc.makeInsertMap"); }
+    pos1 = mapFile.find('\n', pos1) + 1;
+    size_t posEnd = mapFile.find("\n\n", pos1);
+    while (pos1 < posEnd)
+    {
+        pos2 = mapFile.find(',', pos1);
+        xC = mapFile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = mapFile.find('\n', pos1);
+        yC = mapFile.substr(pos1, pos2 - pos1);
+        stmt = "INSERT INTO \"" + tname + "\" (xBorderKM, yBorderKM) VALUES (";
+        stmt += xC + ", " + yC + ");";
+        vsRow.push_back(stmt);
+        pos1 = pos2 + 1;
+    }
+    return vsRow;
+}
+vector<string> STATSCAN::makeInsertMapFrame(string tname, string mapPath)
+{
+    // Note that this function will cause duplication of TLBR coordinates if the
+    // table already existed. Checks against that must be done prior. 
+    string mapFile = wf.load(mapPath), stmt, xC, yC;
+    if (mapFile.size() < 1) { jf.err("Failed to load binMap-sc.makeInsertMapFrame"); }
+    vector<string> vsRow;
+    size_t pos1 = mapFile.find("//frame"), pos2;
+    if (pos1 > mapFile.size()) { jf.err("No frame found-sc.makeInsertMapFrame"); }
+    pos1 = mapFile.find('\n', pos1) + 1;
+    size_t posEnd = mapFile.find("\n\n", pos1);
+    while (pos1 < posEnd)
+    {
+        pos2 = mapFile.find(',', pos1);
+        xC = mapFile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos2 = mapFile.find('\n', pos1);
+        yC = mapFile.substr(pos1, pos2 - pos1);
+        stmt = "INSERT INTO \"" + tname + "\" (xFrameKM, yFrameKM) VALUES (";
+        stmt += xC + ", " + yC + ");";
+        vsRow.push_back(stmt);
+        pos1 = pos2 + 1;
+    }
+    return vsRow;
 }
 string STATSCAN::makeInsertYear()
 {

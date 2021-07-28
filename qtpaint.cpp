@@ -61,14 +61,39 @@ void QTPAINT::addChild(double scale, vector<vector<double>> frameTLBR, vector<ve
 	displaceChildToParent(dispParentTL, frameTLBR[0], border);	
 	addArea(border);
 }
+void QTPAINT::addChild(vector<vector<double>>& border, vector<vector<double>>& frame)
+{
+	if (areas.size() < 1) { jf.err("No parent-qp.addChild"); }
+	vector<double> dispParentTL(2);  // Child's TL widget pixel displacement from (0,0). 
+	dispParentTL[0] = frame[0][0] - parentFrameTLKM[0];
+	dispParentTL[1] = frame[0][1] - parentFrameTLKM[1];
+	dispParentTL[0] *= widgetPPKM;
+	dispParentTL[1] *= widgetPPKM;
+	scaleChildToWidget(frame, border);
+	displaceChildToParent(dispParentTL, frame[0], border);
+	addArea(border);
+}
 void QTPAINT::addParent(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border)
 {
+	// Used when loading from bin files.
 	clear();
 	parentFrameTLKM = frameTLBR[0];
 	displaceParentToWidget(border);
 	scaleParentToWidget(border, scale, frameTLBR);
 	addArea(border);
 	addAreaColour(keyColourExtra);
+}
+void QTPAINT::addParent(vector<vector<double>>& border, vector<vector<double>>& frame)
+{
+	// Used when loading from the database.
+	if (border.size() < 1 || frame.size() < 2) { jf.err("Missing parameters-qp.addParent"); }
+	clear();
+	parentFrameTLKM = frame[0];
+	displaceParentToWidget(border);
+	scaleParentToWidget(border, frame);
+	addArea(border);
+	QColor qBlack(Qt::black);
+	addAreaColour(qBlack);
 }
 void QTPAINT::addParentBG(double scale, vector<vector<double>> frameTLBR, vector<vector<double>>& border, vector<unsigned char> rgbxBG)
 {
@@ -206,9 +231,11 @@ void QTPAINT::paintArea(QPainter& painter)
 }
 void QTPAINT::paintArea(QPainter& painter, vector<int>& viArea)
 {
-	QColor qColour;
+	QColor qBlack(Qt::black), qColour;
 	QPen pen(Qt::SolidLine);
 	pen.setWidth(1);
+	pen.setColor(qBlack);
+	painter.setPen(pen);
 	QBrush brush(Qt::SolidPattern);
 	if (qBG.isValid())
 	{
@@ -222,8 +249,6 @@ void QTPAINT::paintArea(QPainter& painter, vector<int>& viArea)
 	for (int ii = 0; ii < viArea.size(); ii++)
 	{
 		qColour = areaColour[viArea[ii]];
-		pen.setColor(qColour);
-		painter.setPen(pen);
 		brush.setColor(qColour);
 		painter.setBrush(brush);
 		QPainterPath qPP(areas[viArea[ii]][0]);
@@ -270,4 +295,20 @@ void QTPAINT::scaleParentToWidget(vector<vector<double>>& border, double PPKM, v
 	}
 	widgetPPKM = PPKM / ratio;
 }
-
+void QTPAINT::scaleParentToWidget(vector<vector<double>>& border, vector<vector<double>> frameTLBR)
+{
+	// Used when painting from database.
+	double widgetWidth = (double)this->width();
+	double widgetHeight = (double)this->height();
+	double imgWidthKM = frameTLBR[1][0] - frameTLBR[0][0];
+	double imgHeightKM = frameTLBR[1][1] - frameTLBR[0][1];
+	double xRatio = imgWidthKM / widgetWidth;  // km per pixel
+	double yRatio = imgHeightKM / widgetHeight;
+	double ratio = max(xRatio, yRatio);
+	for (int ii = 0; ii < border.size(); ii++)
+	{
+		border[ii][0] /= ratio;
+		border[ii][1] /= ratio;
+	}
+	widgetPPKM = 1.0 / ratio;
+}

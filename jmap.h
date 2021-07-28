@@ -125,10 +125,10 @@ class PNGMAP : public MAP
 {
 	string activeCata;
 	vector<POINT> vpMain, vpOverview, vpQuery;  // Form [TL, BR, mid]
-	vector<string> geoLayers, folderPathChild, folderPathParent;
+	vector<string> geoLayers, folderPath;
 	bool isgui;
 	unordered_map<string, int> mapGCRow;
-	vector<vector<string>> nameChild, nameParent;
+	vector<vector<string>> pngName;
 	QPlainTextEdit* pte = nullptr;
 	set<string> setGCParent;
 
@@ -136,15 +136,12 @@ public:
 	PNGMAP() {}
 	~PNGMAP() {}
 
-	void createAllChildren(QProgressBar*& qpb, int& progress);
-	void createAllParents(QProgressBar*& qpb, int& progress);
+	void createAllPNG(QProgressBar*& qpb, int& progress);
 	void findFrames(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT>& fOVCropped);
 	void findFrames(vector<unsigned char>& img, vector<int>& imgSpec, POINT bHome, vector<POINT>& fMain, vector<POINT>& fOverview);
 	int getParentScaleIndex(string& searchText);
-	int getNumChildren();
 	int getScaleIndex();
-	int initParentChild(vector<vector<string>>& geo);
-	void initialize(vector<string>& GeoLayers);
+	int initialize(vector<string>& GeoLayers, vector<vector<string>>& geo);
 	void qshow(string sMessage);
 	void recordButton(POINT& button, string buttonName);
 	void setPTE(QPlainTextEdit*& qPTE, bool isGUI);

@@ -110,7 +110,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>3</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="tab_cata">
      <attribute name="title">
@@ -213,9 +213,20 @@
         <height>451</height>
        </rect>
       </property>
+      <property name="columnCount">
+       <number>2</number>
+      </property>
+      <attribute name="headerDefaultSectionSize">
+       <number>400</number>
+      </attribute>
       <column>
        <property name="text">
         <string>Database Maps</string>
+       </property>
+      </column>
+      <column>
+       <property name="text">
+        <string>GEO_CODE</string>
        </property>
       </column>
      </widget>
@@ -267,6 +278,9 @@
         <width>611</width>
         <height>801</height>
        </rect>
+      </property>
+      <property name="selectionMode">
+       <enum>QAbstractItemView::ContiguousSelection</enum>
       </property>
      </widget>
      <widget class="QTableWidget" name="tableW_db">

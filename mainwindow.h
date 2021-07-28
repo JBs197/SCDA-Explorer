@@ -47,7 +47,7 @@ public:
     IOFUNC io;
     IMGFUNC im;
     JFUNC jf;
-    JTREE jtCataLocal, jtMapLocal, jtCataOnline;
+    JTREE jtCataLocal, jtMapLocal, jtMapDB, jtCataOnline;
     MATHFUNC mf;
     PNGMAP pngm;
     QTFUNC qf;
@@ -88,6 +88,7 @@ private slots:
     void on_treeW_catadb_itemSelectionChanged();
     void on_treeW_catalocal_itemSelectionChanged();
     void on_treeW_cataonline_itemSelectionChanged();
+    void on_treeW_mapdb_itemSelectionChanged();
     void on_treeW_maplocal_itemDoubleClicked(QTreeWidgetItem* qFolder, int column);
     void on_treeW_maplocal_itemSelectionChanged();
 
@@ -97,12 +98,13 @@ private:
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
     const int cores = 3, treeLength = 40, mapMargin = 1;
     const long long csvMaxSize = 200000000;  // Bytes
-    string db_path;
+    string db_path, projectDir, savedSettings;
     const DWORD gui_sleep = 50;  // Number of milliseconds the GUI thread will sleep between event processings.
     bool ignorePartie = 1;
+    unordered_map<string, string> mapCataToYear;
+    string mapRoot = sroot + "\\maps";
     mutex m_bar;
     vector<vector<string>> navSearch;
-    string projectDir, savedSettings;
     QPlainTextEdit* pteDefault;
     QWidget* recentClick = nullptr;
     vector<int> resDesktop = { 1920, 1080 };
@@ -116,15 +118,17 @@ private:
     void barUpdate(int iCurrent);
     void bind(string&, vector<string>&);
     void createBinMap(SWITCHBOARD& sbgui);
-    void createParentChildPNG(string& tnameGeoLayers, string& tnameGeo);
+    void createPngMap(string& tnameGeoLayers, string& tnameGeo);
     void displayTable(QTableWidget*& qTable, string tname);
     void downloadCatalogue(string sYear, string sCata);
+    void getCataMapDB(SWITCHBOARD& sbgui, SQLFUNC& sfgui, JTREE& jtgui);
     void GetDesktopResolution(int& horizontal, int& vertical);
     void getGeoLayers(string sYear, string sCata, vector<string>& geoLayers);
+    void getMapDBCoord(SWITCHBOARD& sbgui, SQLFUNC& sfgui, vector<vector<vector<double>>>& coord);
     void initGUI();
     void initialize();
     void initImgFont(string fontName);
-    void insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui, BINMAP& bmgui);
+    void insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
     void insertGeoLayers(string sYear, string sCata);
     void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
     void pauseDebugMap(string mapPath);
