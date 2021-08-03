@@ -281,6 +281,10 @@ void MainWindow::bind(string& stmt, vector<string>& param)
         stmt.replace(pos1, 1, temp);
     }
 }
+void MainWindow::eraseVVS(vector<vector<string>>& vvs)
+{
+    vector<vector<string>>().swap(vvs);
+}
 void MainWindow::thrDownload(SWITCHBOARD& sbgui)
 {
     // Downloads a file using a new thread.
@@ -324,6 +328,7 @@ void MainWindow::thrUnzip(SWITCHBOARD& sbgui)
     mycomm[0] = 1;
     sbgui.update(myid, mycomm);
 }
+
 
 // Mouse functions.
 void MainWindow::mousePressEvent(QMouseEvent* event)
@@ -575,6 +580,12 @@ void MainWindow::on_treeW_catadb_itemSelectionChanged()
         else { ui->pB_insertmap->setEnabled(0); }
     }
 }
+void MainWindow::on_treeW_catadb_itemDoubleClicked(QTreeWidgetItem* qFolder, int column)
+{
+    QString qTemp = qFolder->text(column);
+    ui->pte_search->setPlainText(qTemp);
+    on_pB_search_clicked();
+}
 
 // Local catalogue insertion.
 void MainWindow::on_pB_insert_clicked()
@@ -592,7 +603,8 @@ void MainWindow::on_pB_insert_clicked()
         }
     }
     thread::id myid = this_thread::get_id();
-    vector<vector<int>> comm;    
+    vector<vector<int>> comm;  
+    vector<int> viPrompt;  // Form [bool debug].
     vector<string> prompt(2);  // Form [sYear, sName].
     QString qTemp;
     for (int ii = 0; ii < qList.size(); ii++)
@@ -605,6 +617,9 @@ void MainWindow::on_pB_insert_clicked()
         qTemp = qParent->text(0);
         prompt[0] = qTemp.toStdString();
         sb.set_prompt(prompt);
+        if (ui->checkB_debug->isChecked()) { viPrompt = { 1 }; }
+        else { viPrompt = { 0 }; }
+        sb.setIPrompt(viPrompt);
         sb.start_call(myid, 1, comm[0]);
         std::thread thr(&MainWindow::judicator, this, ref(sb), ref(sf));
         thr.detach();
@@ -649,14 +664,21 @@ void MainWindow::on_pB_insert_clicked()
 void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 {
     thread::id myid = this_thread::get_id();
-    vector<int> mycomm;
+    vector<int> mycomm, viPrompt, viGeoCode, viBegin, viEnd;
     sbgui.answer_call(myid, mycomm);
+    vector<int> viDebug = sbgui.getIPrompt();  // Form [bool debug].
     vector<string> prompt = sbgui.get_prompt();  // Form [sYear, sName].
     string cataPath = sroot + "\\" + prompt[0] + "\\" + prompt[1];
+    vector<vector<int>> commJudi(1, vector<int>(1, 0));  // Form [status, pause].
+    SWITCHBOARD sbjudi;
     STATSCAN scjudi;
     scjudi.init(cataPath);
-    vector<string> DIMList, dimList, colTitles;
+    auto buffer1 = new string[1];
+    auto buffer2 = new string[1];
+    auto buffer3 = new string[1];
+    vector<string> DIMList, dimList, colTitles, promptJudi, vsRegion, vsResult;
     string result, stmt, temp;
+    size_t pos1;
 
     // Convert the Stats Can geo file to one suited for split CSV files.
     string geoPath = cataPath + "\\Geo.txt";
@@ -664,22 +686,22 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     {
         string geoPathOld = cataPath + "\\Geo_starting_row_CSV.csv";
         scjudi.convertSCgeo(geoPathOld);
+        jf.log("Converted SC geo.");
     }
 
     // Determine the number of regions, and update the GUI thread progress bar.
     vector<vector<string>> geoList = scjudi.loadGeoList(geoPath);
-    unordered_map<string, string> mapGeoPart = scjudi.mapGeoCodeToPart(geoList);
+    scjudi.mapGeoCodeToPart(geoList);
     mycomm[2] = geoList.size();
     string tname = "Geo$" + prompt[0] + "$" + prompt[1];
-    vector<string> vsResult, search = { "GEO_CODE" };
+    vector<string> search = { "GEO_CODE" };
     if (sfgui.table_exist(tname)) { sfgui.select(search, tname, vsResult); }
     vector<string> geoToDo = scjudi.compareGeoListDB(geoList, vsResult); // List of GEO_CODEs present in geoList but absent from the DB.
     if (geoToDo.size() < 1) { goto FTL1; }
     mycomm[1] += (geoList.size() - geoToDo.size());
     sbgui.update(myid, mycomm);
-    try { temp = mapGeoPart.at(geoToDo[0]); }
-    catch (out_of_range) { jf.err("mapGeoPart-MainWindow.judicator"); }
-    scjudi.initCSV(geoToDo[0], temp);
+    int iPart = scjudi.getPart(geoToDo[0]);
+    scjudi.initCSV(geoToDo[0], iPart);
 
     // Add this year to the root census table. 
     tname = "Census";
@@ -690,6 +712,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     }
     result = scjudi.makeInsertCensus();
     sfgui.executor(result);
+    jf.log("Added " + prompt[0] + " to the root census table.");
 
     // Add this catalogue (and its topic) to the 'Year' table.
     tname = "Census$" + prompt[0];
@@ -700,16 +723,27 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     }
     result = scjudi.makeInsertYear();
     sfgui.executor(result);
+    jf.log("Added " + prompt[1] + " to the 'year' table.");
 
     // Add this catalogue to the appropriate 'Topic' table.
-    tname = "Census$" + prompt[0] + "$Topic";
-    if (sfgui.table_exist(tname)) { sfgui.get_col_titles(tname, colTitles); }
-    vsResult = scjudi.makeCreateInsertTopic(colTitles);
-    sfgui.executor(vsResult);
+    tname = "Topic$" + prompt[0];
+    if (!sfgui.table_exist(tname))
+    {
+        result = scjudi.makeCreateTopic(tname);
+        sfgui.executor(result);
+    }
+    search = { "Index" };
+    vsResult.clear();
+    sfgui.select(search, tname, vsResult);
+    int index = vsResult.size();
+    result = scjudi.makeInsertTopic(tname, index);
+    sfgui.executor(result);
+    jf.log("Added " + prompt[1] + " to the 'topic' table.");
 
     // Create the catalogue's geo table. Rows are added later, with the CSV data.
     result = scjudi.makeCreateGeo();
     sfgui.executor(result);
+    jf.log("Created a geo table for " + prompt[1]);
 
     // Insert DIM/Dim tables.
     vsResult = scjudi.makeCreateInsertDIMIndex(DIMList);
@@ -718,18 +752,125 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     sfgui.executor(vsResult);
     vsResult = scjudi.makeCreateInsertDim(dimList);
     sfgui.executor(vsResult);
+    jf.log("Created and inserted DIM/dim tables for " + prompt[1]);
 
     // Create a data table for each GEO_CODE region.
     vsResult = scjudi.makeCreateData(DIMList, dimList);
     sfgui.insert_prepared(vsResult);
-    for (int ii = 0; ii < geoToDo.size(); ii++)
-    {
-        vsResult = scjudi.makeInsertData(geoToDo[ii], result);
-        sfgui.executor(result);
-        sfgui.insertPreparedBind(vsResult);
-        mycomm[1]++;
-        sbgui.update(myid, mycomm);
+    jf.log("Created a data table for " + prompt[1]);
+
+    // Launch worker threads to make insert statements for each Geo table.
+    int commJudiSize, geoListRow, activeThr, parkingSpot = -1;
+    scjudi.loadGeoList(geoPath, viGeoCode, vsRegion, viBegin, viEnd);
+    sbjudi.setErrorPath(sroot + "\\SCDA SWITCHBOARD Error Log(Judicator).txt");
+    sbjudi.start_call(myid, 3, commJudi[0]);
+    for (int ii = 0; ii < geoToDo.size(); ii++)  // For every GEO_CODE ... 
+    { // RESUME HERE, make list separator
+        if (ii > 2)  // If all cores have been given a first task...
+        {
+            commJudi = sbjudi.update(myid, commJudi[0]);
+            for (int jj = 1; jj < commJudi.size(); jj++)  // Check for a completed list of stmts.
+            {
+                if (commJudi[jj][0] == 1)  // There is a completed list ready to go.
+                {
+                    // Insert the completed list.
+                    switch (jj)
+                    {
+                    case 1:
+                        //if (buffer1->size() < 2) { jf.err("commJudi buffer1 mismatch-MainWindow.judicator"); }
+                        sfgui.insert_prepared(buffer1);
+                        delete[] buffer1;
+                        break;
+                    case 2:
+                        //if (buffer2->size() < 2) { jf.err("commJudi buffer2 mismatch-MainWindow.judicator"); }
+                        sfgui.insert_prepared(buffer2);
+                        delete[] buffer2;
+                        break;
+                    case 3:
+                        //if (buffer3->size() < 2) { jf.err("commJudi buffer3 mismatch-MainWindow.judicator"); }
+                        sfgui.insert_prepared(buffer3);
+                        delete[] buffer3;
+                        break;
+                    }
+                    mycomm[1]++;
+                    sbgui.update(myid, mycomm);
+
+                    // Fill the vacant spot with this GEO_CODE.
+                    prompt = { cataPath, geoToDo[ii] };
+                    sbjudi.set_prompt(prompt);
+                    if (scjudi.mapGeoCode.count(geoToDo[ii]))
+                    {
+                        geoListRow = scjudi.mapGeoCode.at(geoToDo[ii]);
+                    }
+                    else { jf.err("mapGeoCode-MainWindow.judicator"); }
+                    viPrompt = { jj, viBegin[geoListRow], viEnd[geoListRow] };
+                    sbjudi.setIPrompt(viPrompt);  // Form [myIndex, partBegin, partEnd].
+                    switch (jj)
+                    {
+                    case 1:
+                    {
+                        std::thread thr1(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(buffer1));
+                        thr1.detach();
+                        break;
+                    }
+                    case 2:
+                    {
+                        std::thread thr2(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(buffer2));
+                        thr2.detach();
+                        break;
+                    }
+                    case 3:
+                    {
+                        std::thread thr3(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(buffer3));
+                        thr3.detach();
+                        break;
+                    }
+                    }
+                    break;
+                }
+                else if (jj == commJudi.size() - 1)  // Wait and try again.
+                {
+                    Sleep(gui_sleep);
+                    ii--;
+                }
+            }
+        }
+        else  // Launch a new worker thread without checking for a completed one. 
+        {
+            prompt = { cataPath, geoToDo[ii] };
+            sbjudi.set_prompt(prompt);
+            if (scjudi.mapGeoCode.count(geoToDo[ii]))
+            {
+                geoListRow = scjudi.mapGeoCode.at(geoToDo[ii]);
+            }
+            else { jf.err("mapGeoCode-MainWindow.judicator"); }
+            viPrompt = { ii + 1, viBegin[geoListRow], viEnd[geoListRow] };
+            sbjudi.setIPrompt(viPrompt);  // Form [myIndex, partBegin, partEnd].
+            switch (ii)
+            {
+            case 0:
+            {
+                std::thread thr1(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(buffer1));
+                thr1.detach();
+                break;
+            }
+            case 1:
+            {
+                std::thread thr2(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(buffer2));
+                thr2.detach();
+                break;
+            }
+            case 2:
+            {
+                std::thread thr3(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(buffer3));
+                thr3.detach();
+                break;
+            }
+            }
+            Sleep(100);
+        }
     }
+    jf.log("Inserted all data for " + prompt[1]);
 
     // Add ancestry columns to the geo table, if necessary.
     vsResult.clear();
@@ -753,6 +894,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
             result += to_string(inum + ii) + " INT;";
             sfgui.executor(result);
         }
+        jf.log("Added ancestor columns into " + tname);
     }
 
 FTL1:
@@ -785,9 +927,11 @@ FTL1:
             sfgui.update(tname, revisions, conditions);
         }
     }
+    jf.log("Inserted ancestry values into " + tname);
 
     // Geo Layers.
     insertGeoLayers(prompt[0], prompt[1]);
+    jf.log("Inserted geo layers for " + prompt[1]);
 
     // Report completion to the GUI thread.
     mycomm[0] = 1;
@@ -827,6 +971,51 @@ void MainWindow::insertGeoLayers(string sYear, string sCata)
     }
     stmt += ");";
     sf.executor(stmt);
+}
+void MainWindow::makeInsertDataThr(SWITCHBOARD& sbjudi, string*& myBuffer)
+{
+    // Worker thread function to create 'insert' statements for a single geo region.
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm, viPrompt = sbjudi.getIPrompt();
+    sbjudi.answerCall(myid, mycomm, viPrompt[0]);  // viPrompt form [myIndex, partBegin, partEnd].
+    vector<string> prompt = sbjudi.get_prompt();  // Form [cataPath, GEO_CODE].
+    string geoPath = prompt[0] + "\\Geo.txt";
+    if (!wf.file_exist(geoPath)) { jf.err("Missing Geo.txt-MainWindow.makeInsertDataThr"); }
+    size_t nextLine, numStmt = 0, index = 0;
+    vector<vector<string>> stmts(1, vector<string>());
+
+    STATSCAN scworker;
+    scworker.init(prompt[0]);
+    for (int ii = viPrompt[1]; ii <= viPrompt[2]; ii++)
+    {
+        scworker.initCSV(prompt[1], ii);
+        string csvPath = scworker.getCSVPath(ii);
+        string csvFile = wf.load(csvPath);
+        if (ii == viPrompt[1])
+        {
+            string geoStmt = scworker.makeInsertGeo(csvFile, nextLine);
+            stmts[0] = { geoStmt };
+        }
+        else { nextLine = csvFile.find_first_of("\r\n"); }
+        vector<string> vsResult = scworker.makeInsertData(csvFile, nextLine);
+        stmts.push_back(vsResult);
+    }
+    for (int ii = 0; ii < stmts.size(); ii++)
+    {
+        numStmt += stmts[ii].size();
+    }
+    myBuffer = new string[numStmt];
+    for (int ii = 0; ii < stmts.size(); ii++)
+    {
+        for (int jj = 0; jj < stmts[ii].size(); jj++)
+        {
+            myBuffer[index] = stmts[ii][jj];
+            index++;
+        }
+    }
+    mycomm[0] = 1;
+    sbjudi.update(myid, mycomm);
+    sbjudi.terminateSelf(myid);
 }
 
 // Local map listings.
@@ -1671,6 +1860,7 @@ void MainWindow::displayTable(QTableWidget*& qTable, string tname)
         }
     }
     sb.end_call(myid);
+    if (vvsResult.size() < 1) { jf.err("No rows found-MainWindow.displayTable"); }
     sf.get_col_titles(tname, colTitles);
     qTable->clear();
     qTable->setColumnCount(colTitles.size());
@@ -1718,6 +1908,7 @@ void MainWindow::tableTopper(SWITCHBOARD& sbgui, vector<vector<string>>& vvsResu
     vector<string> prompt = sbgui.get_prompt();  // Form [tname].
     vector<string> search = { "*" };
     sf.select(search, prompt[0], vvsResult);
+    jf.removeBlanks(vvsResult);
     mycomm[0] = 1;
     sbgui.update(myid, mycomm);
 }
@@ -1735,13 +1926,19 @@ void MainWindow::on_pB_deletetable_clicked()
     case 0:
     {
         QList<QListWidgetItem*> qSel = ui->listW_searchresult->selectedItems();
-        for (int ii = 0; ii < qSel.size(); ii++)
+        int numTable = qSel.size();
+        string sMessage = "Deleting tables ...";
+        barReset(numTable, sMessage);
+        for (int ii = 0; ii < numTable; ii++)
         {
             qTemp = qSel[ii]->text();
             tname = qTemp.toStdString();
             sf.remove(tname);
             qSel[ii]->setHidden(1);
+            barUpdate(ii + 1);
         }
+        sMessage = "Deleted " + to_string(numTable) + " tables from the database.";
+        barMessage(sMessage);
         break;
     }
     case 1:
@@ -1758,19 +1955,16 @@ void MainWindow::on_pB_deletetable_clicked()
         qCell = ui->tableW_db->item(iRow, 0);
         qTemp = qCell->text();
         string sValue = qTemp.toStdString();
-        try { inum = stoi(sValue); }
-        catch (invalid_argument) 
-        { 
-            inum = -1; 
-            try { dnum = stod(sValue); }
-            catch (invalid_argument) { dnum = -1.0; }
-        }
         vector<string> conditions = { "\"" + colTitle };
-        if (inum == -1 && dnum == -1.0)
+        size_t pos1 = sValue.find_first_not_of("0123456789.-");
+        if (pos1 < sValue.size())
         {
             conditions[0] += "\" LIKE '" + sValue + "'";
         }
-        else { conditions[0] += "\" = " + sValue; }
+        else
+        {
+            conditions[0] += "\" = " + sValue;
+        }
         sf.remove(tname, conditions);
         ui->tableW_db->removeRow(iRow);
         break;
@@ -2082,9 +2276,12 @@ void MainWindow::on_pB_download_clicked()
         {
             qTemp = qlist[0]->parent()->text(0);
             sYear = qTemp.toStdString();
-            qTemp = qlist[0]->text(0);
-            sCata = qTemp.toStdString();
-            downloadCatalogue(sYear, sCata);
+            for (int ii = 0; ii < qlist.size(); ii++)
+            {
+                qTemp = qlist[ii]->text(0);
+                sCata = qTemp.toStdString();
+                downloadCatalogue(sYear, sCata);
+            }
             break;
         }
         case 3:  // CSV or maps.

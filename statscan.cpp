@@ -1,14 +1,6 @@
 #include "stdafx.h"
 #include "statscan.h"
 
-void STATSCAN::advanceNextCSVpart()
-{
-    activeCSVpart++;
-    string csvPath = cataPath + "\\" + cataName + "_English_CSV_data (PART ";
-    csvPath += to_string(activeCSVpart) + ").csv";
-    activeCSV = wf.load(csvPath);
-    if (activeCSV.size() < 1) { jf.err("Cannot load CSV part file-sc.advanceNextCSVpart"); }
-}
 vector<string> STATSCAN::compareGeoListDB(vector<vector<string>>& geoList, vector<string>& dbList)
 {
     // Returns a list of GEO_CODEs not already present in the database.
@@ -233,6 +225,14 @@ string STATSCAN::getGeoLayer(string geoLayerExternal)
     catch (out_of_range) { jf.err("Geo layer not recognized-sc.getGeoLayer"); }
     return geoLayerInternal;
 }
+int STATSCAN::getPart(string GEO_CODE)
+{
+    if (mapGeoPart.size() < 1) { jf.err("mapGeoPart not initialized-sc.getPart"); }
+    int iPart;
+    try { iPart = mapGeoPart.at(GEO_CODE); }
+    catch (out_of_range) { jf.err("GEO_CODE not found in mapGeoPart-sc.getPart"); }
+    return iPart;
+}
 
 void STATSCAN::init(string cP)
 {
@@ -264,17 +264,16 @@ void STATSCAN::init(string cP)
     pos2 = metaFile.find(nl, pos1);
     topic = metaFile.substr(pos1, pos2 - pos1);
 }
-void STATSCAN::initCSV(string activeGeoCode, string sActivePART)
+void STATSCAN::initCSV(string activeGeoCode)
 {
     // Initializes all 'activeCSV' variables.
     if (metaFile.size() < 1) { jf.err("No init-sc.initCSV"); }
+    if (mapGeoPart.size() < 1) { jf.err("mapGeoPart not initialized-sc.initCSV"); }
     size_t pos1, pos2;
     int indexDim = 0, indexDIM = 0;
+    try { activeCSVpart = mapGeoPart.at(activeGeoCode); }
+    catch (out_of_range) { jf.err("GEO_CODE not found in mapGeoPart-sc.initCSV"); }
     activeCSVgeocode = activeGeoCode;
-    try { activeCSVpart = stoi(sActivePART); }
-    catch (invalid_argument) { jf.err("stoi-sc.initCSV"); }
-    string csvPath = getCSVPath(activeCSVpart);
-    activeCSV = wf.load(csvPath);
     cataColTitles = loadColTitles();
     for (int ii = 0; ii < cataColTitles.size(); ii++)
     {
@@ -296,6 +295,59 @@ void STATSCAN::initCSV(string activeGeoCode, string sActivePART)
         if (pos1 < cataColTitles[ii].size()) { geoLevelCol = ii; }
         pos1 = cataColTitles[ii].find("GEO_NAME");
         if (pos1 < cataColTitles[ii].size()) { geoNameCol = ii; }
+    }
+
+    // Specify (in order!) which columns are to be extracted.
+    scoopIndex = { geoLevelCol, geoNameCol, geoCodeCol };
+    for (int ii = 0; ii < mapDIM.size(); ii++)
+    {
+        scoopIndex.push_back(mapDIM.at(ii));
+    }
+    for (int ii = 0; ii < mapDim.size(); ii++)
+    {
+        scoopIndex.push_back(mapDim.at(ii));
+    }
+}
+void STATSCAN::initCSV(string activeGeoCode, int activePART)
+{
+    // Initializes all 'activeCSV' variables.
+    if (metaFile.size() < 1) { jf.err("No init-sc.initCSV"); }
+    size_t pos1, pos2;
+    int indexDim = 0, indexDIM = 0;
+    activeCSVgeocode = activeGeoCode;
+    activeCSVpart = activePART;
+    cataColTitles = loadColTitles();
+    for (int ii = 0; ii < cataColTitles.size(); ii++)
+    {
+        pos1 = cataColTitles[ii].find("Dim:");
+        if (pos1 < cataColTitles[ii].size())
+        {
+            mapDim.emplace(indexDim, ii);
+            indexDim++;
+        }
+        pos1 = cataColTitles[ii].find("DIM:");
+        if (pos1 < cataColTitles[ii].size())
+        {
+            mapDIM.emplace(indexDIM, ii + 1);
+            indexDIM++;
+        }
+        pos1 = cataColTitles[ii].find("ALT_GEO_CODE");
+        if (pos1 < cataColTitles[ii].size()) { geoCodeCol = ii; }
+        pos1 = cataColTitles[ii].find("GEO_LEVEL");
+        if (pos1 < cataColTitles[ii].size()) { geoLevelCol = ii; }
+        pos1 = cataColTitles[ii].find("GEO_NAME");
+        if (pos1 < cataColTitles[ii].size()) { geoNameCol = ii; }
+    }
+
+    // Specify (in order!) which columns are to be extracted.
+    scoopIndex = { geoLevelCol, geoNameCol, geoCodeCol };
+    for (int ii = 0; ii < mapDIM.size(); ii++)
+    {
+        scoopIndex.push_back(mapDIM.at(ii));
+    }
+    for (int ii = 0; ii < mapDim.size(); ii++)
+    {
+        scoopIndex.push_back(mapDim.at(ii));
     }
 }
 void STATSCAN::initGeo()
@@ -475,6 +527,49 @@ vector<vector<string>> STATSCAN::loadGeoList(string geoPath)
     if (geo.size() < 1) { geo = geoList; }
     return geoList;
 }
+void STATSCAN::loadGeoList(string geoPath, vector<int>& viGeoCode, vector<string>& vsRegion, vector<int>& viBegin, vector<int>& viEnd)
+{
+    // Given a path to a catalogue's Geo.txt file, extract the data. 
+    viGeoCode.clear();
+    vsRegion.clear();
+    viBegin.clear();
+    viEnd.clear();
+    bool makeMapPart = 0;
+    int iRow;
+    if (mapGeoPart.size() < 1) { makeMapPart = 1; }
+    string sGeoCode, sBegin, sEnd;
+    string geoFile = wf.load(geoPath);
+    size_t posEnd = geoFile.find_last_of("0123456789") + 1;
+    size_t pos1 = geoFile.find_first_of("0123456789"), pos2, pos3;
+    while (pos1 < posEnd)
+    {
+        pos2 = geoFile.find(',', pos1);
+        sGeoCode = geoFile.substr(pos1, pos2 - pos1);
+        pos1 = pos2 + 1;
+        pos3 = geoFile.find('\n', pos1);
+        pos2 = geoFile.rfind(',', pos3 - 1) + 1;
+        sEnd = geoFile.substr(pos2, pos3 - pos2);
+        pos3 = pos2 - 1;
+        pos2 = geoFile.rfind(',', pos3 - 1) + 1;
+        sBegin = geoFile.substr(pos2, pos3 - pos2);
+        pos2--;
+        vsRegion.push_back(geoFile.substr(pos1, pos2 - pos1));
+        try
+        {
+            viGeoCode.push_back(stoi(sGeoCode));
+            viBegin.push_back(stoi(sBegin));
+            viEnd.push_back(stoi(sEnd));
+        }
+        catch (invalid_argument) { jf.err("stoi-sc.loadGeoList"); }
+        if (makeMapPart)
+        {
+            mapGeoPart.emplace(sGeoCode, viBegin[viBegin.size() - 1]);
+            iRow = vsRegion.size() - 1;
+            mapGeoCode.emplace(sGeoCode, iRow);
+        }
+        pos1 = geoFile.find('\n', pos3) + 1;
+    }
+}
 
 string STATSCAN::makeBinBorder(vector<vector<int>>& border)
 {
@@ -632,7 +727,8 @@ vector<string> STATSCAN::makeCreateInsertDIMIndex(vector<string>& DIMList)
     DIMList.clear();
     size_t pos1 = metaFile.find("Definitions"), pos2, posMID, posFoot, posDefn;
     size_t posPast = 0;
-    posMID = metaFile.find("Member" + nl, pos1);
+    string sMember = "Member" + nl;
+    posMID = metaFile.find(sMember, pos1);
     while (posMID < metaFile.size())
     {
         index = DIMList.size();
@@ -661,7 +757,7 @@ vector<string> STATSCAN::makeCreateInsertDIMIndex(vector<string>& DIMList)
             defn.push_back("");
         }
         posPast = posMID;
-        posMID = metaFile.find("Member", posMID + 1);
+        posMID = metaFile.find(sMember, posMID + 1);
     }
     if (DIMList.size() != defn.size()) { jf.err("Size mismatch-sc.makeCreateInsertDefinitions"); }
 
@@ -687,7 +783,7 @@ vector<string> STATSCAN::makeCreateInsertDIM()
     string temp, stmt, tname;
     vector<int> spaceHistory = { 0 };
     int index, inum, iextra, space, indent, indexDIM = 0;
-    size_t pos1 = metaFile.find("Definitions"), pos2, posMID, posMIDnext, posEnd;
+    size_t pos1 = metaFile.find("Definitions"), pos2, posMID, posMIDnext, posEnd, posFoot, posNL3;
     posMID = metaFile.find("Member" + nl, pos1);
     posMIDnext = metaFile.find("Member" + nl, posMID + 1);  // To avoid the last one,
     while (posMIDnext < metaFile.size())                    // which is 'Dim'.
@@ -695,6 +791,7 @@ vector<string> STATSCAN::makeCreateInsertDIM()
         nameDIM.clear();
         iextra = -1;
         posEnd = metaFile.find(nl + nl + nl, posMID);
+        posFoot = metaFile.find("Footnote", posMID);
         pos1 = metaFile.find_first_of("1234567890", posMID);
         while (pos1 < posEnd)
         {
@@ -882,6 +979,12 @@ string STATSCAN::makeCreateMapFrame(string tname)
     stmt += "\" (xFrameKM NUMERIC, yFrameKM NUMERIC);";
     return stmt;
 }
+string STATSCAN::makeCreateTopic(string tname)
+{
+    string stmt = "CREATE TABLE IF NOT EXISTS \"" + tname; 
+    stmt += "\" (\"Topic Index\" INTEGER PRIMARY KEY, Topic TEXT);";
+    return stmt;
+}
 string STATSCAN::makeCreateYear()
 {
     if (metaFile.size() < 1) { jf.err("No init-sc.makeCreateYear"); }
@@ -897,181 +1000,92 @@ string STATSCAN::makeInsertCensus()
     stmt += cataYear + ");";
     return stmt;
 }
-vector<string> STATSCAN::makeInsertData(string GEO_CODE, string& geoStmt)
+vector<string> STATSCAN::makeInsertData(string& csvFile, size_t& nextLine)
 {
-    // Note that the first returned string is the template, others are single parameters.
-    vector<string> stmt, dirt = { "'" }, soap = { "''" };
-    geoStmt.clear();  
-    int sizeDIM = mapDIM.size(), sizeDim = mapDim.size();
-    string csvLine, csvBuffer, temp;
-    string tname = "Census$" + cataYear + "$" + cataName + "$" + GEO_CODE;
-    string tnameGeo = "Geo$" + cataYear + "$" + cataName;
-
-    // Make the template statement.
+    if (scoopIndex.size() < 1) { jf.err("No scoopIndex-sc.makeInsertData"); }
+    string temp, stmt, csvLine;
+    vector<string> vsResult, lineData;
+    size_t pos1, pos2, pos3, pos4;
+    size_t sizeDIM = mapDIM.size();
+    size_t sizeDim = mapDim.size();
+    string tname = "Census$" + cataYear + "$" + cataName + "$" + activeCSVgeocode;
     string stmt0 = "INSERT OR IGNORE INTO \"" + tname + "\" VALUES (";
-    for (int jj = 0; jj < sizeDIM; jj++)
-    {
-        if (jj > 0) { stmt0 += ", "; }
-        stmt0 += "@D" + to_string(jj);
-    }
-    for (int jj = 0; jj < sizeDim; jj++)
-    {
-        stmt0 += ", @d" + to_string(jj);
-    }
-    stmt0 += ");";
-    stmt.push_back(stmt0);
 
-    // Locate the first line containing the objective GEO_CODE.
-    size_t pos1 = activeCSV.find(nl), posStart = 0;
-    size_t pos2 = activeCSV.find(nl, pos1 + 1);
-    while (!posStart)
-    {
-        while (pos2 < activeCSV.size())
-        {
-            csvLine = activeCSV.substr(pos1, pos2 - pos1);
-            temp = extractCSVLineValue(csvLine, geoCodeCol);
-            while (temp[0] == '0') { temp.erase(temp.begin()); }
-            if (temp == GEO_CODE) { posStart = pos1; break; }
-            pos1 = pos2;
-            pos2 = activeCSV.find(nl, pos1 + 1);
-        }
-        if (!posStart) 
-        { 
-            advanceNextCSVpart();
-            pos1 = activeCSV.find(nl);
-            pos2 = activeCSV.find(nl, pos1 + 1);
-        }
-    }
-
-
-    // Specify (in order!) which columns are to be extracted.
-    vector<int> scoopIndex = {
-        geoLevelCol,
-        geoNameCol,
-        geoCodeCol
-    };
-    for (int ii = 0; ii < sizeDIM; ii++)
-    {
-        scoopIndex.push_back(mapDIM.at(ii));
-    }
-    for (int ii = 0; ii < sizeDim; ii++)
-    {
-        scoopIndex.push_back(mapDim.at(ii));
-    }
-
-    // Extract the desired data, line by line, until a new GEO_CODE is found.
-    vector<string> lineData;
-    size_t pos3, pos4;
-    int index, maxPART;
-    try { maxPART = stoi(geo[geo.size() - 1][3]); }
-    catch (invalid_argument) { jf.err("stoi-sc.makeInsertData"); }
-    pos1 = posStart;
-    pos2 = activeCSV.find(nl, pos1 + 1);
-    csvLine = activeCSV.substr(pos1, pos2 - pos1);
+    // Extract the desired data, line by line, until a new GEO_CODE is found or the file ends.
+    pos1 = nextLine;
+    pos2 = csvFile.find(nl, pos1 + 1);
+    csvLine = csvFile.substr(pos1, pos2 - pos1);
     while (1)
     {
         lineData = extractCSVLineValue(csvLine, scoopIndex);
         while (lineData[2][0] == '0') { lineData[2].erase(lineData[2].begin()); }
-        if (lineData[2] != GEO_CODE) { break; }  // Loop exit.
-        pos3 = lineData[1].find('(');
-        if (pos3 < lineData[1].size())
-        {
-            pos4 = lineData[1].find(" part", pos3);
-            if (pos4 < lineData[1].size())
-            {
-                pos1 = pos2;
-                pos2 = activeCSV.find(nl, pos1 + 1);
-                if (pos2 > activeCSV.size())  // Line is broken by file change.
-                {
-                    csvBuffer = activeCSV.substr(pos1);
-                    if (activeCSVpart < maxPART)
-                    {
-                        advanceNextCSVpart();
-                        pos2 = activeCSV.find_first_of(nl);
-                        if (pos2 > 0) { csvLine = csvBuffer + activeCSV.substr(0, pos2); }
-                        else { csvLine = csvBuffer; }
-                    }
-                    else { return stmt; }
-                }
-                else { csvLine = activeCSV.substr(pos1, pos2 - pos1); }
-                continue;
-            }
-        }
+        if (lineData[2] != activeCSVgeocode) { break; }  // Loop exit.
 
-        if (geoStmt.size() < 1)
-        {
-            jf.clean(lineData[1], dirt, soap);
-            geoStmt = "INSERT OR IGNORE INTO \"" + tnameGeo + "\" (GEO_CODE, ";
-            geoStmt += "\"Region Name\", GEO_LEVEL) VALUES (" + lineData[2];
-            geoStmt += ", '" + lineData[1] + "', " + lineData[0] + ");";
-        }
-
-        index = stmt.size();
-        stmt.resize(index + sizeDIM + sizeDim);
+        stmt = stmt0;
         for (int ii = 0; ii < sizeDIM; ii++)
         {
-            stmt[index + ii] = lineData[3 + ii];
+            if (ii > 0) { stmt += ", "; }
+            if (lineData[ii + 3] == ".." || lineData[ii + 3] == "..." || lineData[ii + 3] == "F" || lineData[ii + 3] == "x")
+            {
+                lineData[ii + 3] = "NULL";
+            }
+            stmt += lineData[ii + 3];
         }
         for (int ii = 0; ii < sizeDim; ii++)
         {
-            stmt[index + sizeDIM + ii] = lineData[3 + sizeDIM + ii];
+            if (lineData[ii + sizeDIM + 3] == ".." || lineData[ii + sizeDIM + 3] == "..." || lineData[ii + sizeDIM + 3] == "F" || lineData[ii + sizeDIM + 3] == "x")
+            {
+                lineData[ii + sizeDIM + 3] = "NULL";
+            }
+            stmt += ", " + lineData[3 + sizeDIM + ii];
         }
+        stmt += ");";
+        vsResult.push_back(stmt);
 
         pos1 = pos2;
-        pos2 = activeCSV.find(nl, pos1 + 1);
-        if (pos2 > activeCSV.size())  // Line is broken by file change.
+        pos2 = csvFile.find(nl, pos1 + 1);
+        if (pos2 > csvFile.size())  // Line is broken by file change.
         {
-            csvBuffer = activeCSV.substr(pos1);
-            if (activeCSVpart < maxPART)
-            {
-                advanceNextCSVpart();
-                pos2 = activeCSV.find_first_of(nl);
-                if (pos2 > 0) { csvLine = csvBuffer + activeCSV.substr(0, pos2); }
-                else { csvLine = csvBuffer; }
-            }
-            else { return stmt; }
-        }
-        else { csvLine = activeCSV.substr(pos1, pos2 - pos1); }
-    }
-    return stmt;
-}
-vector<string> STATSCAN::makeInsertGeo(vector<vector<string>>& geoList)
-{
-    if (activeCSVgeocode != "Done") { jf.err("Incomplete geoList-sc.makeCreateGeo"); }
-    vector<string> stmts(geoList.size()), geoHistory;
-    vector<string> dirt = { "'" }, soap = { "''" };
-    string regionName, stmt, stmt0 = "INSERT OR IGNORE INTO \"Census$" + cataYear;
-    stmt0 += "$" + cataName + "$Geo\" (GEO_CODE, \"Region Name\", GEO_LEVEL";
-    int geoLevel;
-    for (int ii = 0; ii < geoList.size(); ii++)
-    {
-        try { geoLevel = stoi(geoList[ii][2]); }
-        catch (invalid_argument) { jf.err("stoi-sc.makeInsertGeo"); }
-        if (geoLevel >= geoHistory.size())
-        {
-            geoHistory.push_back(geoList[ii][0]);
+            brokenLine = csvFile.substr(pos1);
+            return vsResult;
         }
         else
         {
-            geoHistory[geoLevel] = geoList[ii][0];
+            csvLine = csvFile.substr(pos1, pos2 - pos1);
         }
-        regionName = geoList[ii][1];
-        jf.clean(regionName, dirt, soap);
-        stmt = stmt0;
-        for (int jj = 0; jj < geoLevel; jj++)
-        {
-            stmt += ", Ancestor" + to_string(jj);
-        }
-        stmt += ") VALUES (" + geoList[ii][0] + ", '" + regionName;
-        stmt += "', " + geoList[ii][2];
-        for (int jj = 0; jj < geoLevel; jj++)
-        {
-            stmt += ", " + geoHistory[jj];
-        }
-        stmt += ");";
-        stmts[ii] = stmt;
     }
-    return stmts;
+}
+string STATSCAN::makeInsertGeo(string& csvFile, size_t& nextLine)
+{
+    // Return an insert stmt for this region, to go into the geo table. 
+    // nextLine is the start position of this GEO_CODE's first line. 
+    if (scoopIndex.size() < 1) { jf.err("No scoopIndex-sc.makeInsertGeo"); }
+    if (activeCSVgeocode.size() < 1) { jf.err("No activeCSVgeocode-sc.makeInsertGeo"); }
+    string temp, csvLine;
+    size_t pos1 = csvFile.find(nl);
+    size_t pos2 = csvFile.find(nl, pos1 + 1);
+    nextLine = 0;
+    while (!nextLine)
+    {
+        while (pos2 < csvFile.size())
+        {
+            csvLine = csvFile.substr(pos1, pos2 - pos1);
+            temp = extractCSVLineValue(csvLine, geoCodeCol);
+            while (temp[0] == '0') { temp.erase(temp.begin()); }
+            if (temp == activeCSVgeocode) { nextLine = pos1; break; }
+            pos1 = pos2;
+            pos2 = csvFile.find(nl, pos1 + 1);
+        }
+        if (!nextLine) { jf.err("Failed to locate GEO_CODE's first line-sc.makeInsertGeo"); }
+    }
+    vector<string> lineData = extractCSVLineValue(csvLine, scoopIndex);
+    vector<string> dirt = { "'" }, soap = { "''" };
+    jf.clean(lineData[1], dirt, soap);
+    string tnameGeo = "Geo$" + cataYear + "$" + cataName;
+    string geoStmt = "INSERT OR IGNORE INTO \"" + tnameGeo + "\" (GEO_CODE, ";
+    geoStmt += "\"Region Name\", GEO_LEVEL) VALUES (" + temp;
+    geoStmt += ", '" + lineData[1] + "', " + lineData[0] + ");";
+    return geoStmt;
 }
 vector<string> STATSCAN::makeInsertMap(string tname, string mapPath)
 {
@@ -1123,6 +1137,15 @@ vector<string> STATSCAN::makeInsertMapFrame(string tname, string mapPath)
     }
     return vsRow;
 }
+string STATSCAN::makeInsertTopic(string tname, int index)
+{
+    vector<string> dirt = { "'" }, soap = { "''" };
+    string myTopic = topic;
+    jf.clean(myTopic, dirt, soap);
+    string stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (\"Topic Index\", Topic)";
+    stmt += " VALUES (" + to_string(index) + ", '" + myTopic + "');";
+    return stmt;
+}
 string STATSCAN::makeInsertYear()
 {
     if (metaFile.size() < 1) { jf.err("No init-sc.makeInsertCensus"); }
@@ -1134,16 +1157,17 @@ string STATSCAN::makeInsertYear()
     return stmt;
 }
 
-unordered_map<string, string> STATSCAN::mapGeoCodeToPart(vector<vector<string>>& geoList)
+void STATSCAN::mapGeoCodeToPart(vector<vector<string>>& geoList)
 {
     // Return an unordered_map connecting GEO_CODE->PART. PART is the CSV wherein 
     // that GEO_CODE begins (not necessarily ends). 
-    unordered_map<string, string> mapGeoPart;
+    int iPart;
     for (int ii = 0; ii < geoList.size(); ii++)
     {
-        mapGeoPart.emplace(geoList[ii][0], geoList[ii][2]);
+        try { iPart = stoi(geoList[ii][2]); }
+        catch (invalid_argument) { jf.err("stoi-sc.mapGeoCodeToPart"); }
+        mapGeoPart.emplace(geoList[ii][0], iPart);
     }
-    return mapGeoPart;
 }
 vector<vector<string>> STATSCAN::parseNavSearch(string& navSearchBlob)
 {

@@ -1014,6 +1014,29 @@ void SQLFUNC::insert_prepared(vector<string>& stmts)
         } 
     }
 }
+void SQLFUNC::insert_prepared(string*& stmts)
+{
+    // Execute a list of prepared SQL statements as one transaction batch.
+    int error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+    if (error) { sqlerr("begin transaction-insert_prepared"); }
+    for (int ii = 0; ii < stmts->size(); ii++)
+    {
+        executor(stmts[ii]);
+    }
+    error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+    if (error)
+    {
+        if (error != 5)
+        {
+            sqlerr("commit transaction-insert_prepared");
+        }
+        while (error == 5)
+        {
+            this_thread::sleep_for(5ms);
+            error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+        }
+    }
+}
 void SQLFUNC::insertPreparedBind(vector<string>& stmtAndParams)
 {
     int numParam = 0, index = 0;
@@ -1117,6 +1140,7 @@ void SQLFUNC::remove(string& tname)
     if (table_exist(tname))
     {
         executor(stmt);
+        tableSet.erase(tname);
     }
     else
     {

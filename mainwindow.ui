@@ -110,7 +110,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>2</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="tab_cata">
      <attribute name="title">
@@ -163,6 +163,9 @@
         <width>611</width>
         <height>801</height>
        </rect>
+      </property>
+      <property name="selectionMode">
+       <enum>QAbstractItemView::ExtendedSelection</enum>
       </property>
       <attribute name="headerVisible">
        <bool>false</bool>

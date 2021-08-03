@@ -27,8 +27,10 @@ int SWITCHBOARD::start_call(thread::id id, int worker_num, vector<int>& comm)
 	// Make a new task in the switchboard, and map this thread as its manager.
 	lock_guard<mutex> addrem(m_sb);
 	workers = worker_num;
-	if (phone_lines.size() != 0) { return 2; }
-	phone_lines.resize(1);
+	if (phone_lines.size() != 0) { return 1; }
+	viParking.assign(workers + 1, 0);
+	viParking[0] = 1;
+	phone_lines.resize(workers + 1);
 	phone_lines[0].assign(comm.size(), 0);
 	map_phone.emplace(id, 0);
 	return 0;
@@ -37,14 +39,32 @@ int SWITCHBOARD::start_call(thread::id id, int worker_num, vector<int>& comm)
 // Worker thread assigns itself to an existing job.
 int SWITCHBOARD::answer_call(thread::id id, vector<int>& comm)
 {
+	// This variant is for a thread which will take the first free index spot.
 	lock_guard<mutex> addrem(m_sb);
-	int inum = phone_lines.size();
+	int myIndex;
+	for (int ii = 0; ii < viParking.size(); ii++)
+	{
+		if (!viParking[ii])
+		{
+			myIndex = ii;
+			viParking[ii] = 1;
+			break;
+		}
+	}	
 	int comm_length = phone_lines[0].size();
-	phone_lines.push_back(vector<int>());
-	phone_lines[inum].assign(comm_length, 0);
+	phone_lines[myIndex].assign(comm_length, 0);
 	comm.assign(comm_length, 0);
-	map_phone.emplace(id, inum);
-	return inum;  
+	map_phone.emplace(id, myIndex);
+	return myIndex;
+}
+void SWITCHBOARD::answerCall(thread::id id, vector<int>& comm, int myIndex)
+{
+	// This variant is for a thread that already knows its assigned index.
+	lock_guard<mutex> addrem(m_sb);
+	int comm_length = phone_lines[0].size();
+	phone_lines[myIndex].assign(comm_length, 0);
+	comm.assign(comm_length, 0);
+	map_phone.emplace(id, myIndex);
 }
 
 // Erases the switchboard's entries for the calling thread's job.
@@ -80,6 +100,8 @@ int SWITCHBOARD::terminateWorker(thread::id id, int pindex)
 void SWITCHBOARD::terminateSelf(thread::id id)
 {
 	lock_guard<mutex> addrem(m_sb);
+	int inum = map_phone.at(id);
+	viParking[inum] = 0;
 	map_phone.erase(id);
 }
 
@@ -139,6 +161,17 @@ vector<string> SWITCHBOARD::requestToGUI(thread::id id, vector<string> sQuery)
 	return sprompt;
 }
 
+// Thread parking functions.
+int SWITCHBOARD::getParkingSpot()
+{
+	if (viParking.size() < 2) { err("Call not started properly-sb.getParkingSpot"); }
+	for (int ii = 1; ii < viParking.size(); ii++)
+	{
+		if (viParking[ii] == 0) { return ii; }
+	}
+	return -1;
+}
+
 // Functions related to the orderly access of a task's shared buffer.
 bool SWITCHBOARD::push(thread::id id)
 {
@@ -146,7 +179,6 @@ bool SWITCHBOARD::push(thread::id id)
 	int pindex = map_phone.at(id);
 	if (pindex < 1) { return 0; }
 	return m_calls[pindex - 1].try_lock();
-	//qDebug() << "SB pushed " << pindex;
 }
 bool SWITCHBOARD::pushHard(thread::id id)
 {
@@ -168,7 +200,6 @@ int SWITCHBOARD::pull(thread::id id, int start)
 		success = m_calls[start].try_lock();
 	}
 	manager_use = start;
-	//qDebug() << "SB pulled " << start;
 	return start;
 }
 bool SWITCHBOARD::done(thread::id id)
@@ -183,7 +214,6 @@ bool SWITCHBOARD::done(thread::id id)
 		m_calls[manager_use].unlock();
 		manager_use = -1;
 	}
-	//qDebug() << "SB did not release " << pindex;
 	return 1;
 }
 

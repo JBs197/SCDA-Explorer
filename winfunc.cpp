@@ -722,6 +722,15 @@ void WINFUNC::make_tree_local_helper1(vector<vector<int>>& tree_st, vector<strin
 		}
 	}
 }
+int WINFUNC::memoryInUse()
+{
+	// Returns an integer [0, 100] describing the percentage of physical memory in use.
+	MEMORYSTATUSEX statex;
+	statex.dwLength = sizeof(statex);
+	GlobalMemoryStatusEx(&statex);
+	int iPercent = (int)statex.dwMemoryLoad;
+	return iPercent;
+}
 vector<double> WINFUNC::pointToDouble(POINT& p1)
 {
 	vector<double> vd = { (double)p1.x, (double)p1.y };

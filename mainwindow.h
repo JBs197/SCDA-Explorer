@@ -85,6 +85,7 @@ private slots:
     void on_tableW_db_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen);
     void on_tableW_maplocal_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen);
     void on_tabW_main_currentChanged(int index);
+    void on_treeW_catadb_itemDoubleClicked(QTreeWidgetItem* qFolder, int column);
     void on_treeW_catadb_itemSelectionChanged();
     void on_treeW_catalocal_itemSelectionChanged();
     void on_treeW_cataonline_itemSelectionChanged();
@@ -121,6 +122,7 @@ private:
     void createPngMap(string& tnameGeoLayers, string& tnameGeo);
     void displayTable(QTableWidget*& qTable, string tname);
     void downloadCatalogue(string sYear, string sCata);
+    void eraseVVS(vector<vector<string>>& vvs);
     void getCataMapDB(SWITCHBOARD& sbgui, SQLFUNC& sfgui, JTREE& jtgui);
     void GetDesktopResolution(int& horizontal, int& vertical);
     void getGeoLayers(string sYear, string sCata, vector<string>& geoLayers);
@@ -131,6 +133,7 @@ private:
     void insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
     void insertGeoLayers(string sYear, string sCata);
     void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
+    void makeInsertDataThr(SWITCHBOARD& sbjudi, string*& myBuffer);
     void pauseDebugMap(string mapPath);
     void qshow(string message);
     void qshow(vector<string> message);

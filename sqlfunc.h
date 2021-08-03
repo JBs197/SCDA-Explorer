@@ -48,6 +48,7 @@ public:
     void insertTMI(string myCoreDir);
     void insert_tg_existing(string);
     void insert_prepared(vector<string>& stmts);
+    void insert_prepared(string*& stmts);
     void insertPreparedBind(vector<string>& stmtAndParams);
     string insert_stmt(string, vector<string>&, vector<string>&);
     void makeANSI(string&);

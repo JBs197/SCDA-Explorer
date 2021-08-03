@@ -9,8 +9,8 @@ using namespace std;
 
 class STATSCAN
 {
-	string activeCSV, activeCSVgeocode;
-	vector<int> activeColIndex;
+	string activeCSVgeocode, brokenLine;
+	vector<int> activeColIndex, scoopIndex;
 	int activeCSVpart, geoCodeCol = -1, geoLevelCol = -1, geoNameCol = -1, nls;
 	vector<string> cataColTitles, geoHistory;
 	string cataName, cataPath, cataYear, description, metaFile, topic;
@@ -18,8 +18,8 @@ class STATSCAN
 	bool ignoreSplitRegions = 1;
 	JFUNC jf;
 	string nl;
-	unordered_map<string, int> mapGeoCode;  // Passively updated by loadGeoList
 	unordered_map<string, string> mapGeoLayer;  // Listed layer name->internal name
+	unordered_map<string, int> mapGeoPart;  // Form GEO_CODE->PART
 	unordered_map<int, int> mapDIM, mapDim;  // Form indexDIM->cataColTitles[index]
 	WINFUNC wf;
 	ZIPFUNC zf;
@@ -27,23 +27,28 @@ class STATSCAN
 public:
 	STATSCAN() {}
 	~STATSCAN() {}
+	unordered_map<string, int> mapGeoCode;  // Form GEO_CODE->geoListRow
 
-	void advanceNextCSVpart();
 	vector<string> compareGeoListDB(vector<vector<string>>& geoList, vector<string>& dbList);
 	void convertSCgeo(string& geoPathOld);
 	string extractCSVLineValue(string& csvLine, int colIndex);
 	vector<string> extractCSVLineValue(string& csvLine, vector<int> colIndex);
+
 	string getCSVPath(int PART);
 	int getGeoCodeIndex(string& sActiveCSVgeocode);
 	string getGeoLayer(string geoLayerExternal);
+	int getPart(string GEO_CODE);
+
 	void init(string cataPath);
-	void initCSV(string activeGeoCode, string sActivePART);
+	void initCSV(string activeGeoCode);
+	void initCSV(string activeGeoCode, int activePART);
 	void initGeo();
 
 	int loadBinGeo(string& filePath, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
 	void loadBookmark(int& iActiveCSVpart, string& sActiveCSVgeocode);
 	vector<string> loadColTitles();
 	vector<vector<string>> loadGeoList(string geoPath);
+	void loadGeoList(string geoPath, vector<int>& viGeoCode, vector<string>& vsRegion, vector<int>& viBegin, vector<int>& viEnd);
 
 	string makeBinBorder(vector<vector<int>>& border);
 	string makeBinFrames(vector<vector<vector<int>>>& frames);
@@ -64,16 +69,18 @@ public:
 	vector<string> makeCreateInsertTopic(vector<string>& colTitles);
 	string makeCreateMap(string tname);
 	string makeCreateMapFrame(string tname);
+	string makeCreateTopic(string tname);
 	string makeCreateYear();
 
 	string makeInsertCensus();
-	vector<string> makeInsertData(string GEO_CODE, string& geoStmt);
-	vector<string> makeInsertGeo(vector<vector<string>>& geoList);
+	vector<string> makeInsertData(string& csvFile, size_t& nextLine);
+	string makeInsertGeo(string& csvFile, size_t& nextLine);
 	vector<string> makeInsertMap(string tname, string mapPath);
 	vector<string> makeInsertMapFrame(string tname, string mapPath);
+	string makeInsertTopic(string tname, int index);
 	string makeInsertYear();
 
-	unordered_map<string, string> mapGeoCodeToPart(vector<vector<string>>& geoList);
+	void mapGeoCodeToPart(vector<vector<string>>& geoList);
 	vector<vector<string>> parseNavSearch(string& navSearchBlob);
 
 	vector<vector<int>> readBinBorder(string& binFile);
