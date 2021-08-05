@@ -96,6 +96,7 @@ public:
 	void toInt(vector<double>& input, vector<int>& output);
 	void toInt(vector<vector<double>>& input, vector<vector<int>>& output);
 	int tree_from_marker(vector<vector<int>>&, vector<string>&);
+	void uptick(vector<int>& viCounter, vector<int> viMax);
 	string utf16to8(wstring);
 	wstring utf8to16(string);
 	string utf8ToAscii(string);

@@ -1145,6 +1145,21 @@ int JFUNC::tree_from_marker(vector<vector<int>>& tree_st, vector<string>& tree_p
 
 	return 0;
 }
+void JFUNC::uptick(vector<int>& viCounter, vector<int> viMax)
+{
+	// Increases viCounter by its smallest increment, and uses viMax for rollover.
+	if (viCounter.size() != viMax.size()) { err("Size mismatch-jf.uptick"); }
+	viCounter[viCounter.size() - 1]++;
+	for (int ii = viCounter.size() - 1; ii >= 0; ii--)
+	{
+		if (viCounter[ii] > viMax[ii]) { err("Beyond maximum-jf.uptick"); }
+		else if (viCounter[ii] == viMax[ii])
+		{
+			viCounter[ii] = 0;
+			if (ii > 0) { viCounter[ii - 1]++; }
+		}
+	}
+}
 string JFUNC::utf16to8(wstring input)
 {
 	UTF16clean(input);

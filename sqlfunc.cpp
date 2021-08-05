@@ -1014,29 +1014,6 @@ void SQLFUNC::insert_prepared(vector<string>& stmts)
         } 
     }
 }
-void SQLFUNC::insert_prepared(string*& stmts)
-{
-    // Execute a list of prepared SQL statements as one transaction batch.
-    int error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
-    if (error) { sqlerr("begin transaction-insert_prepared"); }
-    for (int ii = 0; ii < stmts->size(); ii++)
-    {
-        executor(stmts[ii]);
-    }
-    error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
-    if (error)
-    {
-        if (error != 5)
-        {
-            sqlerr("commit transaction-insert_prepared");
-        }
-        while (error == 5)
-        {
-            this_thread::sleep_for(5ms);
-            error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
-        }
-    }
-}
 void SQLFUNC::insertPreparedBind(vector<string>& stmtAndParams)
 {
     int numParam = 0, index = 0;
@@ -1072,6 +1049,33 @@ void SQLFUNC::insertPreparedBind(vector<string>& stmtAndParams)
     }
     error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
     if (error) { sqlerr("commit transaction-sf.insertPreparedBind"); }
+}
+void SQLFUNC::insertPreparedStartStop(vector<string>& stmts, int start, int stop)
+{
+    // Execute an interval within a list of prepared SQL statements, as one transaction batch.
+    int error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
+    if (error) { sqlerr("begin transaction-insertPreparedStartStop"); }
+    for (int ii = start; ii <= stop; ii++)
+    {
+        sqlite3_stmt* statement;
+        int error = sqlite3_prepare_v2(db, stmts[ii].c_str(), -1, &statement, NULL);
+        if (error) { sqlerr("prepare-insertPreparedStartStop"); }
+        error = sqlite3_step(statement);
+        if (error > 0 && error != 100 && error != 101) { sqlerr("step-insertPreparedStartStop"); }
+    }
+    error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+    if (error)
+    {
+        if (error != 5)
+        {
+            sqlerr("commit transaction-insertPreparedStartStop");
+        }
+        while (error == 5)
+        {
+            this_thread::sleep_for(5ms);
+            error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
+        }
+    }
 }
 string SQLFUNC::insert_stmt(string tname, vector<string>& column_titles, vector<string>& row_data)
 {

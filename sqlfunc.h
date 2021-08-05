@@ -10,10 +10,10 @@ using namespace std;
 class SQLFUNC 
 {
     bool analyze = 0;
-    JFUNC jf;
 	sqlite3* db;
     ofstream ERR;
     string error_path = sroot + "\\SCDA Error Log.txt";
+    JFUNC jf;
     set<string> tableSet;
     vector<string> TPrefix, tableList;
     
@@ -48,8 +48,8 @@ public:
     void insertTMI(string myCoreDir);
     void insert_tg_existing(string);
     void insert_prepared(vector<string>& stmts);
-    void insert_prepared(string*& stmts);
     void insertPreparedBind(vector<string>& stmtAndParams);
+    void insertPreparedStartStop(vector<string>& stmts, int start, int stop);
     string insert_stmt(string, vector<string>&, vector<string>&);
     void makeANSI(string&);
     void remove(string& tname);

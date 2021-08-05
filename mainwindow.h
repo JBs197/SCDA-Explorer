@@ -133,7 +133,7 @@ private:
     void insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
     void insertGeoLayers(string sYear, string sCata);
     void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
-    void makeInsertDataThr(SWITCHBOARD& sbjudi, string*& myBuffer);
+    void makeInsertDataThr(SWITCHBOARD& sbjudi, vector<string>& myBuffer);
     void pauseDebugMap(string mapPath);
     void qshow(string message);
     void qshow(vector<string> message);

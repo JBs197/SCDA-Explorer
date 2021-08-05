@@ -20,7 +20,9 @@ class STATSCAN
 	string nl;
 	unordered_map<string, string> mapGeoLayer;  // Listed layer name->internal name
 	unordered_map<string, int> mapGeoPart;  // Form GEO_CODE->PART
-	unordered_map<int, int> mapDIM, mapDim;  // Form indexDIM->cataColTitles[index]
+	unordered_map<int, int> mapDIM;  // Form indexDIM->cataColTitles[index]
+	unordered_map<int, int> mapDim;  // Form indexDim->cataColTitles[index]
+	vector<string> vsBuffer;
 	WINFUNC wf;
 	ZIPFUNC zf;
 
@@ -29,7 +31,7 @@ public:
 	~STATSCAN() {}
 	unordered_map<string, int> mapGeoCode;  // Form GEO_CODE->geoListRow
 
-	vector<string> compareGeoListDB(vector<vector<string>>& geoList, vector<string>& dbList);
+	vector<string> compareGeoListDB(vector<int>& viGeoCode, vector<string>& dbList);
 	void convertSCgeo(string& geoPathOld);
 	string extractCSVLineValue(string& csvLine, int colIndex);
 	vector<string> extractCSVLineValue(string& csvLine, vector<int> colIndex);
@@ -38,6 +40,7 @@ public:
 	int getGeoCodeIndex(string& sActiveCSVgeocode);
 	string getGeoLayer(string geoLayerExternal);
 	int getPart(string GEO_CODE);
+	void getVSBuffer(vector<string>& vsBuffer);
 
 	void init(string cataPath);
 	void initCSV(string activeGeoCode);
@@ -60,12 +63,12 @@ public:
 	void makeBookmark(int iActiveCSVpart, string sActiveCSVgeocode);
 
 	string makeCreateCensus();
-	vector<string> makeCreateData(vector<string>& DIMList, vector<string>& dimList);
+	int makeCreateData(vector<int>& viGeoCode);
+	string makeCreateDataIndex();
 	string makeCreateGeo();
 	string makeCreateGeoLayers(string sYear);
-	vector<string> makeCreateInsertDIMIndex(vector<string>& DIMList);
-	vector<string> makeCreateInsertDIM();
-	vector<string> makeCreateInsertDim(vector<string>& dimList);
+	vector<string> makeCreateInsertDIMIndex();
+	vector<string> makeCreateInsertDIM(vector<vector<string>>& vvsDIM);
 	vector<string> makeCreateInsertTopic(vector<string>& colTitles);
 	string makeCreateMap(string tname);
 	string makeCreateMapFrame(string tname);
@@ -73,14 +76,14 @@ public:
 	string makeCreateYear();
 
 	string makeInsertCensus();
-	vector<string> makeInsertData(string& csvFile, size_t& nextLine);
+	void makeInsertData(string& csvFile, size_t& nextLine, vector<string>& vsStmt);
+	int makeInsertDataIndex(int numDI, vector<vector<string>>& vvsDIM);
 	string makeInsertGeo(string& csvFile, size_t& nextLine);
 	vector<string> makeInsertMap(string tname, string mapPath);
 	vector<string> makeInsertMapFrame(string tname, string mapPath);
-	string makeInsertTopic(string tname, int index);
+	string makeInsertTopic(string tname, vector<string>& vsTopic);
 	string makeInsertYear();
 
-	void mapGeoCodeToPart(vector<vector<string>>& geoList);
 	vector<vector<string>> parseNavSearch(string& navSearchBlob);
 
 	vector<vector<int>> readBinBorder(string& binFile);
