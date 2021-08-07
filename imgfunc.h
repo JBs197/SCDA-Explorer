@@ -1,12 +1,10 @@
 #pragma once
-
+#define STBI_WINDOWS_UTF8
 #include "stb_image.h"
 #include "stb_image_write.h"
 #include "stb_truetype.h"
 #include <assert.h>
 #include <unordered_map>
-#include <string>
-#include <vector>
 #include "mathfunc.h"
 #include "switchboard.h"
 

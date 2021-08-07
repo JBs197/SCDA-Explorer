@@ -18,6 +18,7 @@ class SWITCHBOARD                                   // comm protocol:
 	vector<string> sprompt;                   // Form [prompt0, prompt1, ...].	
 	vector<int> iPrompt, viParking;
 	int workers, onHold = 0;
+	unordered_map<string, string> mapSS;
 	int manager_use;
 	vector<vector<vector<double>>> sbDoubleData;
 	string errorPath;
@@ -34,6 +35,7 @@ public:
 	bool done(thread::id);
 	void getDoubleData(vector<vector<vector<double>>>& doubleData);
 	vector<int> getIPrompt();
+	unordered_map<string, string> getMapSS();
 	int getParkingSpot();
 	vector<string> get_prompt();
 	vector<int> getMyComm(thread::id);
@@ -45,6 +47,7 @@ public:
 	void setDoubleData(vector<vector<vector<double>>>& doubleData);
 	void setErrorPath(string errPath);
 	void setIPrompt(vector<int>& viPrompt);
+	void setMapSS(unordered_map<string, string> mSS);
 	void set_prompt(vector<string>&);
 	void terminateSelf(thread::id);
 	int terminateWorker(thread::id id, int pindex);

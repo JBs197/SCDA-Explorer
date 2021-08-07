@@ -144,6 +144,15 @@ vector<int> SWITCHBOARD::getIPrompt()
 	lock_guard<mutex> locksbuf(m_sb);
 	return iPrompt;
 }
+void SWITCHBOARD::setMapSS(unordered_map<string, string> mSS)
+{
+	mapSS = mSS;
+}
+unordered_map<string, string> SWITCHBOARD::getMapSS()
+{
+	if (mapSS.size() < 1) { err("Map is empty-sb.getMapSS"); }
+	return mapSS;
+}
 vector<string> SWITCHBOARD::requestToGUI(thread::id id, vector<string> sQuery)
 {
 	m_sb.lock();

@@ -18,6 +18,7 @@ class STATSCAN
 	bool ignoreSplitRegions = 1;
 	JFUNC jf;
 	string nl;
+	unordered_map<string, string> mapDataIndex;  // DIMparam->DataIndex
 	unordered_map<string, string> mapGeoLayer;  // Listed layer name->internal name
 	unordered_map<string, int> mapGeoPart;  // Form GEO_CODE->PART
 	unordered_map<int, int> mapDIM;  // Form indexDIM->cataColTitles[index]
@@ -93,6 +94,7 @@ public:
 	vector<double> readBinPositionPNG(string& binFile);
 	double readBinScale(string& binFile);
 
+	void setMapDataIndex(unordered_map<string, string>& mDI);
 	void trimMID(string& MID);
 	void uptickBookmark(vector<vector<string>>& geoList);
 

@@ -70,6 +70,7 @@ private slots:
     void on_listW_searchresult_itemSelectionChanged();
     void on_pB_clearsearch_clicked();
     void on_pB_createmap_clicked();
+    void on_pB_deletemap_clicked();
     void on_pB_deletetable_clicked();
     void on_pB_download_clicked();
     void on_pB_insert_clicked();
@@ -89,6 +90,7 @@ private slots:
     void on_treeW_catadb_itemSelectionChanged();
     void on_treeW_catalocal_itemSelectionChanged();
     void on_treeW_cataonline_itemSelectionChanged();
+    void on_treeW_mapdb_itemDoubleClicked(QTreeWidgetItem* qFolder, int column);
     void on_treeW_mapdb_itemSelectionChanged();
     void on_treeW_maplocal_itemDoubleClicked(QTreeWidgetItem* qFolder, int column);
     void on_treeW_maplocal_itemSelectionChanged();
@@ -133,7 +135,7 @@ private:
     void insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
     void insertGeoLayers(string sYear, string sCata);
     void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
-    void makeInsertDataThr(SWITCHBOARD& sbjudi, vector<string>& myBuffer);
+    void makeInsertDataThr(SWITCHBOARD& sbjudi, SQLFUNC& sfgui);
     void pauseDebugMap(string mapPath);
     void qshow(string message);
     void qshow(vector<string> message);
@@ -146,7 +148,6 @@ private:
     void thrFileSplitter(SWITCHBOARD& sbgui, int& progress, mutex& m_progress);
     void thrUnzip(SWITCHBOARD& sbgui);
     void updateDBCata();
-
 
 };
 

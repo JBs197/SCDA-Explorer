@@ -125,7 +125,7 @@ void MainWindow::barUpdate(int iCurrent)
 }
 void MainWindow::barReset(int iMax, string message)
 {
-    if (iMax <= 0) { jf.err("Invalid maximum-MainWindow.barReset"); }
+    if (iMax < 0) { jf.err("Invalid maximum-MainWindow.barReset"); }
     QString qMessage = QString::fromStdString(message);
     lock_guard<mutex> lock(m_bar);
     ui->progressbar->setMinimum(0);
@@ -606,14 +606,17 @@ void MainWindow::on_pB_insert_clicked()
     thread::id myid = this_thread::get_id();
     vector<vector<int>> comm;  
     vector<int> viPrompt;  // Form [bool debug].
-    vector<string> prompt(2);  // Form [sYear, sName].
+    vector<string> prompt;  // Form [sYear, sName].
     QString qTemp;
+    string sCata;
     for (int ii = 0; ii < qList.size(); ii++)
     {
         comm.resize(1);
+        prompt.resize(2);
         comm[0].assign(comm_length, 0);
         qTemp = qList[ii]->text(0);
         prompt[1] = qTemp.toStdString();
+        sCata = prompt[1];
         qParent = qList[ii]->parent();
         qTemp = qParent->text(0);
         prompt[0] = qTemp.toStdString();
@@ -651,7 +654,7 @@ void MainWindow::on_pB_insert_clicked()
             if (comm[1][0] == 1)
             {
                 barUpdate(comm[0][2]);
-                barMessage("Finished inserting catalogue " + prompt[1]);
+                barMessage("Finished inserting catalogue " + sCata);
                 comm[0][0] = 1;
             }
         }
@@ -672,16 +675,14 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     SWITCHBOARD sbjudi;
     STATSCAN scjudi;
     scjudi.init(cataPath);
-    auto buffer1 = new vector<string>();
-    auto buffer2 = new vector<string>();
-    auto buffer3 = new vector<string>();
     vector<vector<string>> vvsDIM;
     vector<string> DIMList, dimList, colTitles, promptJudi, vsRegion, vsResult, vsTemp;
     string result, stmt, temp, sGeoCode;
     size_t pos1;
+    int iPart;
 
     // Send an initial signal to the GUI thread.
-    vsTemp = { "Beginning insertion of catalogue " + prompt[1] + " ..." };
+    vsTemp = { "Inserting catalogue " + prompt[1] + " ..." };
     sbgui.set_prompt(vsTemp);
     mycomm[2] = 1;
     mycomm[1] = -1;
@@ -702,9 +703,16 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     vector<string> search = { "GEO_CODE" };
     if (sfgui.table_exist(tname)) { sfgui.select(search, tname, vsResult); }
     vector<string> geoToDo = scjudi.compareGeoListDB(viGeoCode, vsResult); // List of GEO_CODEs present in geoList but absent from the DB.
-    if (geoToDo.size() < 1) { goto FTL1; }
-    int iPart = scjudi.getPart(geoToDo[0]);
-    scjudi.initCSV(geoToDo[0], iPart);
+    if (geoToDo.size() > 0)
+    {
+        iPart = scjudi.getPart(geoToDo[0]);
+        scjudi.initCSV(geoToDo[0], iPart);
+    }
+    else
+    {
+        iPart = 1;
+        scjudi.initCSV(to_string(viGeoCode[0]), iPart);
+    }
 
     // Add this year to the Census table. 
     tname = "Census";
@@ -773,6 +781,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
         sfgui.insert_prepared(*insertDI);
         delete insertDI;
     }
+    string tnameDI = tname;
 
     // Create the data table, for each GEO_CODE region.
     int sCDsize = scjudi.makeCreateData(viGeoCode);
@@ -783,165 +792,170 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     jf.log("Created data table statements for " + prompt[1]);
 
     // Launch worker threads to make insert statements for each Geo table.
-    int commJudiSize, geoListRow, activeThr, parkingSpot = -1;
+    int commJudiSize, geoListRow, activeThr;
+    mycomm[2] = geoToDo.size();
+    mycomm[1] = -1;
+    sbgui.update(myid, mycomm);
     sbjudi.setErrorPath(sroot + "\\SCDA SWITCHBOARD Error Log(Judicator).txt");
+    sbjudi.setMapSS(sfgui.makeMapDataIndex(tname));
     sbjudi.start_call(myid, 3, commJudi[0]);
-    for (int ii = 0; ii < geoToDo.size(); ii++)  // For every GEO_CODE ... 
-    { 
-        if (ii > 2)  // If all cores have been given a first task...
+    if (geoToDo.size() > 0)
+    {
+        promptJudi = { cataPath, geoToDo[0] };
+        if (scjudi.mapGeoCode.count(geoToDo[0]))
         {
-            if (sCDsize > 1) // While threads are working, manager inserts the 'create table' statements prepared earlier.
-            {
-                vsTemp = { "Inserting table statements for " + prompt[1] + " ..."};
-                sbgui.set_prompt(vsTemp);
-                mycomm[2] = sCDsize;
-                mycomm[1] = -1;
-                sbgui.update(myid, mycomm);
-                mycomm[1] = 0;
-                int workload = sCDsize / 95;
-                int start = 0;
-                int stop = workload - 1;
-                for (int jj = 0; jj < 95; jj++)
-                {
-                    sfgui.insertPreparedStartStop(*vsCreateData, start, stop);
-                    mycomm[1] = stop + 1;
-                    sbgui.update(myid, mycomm);
-                    start += workload;
-                    if (jj < 94) { stop += workload; }
-                    else { stop = sCDsize - 1; }
-                }
-                delete vsCreateData;
-                sCDsize = 0;
-                vsTemp = { "Inserting row statements for " + prompt[1] + " ..."};
-                sbgui.set_prompt(vsTemp);
-                mycomm[2] = geoToDo.size();
-                mycomm[1] = -1;
-                sbgui.update(myid, mycomm);
-                mycomm[1] = 0;
-            }
+            geoListRow = scjudi.mapGeoCode.at(geoToDo[0]);
+        }
+        else { jf.err("mapGeoCode-MainWindow.judicator"); }
+        viPrompt = { 1, viBegin[geoListRow], viEnd[geoListRow] };
+    }
+    else 
+    {
+        promptJudi = {};
+        viPrompt = { -1 };
+    }
+    sbjudi.set_prompt(promptJudi);  // Form [cataPath, geoToDo].
+    sbjudi.setIPrompt(viPrompt);  // Form [myIndex, partBegin, partEnd].
+    auto thr1 = new std::thread(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(sfgui));
+    Sleep(100);
+    if (geoToDo.size() > 1)
+    {
+        promptJudi = { cataPath, geoToDo[1] };
+        if (scjudi.mapGeoCode.count(geoToDo[1]))
+        {
+            geoListRow = scjudi.mapGeoCode.at(geoToDo[1]);
+        }
+        else { jf.err("mapGeoCode-MainWindow.judicator"); }
+        viPrompt = { 2, viBegin[geoListRow], viEnd[geoListRow] };
+    }
+    else
+    {
+        promptJudi = {};
+        viPrompt = { -1 };
+    }
+    sbjudi.set_prompt(promptJudi);  // Form [cataPath, geoToDo].
+    sbjudi.setIPrompt(viPrompt);  // Form [myIndex, partBegin, partEnd].
+    auto thr2 = new std::thread(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(sfgui));
+    Sleep(100);
+    if (geoToDo.size() > 2)
+    {
+        promptJudi = { cataPath, geoToDo[2] };
+        if (scjudi.mapGeoCode.count(geoToDo[2]))
+        {
+            geoListRow = scjudi.mapGeoCode.at(geoToDo[2]);
+        }
+        else { jf.err("mapGeoCode-MainWindow.judicator"); }
+        viPrompt = { 3, viBegin[geoListRow], viEnd[geoListRow] };
+    }
+    else
+    {
+        promptJudi = {};
+        viPrompt = { -1 };
+    }
+    sbjudi.set_prompt(promptJudi);  // Form [cataPath, geoToDo].
+    sbjudi.setIPrompt(viPrompt);  // Form [myIndex, partBegin, partEnd].
+    auto thr3 = new std::thread(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(sfgui));
+    Sleep(100);
+    for (int ii = 3; ii < geoToDo.size(); ii++)  // For every remaining GEO_CODE ... 
+    { 
+        activeThr = 0;
+        while (activeThr < 1)  // Wait for a worker thread to prepare its statements.
+        {
+            Sleep(gui_sleep);
             commJudi = sbjudi.update(myid, commJudi[0]);
-            for (int jj = 1; jj < commJudi.size(); jj++)  // Check for a completed list of stmts.
+            for (int jj = 1; jj < commJudi.size(); jj++)
             {
-                if (commJudi[jj][0] == 1)  // There is a completed list ready to go.
+                if (commJudi[jj][0] == 1)
                 {
-                    // Insert the completed list.
-                    switch (jj)
-                    {
-                    case 1:
-                        buffer1 = new vector<string>(commJudi[jj][1]);
-                        commJudi[0][1] = jj;
-                        commJudi = sbjudi.update(myid, commJudi[0]);
-                        while (commJudi[jj][0] < 2)
-                        {
-                            Sleep(gui_sleep);
-                            commJudi = sbjudi.update(myid, commJudi[0]);
-                        }
-                        sfgui.insert_prepared(*buffer1);
-                        delete buffer1;
-                        break;
-                    case 2:
-                        buffer2 = new vector<string>(commJudi[jj][1]);
-                        commJudi[0][1] = jj;
-                        commJudi = sbjudi.update(myid, commJudi[0]);
-                        while (commJudi[jj][0] < 2)
-                        {
-                            Sleep(gui_sleep);
-                            commJudi = sbjudi.update(myid, commJudi[0]);
-                        }
-                        sfgui.insert_prepared(*buffer2);
-                        delete buffer2;
-                        break;
-                    case 3:
-                        buffer3 = new vector<string>(commJudi[jj][1]);
-                        commJudi[0][1] = jj;
-                        commJudi = sbjudi.update(myid, commJudi[0]);
-                        while (commJudi[jj][0] < 2)
-                        {
-                            Sleep(gui_sleep);
-                            commJudi = sbjudi.update(myid, commJudi[0]);
-                        }
-                        sfgui.insert_prepared(*buffer3);
-                        delete buffer3;
-                        break;
-                    }
-                    mycomm[1]++;
-                    sbgui.update(myid, mycomm);
-
-                    // Fill the vacant spot with this GEO_CODE.
-                    prompt = { cataPath, geoToDo[ii] };
-                    sbjudi.set_prompt(prompt);
-                    if (scjudi.mapGeoCode.count(geoToDo[ii]))
-                    {
-                        geoListRow = scjudi.mapGeoCode.at(geoToDo[ii]);
-                    }
-                    else { jf.err("mapGeoCode-MainWindow.judicator"); }
-                    viPrompt = { jj, viBegin[geoListRow], viEnd[geoListRow] };
-                    sbjudi.setIPrompt(viPrompt);  // Form [myIndex, partBegin, partEnd].
-                    switch (jj)
-                    {
-                    case 1:
-                    {
-                        std::thread thr1(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(*buffer1));
-                        thr1.detach();
-                        break;
-                    }
-                    case 2:
-                    {
-                        std::thread thr2(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(*buffer2));
-                        thr2.detach();
-                        break;
-                    }
-                    case 3:
-                    {
-                        std::thread thr3(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(*buffer3));
-                        thr3.detach();
-                        break;
-                    }
-                    }
+                    activeThr = jj;
                     break;
                 }
-                else if (jj == commJudi.size() - 1)  // Wait and try again.
-                {
-                    Sleep(gui_sleep);
-                    ii--;
-                }
             }
         }
-        else  // Launch a new worker thread without checking for a completed one. 
+        commJudi[0][1] = activeThr;
+        commJudi = sbjudi.update(myid, commJudi[0]);
+        while (commJudi[activeThr][0] < 2)  // Wait for that worker thread to insert its stmts.
         {
-            promptJudi = { cataPath, geoToDo[ii] };
-            sbjudi.set_prompt(promptJudi);
-            if (scjudi.mapGeoCode.count(geoToDo[ii]))
-            {
-                geoListRow = scjudi.mapGeoCode.at(geoToDo[ii]);
-            }
-            else { jf.err("mapGeoCode-MainWindow.judicator"); }
-            viPrompt = { ii + 1, viBegin[geoListRow], viEnd[geoListRow] };
-            sbjudi.setIPrompt(viPrompt);  // Form [myIndex, partBegin, partEnd].
-            switch (ii)
-            {
-            case 0:
-            {
-                std::thread thr1(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(*buffer1));
-                thr1.detach();
-                break;
-            }
-            case 1:
-            {
-                std::thread thr2(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(*buffer2));
-                thr2.detach();
-                break;
-            }
-            case 2:
-            {
-                std::thread thr3(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(*buffer3));
-                thr3.detach();
-                break;
-            }
-            }
-            Sleep(100);
+            Sleep(gui_sleep);
+            commJudi = sbjudi.update(myid, commJudi[0]);
+        }
+        commJudi[0][1] = 0;
+        sbjudi.update(myid, commJudi[0]);
+        mycomm[1]++;
+        sbgui.update(myid, mycomm);
+
+        // Delete the completed thread object and replace it with the next GEO_CODE.
+        promptJudi = { cataPath, geoToDo[ii] };
+        sbjudi.set_prompt(promptJudi);
+        if (scjudi.mapGeoCode.count(geoToDo[ii]))
+        {
+            geoListRow = scjudi.mapGeoCode.at(geoToDo[ii]);
+        }
+        else { jf.err("mapGeoCode-MainWindow.judicator"); }
+        viPrompt = { activeThr, viBegin[geoListRow], viEnd[geoListRow] };
+        sbjudi.setIPrompt(viPrompt);  // Form [myIndex, partBegin, partEnd].
+        switch (activeThr)
+        {
+        case 1:
+            thr1->join();
+            delete thr1;
+            thr1 = new std::thread(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(sfgui));
+            break;
+        case 2:
+            thr2->join();
+            delete thr2;
+            thr2 = new std::thread(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(sfgui));
+            break;
+        case 3:
+            thr3->join();
+            delete thr3;
+            thr3 = new std::thread(&MainWindow::makeInsertDataThr, this, ref(sbjudi), ref(sfgui));
+            break;
         }
     }
+    int iSum = 0;
+    int iDone = min(3, (int)geoToDo.size());
+    iDone *= 2;
+    while (iSum < iDone)  // Permit the final round of worker threads to complete their tasks.
+    {
+        Sleep(gui_sleep);
+        activeThr = 0;
+        commJudi = sbjudi.update(myid, commJudi[0]);
+        for (int jj = 1; jj < commJudi.size(); jj++)
+        {
+            if (commJudi[jj][0] == 1)
+            {
+                activeThr = jj;
+                break;
+            }
+        }
+        if (activeThr > 0)
+        {
+            commJudi[0][1] = activeThr;
+            commJudi = sbjudi.update(myid, commJudi[0]);
+            while (commJudi[activeThr][0] < 2)  // Wait for that worker thread to insert its stmts.
+            {
+                Sleep(gui_sleep);
+                commJudi = sbjudi.update(myid, commJudi[0]);
+            }
+            commJudi[0][1] = 0;
+            sbjudi.update(myid, commJudi[0]);
+            mycomm[1]++;
+            sbgui.update(myid, mycomm);
+        }
+        commJudi = sbjudi.update(myid, commJudi[0]);
+        iSum = 0;
+        for (int jj = 1; jj < commJudi.size(); jj++)
+        {
+            iSum += commJudi[jj][0];
+        }
+    }
+    thr1->join();
+    delete thr1;
+    thr2->join();
+    delete thr2;
+    thr3->join();
+    delete thr3;
     jf.log("Inserted all data for " + prompt[1]);
 
     // Add ancestry columns to the geo table, if necessary.
@@ -969,7 +983,6 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
         jf.log("Added ancestor columns into " + tname);
     }
 
-FTL1:
     // Insert ancestry values into the geo table.
     vector<string> ancestry, conditions, revisions;
     search = { "GEO_LEVEL" };
@@ -1045,34 +1058,41 @@ void MainWindow::insertGeoLayers(string sYear, string sCata)
     stmt += ");";
     sf.executor(stmt);
 }
-void MainWindow::makeInsertDataThr(SWITCHBOARD& sbjudi, vector<string>& myBuffer)
+void MainWindow::makeInsertDataThr(SWITCHBOARD& sbjudi, SQLFUNC& sfgui)
 {
-    // Worker thread function to create 'insert' statements for a single geo region.
+    // Worker thread function to create and insert statements for a single geo region.
     thread::id myid = this_thread::get_id();
     vector<int> mycomm, viPrompt = sbjudi.getIPrompt();  // mycomm form [status, size].
+    if (viPrompt[0] < 0) { return; }
     sbjudi.answerCall(myid, mycomm, viPrompt[0]);  // viPrompt form [myIndex, partBegin, partEnd].
     vector<string> prompt = sbjudi.get_prompt();  // Form [cataPath, GEO_CODE].
+    unordered_map<string, string> mapDataIndex = sbjudi.getMapSS();
     string geoPath = prompt[0] + "\\Geo.txt";
     if (!wf.file_exist(geoPath)) { jf.err("Missing Geo.txt-MainWindow.makeInsertDataThr"); }
     size_t nextLine, numStmt = 0, index = 0;
     vector<string> vsStmt(1);
 
-    STATSCAN scworker;
-    scworker.init(prompt[0]);
+    auto scworker = new STATSCAN;
+    scworker->init(prompt[0]);
+    scworker->setMapDataIndex(mapDataIndex);
     for (int ii = viPrompt[1]; ii <= viPrompt[2]; ii++)
     {
-        scworker.initCSV(prompt[1], ii);
-        string csvPath = scworker.getCSVPath(ii);
-        string csvFile = wf.load(csvPath);
+        scworker->initCSV(prompt[1], ii);
+        string csvPath = scworker->getCSVPath(ii);
+        size_t csvSize = wf.getFileSize(csvPath);
+        auto csvFile = new string(csvSize, 0);
+        wf.load(csvPath, *csvFile);
         if (ii == viPrompt[1])
         {
-            vsStmt[0] = scworker.makeInsertGeo(csvFile, nextLine);
+            vsStmt[0] = scworker->makeInsertGeo(*csvFile, nextLine);
         }
-        else { nextLine = csvFile.find_first_of("\r\n"); }
-        scworker.makeInsertData(csvFile, nextLine, vsStmt);
+        else { nextLine = csvFile->find_first_of("\r\n"); }
+        scworker->makeInsertData(*csvFile, nextLine, vsStmt);
+        delete csvFile;
     }
+    delete scworker;
+    size_t memSQL;
     mycomm[0] = 1;
-    mycomm[1] = vsStmt.size();
     vector<vector<int>> comm = sbjudi.update(myid, mycomm);
     while (1)
     {
@@ -1080,10 +1100,7 @@ void MainWindow::makeInsertDataThr(SWITCHBOARD& sbjudi, vector<string>& myBuffer
         comm = sbjudi.update(myid, mycomm);
         if (comm[0][1] == viPrompt[0])
         {
-            for (int ii = 0; ii < vsStmt.size(); ii++)
-            {
-                myBuffer[ii] = vsStmt[ii];
-            }
+            sfgui.insert_prepared(vsStmt);
             mycomm[0] = 2;
             sbjudi.update(myid, mycomm);
             break;
@@ -1507,7 +1524,7 @@ void MainWindow::on_pB_createmap_clicked()
         vector<vector<int>> comm(1, vector<int>());
         comm[0].assign(comm_length, 0);  // Form [status, bar progress, bar max, file progress]
         sb.set_prompt(prompt);
-        sb.start_call(myid, 4, comm[0]);
+        sb.start_call(myid, 1, comm[0]);
         std::thread thr(&MainWindow::createBinMap, this, ref(sb));
         thr.detach();
         int numFile = prompt.size();
@@ -1695,6 +1712,10 @@ void MainWindow::on_pB_reviewmap_clicked()
         ui->pte_search->setPlainText(qTemp);
     }
 }
+void MainWindow::on_treeW_mapdb_itemDoubleClicked(QTreeWidgetItem* qFolder, int column)
+{
+    on_pB_reviewmap_clicked();
+}
 void MainWindow::on_listW_map_itemSelectionChanged()
 {
     recentClick = ui->listW_map;
@@ -1710,6 +1731,7 @@ void MainWindow::on_listW_map_itemSelectionChanged()
         ui->pB_insertmap->setEnabled(1);
     }
 }
+
 
 // Database map functions.
 void MainWindow::getCataMapDB(SWITCHBOARD& sbgui, SQLFUNC& sfgui, JTREE& jtgui)
@@ -1793,8 +1815,11 @@ void MainWindow::insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 
     // Load each map, and insert it.
     int geoLevel;
+    size_t pos1;
     for (int ii = 0; ii < geo.size(); ii++)
     {
+        pos1 = geo[ii][1].find(" part)");
+        if (pos1 < geo[ii][1].size()) { continue; }
         tname = "Map$" + prompt[0] + "$" + geo[ii][0];
         if (!sfgui.table_exist(tname))
         {
@@ -1875,6 +1900,31 @@ void MainWindow::on_pB_insertmap_clicked()
         }
     }
     sb.end_call(myid);
+}
+void MainWindow::on_pB_deletemap_clicked()
+{
+    QString qTemp = recentClick->objectName();
+    if (qTemp == "treeW_mapdb")
+    {
+        QList<QTreeWidgetItem*> qSel = ui->treeW_mapdb->selectedItems();
+        if (qSel.size() != 1) { return; }
+        QString qTemp = qSel[0]->text(1);
+        string sGeoCode = qTemp.toStdString();
+        qTemp = ui->treeW_mapdb->topLevelItem(0)->text(0);
+        string sCata = qTemp.toStdString();
+        string sYear;
+        try { sYear = mapCataToYear.at(sCata); }
+        catch (out_of_range) { jf.err("mapCataToYear-MainWindow.on_pB_deletemap_clicked"); }
+        string tname = "Map$" + sYear + "$" + sGeoCode;
+        sf.remove(tname);
+        tname = "MapFrame$" + sYear + "$" + sGeoCode;
+        sf.remove(tname);
+        on_pB_maplocal_clicked();
+    }
+    else
+    {
+        qshow("No database map selected.");
+    }
 }
 void MainWindow::on_treeW_mapdb_itemSelectionChanged()
 {
@@ -2039,7 +2089,7 @@ void MainWindow::on_pB_deletetable_clicked()
         {
             conditions[0] += "\" = " + sValue;
         }
-        sf.remove(tname, conditions);
+        sf.removeRow(tname, conditions);
         ui->tableW_db->removeRow(iRow);
         break;
     }

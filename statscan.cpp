@@ -516,7 +516,7 @@ void STATSCAN::loadGeoList(string geoPath, vector<int>& viGeoCode, vector<string
     string sGeoCode, sBegin, sEnd;
     string geoFile = wf.load(geoPath);
     size_t posEnd = geoFile.find_last_of("0123456789") + 1;
-    size_t pos1 = geoFile.find_first_of("0123456789"), pos2, pos3;
+    size_t pos1 = geoFile.find_first_of("0123456789"), pos2, pos3, posPart;
     while (pos1 < posEnd)
     {
         pos2 = geoFile.find(',', pos1);
@@ -530,6 +530,16 @@ void STATSCAN::loadGeoList(string geoPath, vector<int>& viGeoCode, vector<string
         sBegin = geoFile.substr(pos2, pos3 - pos2);
         pos2--;
         vsRegion.push_back(geoFile.substr(pos1, pos2 - pos1));
+        if (ignoreSplitRegions)
+        {
+            posPart = vsRegion[vsRegion.size() - 1].find(" part)");
+            if (posPart < vsRegion[vsRegion.size() - 1].size())
+            {
+                vsRegion.pop_back();
+                pos1 = geoFile.find('\n', pos2) + 1;
+                continue;
+            }
+        }
         try
         {
             viGeoCode.push_back(stoi(sGeoCode));
@@ -919,12 +929,14 @@ string STATSCAN::makeInsertCensus()
 void STATSCAN::makeInsertData(string& csvFile, size_t& nextLine, vector<string>& vsStmt)
 {
     if (scoopIndex.size() < 1) { jf.err("No scoopIndex-sc.makeInsertData"); }
-    string temp, stmt, csvLine;
+    if (mapDataIndex.size() < 1) { jf.err("Missing mapDataIndex-sc.makeInsertData"); }
+    bool damaged;
+    int iDIM;
+    string temp, stmt, csvLine, sDataIndex;
     vector<string> lineData;
     size_t pos1, pos2, pos3;
     size_t sizeDIM = mapDIM.size();
-    vector<int> viDIM(sizeDIM);
-    string tnameIndex = "DataIndex$" + cataYear + "$" + cataName;
+    vector<string> vsDIM(sizeDIM);
     string tname = "Data$" + cataYear + "$" + cataName + "$" + activeCSVgeocode;
     string stmt0 = "INSERT OR IGNORE INTO \"" + tname + "\" VALUES (";
 
@@ -948,18 +960,54 @@ void STATSCAN::makeInsertData(string& csvFile, size_t& nextLine, vector<string>&
         while (lineData[2][0] == '0') { lineData[2].erase(lineData[2].begin()); }
         if (lineData[2] != activeCSVgeocode) { break; }  // Loop exit.
 
-        stmt = stmt0;
+        // Check for missing data in the CSV.
+        damaged = 0;
         for (int ii = 0; ii < sizeDIM; ii++)
-        {//RESUME HERE. 
-            if (ii > 0) { stmt += ", "; }
+        {
             if (lineData[ii + 3] == ".." || lineData[ii + 3] == "..." || lineData[ii + 3] == "F" || lineData[ii + 3] == "x")
             {
-                lineData[ii + 3] = "NULL";
+                damaged = 1;
+                break;
             }
-            stmt += lineData[ii + 3];
         }
-        stmt += ");";
-        vsStmt.push_back(stmt);
+        if (!damaged)
+        {
+            for (int ii = 0; ii < mapDim.size(); ii++)
+            {
+                if (lineData[ii + 3 + sizeDIM] == ".." || lineData[ii + 3 + sizeDIM] == "..." || lineData[ii + 3 + sizeDIM] == "F" || lineData[ii + 3 + sizeDIM] == "x")
+                {
+                    damaged = 1;
+                    break;
+                }
+            }
+        }
+
+        // Build this line's stmt.
+        if (!damaged)
+        {
+            stmt = stmt0;
+            for (int ii = 0; ii < sizeDIM; ii++)
+            {
+                try { iDIM = stoi(lineData[ii + 3]); }
+                catch (invalid_argument) { jf.err("stoi-sc.makeInsertData"); }
+                vsDIM[ii] = to_string(iDIM - 1);
+            }
+            temp = vsDIM[0];
+            for (int ii = 1; ii < vsDIM.size(); ii++)
+            {
+                temp += "$" + vsDIM[ii];
+            }
+            try { sDataIndex = mapDataIndex.at(temp); }
+            catch (out_of_range) { jf.err("mapDataIndex-sc.makeInsertData"); }
+            
+            stmt += sDataIndex;
+            for (int ii = 0; ii < mapDim.size(); ii++)
+            {
+                stmt += ", " + lineData[ii + 3 + sizeDIM];
+            }
+            stmt += ");";
+            vsStmt.push_back(stmt);
+        }
 
         pos1 = pos2;
         pos2 = csvFile.find(nl, pos1 + 1);
@@ -1310,6 +1358,10 @@ double STATSCAN::readBinScale(string& binFile)
     return scale;
 }
 
+void STATSCAN::setMapDataIndex(unordered_map<string, string>& mDI)
+{
+    mapDataIndex = mDI;
+}
 void STATSCAN::trimMID(string& MID)
 {
     size_t pos1 = MID.find('('), pos2;

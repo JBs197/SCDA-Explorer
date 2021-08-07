@@ -62,13 +62,15 @@ void SQLFUNC::executor(string stmt)
 {
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
-    if (error) { sqlerr("prepare-executor0"); }
+    if (error) { sqlerr("prepare-sf.executor"); }
     error = sqlite3_step(statement);
-    if (error > 0 && error != 100 && error != 101) { sqlerr("step-executor0"); }
+    if (error > 0 && error != 100 && error != 101) { sqlerr("step-sf.executor"); }
+    error = sqlite3_finalize(statement);
+    if (error > 0 && error != 100 && error != 101) { sqlerr("finalize-sf.executor"); }
 }
 void SQLFUNC::executor(vector<string> stmts)
 {
-    // Note this function WILL NOT execute the statements as a transaction. 
+    // Note this function will not execute the statements as a transaction on its own. 
     sqlite3_stmt* statement;
     int error;
     for (int ii = 0; ii < stmts.size(); ii++)
@@ -77,21 +79,21 @@ void SQLFUNC::executor(vector<string> stmts)
         if (error) { sqlerr("prepare-sf.executor"); }
         error = sqlite3_step(statement);
         if (error > 0 && error != 100 && error != 101) { sqlerr("step-sf.executor"); }
+        error = sqlite3_finalize(statement);
+        if (error > 0 && error != 100 && error != 101) { sqlerr("finalize-sf.executor"); }
     }
 }
 void SQLFUNC::executor(string stmt, string& result)
 {
     // Note that this variant of the executor function will only return the first result.
-    int type, size;  // Type: 1(int), 2(double), 3(string)
+    int type, size, ivalue;  // Type: 1(int), 2(double), 3(string)
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
-    if (error) { sqlerr("prepare-executor0.5"); }
+    if (error) { sqlerr("prepare-sf.executor0"); }
     error = sqlite3_step(statement);
-    int ivalue;
     double dvalue;
     string svalue;
     int iextra = 0;
-
     if (error == 100)
     {
         type = sqlite3_column_type(statement, 0);
@@ -130,23 +132,22 @@ void SQLFUNC::executor(string stmt, string& result)
             result += "";
             break;
         }
-        return;
     }
-    else if (error > 0 && error != 101) { sqlerr("step-executor0.5"); }
+    else if (error > 0 && error != 101) { sqlerr("step-sf.executor0"); }
+    error = sqlite3_finalize(statement);
+    if (error > 0 && error != 100 && error != 101) { sqlerr("finalize-sf.executor0"); }
 }
 void SQLFUNC::executor(string stmt, wstring& result)
 {
     // Note that this variant of the executor function will only return the first result.
-    int type, size;  // Type: 1(int), 2(double), 3(string)
+    int type, size, ivalue;  // Type: 1(int), 2(double), 3(string)
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
-    if (error) { sqlerr("prepare-executor0.5"); }
+    if (error) { sqlerr("prepare-sf.executor0"); }
     error = sqlite3_step(statement);
-    int ivalue;
     double dvalue;
     wstring wvalue;
     int iextra = 0;
-
     if (error == 100)
     {
         type = sqlite3_column_type(statement, 0);
@@ -186,24 +187,23 @@ void SQLFUNC::executor(string stmt, wstring& result)
             result += L"";
             break;
         }
-        return;
     }
-    else if (error > 0 && error != 101) { sqlerr("step-executor0.5"); }
+    else if (error > 0 && error != 101) { sqlerr("step-sf.executor0"); }
+    error = sqlite3_finalize(statement);
+    if (error > 0 && error != 100 && error != 101) { sqlerr("finalize-sf.executor0"); }
 }
 void SQLFUNC::executor(string stmt, vector<string>& results)
 {
     // Note that this variant of the executor function can accomodate either a column or a row as the result.
-    int type, size;  // Type: 1(int), 2(double), 3(string)
+    int type, size, ivalue, inum;  // Type: 1(int), 2(double), 3(string)
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerr("prepare-executor1"); }
     error = sqlite3_step(statement);
-    int ivalue, inum;
     double dvalue;
     string svalue;
     int col_count = -1;
     int iextra = 0;
-
     while (error == 100)
     {
         if (col_count < 0)
@@ -267,7 +267,6 @@ void SQLFUNC::executor(string stmt, vector<string>& results)
                     break;
                 }
             }
-            return;
         }
         else  // Returned result will be a column.
         {
@@ -327,19 +326,19 @@ void SQLFUNC::executor(string stmt, vector<string>& results)
         error = sqlite3_step(statement);
     }
     if (error > 0 && error != 101) { sqlerr("step-executor1"); }
+    error = sqlite3_finalize(statement);
+    if (error > 0 && error != 100 && error != 101) { sqlerr("finalize-sf.executor1"); }
 }
 void SQLFUNC::executor(string stmt, vector<vector<string>>& results)
 {
-    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
+    int type, col_count, size, ivalue;  // Type: 1(int), 2(double), 3(string)
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerr("prepare-executor2"); }
     error = sqlite3_step(statement);
-    int ivalue;
     double dvalue;
     string svalue;
     int iextra = 0;
-
     while (error == 100)  // Output text should be UTF8.
     {
         col_count = sqlite3_column_count(statement);
@@ -395,26 +394,26 @@ void SQLFUNC::executor(string stmt, vector<vector<string>>& results)
                 break;
             }
             case 5:
-                results[results.size() - 1].push_back("");
+                results[results.size() - 1][ii] = "";
                 break;
             }
         }
         error = sqlite3_step(statement);
     }
     if (error > 0 && error != 101) { sqlerr("step-executor2"); }
+    error = sqlite3_finalize(statement);
+    if (error > 0 && error != 100 && error != 101) { sqlerr("finalize-sf.executor2"); }
 }
 void SQLFUNC::executor(string stmt, vector<vector<wstring>>& results)
 {
-    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
+    int type, col_count, size, ivalue;  // Type: 1(int), 2(double), 3(string)
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerr("prepare-executor2"); }
     error = sqlite3_step(statement);
-    int ivalue;
     double dvalue;
     wstring wvalue;
     int iextra = 0;
-
     while (error == 100)  // Output text should be UTF16.
     {
         col_count = sqlite3_column_count(statement);
@@ -456,13 +455,15 @@ void SQLFUNC::executor(string stmt, vector<vector<wstring>>& results)
                 break;
             }
             case 5:
-                results[results.size() - 1].push_back(L"");
+                results[results.size() - 1][ii] = L"";
                 break;
             }
         }
         error = sqlite3_step(statement);
     }
     if (error > 0 && error != 101) { sqlerr("step-executor2"); }
+    error = sqlite3_finalize(statement);
+    if (error > 0 && error != 100 && error != 101) { sqlerr("finalize-sf.executor2"); }
 }
 void SQLFUNC::get_col_titles(string tname, vector<string>& titles)
 {
@@ -687,6 +688,7 @@ vector<vector<string>> SQLFUNC::getTMapIndex()
 }
 void SQLFUNC::init(string db_path)
 {
+    dbPath = db_path;
     int error = sqlite3_open_v2(db_path.c_str(), &db, (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE), NULL);
     if (error) { sqlerr("open-init"); }
     if (analyze)
@@ -996,10 +998,7 @@ void SQLFUNC::insert_prepared(vector<string>& stmts)
     // Execute a list of prepared SQL statements as one transaction batch.
     int error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
     if (error) { sqlerr("begin transaction-insert_prepared"); }
-    for (int ii = 0; ii < stmts.size(); ii++)
-    {
-        executor(stmts[ii]);
-    }
+    executor(stmts);
     error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
     if (error) 
     { 
@@ -1013,6 +1012,8 @@ void SQLFUNC::insert_prepared(vector<string>& stmts)
             error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
         } 
     }
+    error = sqlite3_db_release_memory(db);
+    if (error) { sqlerr("release memory-insert_prepared"); }
 }
 void SQLFUNC::insertPreparedBind(vector<string>& stmtAndParams)
 {
@@ -1138,6 +1139,26 @@ void SQLFUNC::makeANSI(string& task)
         }
     }
 }
+unordered_map<string, string> SQLFUNC::makeMapDataIndex(string tname)
+{
+    // Returns a map connecting col1$col2$...$colN -> col0
+    vector<string> search = { "*" };
+    vector<vector<string>> vvsResult;
+    select(search, tname, vvsResult);
+    if (vvsResult.size() < 1) { jf.err("Table is empty-sf.makeMapDataIndex"); }
+    unordered_map<string, string> mapDataIndex;
+    string params;
+    for (int ii = 0; ii < vvsResult.size(); ii++)
+    {
+        params = vvsResult[ii][1];
+        for (int jj = 2; jj < vvsResult[ii].size(); jj++)
+        {
+            params += "$" + vvsResult[ii][jj];
+        }
+        mapDataIndex.emplace(params, vvsResult[ii][0]);
+    }
+    return mapDataIndex;
+}
 void SQLFUNC::remove(string& tname)
 {
     string stmt = "DROP TABLE IF EXISTS [" + tname + "];";
@@ -1151,7 +1172,19 @@ void SQLFUNC::remove(string& tname)
         jf.log("Could not delete " + tname + " : could not find.");
     }
 }
-void SQLFUNC::remove(string& tname, vector<string>& conditions)
+void SQLFUNC::removeCol(string& tname, string colTitle)
+{
+    string stmt = "ALTER TABLE \"" + tname + "\" DROP COLUMN \"" + colTitle + "\";";
+    if (table_exist(tname))
+    {
+        executor(stmt);
+    }
+    else
+    {
+        jf.log("Could not delete column from " + tname + " : could not find table.");
+    }
+}
+void SQLFUNC::removeRow(string& tname, vector<string>& conditions)
 {
     string stmt = "DELETE FROM \"" + tname + "\" WHERE (";
     for (int ii = 0; ii < conditions.size(); ii++)

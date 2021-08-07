@@ -11,6 +11,7 @@ class SQLFUNC
 {
     bool analyze = 0;
 	sqlite3* db;
+    string dbPath;
     ofstream ERR;
     string error_path = sroot + "\\SCDA Error Log.txt";
     JFUNC jf;
@@ -52,8 +53,10 @@ public:
     void insertPreparedStartStop(vector<string>& stmts, int start, int stop);
     string insert_stmt(string, vector<string>&, vector<string>&);
     void makeANSI(string&);
+    unordered_map<string, string> makeMapDataIndex(string tname);
     void remove(string& tname);
-    void remove(string& tname, vector<string>& conditions);
+    void removeCol(string& tname, string colTitle);
+    void removeRow(string& tname, vector<string>& conditions);
     void safe_col(string, int);
     int sclean(string&, int);
     int select(vector<string> search, string tname, string& result);

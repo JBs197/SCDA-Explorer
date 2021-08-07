@@ -502,6 +502,79 @@ string WINFUNC::load(string filePath)
 	if (sFile.size() < 1) { jf.err("File failed to load-wf.load"); }
 	return sFile;
 }
+void WINFUNC::load(string filePath, string& sFile)
+{
+	// This variant is meant to be used for large strings, with a pre-allocated string buffer.
+	if (sFile.size() < 1) { jf.err("Zero-sized string container-wf.load"); }
+	DWORD fileSize, bytesRead;
+	DWORD fileSizeHigh = 0;
+	wstring wPath, wTemp;
+	size_t pos1 = filePath.find(-61), index;
+	if (pos1 < filePath.size()) { wPath = jf.utf8to16(filePath); }
+	else { wPath = jf.asciiToUTF16(filePath); }
+	HANDLE hFile = CreateFileW(wPath.c_str(), (GENERIC_READ | GENERIC_WRITE), (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == INVALID_HANDLE_VALUE) { winerr("CreateFileW-wf.load"); }
+	unsigned char* bufferU = new unsigned char[8];
+	BOOL success = ReadFile(hFile, bufferU, 8, &bytesRead, NULL);
+	if (!success) { winerr("ReadFile-wf.load"); }
+	if (bufferU[0] == 239 && bufferU[1] == 187 && bufferU[2] == 191)
+	{
+		// UTF8
+		fileSize = GetFileSize(hFile, &fileSizeHigh);
+		if (fileSize == INVALID_FILE_SIZE) { winerr("GetFileSize-wf.load"); }
+		if (fileSize > sFile.size()) { jf.err("sFile container too small-wf.load"); }
+		if (fileSizeHigh > 0) { jf.err("Enormous file size-wf.load"); }
+		delete[] bufferU;
+		auto bufferC = new char[fileSize];
+		SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
+		success = ReadFile(hFile, bufferC, fileSize, &bytesRead, NULL);
+		if (!success) { winerr("ReadFile-wf.load"); }
+		sFile.assign(bufferC, fileSize);
+		delete[] bufferC;
+	}
+	else if ((bufferU[0] == 255 && bufferU[1] == 254) || (bufferU[0] == 254 && bufferU[1] == 255))
+	{
+		// UTF16
+		fileSize = GetFileSize(hFile, &fileSizeHigh);
+		if (fileSize == INVALID_FILE_SIZE) { winerr("GetFileSize-wf.load"); }
+		if (fileSizeHigh > 0) { jf.err("Enormous file size-wf.load"); }
+		delete[] bufferU;
+		bufferU = new unsigned char[fileSize + 1];
+		SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
+		success = ReadFile(hFile, bufferU, fileSize, &bytesRead, NULL);
+		if (!success) { winerr("ReadFile-wf.load"); }
+		wTemp.resize((fileSize / 2) + 1);
+		index = 0;
+		for (int ii = 2; ii < fileSize; ii++)
+		{
+			if (bufferU[ii] != 0)
+			{
+				wTemp[index] = (wchar_t)bufferU[ii];
+				index++;
+			}
+		}
+		while (wTemp.back() == 0) { wTemp.pop_back(); }
+		delete[] bufferU;
+		sFile = jf.utf16to8(wTemp);
+	}
+	else
+	{
+		// Binary data.
+		fileSize = GetFileSize(hFile, &fileSizeHigh);
+		if (fileSize == INVALID_FILE_SIZE) { winerr("GetFileSize-wf.load"); }
+		if (fileSizeHigh > 0) { jf.err("Enormous file size-wf.load"); }
+		delete[] bufferU;
+		auto bufferC = new char[fileSize];
+		SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
+		success = ReadFile(hFile, bufferC, fileSize, &bytesRead, NULL);
+		if (!success) { winerr("ReadFile-wf.load"); }
+		sFile.assign(bufferC, fileSize);
+		delete[] bufferC;
+	}
+
+	CloseHandle(hFile);
+	if (sFile.size() < 1) { jf.err("File failed to load-wf.load"); }
+}
 void WINFUNC::makeDir(string dirPath)
 {
 	vector<int> vBslash;

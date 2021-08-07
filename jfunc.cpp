@@ -394,7 +394,7 @@ void JFUNC::err(string func)
 	string message = timestamper() + " General error from " + func;
 	ERR << message << endl << endl;
 	ERR.close();
-	exit(EXIT_FAILURE);
+ 	exit(EXIT_FAILURE);
 }
 string JFUNC::get_error_path()
 {

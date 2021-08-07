@@ -1069,17 +1069,16 @@ void IMGFUNC::pngLoadHere(string& pngPath, vector<unsigned char>& pngData, vecto
     pngData.clear();
     spec.clear();
     spec.resize(3);
-    string pathASCII;
-    unsigned char* dataTemp = stbi_load(pngPath.c_str(), &spec[0], &spec[1], &spec[2], 0);
-    if (dataTemp == NULL)
-    {
-        pathASCII = jf.asciiOnly(pngPath);
-        dataTemp = stbi_load(pathASCII.c_str(), &spec[0], &spec[1], &spec[2], 0);
-        if (dataTemp == NULL) { jf.err("stbi_load-im.pngLoadString"); }
-    }
+    wstring wsPath = jf.asciiToUTF16(pngPath);
+    size_t bufferSize = wsPath.size() * 2;
+    char* bufferPath = new char[bufferSize];
+    stbi_convert_wchar_to_utf8(bufferPath, bufferSize, wsPath.c_str());
+    unsigned char* dataTemp = stbi_load(bufferPath, &spec[0], &spec[1], &spec[2], 0);
+    if (dataTemp == NULL) { jf.err("stbi_load-im.pngLoadString"); }
     int sizeTemp = spec[0] * spec[1] * spec[2];
     pngData.resize(sizeTemp);
     copy(dataTemp, dataTemp + sizeTemp, pngData.begin());
+    delete[] bufferPath;
 }
 void IMGFUNC::pngLoadString(string& pngPath, string& pngData, vector<int>& spec)
 {
