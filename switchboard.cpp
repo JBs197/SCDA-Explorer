@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "switchboard.h"
 
 // Error-related functions.
@@ -150,7 +149,6 @@ void SWITCHBOARD::setMapSS(unordered_map<string, string> mSS)
 }
 unordered_map<string, string> SWITCHBOARD::getMapSS()
 {
-	if (mapSS.size() < 1) { err("Map is empty-sb.getMapSS"); }
 	return mapSS;
 }
 vector<string> SWITCHBOARD::requestToGUI(thread::id id, vector<string> sQuery)

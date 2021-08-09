@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "qtfunc.h"
 
 using namespace std;

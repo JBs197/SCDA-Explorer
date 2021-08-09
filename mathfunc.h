@@ -1,7 +1,5 @@
 #pragma once
-
-#include <vector>
-#include <string>
+#include "gdifunc.h"
 #include "jfunc.h"
 
 using namespace std;

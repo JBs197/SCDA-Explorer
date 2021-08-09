@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "gdifunc.h"
 
 void GDIFUNC::capture(vector<unsigned char>& img, vector<int>& imgSpec, vector<POINT> TLBR)
@@ -55,7 +54,7 @@ POINT GDIFUNC::destringifyCoordP(string& sCoord)
     if (pos1 > sCoord.size()) { jf.err("No comma found-gdi.destringifyCoordP"); }
     try
     {
-        p1.x = stoi(sCoord.substr(0, pos1));
+        p1.x = std::stoi(sCoord.substr(0, pos1));
         p1.y = stoi(sCoord.substr(pos1 + 1));
     }
     catch (invalid_argument) { jf.err("stoi-gdi.destringifyCoordP"); }

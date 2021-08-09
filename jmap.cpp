@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "jmap.h"
 
 QPointF MAP::centerToImgTL(QPointF& qpfCenter, double imgPPKM)

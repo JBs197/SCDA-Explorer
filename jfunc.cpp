@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "jfunc.h"
 
 void JFUNC::asciiNearestFit(string& input)
@@ -833,40 +832,31 @@ void JFUNC::quicksort(vector<int>& v1, int low, int high)
 }
 void JFUNC::removeBlanks(vector<string>& task)
 {
-	for (int ii = 0; ii < task.size(); ii++)
+	// Only removes the blank entries at the end of the vector.
+	while (task.back() == "")
 	{
-		if (task[ii] == "") 
-		{ 
-			task.erase(task.begin() + ii);
-			ii--;
-		}
+		task.pop_back();
 	}
 }
 void JFUNC::removeBlanks(vector<vector<string>>& task)
 {
+	// Only removes the blank entries at the end of each row vector.
 	for (int ii = 0; ii < task.size(); ii++)
 	{
-		for (int jj = 0; jj < task[ii].size(); jj++)
+		while (task[ii].back() == "")
 		{
-			if (task[ii][jj] == "")
-			{
-				task[ii].erase(task[ii].begin() + jj);
-				jj--;
-			}
+			task[ii].pop_back();
 		}
 	}
 }
 void JFUNC::removeBlanks(vector<vector<wstring>>& task)
 {
+	// Only removes the blank entries at the end of each row vector.
 	for (int ii = 0; ii < task.size(); ii++)
 	{
-		for (int jj = 0; jj < task[ii].size(); jj++)
+		while (task[ii].back() == L"")
 		{
-			if (task[ii][jj] == L"")
-			{
-				task[ii].erase(task[ii].begin() + jj);
-				jj--;
-			}
+			task[ii].pop_back();
 		}
 	}
 }

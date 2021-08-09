@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "sqlfunc.h"
 
 using namespace std;
@@ -1145,8 +1144,9 @@ unordered_map<string, string> SQLFUNC::makeMapDataIndex(string tname)
     vector<string> search = { "*" };
     vector<vector<string>> vvsResult;
     select(search, tname, vvsResult);
-    if (vvsResult.size() < 1) { jf.err("Table is empty-sf.makeMapDataIndex"); }
     unordered_map<string, string> mapDataIndex;
+    if (vvsResult.size() < 1) { jf.err("Table is empty-sf.makeMapDataIndex"); }
+    else if (vvsResult.size() == 1) { return mapDataIndex; }
     string params;
     for (int ii = 0; ii < vvsResult.size(); ii++)
     {

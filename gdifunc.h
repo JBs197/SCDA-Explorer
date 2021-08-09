@@ -1,6 +1,10 @@
 #pragma once
-
+#include <windows.h>
+#include <gdiplus.h>
+#include <atlstr.h>
+#include <atlimage.h>
 #include "jfunc.h"
+#pragma comment(lib, "gdiplus.lib")
 
 using namespace Gdiplus;
 

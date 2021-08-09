@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
@@ -758,16 +757,22 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     // Create the DIM tables.
     vsResult = scjudi.makeCreateInsertDIMIndex();
     sfgui.executor(vsResult);
-    vsResult = scjudi.makeCreateInsertDIM(vvsDIM);
-    sfgui.executor(vsResult);
-    jf.log("Created and inserted DIM tables for " + prompt[1]);
-
+    jf.log("Created and inserted a DIMIndex table for " + prompt[1]);
+    if (vsResult.size() > 2)
+    {
+        vsResult = scjudi.makeCreateInsertDIM(vvsDIM);
+        sfgui.executor(vsResult);
+        jf.log("Created and inserted a DIM table for " + prompt[1]);
+    }
+    else { jf.log("Did not make a DIM table for " + prompt[1]); }
+    
     // Create the DataIndex table for this catalogue.
     tname = "DataIndex$" + prompt[0] + "$" + prompt[1];
     if (!sfgui.table_exist(tname))
     {
         result = scjudi.makeCreateDataIndex();
         sfgui.executor(result);
+        jf.log("Created a DataIndex table for " + prompt[1]);
     }
     search = { "DataIndex" };
     vsResult.clear();
@@ -780,9 +785,9 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
         scjudi.getVSBuffer(*insertDI);
         sfgui.insert_prepared(*insertDI);
         delete insertDI;
+        jf.log("Inserted " + to_string(numStmt) + " DataIndex rows for " + prompt[1]);
     }
-    string tnameDI = tname;
-
+    
     // Create the data table, for each GEO_CODE region.
     int sCDsize = scjudi.makeCreateData(viGeoCode);
     auto vsCreateData = new vector<string>(sCDsize);

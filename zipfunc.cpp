@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "zipfunc.h"
 
 void ZIPFUNC::unzip(string& zipPath)

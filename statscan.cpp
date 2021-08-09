@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "statscan.h"
 
 vector<string> STATSCAN::compareGeoListDB(vector<int>& viGeoCode, vector<string>& dbList)
@@ -674,7 +673,6 @@ int STATSCAN::makeCreateData(vector<int>& viGeoCode)
 string STATSCAN::makeCreateDataIndex()
 {
     // Note: mapDIM does not include dim.
-    if (mapDIM.size() < 1) { jf.err("No init-sc.makeCreateDataIndex"); }
     string stmt = "CREATE TABLE \"DataIndex$" + cataYear + "$" + cataName;
     stmt += "\" (DataIndex INTEGER PRIMARY KEY";
     for (int ii = 0; ii < mapDIM.size(); ii++)
@@ -929,7 +927,6 @@ string STATSCAN::makeInsertCensus()
 void STATSCAN::makeInsertData(string& csvFile, size_t& nextLine, vector<string>& vsStmt)
 {
     if (scoopIndex.size() < 1) { jf.err("No scoopIndex-sc.makeInsertData"); }
-    if (mapDataIndex.size() < 1) { jf.err("Missing mapDataIndex-sc.makeInsertData"); }
     bool damaged;
     int iDIM;
     string temp, stmt, csvLine, sDataIndex;
@@ -946,6 +943,13 @@ void STATSCAN::makeInsertData(string& csvFile, size_t& nextLine, vector<string>&
     {
         pos2 = pos1;
         temp = csvFile.substr(0, pos1);
+        if (pos1 == 0)
+        {
+            while (brokenLine[brokenLine.size() - 1] == '\r' || brokenLine[brokenLine.size() - 1] == '\n')
+            {
+                brokenLine.pop_back();
+            }
+        }
         csvLine = brokenLine + temp;
         brokenLine.clear();
     }
@@ -992,13 +996,17 @@ void STATSCAN::makeInsertData(string& csvFile, size_t& nextLine, vector<string>&
                 catch (invalid_argument) { jf.err("stoi-sc.makeInsertData"); }
                 vsDIM[ii] = to_string(iDIM - 1);
             }
-            temp = vsDIM[0];
-            for (int ii = 1; ii < vsDIM.size(); ii++)
+            if (vsDIM.size() > 0)
             {
-                temp += "$" + vsDIM[ii];
+                temp = vsDIM[0];
+                for (int ii = 1; ii < vsDIM.size(); ii++)
+                {
+                    temp += "$" + vsDIM[ii];
+                }
+                try { sDataIndex = mapDataIndex.at(temp); }
+                catch (out_of_range) { jf.err("mapDataIndex-sc.makeInsertData"); }
             }
-            try { sDataIndex = mapDataIndex.at(temp); }
-            catch (out_of_range) { jf.err("mapDataIndex-sc.makeInsertData"); }
+            else { sDataIndex = "0"; }
             
             stmt += sDataIndex;
             for (int ii = 0; ii < mapDim.size(); ii++)
@@ -1025,7 +1033,16 @@ void STATSCAN::makeInsertData(string& csvFile, size_t& nextLine, vector<string>&
 int STATSCAN::makeInsertDataIndex(int numDI, vector<vector<string>>& vvsDIM)
 {
     // Return the number of statements to be inserted, via vsBuffer.
-    // numDI is the number of rows already within this catalogue's DI table.
+    // numDI is the number of rows already within this catalogue's DI table.  
+    string stmt;
+    if (vvsDIM.size() < 1 && numDI == 1)
+    {
+        // This is for catalogues having no DIMs.
+        stmt = "INSERT OR IGNORE INTO \"DataIndex$" + cataYear + "$" + cataName;
+        stmt += "\" VALUES (0);";
+        vsBuffer = { stmt };
+        return 1;
+    }
     if (vvsDIM.size() < 1) { jf.err("Missing vvsDIM-sc.makeInsertDataIndex"); }
     int count = vvsDIM[0].size();
     for (int ii = 1; ii < vvsDIM.size(); ii++)
@@ -1040,7 +1057,6 @@ int STATSCAN::makeInsertDataIndex(int numDI, vector<vector<string>>& vvsDIM)
     {
         viMax[ii] = vvsDIM[ii].size();
     }
-    string stmt;
     string stmt0 = "INSERT OR IGNORE INTO \"DataIndex$" + cataYear + "$" + cataName;
     stmt0 += "\" VALUES (";
     for (int ii = 0; ii < count; ii++)

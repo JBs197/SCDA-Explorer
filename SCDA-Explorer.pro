@@ -23,7 +23,6 @@ SOURCES += \
     qtpaint.cpp \
     sqlfunc.cpp \
     statscan.cpp \
-	stdafx.cpp \
     switchboard.cpp \
     winfunc.cpp \
     zipfunc.cpp
@@ -46,7 +45,6 @@ HEADERS += \
     stb_image.h \
     stb_image_write.h \
     stb_truetype.h \
-	stdafx.h \
     switchboard.h \
     ui_mainwindow.h \
     winfunc.h \

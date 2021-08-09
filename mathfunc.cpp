@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "mathfunc.h"
 
 double MATHFUNC::angleBetweenVectors(vector<vector<int>>& vCoords)

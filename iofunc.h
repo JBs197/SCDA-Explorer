@@ -1,5 +1,5 @@
 #pragma once
-
+#include "gdifunc.h"
 #include "winfunc.h"
 #include <QPlainTextEdit>
 #include <QCoreApplication>

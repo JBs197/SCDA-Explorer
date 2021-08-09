@@ -1,12 +1,15 @@
 #pragma once
 #define STBI_WINDOWS_UTF8
+#include <assert.h>
+#include "gdifunc.h"
+#include "mathfunc.h"
 #include "stb_image.h"
 #include "stb_image_write.h"
 #include "stb_truetype.h"
-#include <assert.h>
-#include <unordered_map>
-#include "mathfunc.h"
 #include "switchboard.h"
+#include <unordered_map>
+
+
 
 using namespace std;
 extern const string sroot;

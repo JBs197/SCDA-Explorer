@@ -1,4 +1,4 @@
-#include "stdafx.h"
+//#include "stdafx.h"
 #include "iofunc.h"
 
 bool IOFUNC::askYesNo(string question)
