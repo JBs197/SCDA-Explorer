@@ -549,6 +549,7 @@ void MainWindow::updateDBCata()
     search = { "Catalogue" };
     for (int ii = 0; ii < yearList.size(); ii++)
     {
+        cataList.clear();
         tname = "Census$" + yearList[ii];
         sf.select(search, tname, cataList);
         index = mapYear.at(yearList[ii]);
@@ -754,17 +755,23 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     sfgui.executor(result);
     jf.log("Created a geo table for " + prompt[1]);
 
-    // Create the DIM tables.
+    // Create the DIM/dim tables.
     vsResult = scjudi.makeCreateInsertDIMIndex();
     sfgui.executor(vsResult);
     jf.log("Created and inserted a DIMIndex table for " + prompt[1]);
+    if (vsResult.size() > 1)
+    {
+        vsResult = scjudi.makeCreateInsertDim();
+        sfgui.executor(vsResult);
+        jf.log("Created and inserted a dim table for " + prompt[1]);
+    }
     if (vsResult.size() > 2)
     {
         vsResult = scjudi.makeCreateInsertDIM(vvsDIM);
         sfgui.executor(vsResult);
-        jf.log("Created and inserted a DIM table for " + prompt[1]);
+        jf.log("Created and inserted DIM tables for " + prompt[1]);
     }
-    else { jf.log("Did not make a DIM table for " + prompt[1]); }
+    else { jf.log("Did not make DIM/dim tables for " + prompt[1]); }
     
     // Create the DataIndex table for this catalogue.
     tname = "DataIndex$" + prompt[0] + "$" + prompt[1];
@@ -2550,6 +2557,23 @@ void MainWindow::on_pB_test_clicked()
         sMessage += "\nHeight: " + to_string(qSize.height());
         QString qMessage = QString::fromStdString(sMessage);
         ui->pte_search->setPlainText(qMessage);
+        break;
+    }
+    case 2:  // Remove all DIM/dim tables.
+    {
+        size_t pos1, pos2;
+        vector<string> vsAll;
+        sf.all_tables(vsAll);
+        for (int ii = 0; ii < vsAll.size(); ii++)
+        {
+            pos1 = vsAll[ii].find("DIM");
+            pos2 = vsAll[ii].find("Dim");
+            if (pos1 < vsAll[ii].size() || pos2 < vsAll[ii].size())
+            {
+                sf.remove(vsAll[ii]);
+            }
+        }
+        ui->pte_search->setPlainText("Done deleting.");
         break;
     }
     case 3:  // Upgrade a given SC geo file.

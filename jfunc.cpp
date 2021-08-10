@@ -864,6 +864,11 @@ void JFUNC::set_navigator_asset_path(string& path)
 {
 	navigator_asset_path = path;
 }
+void JFUNC::sortAlphabetically(vector<string>& vs)
+{
+	// Sort a list of strings, such that capital letters are not given complete
+	// precedence over non-capital letters. 
+}
 string JFUNC::stringifyCoord(vector<int>& coord)
 {
 	if (coord.size() < 2) { err("coord format-jf.stringifyCoord"); }

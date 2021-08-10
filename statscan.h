@@ -70,6 +70,7 @@ public:
 	string makeCreateGeoLayers(string sYear);
 	vector<string> makeCreateInsertDIMIndex();
 	vector<string> makeCreateInsertDIM(vector<vector<string>>& vvsDIM);
+	vector<string> makeCreateInsertDim();
 	vector<string> makeCreateInsertTopic(vector<string>& colTitles);
 	string makeCreateMap(string tname);
 	string makeCreateMapFrame(string tname);
@@ -94,6 +95,7 @@ public:
 	vector<double> readBinPositionPNG(string& binFile);
 	double readBinScale(string& binFile);
 
+	void removeFootnote(string& sLine);
 	void setMapDataIndex(unordered_map<string, string>& mDI);
 	void trimMID(string& MID);
 	void uptickBookmark(vector<vector<string>>& geoList);

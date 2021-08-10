@@ -762,7 +762,7 @@ vector<string> STATSCAN::makeCreateInsertDIM(vector<vector<string>>& vvsDIM)
     if (metaFile.size() < 1) { jf.err("No init-sc.makeCreateInsertDIM"); }
     vvsDIM.clear();
     vector<string> stmts, nameDIM, dirt = { "'" }, soap = { "''" };
-    string temp, stmt, tname;
+    string temp, stmt, tname, sLine;
     vector<int> spaceHistory = { 0 };
     int index, inum, iextra, space, indent, indexDIM = 0;
     size_t pos1 = metaFile.find("Definitions"), pos2, posEnd, posFoot, posNL3;
@@ -804,7 +804,9 @@ vector<string> STATSCAN::makeCreateInsertDIM(vector<vector<string>>& vvsDIM)
             }
             temp.assign(indent, '+');
             pos2 = metaFile.find(nl, pos1);
-            nameDIM.push_back(temp + metaFile.substr(pos1, pos2 - pos1));
+            sLine = metaFile.substr(pos1, pos2 - pos1);
+            trimMID(sLine);
+            nameDIM.push_back(temp + sLine);
             pos1 = metaFile.find_first_of("1234567890", pos2);
         }
 
@@ -825,6 +827,66 @@ vector<string> STATSCAN::makeCreateInsertDIM(vector<vector<string>>& vvsDIM)
         indexDIM++;
         posMID = posMIDnext;
         posMIDnext = metaFile.find("Member" + nl, posMID + 1);
+    }
+    return stmts;
+}
+vector<string> STATSCAN::makeCreateInsertDim()
+{
+    if (metaFile.size() < 1) { jf.err("No init-sc.makeCreateInsertDim"); }
+    vector<string> stmts, dimList, dirt = { "'" }, soap = { "''" };
+    string temp, stmt, tname, sLine;
+    vector<int> spaceHistory = { 0 };
+    int index, inum, iextra = -1, space, indent, indexDim = 0;
+    size_t posMID = metaFile.rfind("Member" + nl);
+    size_t posEnd = metaFile.find("Footnote", posMID);
+    if (posEnd > metaFile.size()) { posEnd = metaFile.size(); }
+    size_t pos1 = metaFile.find_first_of("1234567890", posMID + 7), pos2;
+    while (pos1 < posEnd)
+    {
+        pos2 = metaFile.find('.', pos1);
+        temp = metaFile.substr(pos1, pos2 - pos1);
+        try { inum = stoi(temp); }
+        catch (invalid_argument) { jf.err("stoi-sc.makeCreateInsertDim"); }
+        pos2++;
+        pos1 = metaFile.find_first_not_of(" ", pos2);
+        if (iextra < 0)
+        {
+            iextra = pos1 - pos2;
+            indent = 0;
+        }
+        else
+        {
+            space = pos1 - pos2 - iextra;
+            for (int ii = 0; ii < spaceHistory.size(); ii++)
+            {
+                if (spaceHistory[ii] == space) { indent = ii; break; }
+                else if (spaceHistory[ii] > space) { jf.err("Inconsistent spacing-sc.makeCreateInsertDim"); }
+                else if (ii == spaceHistory.size() - 1)
+                {
+                    indent = spaceHistory.size();
+                    spaceHistory.push_back(space);
+                }
+            }
+        }
+        temp.assign(indent, '+');
+        pos2 = metaFile.find(nl, pos1);
+        sLine = metaFile.substr(pos1, pos2 - pos1);
+        trimMID(sLine);
+        dimList.push_back(temp + sLine);
+        pos1 = metaFile.find_first_of("1234567890", pos2);
+    }
+
+    tname = "Census$" + cataYear + "$" + cataName + "$Dim";
+    stmt = "CREATE TABLE IF NOT EXISTS \"" + tname;
+    stmt += "\" (MID INTEGER PRIMARY KEY, Dim TEXT);";
+    stmts.push_back(stmt);
+
+    for (int ii = 0; ii < dimList.size(); ii++)
+    {
+        jf.clean(dimList[ii], dirt, soap);
+        stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (MID, Dim) VALUES (";
+        stmt += to_string(ii + 1) + ", '" + dimList[ii] + "');";
+        stmts.push_back(stmt);
     }
     return stmts;
 }
@@ -1374,6 +1436,19 @@ double STATSCAN::readBinScale(string& binFile)
     return scale;
 }
 
+void STATSCAN::removeFootnote(string& sLine)
+{
+    // Removes a number in parentheses at the end of the string, if found.
+    size_t pos2 = sLine.find_last_not_of(' ');
+    if (sLine[pos2] != ')') { return; }
+    size_t pos1 = sLine.rfind('(', pos2);
+    int inum;
+    try { inum = stoi(sLine.substr(pos1 + 1, pos2 - pos1 - 1)); }
+    catch (invalid_argument) { return; }
+    pos2 = sLine.find_last_not_of(' ', pos1 - 1);
+    pos2++;
+    sLine.resize(pos2);
+}
 void STATSCAN::setMapDataIndex(unordered_map<string, string>& mDI)
 {
     mapDataIndex = mDI;

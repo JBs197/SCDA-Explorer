@@ -80,7 +80,7 @@ public:
 	void setErrorPath(string sEP) { error_path = sEP; }
 	void setLogPath(string sLP) { log_path = sLP; }
 	void set_navigator_asset_path(string&);
-	//void sortLinkedList(vector<int>& viList, vector<vector<unsigned char>>& vvucList, int type);
+	void sortAlphabetically(vector<string>& vs);
 	string stringifyCoord(vector<int>& coord);
 	string stringifyCoord(vector<unsigned char>& coord);
 	vector<int> svectorToIvector(vector<string>&);

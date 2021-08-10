@@ -1226,13 +1226,14 @@ int SQLFUNC::sclean(string& bbq, int mode)
     // mode 2 is for conditional 'select' statements.
     bool skip = 0;
     int count = 0;
-    int pos1, pos2;
+    size_t pos1, pos2, posLIKE;
     string temp;
-    vector<int> indexDQuote;
+
     pos1 = bbq.find('[');
-    if (pos1 > 0)
+    if (pos1 < bbq.size())
     {
         pos2 = bbq.find(']', pos1);
+        if (pos2 > bbq.size()) { jf.err("Square bracket asymmetry-sf.sclean"); }
         bbq.erase(pos1, pos2 - pos1 + 1);
     }
     while (1)
@@ -1242,7 +1243,7 @@ int SQLFUNC::sclean(string& bbq, int mode)
     }
     while (1)
     {
-        if (bbq.back() == ' ') { bbq.erase(bbq.size() - 1, 1); }
+        if (bbq.back() == ' ') { bbq.pop_back(); }
         else { break; }
     }
 
@@ -1250,62 +1251,52 @@ int SQLFUNC::sclean(string& bbq, int mode)
     {
     case 0:
         break;
-    case 1:  // Double all single quotation marks.
+    case 1:  // Double ALL single quotation marks.
     {
-        pos1 = bbq.find("''");
-        while (pos1 > 0)
-        {
-            indexDQuote.push_back(pos1);
-            pos1 = bbq.find("''", pos1 + 2);
-        }
         pos1 = bbq.find('\'');
-        while (pos1 > 0)
+        while (pos1 < bbq.size())
         {
-            skip = 0;
-            for (int ii = 0; ii < indexDQuote.size(); ii++)
+            if (pos1 == bbq.size() - 1)
             {
-                if (pos1 == indexDQuote[ii])
-                {
-                    skip = 1;
-                    break;
-                }
+                bbq.push_back('\'');
+                break;
             }
-            if (!skip) { bbq.replace(pos1, 1, "''"); }
-            pos1 = bbq.find('\'', pos1 + 2);
+            else if (bbq[pos1 + 1] == '\'')  // Already doubled.
+            {
+                if (pos1 == bbq.size() - 2) { break; }
+                pos1 = bbq.find('\'', pos1 + 2);
+            }
+            else  // Needs doubling.
+            {
+                bbq.insert(bbq.begin() + pos1, '\'');
+                if (pos1 < bbq.size() - 2)
+                {
+                    pos1 = bbq.find('\'', pos1 + 2);
+                }
+                else { break; }
+            }
         }
         break;
     }
-    case 2:  // Double all single quotation marks, and ensure there are single quotation marks as first and last chars.
+    case 2:  // This variant is used for conditional statements.
     {
-        while (bbq.back() == '\'') { bbq.pop_back(); }
-        while (bbq.front() == '\'') { bbq.erase(bbq.begin()); }
-        pos1 = bbq.find("''");
-        while (pos1 > 0)
+        posLIKE = bbq.find("LIKE");
+        if (posLIKE > bbq.size()) { break; }
+
+        pos1 = bbq.find('\'', posLIKE + 6);
+        while (pos1 < bbq.size())
         {
-            indexDQuote.push_back(pos1);
-            pos1 = bbq.find("''", pos1 + 2);
-        }
-        pos1 = bbq.find('\'');
-        while (pos1 > 0)
-        {
-            skip = 0;
-            for (int ii = 0; ii < indexDQuote.size(); ii++)
-            {
-                if (pos1 == indexDQuote[ii])
-                {
-                    skip = 1;
-                    break;
-                }
-            }
-            if (!skip) { bbq.replace(pos1, 1, "''"); }
+            if (pos1 == bbq.size() - 1) { break; }
+            bbq.insert(bbq.begin() + pos1, '\'');
             pos1 = bbq.find('\'', pos1 + 2);
         }
-        pos1 = bbq.find("LIKE");
-        if (pos1 > 0)
+
+        if (bbq[posLIKE + 5] != '\'')
         {
-            pos1 += 5;
-            temp = { "'" };
-            bbq.insert(pos1, temp);
+            bbq.insert(bbq.begin() + posLIKE + 5, '\'');
+        }
+        if (bbq.back() != '\'')
+        {
             bbq.push_back('\'');
         }
         break;
