@@ -1541,6 +1541,46 @@ int SQLFUNC::select(vector<string> search, string tname, vector<vector<wstring>>
     }
     return max_col;
 }
+int SQLFUNC::selectOrderBy(vector<string> search, string tname, vector<string>& results, string orderby)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\"";
+    }
+    else
+    {
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "\"" + search[ii] + "\", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM \"" + tname + "\"";
+    }
+    stmt += " ORDER BY " + orderby;
+    executor(stmt, results);
+    return results.size();
+}
+int SQLFUNC::selectOrderBy(vector<string> search, string tname, vector<vector<string>>& results, string orderby)
+{
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1)
+    {
+        stmt += "* FROM \"" + tname + "\"";
+    }
+    else
+    {
+        for (int ii = 0; ii < search.size(); ii++)
+        {
+            stmt += "\"" + search[ii] + "\", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM \"" + tname + "\"";
+    }
+    stmt += " ORDER BY " + orderby;
+    executor(stmt, results);
+    return results.size();
+}
 void SQLFUNC::select_tree(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl)
 {
     // Produce a tree structure and tree payload for the given table name as root. 

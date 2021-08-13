@@ -68,6 +68,8 @@ public:
     int select(vector<string> search, string tname, vector<string>& results, vector<string>& conditions);
     int select(vector<string> search, string tname, vector<vector<string>>& results, vector<string>& conditions);
     int select(vector<string> search, string tname, vector<vector<wstring>>& results, vector<string>& conditions);
+    int selectOrderBy(vector<string> search, string tname, vector<string>& results, string orderby);
+    int selectOrderBy(vector<string> search, string tname, vector<vector<string>>& results, string orderby);
     void select_tree(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl);
     vector<string> selectYears();
     void set_error_path(string);
