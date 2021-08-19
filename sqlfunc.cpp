@@ -36,6 +36,17 @@ void SQLFUNC::bind(string& stmt, vector<string>& param)
         stmt.replace(pos1, 1, temp);
     }
 }
+int SQLFUNC::count(string tname)
+{
+    // Return the number of rows in the given table. 
+    string stmt = "SELECT COUNT(*) FROM \"" + tname + "\";";
+    string sNum;
+    int iNum;
+    executor(stmt, sNum);
+    try { iNum = stoi(sNum); }
+    catch (invalid_argument) { jf.err("stoi-sf.count"); }
+    return iNum;
+}
 void SQLFUNC::create_table(string tname, vector<string>& titles, vector<int>& types)
 {
     string stmt = "CREATE TABLE IF NOT EXISTS [" + tname + "] (";

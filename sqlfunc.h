@@ -25,6 +25,7 @@ public:
     explicit SQLFUNC() {}
 	~SQLFUNC() {}
     void all_tables(vector<string>& table_list);
+    int count(string tname);
     void create_table(string, vector<string>&, vector<int>&);
     void executor(string stmt);
     void executor(vector<string> stmts);
