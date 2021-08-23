@@ -66,6 +66,7 @@ public:
 	string makeCreateCensus();
 	int makeCreateData(vector<int>& viGeoCode);
 	string makeCreateDataIndex();
+	string makeCreateForWhom();
 	string makeCreateGeo();
 	string makeCreateGeoLayers(string sYear);
 	vector<string> makeCreateInsertDIMIndex();
@@ -80,6 +81,7 @@ public:
 	string makeInsertCensus();
 	void makeInsertData(string& csvFile, size_t& nextLine, vector<string>& vsStmt);
 	int makeInsertDataIndex(int numDI, vector<vector<string>>& vvsDIM);
+	string makeInsertForWhom();
 	string makeInsertGeo(string& csvFile, size_t& nextLine);
 	vector<string> makeInsertMap(string tname, string mapPath);
 	vector<string> makeInsertMapFrame(string tname, string mapPath);

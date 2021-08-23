@@ -682,6 +682,15 @@ string STATSCAN::makeCreateDataIndex()
     stmt += ");";
     return stmt;
 }
+string STATSCAN::makeCreateForWhom()
+{
+    // "ForWhom" values are segments of a catalogue's formal description
+    // which are useful in differentiating similar datasets. 
+    string stmt = "CREATE TABLE \"ForWhom$" + cataYear;
+    stmt += "\" (Catalogue TEXT, ForWhom TEXT, UNIQUE(";
+    stmt += "Catalogue));";
+    return stmt;
+}
 string STATSCAN::makeCreateGeo()
 {
     // Note this table is created with zero 'Ancestor' columns. Those are added
@@ -1134,6 +1143,39 @@ int STATSCAN::makeInsertDataIndex(int numDI, vector<vector<string>>& vvsDIM)
         jf.uptick(viCounter, viMax);
     }
     return count;
+}
+string STATSCAN::makeInsertForWhom()
+{
+    if (metaFile.size() < 1) { jf.err("No init-sc.makeInsertForWhom"); }
+    string forWhom;
+    size_t pos2 = metaFile.find("Catalog number");
+    if (pos2 > metaFile.size()) 
+    { 
+        pos2 = metaFile.find("Catalogue number");
+        if (pos2 > metaFile.size()) { jf.err("Confusing metafile format-sc.makeInsertForWhom"); }        
+    }
+    pos2 = metaFile.rfind(" of ", pos2);
+    if (pos2 > metaFile.size()) { jf.err("Confusing metafile format-sc.makeInsertForWhom"); }
+    size_t pos1 = metaFile.rfind(" for ", pos2);
+    if (pos1 > metaFile.size()) 
+    { 
+        pos1 = metaFile.rfind(nl + nl, pos2);
+        if (pos1 > metaFile.size()) { jf.err("Confusing metafile format-sc.makeInsertForWhom"); }
+        pos1 = metaFile.find_first_not_of("\r\n", pos1);
+        forWhom = metaFile.substr(pos1, pos2 - pos1);
+    }
+    else
+    {
+        pos1 += 2;
+        forWhom = "F" + metaFile.substr(pos1, pos2 - pos1);
+    }
+    trimMID(forWhom);
+    vector<string> dirt = { "'" }, soap = { "''" };
+    jf.clean(forWhom, dirt, soap);
+    string stmt = "INSERT OR IGNORE INTO \"ForWhom$" + cataYear;
+    stmt += "\" (Catalogue, ForWhom) VALUES ('" + cataName;
+    stmt += "', '" + forWhom + "');";
+    return stmt;
 }
 string STATSCAN::makeInsertGeo(string& csvFile, size_t& nextLine)
 {

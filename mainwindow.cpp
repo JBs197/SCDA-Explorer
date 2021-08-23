@@ -803,7 +803,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     delete vsCreateData;
     jf.log("Created data table statements for " + prompt[1]);
 
-    // Launch worker threads to make insert statements for each Geo table.
+    // Launch worker threads to make insert statements for each Data table.
     int commJudiSize, geoListRow, activeThr;
     mycomm[2] = geoToDo.size();
     mycomm[1] = -1;
@@ -1030,6 +1030,18 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     // Geo Layers.
     insertGeoLayers(prompt[0], prompt[1]);
     jf.log("Inserted geo layers for " + prompt[1]);
+
+    // Add this catalogue to its "ForWhom" table.
+    tname = "ForWhom$" + prompt[0];
+    if (!sfgui.table_exist(tname))
+    {
+        result = scjudi.makeCreateForWhom();
+        sfgui.executor(result);
+        jf.log("Created a ForWhom table for " + prompt[0]);
+    }
+    stmt = scjudi.makeInsertForWhom();
+    sfgui.executor(stmt);
+    jf.log("Inserted a ForWhom value for " + prompt[1]);
 
     // Report completion to the GUI thread.
     mycomm[0] = 1;
