@@ -1806,6 +1806,7 @@ void SQLFUNC::update(string tname, vector<string> revisions, vector<string> cond
     stmt += " WHERE";
     for (int ii = 0; ii < conditions.size(); ii++)
     {
+        sclean(conditions[ii], 2);
         stmt += " " + conditions[ii];
     }
     stmt += ";";

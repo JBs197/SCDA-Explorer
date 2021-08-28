@@ -65,6 +65,7 @@ public:
 	void logTime(string func, long long timer);
 	int maxNumCol(vector<vector<wstring>>& task);
 	vector<int> minMax(vector<double>& dList);
+	vector<int> minMax(vector<int>& iList);
 	string nameFromPath(string& path);
 	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
 	void navParser(string& sfile, vector<vector<string>>& search);

@@ -1170,7 +1170,7 @@ string STATSCAN::makeInsertForWhom()
         forWhom = "F" + metaFile.substr(pos1, pos2 - pos1);
     }
     trimMID(forWhom);
-    vector<string> dirt = { "'" }, soap = { "''" };
+    vector<string> dirt = { "'", "  " }, soap = { "''", " " };
     jf.clean(forWhom, dirt, soap);
     string stmt = "INSERT OR IGNORE INTO \"ForWhom$" + cataYear;
     stmt += "\" (Catalogue, ForWhom) VALUES ('" + cataName;

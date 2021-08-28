@@ -648,6 +648,26 @@ vector<int> JFUNC::minMax(vector<double>& dList)
 	}
 	return result;
 }
+vector<int> JFUNC::minMax(vector<int>& iList)
+{
+	vector<int> result = { 0, 0 };
+	int min = iList[0];
+	int max = iList[0];
+	for (int ii = 1; ii < iList.size(); ii++)
+	{
+		if (iList[ii] < min)
+		{
+			min = iList[ii];
+			result[0] = ii;
+		}
+		else if (iList[ii] > max)
+		{
+			max = iList[ii];
+			result[1] = ii;
+		}
+	}
+	return result;
+}
 string JFUNC::nameFromPath(string& path)
 {
 	size_t pos1 = path.rfind('\\');

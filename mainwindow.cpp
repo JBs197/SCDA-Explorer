@@ -2588,23 +2588,29 @@ void MainWindow::on_pB_test_clicked()
         ui->pte_search->setPlainText("Done deleting.");
         break;
     }
-    case 3:  // Upgrade a given SC geo file.
+    case 3:  
     {
-        QString qTemp = ui->pte_search->toPlainText();
-        string geoPathOld = qTemp.toStdString(), folderPath;
+        int count = 0;
+        string tname = "ForWhom$2017";
+        vector<string> search = { "Catalogue", "ForWhom" };
+        vector<vector<string>> vvsResult;
+        sf.select(search, tname, vvsResult);
         size_t pos1;
-        if (wf.file_exist(geoPathOld))
+        vector<string> dirt = { "  " }, soap = { " " };
+        vector<string> revisions, conditions; 
+        for (int ii = 0; ii < vvsResult.size(); ii++)
         {
-            pos1 = geoPathOld.rfind('\\');
-            folderPath = geoPathOld.substr(0, pos1);
-            sc.init(folderPath);
-            sc.convertSCgeo(geoPathOld);
+            pos1 = vvsResult[ii][1].find("  ");
+            if (pos1 < vvsResult[ii][1].size())
+            {
+                jf.clean(vvsResult[ii][1], dirt, soap);
+                revisions = { "ForWhom = '" + vvsResult[ii][1] + "'"};
+                conditions = { "Catalogue LIKE " + vvsResult[ii][0] };
+                sf.update(tname, revisions, conditions);
+                count++;
+            }
         }
-        else
-        {
-            qTemp = "Specified file does not exist.";
-            ui->pte_search->setPlainText(qTemp);
-        }
+        qshow(to_string(count) + " corrections");
         break;
     }
     case 4:  // Insert a complete geo table using the given tnameGeo.
