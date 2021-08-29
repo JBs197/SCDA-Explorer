@@ -113,6 +113,18 @@ string JFUNC::bind(string& stmt0, vector<string>& params)
 
 	return stmt0;
 }
+bool JFUNC::checkPercent(vector<string>& list)
+{
+	// Returns TRUE if every element in the list can be read as a number within [0, 100].
+	double dTemp;
+	for (int ii = 0; ii < list.size(); ii++)
+	{
+		try { dTemp = stod(list[ii]); }
+		catch (invalid_argument) { return 0; }
+		if (dTemp < 0.0 || dTemp > 100.0) { return 0; }
+	}
+	return 1;
+}
 int JFUNC::clean(string& bbq, vector<string> dirt)
 {
 	int count = 0;
@@ -448,6 +460,20 @@ vector<int> JFUNC::get_roots(vector<vector<int>>& tree_st)
 	}
 	return roots;
 }
+string JFUNC::intToCommaString(int iNum)
+{
+	// Every third digit from the end is separated by a comma. 
+	string sNum = to_string(iNum);
+	size_t len = sNum.size();
+	if (len < 4) { return sNum; }
+	int pos = len - 3;
+	while (pos > 0)
+	{
+		sNum.insert(pos, ",");
+		pos -= 3;
+	}
+	return sNum;
+}
 void JFUNC::isort_ilist(vector<int>& ilist, int type)
 {
 	int isize = ilist.size(), index;
@@ -643,6 +669,28 @@ vector<int> JFUNC::minMax(vector<double>& dList)
 		else if (dList[ii] > max)
 		{
 			max = dList[ii];
+			result[1] = ii;
+		}
+	}
+	return result;
+}
+vector<int> JFUNC::minMax(vector<double>* dList)
+{
+	vector<int> result = { 0, 0 };
+	double dVal;
+	double min = dList->at(0);
+	double max = dList->at(0);
+	for (int ii = 1; ii < dList->size(); ii++)
+	{
+		dVal = dList->at(ii);
+		if (dVal < min)
+		{
+			min = dVal;
+			result[0] = ii;
+		}
+		else if (dVal > max)
+		{
+			max = dVal;
 			result[1] = ii;
 		}
 	}

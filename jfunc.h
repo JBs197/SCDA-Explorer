@@ -41,6 +41,7 @@ public:
 	string asciiToUTF8(string input);
 	wstring asciiToUTF16(string aFile);
 	string bind(string&, vector<string>&);
+	bool checkPercent(vector<string>& list);
 	int clean(string& bbq, vector<string> dirt);
 	int clean(string& bbq, vector<string> dirt, string twins);
 	int clean(string& bbq, vector<string> dirt, vector<string> soap);
@@ -52,6 +53,7 @@ public:
 	vector<double> destringifyCoordD(string& sCoord);
 	void err(string);
 	string get_error_path();
+	string intToCommaString(int iNum);
 	void isort_ilist(vector<int>& iList, int type);
 	void isort_ilist(vector<string>& sList, int type);
 	int is_numeric(string&);
@@ -65,6 +67,7 @@ public:
 	void logTime(string func, long long timer);
 	int maxNumCol(vector<vector<wstring>>& task);
 	vector<int> minMax(vector<double>& dList);
+	vector<int> minMax(vector<double>* dList);
 	vector<int> minMax(vector<int>& iList);
 	string nameFromPath(string& path);
 	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
