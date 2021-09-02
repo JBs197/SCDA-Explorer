@@ -113,6 +113,15 @@ string JFUNC::bind(string& stmt0, vector<string>& params)
 
 	return stmt0;
 }
+bool JFUNC::checkPercent(string& sNum)
+{
+	// Returns TRUE if sNum can be read as a number within [0, 100].
+	double dTemp;
+	try { dTemp = stod(sNum); }
+	catch (invalid_argument) { return 0; }
+	if (dTemp < 0.0 || dTemp > 100.0) { return 0; }
+	return 1;
+}
 bool JFUNC::checkPercent(vector<string>& list)
 {
 	// Returns TRUE if every element in the list can be read as a number within [0, 100].
@@ -396,6 +405,60 @@ vector<double> JFUNC::destringifyCoordD(string& sCoord)
 	try { coord.push_back(stod(temp)); }
 	catch (invalid_argument) { err("stod-jf.destringifyCoordD"); }
 	return coord;
+}
+string JFUNC::doubleToCommaString(double dNum)
+{
+	// Every third digit left of the decimal point is separated by a comma. Uses the 
+	// default number of decimal digits after the decimal point. 
+	string sNum = doubleToCommaString(dNum, defaultDecimalPlaces);
+	return sNum;
+}
+string JFUNC::doubleToCommaString(double dNum, int decimalPlaces)
+{
+	// Every third digit left of the decimal point is separated by a comma.
+	string temp;
+	string sNum = to_string(dNum);
+	int sNumSize = sNum.size();
+	int numDecPlaces, iNum;
+	size_t posDot = sNum.find('.');
+	if (posDot > sNumSize) { numDecPlaces = 0; }
+	else { numDecPlaces = sNumSize - posDot - 1; }
+
+	// Do rounding or zero-padding, as necessary.
+	if (numDecPlaces > decimalPlaces)  
+	{
+		temp = sNum[posDot + decimalPlaces + 1];
+		iNum = stoi(temp);
+		if (iNum >= 5)
+		{
+			temp = sNum[posDot + decimalPlaces];
+			iNum = stoi(temp);
+			iNum++;
+		}
+		sNum.resize(posDot + decimalPlaces + 1);
+		numDecPlaces = decimalPlaces;
+	}
+	while (numDecPlaces < decimalPlaces)
+	{
+		if (posDot > sNum.size()) 
+		{ 
+			posDot = sNum.size();
+			sNum.push_back('.'); 
+		}
+		sNum.push_back('0');
+		numDecPlaces++;
+	}
+
+	// Add commas to every third digit left of the decimal point.
+	temp = ",";
+	int posComma = (int)posDot - 3;
+	while (posComma > 0)
+	{
+		sNum.insert(posComma, temp);
+		posComma -= 3;
+	}
+
+	return sNum;
 }
 void JFUNC::err(string func)
 {
@@ -830,6 +893,27 @@ void JFUNC::navParser(string& sfile, vector<vector<string>>& search)
 		posNL1 = posNL2;
 		posNL2 = sfile.find('\n', posNL1 + 1);
 	}
+}
+string JFUNC::numericToCommaString(string sNumeric)
+{
+	// sNumeric must be a string representing an int or double. 
+	string sNum;
+	int iNum;
+	double dNum;
+	size_t pos1 = sNumeric.find('.');
+	if (pos1 < sNumeric.size())
+	{
+		try { dNum = stod(sNumeric); }
+		catch (invalid_argument) { err("stod-jf.numericToCommaString"); }
+		sNum = doubleToCommaString(dNum);
+	}
+	else
+	{
+		try { iNum = stoi(sNumeric); }
+		catch (invalid_argument) { err("stoi-jf.numericToCommaString"); }
+		sNum = intToCommaString(iNum);
+	}
+	return sNum;
 }
 string JFUNC::parent_from_marker(string& child, char marker)
 {

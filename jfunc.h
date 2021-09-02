@@ -23,6 +23,7 @@ extern const string scroot;
 
 class JFUNC
 {
+	int defaultDecimalPlaces = 2;  // For percentages.
 	string error_path = sroot + "\\SCDA Error Log.txt";
 	string log_path = sroot + "\\SCDA Process Log.txt";
 	string navigator_asset_path = sroot + "\\SCDA Navigator Asset.bin";
@@ -41,6 +42,7 @@ public:
 	string asciiToUTF8(string input);
 	wstring asciiToUTF16(string aFile);
 	string bind(string&, vector<string>&);
+	bool checkPercent(string& sNum);
 	bool checkPercent(vector<string>& list);
 	int clean(string& bbq, vector<string> dirt);
 	int clean(string& bbq, vector<string> dirt, string twins);
@@ -51,6 +53,8 @@ public:
 	string decToHex(unsigned char& ucdec);
 	vector<int> destringifyCoord(string& sCoord);
 	vector<double> destringifyCoordD(string& sCoord);
+	string doubleToCommaString(double dNum);
+	string doubleToCommaString(double dNum, int decimalPlaces);
 	void err(string);
 	string get_error_path();
 	string intToCommaString(int iNum);
@@ -72,6 +76,7 @@ public:
 	string nameFromPath(string& path);
 	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
 	void navParser(string& sfile, vector<vector<string>>& search);
+	string numericToCommaString(string sNumeric);
 	string parent_from_marker(string&, char);
 	void pngRead(string& pathPNG);
 	void printer(string path, string& sfile);
