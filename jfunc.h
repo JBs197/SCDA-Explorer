@@ -43,7 +43,9 @@ public:
 	wstring asciiToUTF16(string aFile);
 	string bind(string&, vector<string>&);
 	bool checkPercent(string& sNum);
+	bool checkPercent(string& sNum, double tolerance);
 	bool checkPercent(vector<string>& list);
+	bool checkPercent(vector<string>& list, double tolerance);
 	int clean(string& bbq, vector<string> dirt);
 	int clean(string& bbq, vector<string> dirt, string twins);
 	int clean(string& bbq, vector<string> dirt, vector<string> soap);
@@ -55,6 +57,7 @@ public:
 	vector<double> destringifyCoordD(string& sCoord);
 	string doubleToCommaString(double dNum);
 	string doubleToCommaString(double dNum, int decimalPlaces);
+	vector<string> doubleToCommaString(vector<double> vdNum, int decimalPlaces);
 	void err(string);
 	string get_error_path();
 	string intToCommaString(int iNum);

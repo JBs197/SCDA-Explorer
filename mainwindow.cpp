@@ -2590,26 +2590,64 @@ void MainWindow::on_pB_test_clicked()
     }
     case 3:  
     {
-        int count = 0;
-        string tname = "ForWhom$2017";
-        vector<string> search = { "Catalogue", "ForWhom" };
+        int count = 0, iDIM;
+        string sYear = "2017";
+        vector<string> search = { "Catalogue" };
+        vector<string> vsCata, vsResult, revisions, conditions;
         vector<vector<string>> vvsResult;
-        sf.select(search, tname, vvsResult);
-        size_t pos1;
-        vector<string> dirt = { "  " }, soap = { " " };
-        vector<string> revisions, conditions; 
-        for (int ii = 0; ii < vvsResult.size(); ii++)
+        string tname = "Census$" + sYear;
+        sf.select(search, tname, vsCata);
+
+        string tnameDIM, tnameDim;
+        vector<string> searchDIM = { "MID", "DIM" };
+        vector<string> searchDim = { "MID", "Dim" };
+        vector<string> dirt = { "'" }, soap = { "''" };
+        search = { "DIMIndex" };
+        for (int ii = 0; ii < vsCata.size(); ii++)
         {
-            pos1 = vvsResult[ii][1].find("  ");
-            if (pos1 < vvsResult[ii][1].size())
+            tname = "Census$" + sYear + "$" + vsCata[ii] + "$DIMIndex";
+            vsResult.clear();
+            sf.select(search, tname, vsResult);
+
+            iDIM = vsResult.size() - 2;
+            if (iDIM >= 0)
             {
-                jf.clean(vvsResult[ii][1], dirt, soap);
-                revisions = { "ForWhom = '" + vvsResult[ii][1] + "'"};
-                conditions = { "Catalogue LIKE " + vvsResult[ii][0] };
-                sf.update(tname, revisions, conditions);
-                count++;
+                tnameDIM = "Census$" + sYear + "$" + vsCata[ii] + "$DIM$" + to_string(iDIM);
+                vvsResult.clear();
+                sf.select(searchDIM, tnameDIM, vvsResult);
+                for (int jj = 0; jj < vvsResult.size(); jj++)
+                {
+                    if (vvsResult[jj][1].back() == '$' || vvsResult[jj][1].back() == '%')
+                    {
+                        vvsResult[jj][1].insert(vvsResult[jj][1].size() - 1, "(");
+                        vvsResult[jj][1].push_back(')');
+                        jf.clean(vvsResult[jj][1], dirt, soap);
+                        revisions = { "DIM = '" + vvsResult[jj][1] + "'" };
+                        conditions = { "MID = " + vvsResult[jj][0] };
+                        sf.update(tnameDIM, revisions, conditions);
+                        count++;
+                    }
+                }
+            }
+
+            tnameDim = "Census$" + sYear + "$" + vsCata[ii] + "$Dim";
+            vvsResult.clear();
+            sf.select(searchDim, tnameDim, vvsResult);
+            for (int jj = 0; jj < vvsResult.size(); jj++)
+            {
+                if (vvsResult[jj][1].back() == '$' || vvsResult[jj][1].back() == '%')
+                {
+                    vvsResult[jj][1].insert(vvsResult[jj][1].size() - 1, "(");
+                    vvsResult[jj][1].push_back(')');
+                    jf.clean(vvsResult[jj][1], dirt, soap);
+                    revisions = { "Dim = '" + vvsResult[jj][1] + "'" };
+                    conditions = { "MID = " + vvsResult[jj][0] };
+                    sf.update(tnameDIM, revisions, conditions);
+                    count++;
+                }
             }
         }
+
         qshow(to_string(count) + " corrections");
         break;
     }

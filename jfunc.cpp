@@ -122,6 +122,15 @@ bool JFUNC::checkPercent(string& sNum)
 	if (dTemp < 0.0 || dTemp > 100.0) { return 0; }
 	return 1;
 }
+bool JFUNC::checkPercent(string& sNum, double tolerance)
+{
+	// Returns TRUE if sNum can be read as a number within [0 - tolerance, 100 + tolerance].
+	double dTemp;
+	try { dTemp = stod(sNum); }
+	catch (invalid_argument) { return 0; }
+	if (dTemp < 0.0 - tolerance || dTemp > 100.0 + tolerance) { return 0; }
+	return 1;
+}
 bool JFUNC::checkPercent(vector<string>& list)
 {
 	// Returns TRUE if every element in the list can be read as a number within [0, 100].
@@ -131,6 +140,18 @@ bool JFUNC::checkPercent(vector<string>& list)
 		try { dTemp = stod(list[ii]); }
 		catch (invalid_argument) { return 0; }
 		if (dTemp < 0.0 || dTemp > 100.0) { return 0; }
+	}
+	return 1;
+}
+bool JFUNC::checkPercent(vector<string>& list, double tolerance)
+{
+	// Returns TRUE if every element in the list can be read as a number within [0 - tolerance, 100 + tolerance].
+	double dTemp;
+	for (int ii = 0; ii < list.size(); ii++)
+	{
+		try { dTemp = stod(list[ii]); }
+		catch (invalid_argument) { return 0; }
+		if (dTemp < 0.0 - tolerance || dTemp > 100.0 + tolerance) { return 0; }
 	}
 	return 1;
 }
@@ -424,7 +445,7 @@ string JFUNC::doubleToCommaString(double dNum, int decimalPlaces)
 	if (posDot > sNumSize) { numDecPlaces = 0; }
 	else { numDecPlaces = sNumSize - posDot - 1; }
 
-	// Do rounding or zero-padding, as necessary.
+	// Do rounding or padding, as necessary.
 	if (numDecPlaces > decimalPlaces)  
 	{
 		temp = sNum[posDot + decimalPlaces + 1];
@@ -459,6 +480,94 @@ string JFUNC::doubleToCommaString(double dNum, int decimalPlaces)
 	}
 
 	return sNum;
+}
+vector<string> JFUNC::doubleToCommaString(vector<double> vdNum, int decimalPlaces)
+{
+	// Every third digit left of the decimal point is separated by a comma.
+	vector<string> vsNum(vdNum.size());
+	string temp, sNum;
+	size_t posDot;
+	int sNumSize, numDecPlaces, iNum, posDigit;
+
+	for (int ii = 0; ii < vdNum.size(); ii++)
+	{
+		sNum = to_string(vdNum[ii]);
+		sNumSize = sNum.size();
+		posDot = sNum.find('.');
+		if (posDot > sNumSize) { numDecPlaces = 0; }
+		else { numDecPlaces = sNumSize - posDot - 1; }
+
+		// Do rounding, if necessary.
+		if (numDecPlaces > decimalPlaces)
+		{
+			temp = sNum[posDot + decimalPlaces + 1];
+			iNum = stoi(temp);
+			if (iNum >= 5)
+			{
+				if (decimalPlaces == 0) { posDigit = posDot - 1; }
+				else { posDigit = posDot + decimalPlaces; }
+				temp = sNum[posDigit];
+				iNum = stoi(temp);
+				iNum++;
+				while (iNum == 10)
+				{
+					sNum[posDigit] = '0';
+					if (sNum[posDigit - 1] == '.') { posDigit -= 2; }
+					else { posDigit -= 1; }
+
+					if (posDigit < 0) 
+					{ 
+						sNum.insert(0, "1"); 
+						break;
+					}
+					else
+					{
+						temp = sNum[posDigit];
+						iNum = stoi(temp);
+						iNum++;
+					}
+				}
+				if (posDigit >= 0) { sNum[posDigit] = 48 + iNum; }
+			}
+			sNum.resize(posDot + decimalPlaces + 1);
+			numDecPlaces = decimalPlaces;
+		}
+
+		// Add commas to every third digit left of the decimal point.
+		temp = ",";
+		posDot = sNum.rfind('.');
+		int posComma = (int)posDot - 3;
+		while (posComma > 0)
+		{
+			sNum.insert(posComma, temp);
+			posComma -= 3;
+		}
+		
+		if (sNum.back() == '.') { sNum.pop_back(); }
+		vsNum[ii] = sNum;
+	}
+
+	// Remove unnecessary trailing zeroes.
+	bool letmeout = 0;
+	while (!letmeout)
+	{
+		for (int ii = 0; ii < vsNum.size(); ii++)
+		{
+			if (vsNum[ii].back() != '0') 
+			{ 
+				letmeout = 1;
+				if (vsNum[ii].back() == '.') { vsNum[ii].pop_back(); }
+			}
+		}
+		if (!letmeout)
+		{
+			for (int ii = 0; ii < vsNum.size(); ii++)
+			{
+				vsNum[ii].pop_back();
+			}
+		}
+	}
+	return vsNum;
 }
 void JFUNC::err(string func)
 {
