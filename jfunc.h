@@ -100,6 +100,7 @@ public:
 	bool testInt(string sNum);
 	vector<string> textParser(string&, vector<string>&);
 	void timerStart();
+	long long timerReport();
 	long long timerRestart();
 	long long timerStop();
 	string timestamper();

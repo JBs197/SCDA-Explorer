@@ -69,6 +69,7 @@ private slots:
     void on_listW_searchresult_itemDoubleClicked(QListWidgetItem* qItem);
     void on_listW_searchresult_itemSelectionChanged();
     void on_pB_clearsearch_clicked();
+    void on_pB_commitedit_clicked();
     void on_pB_createmap_clicked();
     void on_pB_deletemap_clicked();
     void on_pB_deletetable_clicked();
@@ -98,6 +99,7 @@ private slots:
 private:
     Ui::MainWindow *ui;
 
+    string activeTableDB;  // Most-recently loaded database table name.
     int comm_length = 4;  // Number of integers used in every 'comm' vector.
     const int cores = 3, treeLength = 40, mapMargin = 1;
     const long long csvMaxSize = 200000000;  // Bytes
@@ -124,6 +126,7 @@ private:
     void createPngMap(string& tnameGeoLayers, string& tnameGeo);
     void displayTable(QTableWidget*& qTable, string tname);
     void downloadCatalogue(string sYear, string sCata);
+    void editTable(QTableWidgetItem*& qCell, string tname);
     void eraseVVS(vector<vector<string>>& vvs);
     void getCataMapDB(SWITCHBOARD& sbgui, SQLFUNC& sfgui, JTREE& jtgui);
     void GetDesktopResolution(int& horizontal, int& vertical);

@@ -486,6 +486,36 @@ void SQLFUNC::get_col_titles(string tname, vector<string>& titles)
         titles[ii] = results[ii][1];
     }
 }
+string SQLFUNC::getColType(string tname, int colIndex)
+{
+    vector<vector<string>> results;
+    string stmt = "PRAGMA table_info('" + tname + "');";
+    executor(stmt, results);
+    if (results.size() < 1) { jf.err("Table not found-sf.getColType"); }
+    if (colIndex >= results.size()) { jf.err("colIndex not found-sf.getColType"); }
+
+    return results[colIndex][2];
+}
+string SQLFUNC::getColType(string tname, string colTitle)
+{
+    vector<vector<string>> results;
+    string stmt = "PRAGMA table_info('" + tname + "');";
+    executor(stmt, results);
+    if (results.size() < 1) { jf.err("Table not found-sf.getColType"); }
+
+    int index = -1;
+    for (int ii = 0; ii < results.size(); ii++)
+    {
+        if (results[ii][1] == colTitle)
+        {
+            index = ii;
+            break;
+        }
+    }
+    if (index < 0) { jf.err("colTitle not found-sf.getColType"); }
+
+    return results[index][2];
+}
 string SQLFUNC::getLinearizedTitle(string& cataName, string& rowTitle, string& colTitle)
 {
     vector<string> columnTitles;
@@ -1234,10 +1264,13 @@ void SQLFUNC::safe_col(string tname, int num_col)
 }
 int SQLFUNC::sclean(string& bbq, int mode)
 {
+    // mode 1 is to double all single quotation marks (general purpose SQL).
     // mode 2 is for conditional 'select' statements.
+    // mode 3 is for 'update' revisions. 
     bool skip = 0;
     int count = 0;
-    size_t pos1, pos2, posLIKE;
+    double dnum;
+    size_t pos1, pos2, posLIKE, posEqual, len;
     string temp;
 
     pos1 = bbq.find('[');
@@ -1309,6 +1342,49 @@ int SQLFUNC::sclean(string& bbq, int mode)
         if (bbq.back() != '\'')
         {
             bbq.push_back('\'');
+        }
+        break;
+    }
+    case 3:   // This variant is used for revision statements.
+    {
+        posEqual = bbq.find('=');
+        if (posEqual > bbq.size()) { break; }
+
+        temp = "\"";
+        pos2 = bbq.find_last_not_of(' ', posEqual - 1);
+        if (bbq[pos2] != '"') { bbq.insert(pos2 + 1, temp); }
+        pos1 = bbq.find_first_not_of(' ');
+        if (bbq[pos1] != '"') { bbq.insert(pos1, temp); }
+
+        bool numeric = 1;
+        posEqual = bbq.find('=');
+        pos2 = bbq.find_first_not_of(' ', posEqual + 1);
+        temp = bbq.substr(pos2);
+        try { dnum = stod(temp); }
+        catch (invalid_argument) { numeric = 0; }
+        if (!numeric)
+        {
+            len = temp.size();
+            pos1 = temp.find('\'');
+            while (pos1 < temp.size())
+            {
+                if (pos1 == 0) 
+                { 
+                    pos1 = temp.find('\'', pos1 + 1);
+                    continue;
+                }
+                else if (pos1 == temp.size() - 1) { break; }
+                else if (temp[pos1 + 1] == '\'')
+                {
+                    pos1 = temp.find('\'', pos1 + 2);
+                    continue;
+                }
+                temp.insert(temp.begin() + pos1, '\'');
+                pos1 = temp.find('\'', pos1 + 2);
+            }
+            if (temp[0] != '\'') { temp.insert(temp.begin(), '\''); }
+            if (temp[temp.size() - 1] != '\'') { temp.push_back('\''); }
+            bbq.replace(pos2, len, temp);
         }
         break;
     }
@@ -1801,6 +1877,7 @@ void SQLFUNC::update(string tname, vector<string> revisions, vector<string> cond
     for (int ii = 0; ii < revisions.size(); ii++)
     {
         if (ii > 0) { stmt += ", "; }
+        sclean(revisions[ii], 3);
         stmt += revisions[ii];
     }
     stmt += " WHERE";

@@ -1756,7 +1756,6 @@ void MainWindow::on_listW_map_itemSelectionChanged()
     }
 }
 
-
 // Database map functions.
 void MainWindow::getCataMapDB(SWITCHBOARD& sbgui, SQLFUNC& sfgui, JTREE& jtgui)
 {
@@ -1968,6 +1967,18 @@ void MainWindow::on_treeW_mapdb_itemSelectionChanged()
 }
 
 // Database table review.
+void MainWindow::tableTopper(SWITCHBOARD& sbgui, vector<vector<string>>& vvsResult)
+{
+    thread::id myid = this_thread::get_id();
+    vector<int> mycomm;
+    sbgui.answer_call(myid, mycomm);
+    vector<string> prompt = sbgui.get_prompt();  // Form [tname].
+    vector<string> search = { "*" };
+    sf.select(search, prompt[0], vvsResult);
+    jf.removeBlanks(vvsResult);
+    mycomm[0] = 1;
+    sbgui.update(myid, mycomm);
+}
 void MainWindow::displayTable(QTableWidget*& qTable, string tname)
 {
     jf.timerStart();
@@ -2037,8 +2048,9 @@ void MainWindow::displayTable(QTableWidget*& qTable, string tname)
     qTable->setVerticalHeaderItem(0, qCell);
     qTable->verticalHeader()->setVisible(0);
     qTable->setHorizontalHeaderLabels(hHeaderLabels);
-    time = jf.timerStop();
     reportTable(qTable);
+    activeTableDB = tname;
+    time = jf.timerStop();
 }
 void MainWindow::on_pB_viewtable_clicked()
 {
@@ -2047,18 +2059,6 @@ void MainWindow::on_pB_viewtable_clicked()
     QString qTemp = qSel[0]->text();
     string tname = qTemp.toStdString();
     displayTable(ui->tableW_db, tname);
-}
-void MainWindow::tableTopper(SWITCHBOARD& sbgui, vector<vector<string>>& vvsResult)
-{
-    thread::id myid = this_thread::get_id();
-    vector<int> mycomm;
-    sbgui.answer_call(myid, mycomm);
-    vector<string> prompt = sbgui.get_prompt();  // Form [tname].
-    vector<string> search = { "*" };
-    sf.select(search, prompt[0], vvsResult);
-    jf.removeBlanks(vvsResult);
-    mycomm[0] = 1;
-    sbgui.update(myid, mycomm);
 }
 void MainWindow::on_pB_deletetable_clicked()
 {
@@ -2118,6 +2118,65 @@ void MainWindow::on_pB_deletetable_clicked()
         break;
     }
     }
+}
+void MainWindow::editTable(QTableWidgetItem*& qCell, string tname)
+{
+    QString qTemp = qCell->text();
+    string cellNew = qTemp.toUtf8();
+    sf.sclean(cellNew, 1);
+
+    int colIndex = ui->tableW_db->column(qCell);
+    QTableWidgetItem* qCellTemp = ui->tableW_db->horizontalHeaderItem(colIndex);
+    qTemp = qCellTemp->text();
+    string cellNewColTitle = qTemp.toUtf8();
+    sf.sclean(cellNewColTitle, 1);
+
+    int rowIndex = ui->tableW_db->row(qCell);
+    int numCol = ui->tableW_db->columnCount();
+    int index = 0;
+    vector<vector<string>> vvsRow(numCol - 1, vector<string>(2));  // Form [non-selected column index][column title, column row value].
+    for (int ii = 0; ii < numCol; ii++)
+    {
+        if (ii == colIndex) { continue; }
+
+        qCellTemp = ui->tableW_db->horizontalHeaderItem(ii);
+        qTemp = qCellTemp->text();
+        vvsRow[index][0] = qTemp.toUtf8();
+        sf.sclean(vvsRow[index][0], 1);
+
+        qCellTemp = ui->tableW_db->item(rowIndex, ii);
+        qTemp = qCellTemp->text();
+        vvsRow[index][1] = qTemp.toUtf8();
+        sf.sclean(vvsRow[index][1], 1);
+
+        index++;
+    }
+
+    vector<string> revisions = { cellNewColTitle + " = " + cellNew };
+    vector<string> conditions(vvsRow.size());
+    string colType;
+    for (int ii = 0; ii < conditions.size(); ii++)
+    {
+        if (ii > 0) { conditions[ii] += " AND "; }
+        conditions[ii] += vvsRow[ii][0];
+
+        colType = sf.getColType(tname, vvsRow[ii][0]);   
+        if (colType == "TEXT") { conditions[ii] += " LIKE "; }
+        else { conditions[ii] += " = "; }
+
+        conditions[ii] += vvsRow[ii][1];
+    }
+
+    sf.update(tname, revisions, conditions);
+    string sMessage = "Done editing " + tname + " !";
+    qshow(sMessage);
+}
+void MainWindow::on_pB_commitedit_clicked()
+{
+    QList<QTableWidgetItem*> qSel = ui->tableW_db->selectedItems();
+    if (qSel.size() != 1) { return; }
+    if (!sf.table_exist(activeTableDB)) { return; }
+    editTable(qSel[0], activeTableDB);
 }
 void MainWindow::on_tableW_db_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen)
 {

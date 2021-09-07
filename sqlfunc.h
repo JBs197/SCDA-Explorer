@@ -35,6 +35,8 @@ public:
     void executor(string stmt, vector<vector<string>>& results);
     void executor(string stmt, vector<vector<wstring>>& results);
     void get_col_titles(string tname, vector<string>& titles);
+    string getColType(string tname, int colIndex);
+    string getColType(string tname, string colTitle);
     string getLinearizedTitle(string& cataName, string& rowTitle, string& colTitle);
     int get_num_col(string tname);
     int getNumRows(string tname);

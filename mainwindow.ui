@@ -110,7 +110,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>0</number>
+     <number>2</number>
     </property>
     <widget class="QWidget" name="tab_cata">
      <attribute name="title">
@@ -714,6 +714,20 @@ Positioning</string>
     <property name="text">
      <string>Clear
 Search Box</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pB_commitedit">
+    <property name="geometry">
+     <rect>
+      <x>910</x>
+      <y>930</y>
+      <width>81</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Commit
+Edit</string>
     </property>
    </widget>
   </widget>

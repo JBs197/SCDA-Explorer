@@ -1212,6 +1212,13 @@ void JFUNC::timerStart()
 {
 	t1 = chrono::high_resolution_clock::now();
 }
+long long JFUNC::timerReport()
+{
+	t2 = chrono::high_resolution_clock::now();  // steady_clock uses ns, but can only update every 100ns.
+	chrono::milliseconds d1 = chrono::duration_cast<chrono::milliseconds>(t2 - t1);
+	long long timer = d1.count();
+	return timer;
+}
 long long JFUNC::timerRestart()
 {
 	t2 = chrono::high_resolution_clock::now();  // steady_clock uses ns, but can only update every 100ns.
