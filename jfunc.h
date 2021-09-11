@@ -80,6 +80,7 @@ public:
 	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
 	void navParser(string& sfile, vector<vector<string>>& search);
 	string numericToCommaString(string sNumeric);
+	string numericToCommaString(string sNumeric, int mode);
 	string parent_from_marker(string&, char);
 	void pngRead(string& pathPNG);
 	void printer(string path, string& sfile);

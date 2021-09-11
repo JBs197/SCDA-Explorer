@@ -1024,6 +1024,29 @@ string JFUNC::numericToCommaString(string sNumeric)
 	}
 	return sNum;
 }
+string JFUNC::numericToCommaString(string sNumeric, int mode)
+{
+	// sNumeric must be a string representing an int or double. 
+	// This variant allows for a specific conversion type:
+	// mode 0 = int, mode 1 = double
+	string sNum;
+	int iNum;
+	double dNum;
+	switch (mode)
+	{
+	case 0:
+		try { iNum = stoi(sNumeric); }
+		catch (invalid_argument) { err("stoi-jf.numericToCommaString"); }
+		sNum = intToCommaString(iNum);
+		break;
+	case 1:
+		try { dNum = stod(sNumeric); }
+		catch (invalid_argument) { err("stod-jf.numericToCommaString"); }
+		sNum = doubleToCommaString(dNum);
+		break;
+	}
+	return sNum;
+}
 string JFUNC::parent_from_marker(string& child, char marker)
 {
 	size_t pos1 = child.rfind(marker);
