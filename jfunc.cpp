@@ -632,6 +632,24 @@ vector<int> JFUNC::get_roots(vector<vector<int>>& tree_st)
 	}
 	return roots;
 }
+vector<string> JFUNC::horizontalCentering(vector<string> vsList)
+{
+	// Given a list of strings, add enough spaces at the beginning of each string
+	// so that the list appears horizontally-centered.
+	int spaces, maxLength = 0;
+	vector<int> viLength(vsList.size());
+	for (int ii = 0; ii < vsList.size(); ii++)
+	{
+		viLength[ii] = vsList[ii].size();
+		if (viLength[ii] > maxLength) { maxLength = viLength[ii]; }
+	}
+	for (int ii = 0; ii < vsList.size(); ii++)
+	{
+		spaces = (maxLength - viLength[ii]) / 2;
+		vsList[ii].insert(0, spaces, ' ');
+	}
+	return vsList;
+}
 string JFUNC::intToCommaString(int iNum)
 {
 	// Every third digit from the end is separated by a comma. 

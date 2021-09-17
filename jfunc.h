@@ -60,6 +60,7 @@ public:
 	vector<string> doubleToCommaString(vector<double> vdNum, int decimalPlaces);
 	void err(string);
 	string get_error_path();
+	vector<string> horizontalCentering(vector<string> vsList);
 	string intToCommaString(int iNum);
 	void isort_ilist(vector<int>& iList, int type);
 	void isort_ilist(vector<string>& sList, int type);
