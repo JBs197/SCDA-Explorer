@@ -690,14 +690,12 @@ void JFUNC::isort_ilist(vector<int>& ilist, int type)
 }
 void JFUNC::isort_ilist(vector<string>& slist, int type)
 {
+	// type:  0 = ascending, 1 = descending
 	int isize = slist.size(), index;
 	vector<int> ilist(isize);
 	for (int ii = 0; ii < isize; ii++)
 	{
-		try
-		{
-			ilist[ii] = stoi(slist[ii]);
-		}
+		try { ilist[ii] = stoi(slist[ii]); }
 		catch (invalid_argument) { err("stoi-jf.isort_slist"); }
 	}
 	quicksort(ilist, 0, isize - 1);
