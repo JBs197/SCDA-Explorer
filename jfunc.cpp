@@ -776,7 +776,7 @@ string JFUNC::load(string file_path)
 {
 	// Load a file into memory as a string.
 
-	// NOTE: Function fails to load non-ascii names. 
+	// NOTE: Function fails to load non-ANSI names. 
 	FILE* pFile = fopen(file_path.c_str(), "rb");
 	if (pFile == NULL) { err("fopen-jf.load"); }
 	fseek(pFile, 0, SEEK_END);
@@ -813,6 +813,23 @@ string JFUNC::load(string file_path)
 	}
 	delete[] buffer;
 	return output;
+}
+vector<unsigned char> JFUNC::loadBin(string filePath)
+{
+	// Load a file into memory as binary data. 
+
+	// NOTE: Function fails to load non-ANSI names. 
+	FILE* pFile = fopen(filePath.c_str(), "rb");
+	if (pFile == NULL) { err("fopen-jf.loadBin"); }
+	fseek(pFile, 0, SEEK_END);
+	int sizeFile = ftell(pFile);
+	if (sizeFile < 0) { err("ftell-jf.loadBin"); }
+	fseek(pFile, 0, SEEK_SET);
+	vector<unsigned char> buffer(sizeFile);
+	size_t numChar = fread(&buffer[0], 1, sizeFile, pFile);
+	if (numChar != sizeFile) { err("fread-jf.loadBin"); }
+	fclose(pFile);
+	return buffer;
 }
 void JFUNC::log(string message)
 {

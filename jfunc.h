@@ -71,6 +71,7 @@ public:
 	vector<string> ivectorToSvector(vector<int>&);
 	vector<string> list_from_marker(string&, char);
 	string load(string);
+	vector<unsigned char> loadBin(string filePath);
 	void log(string message);
 	void logTime(string func, long long timer);
 	int maxNumCol(vector<vector<wstring>>& task);
