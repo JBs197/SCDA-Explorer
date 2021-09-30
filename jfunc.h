@@ -51,6 +51,7 @@ public:
 	int clean(string& bbq, vector<string> dirt, vector<string> soap);
 	vector<vector<string>> compareList(vector<string>& list0, vector<string>& list1);
 	vector<vector<string>> compareList(vector<vector<string>>& list0, vector<vector<string>>& list1, vector<int>& activeColumn);
+	int countChar(string& bbq, char target);
 	string decToHex(int& idec);
 	string decToHex(unsigned char& ucdec);
 	vector<int> destringifyCoord(string& sCoord);
@@ -92,6 +93,8 @@ public:
 	void removeBlanks(vector<string>& task);
 	void removeBlanks(vector<vector<string>>& task);
 	void removeBlanks(vector<vector<wstring>>& task);
+	vector<double> rgbxToDouble(vector<unsigned char>& vRGBX);
+	vector<double> rgbxToDouble(vector<int>& vRGBX);
 	void setErrorPath(string sEP) { error_path = sEP; }
 	void setLogPath(string sLP) { log_path = sLP; }
 	void set_navigator_asset_path(string&);

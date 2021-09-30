@@ -338,6 +338,18 @@ vector<vector<string>> JFUNC::compareList(vector<vector<string>>& list0, vector<
 	}
 	return difference;
 }
+int JFUNC::countChar(string& bbq, char target)
+{
+	// Returns the number of times the target char is found within the string.
+	int count = 0;
+	size_t pos1 = bbq.find(target);
+	while (pos1 < bbq.size())
+	{
+		count++;
+		pos1 = bbq.find(target, pos1 + 1);
+	}
+	return count;
+}
 string JFUNC::decToHex(int& idec)
 {
 	string shex;
@@ -1176,6 +1188,24 @@ void JFUNC::removeBlanks(vector<vector<wstring>>& task)
 			task[ii].pop_back();
 		}
 	}
+}
+vector<double> JFUNC::rgbxToDouble(vector<unsigned char>& vRGBX)
+{
+	vector<double> vdRGBX(vRGBX.size());
+	for (int ii = 0; ii < vdRGBX.size(); ii++)
+	{
+		vdRGBX[ii] = (double)vRGBX[ii] / 255.0;
+	}
+	return vdRGBX;
+}
+vector<double> JFUNC::rgbxToDouble(vector<int>& vRGBX)
+{
+	vector<double> vdRGBX(vRGBX.size());
+	for (int ii = 0; ii < vdRGBX.size(); ii++)
+	{
+		vdRGBX[ii] = (double)vRGBX[ii] / 255.0;
+	}
+	return vdRGBX;
 }
 void JFUNC::set_navigator_asset_path(string& path)
 {
