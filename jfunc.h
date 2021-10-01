@@ -93,6 +93,7 @@ public:
 	void removeBlanks(vector<string>& task);
 	void removeBlanks(vector<vector<string>>& task);
 	void removeBlanks(vector<vector<wstring>>& task);
+	void removeBlanks(vector<vector<vector<string>>>& task);
 	vector<double> rgbxToDouble(vector<unsigned char>& vRGBX);
 	vector<double> rgbxToDouble(vector<int>& vRGBX);
 	void setErrorPath(string sEP) { error_path = sEP; }

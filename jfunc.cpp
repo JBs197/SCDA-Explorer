@@ -1189,6 +1189,20 @@ void JFUNC::removeBlanks(vector<vector<wstring>>& task)
 		}
 	}
 }
+void JFUNC::removeBlanks(vector<vector<vector<string>>>& task)
+{
+	// Only removes the blank entries at the end of each row vector.
+	for (int ii = 0; ii < task.size(); ii++)
+	{
+		for (int jj = 0; jj < task[ii].size(); jj++)
+		{
+			while (task[ii][jj].back() == "")
+			{
+				task[ii][jj].pop_back();
+			}
+		}
+	}
+}
 vector<double> JFUNC::rgbxToDouble(vector<unsigned char>& vRGBX)
 {
 	vector<double> vdRGBX(vRGBX.size());

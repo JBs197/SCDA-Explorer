@@ -40,6 +40,7 @@ public:
 	string getCSVPath(int PART);
 	int getGeoCodeIndex(string& sActiveCSVgeocode);
 	string getGeoLayer(string geoLayerExternal);
+	vector<vector<string>> getMIDAncestry(vector<string>& nameList);
 	int getPart(string GEO_CODE);
 	void getVSBuffer(vector<string>& vsBuffer);
 

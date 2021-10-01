@@ -226,6 +226,38 @@ string STATSCAN::getGeoLayer(string geoLayerExternal)
     catch (out_of_range) { jf.err("Geo layer not recognized-sc.getGeoLayer"); }
     return geoLayerInternal;
 }
+vector<vector<string>> STATSCAN::getMIDAncestry(vector<string>& nameList)
+{
+    // Return form [nameList index][Ancestor0, Ancestor1, ...]. 
+    // NOTE: Ancestor indices start from 1 rather than zero (because MID...).
+    vector<vector<string>> vvsAncestry(nameList.size(), vector<string>());
+    int indent, indentLength;
+    vector<int> indentHistory;
+    for (int ii = 0; ii < nameList.size(); ii++)
+    {
+        indent = 0;
+        while (nameList[ii][indent] == '+') { indent++; }
+
+        if (indentHistory.size() <= indent) { indentHistory.push_back(ii); }
+        else
+        {
+            indentHistory[indent] = ii;
+            indentHistory.resize(indent + 1);
+        }
+
+        indentLength = indentHistory.size();
+        if (indentLength <= 1) { continue; }
+        else
+        {
+            vvsAncestry[ii].resize(indentLength - 1);
+            for (int jj = 0; jj < indentLength - 1; jj++)
+            {
+                vvsAncestry[ii][jj] = to_string(indentHistory[jj] + 1);
+            }
+        }
+    }
+    return vvsAncestry;
+}
 int STATSCAN::getPart(string GEO_CODE)
 {
     if (mapGeoPart.size() < 1) { jf.err("mapGeoPart not initialized-sc.getPart"); }
@@ -770,10 +802,11 @@ vector<string> STATSCAN::makeCreateInsertDIM(vector<vector<string>>& vvsDIM)
     // vvsDIM has form [DIM Index][MID1 name, MID2 name, ...].
     if (metaFile.size() < 1) { jf.err("No init-sc.makeCreateInsertDIM"); }
     vvsDIM.clear();
+    vector<vector<string>> vvsMIDAncestry;
     vector<string> stmts, nameDIM, dirt = { "'" }, soap = { "''" };
     string temp, stmt, tname, sLine;
     vector<int> spaceHistory = { 0 };
-    int index, inum, iextra, space, indent, indexDIM = 0;
+    int index, inum, iextra, space, indent, indexDIM = 0, maxLen;
     size_t pos1 = metaFile.find("Definitions"), pos2, posEnd, posFoot, posNL3;
     size_t posMID = metaFile.find("Member" + nl, pos1);
     size_t posMIDnext = metaFile.find("Member" + nl, posMID + 1);  // We do not include the final "Member", as it is dim (not DIM).
@@ -819,9 +852,21 @@ vector<string> STATSCAN::makeCreateInsertDIM(vector<vector<string>>& vvsDIM)
             pos1 = metaFile.find_first_of("1234567890", pos2);
         }
 
+        vvsMIDAncestry = getMIDAncestry(nameDIM);
+        maxLen = 0;
+        for (int ii = 0; ii < vvsMIDAncestry.size(); ii++)
+        {
+            if (vvsMIDAncestry[ii].size() > maxLen) { maxLen = vvsMIDAncestry[ii].size(); }
+        }
+
         tname = "Census$" + cataYear + "$" + cataName + "$DIM$" + to_string(indexDIM);
         stmt = "CREATE TABLE IF NOT EXISTS \"" + tname;
-        stmt += "\" (MID INTEGER PRIMARY KEY, DIM TEXT);";
+        stmt += "\" (MID INTEGER PRIMARY KEY, DIM TEXT";
+        for (int ii = 0; ii < maxLen; ii++)
+        {
+            stmt += ", Ancestor" + to_string(ii) + " INT";
+        }
+        stmt += ");";
         stmts.push_back(stmt);
         vvsDIM.push_back(vector<string>(nameDIM.size()));
 
@@ -829,8 +874,17 @@ vector<string> STATSCAN::makeCreateInsertDIM(vector<vector<string>>& vvsDIM)
         {
             vvsDIM[indexDIM][ii] = nameDIM[ii];
             jf.clean(nameDIM[ii], dirt, soap);
-            stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (MID, DIM) VALUES (";
-            stmt += to_string(ii + 1) + ", '" + nameDIM[ii] + "');";
+            stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (MID, DIM";
+            for (int jj = 0; jj < vvsMIDAncestry[ii].size(); jj++)
+            {
+                stmt += ", Ancestor" + to_string(jj);
+            }
+            stmt += ") VALUES (" + to_string(ii + 1) + ", '" + nameDIM[ii] + "'";
+            for (int jj = 0; jj < vvsMIDAncestry[ii].size(); jj++)
+            {
+                stmt += ", " + vvsMIDAncestry[ii][jj];
+            }
+            stmt += ");";
             stmts.push_back(stmt);
         }
         indexDIM++;
@@ -842,10 +896,11 @@ vector<string> STATSCAN::makeCreateInsertDIM(vector<vector<string>>& vvsDIM)
 vector<string> STATSCAN::makeCreateInsertDim()
 {
     if (metaFile.size() < 1) { jf.err("No init-sc.makeCreateInsertDim"); }
+    vector<vector<string>> vvsMIDAncestry;
     vector<string> stmts, dimList, dirt = { "'" }, soap = { "''" };
     string temp, stmt, tname, sLine;
     vector<int> spaceHistory = { 0 };
-    int index, inum, iextra = -1, space, indent, indexDim = 0;
+    int index, inum, iextra = -1, space, indent, indexDim = 0, maxLen;
     size_t posMID = metaFile.rfind("Member" + nl);
     size_t posEnd = metaFile.find("Footnote", posMID);
     if (posEnd > metaFile.size()) { posEnd = metaFile.size(); }
@@ -885,16 +940,37 @@ vector<string> STATSCAN::makeCreateInsertDim()
         pos1 = metaFile.find_first_of("1234567890", pos2);
     }
 
+    vvsMIDAncestry = getMIDAncestry(dimList);
+    maxLen = 0;
+    for (int ii = 0; ii < vvsMIDAncestry.size(); ii++)
+    {
+        if (vvsMIDAncestry[ii].size() > maxLen) { maxLen = vvsMIDAncestry[ii].size(); }
+    }
+
     tname = "Census$" + cataYear + "$" + cataName + "$Dim";
     stmt = "CREATE TABLE IF NOT EXISTS \"" + tname;
-    stmt += "\" (MID INTEGER PRIMARY KEY, Dim TEXT);";
+    stmt += "\" (MID INTEGER PRIMARY KEY, Dim TEXT";
+    for (int ii = 0; ii < maxLen; ii++)
+    {
+        stmt += ", Ancestor" + to_string(ii) + " INT";
+    }
+    stmt += ");";
     stmts.push_back(stmt);
 
     for (int ii = 0; ii < dimList.size(); ii++)
     {
         jf.clean(dimList[ii], dirt, soap);
-        stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (MID, Dim) VALUES (";
-        stmt += to_string(ii + 1) + ", '" + dimList[ii] + "');";
+        stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (MID, Dim";
+        for (int jj = 0; jj < vvsMIDAncestry[ii].size(); jj++)
+        {
+            stmt += ", Ancestor" + to_string(jj);
+        }
+        stmt += ") VALUES (" + to_string(ii + 1) + ", '" + dimList[ii] + "'";
+        for (int jj = 0; jj < vvsMIDAncestry[ii].size(); jj++)
+        {
+            stmt += ", " + vvsMIDAncestry[ii][jj];
+        }
+        stmt += ");";
         stmts.push_back(stmt);
     }
     return stmts;
