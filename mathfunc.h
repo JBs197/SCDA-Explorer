@@ -1,5 +1,4 @@
 #pragma once
-#include "gdifunc.h"
 #include "jfunc.h"
 
 using namespace std;
@@ -14,17 +13,17 @@ public:
 	~MATHFUNC() {}
 	double angleBetweenVectors(vector<vector<int>>& vCoords);
 	double angleBetweenVectors(vector<vector<double>>& pastPresentFuture);
+	vector<double> coordCenter(vector<vector<double>>& coordList);
 	int coordCircleClockwise(vector<vector<double>>& coords);
 	int coordCircleClockwise(vector<vector<int>>& icoords);
+	void coordDisplacement(vector<vector<double>>& coordList, vector<double> delta);
 	double coordDist(vector<double>& origin, vector<double>& test);
 	double coordDist(vector<int>& iv1, vector<int>& iv2);
-	double coordDistPoint(POINT origin, POINT test);
-	double coordDistPointSum(POINT& origin, vector<POINT>& testList);
-	vector<double> coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList);
-	vector<double> coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList, int depth);
 	void coordOnCircle(vector<double>& origin, double& radius, double& angle, vector<double>& coord);
 	void coordOnCircle(vector<int>& origin, int& radius, double& angle, vector<int>& coord);
+	void coordReflectX(vector<vector<double>>& coordList, double xAxis);
+	void coordReflectY(vector<vector<double>>& coordList, double yAxis);
 	double hypoteneuse(double& Dx, double& Dy);
 	double hypoteneuse(int& Ix, int& Iy);
-	vector<POINT> imgVectorPath(POINT pStart, double angleDeg, vector<POINT>& boundaryTLBR);
+
 };

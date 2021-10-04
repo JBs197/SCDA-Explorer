@@ -2,14 +2,11 @@
 #define STBI_WINDOWS_UTF8
 #include <assert.h>
 #include "gdifunc.h"
-#include "mathfunc.h"
 #include "stb_image.h"
 #include "stb_image_write.h"
 #include "stb_truetype.h"
 #include "switchboard.h"
 #include <unordered_map>
-
-
 
 using namespace std;
 extern const string sroot;
@@ -19,6 +16,7 @@ class CANDIDATES
     const double deadCone = 30.0;  // Rear cone width from which to disqualify candidates. 
     const double distRunnerUp = 0.7;  // Percent threshold to disregard candidates of lesser distance.
     vector<unsigned char> img; 
+    GDIFUNC gdi;
     vector<int> imgSpec;
     JFUNC jf;
     MATHFUNC mf;
@@ -83,6 +81,7 @@ class IMGFUNC
     int deltaRadius = 0;
     vector<vector<unsigned char>> font;  // Index is ascii minus 32.
     int fontHeight = 32;  // Pixels.
+    GDIFUNC gdi;
 	JFUNC jf;
     vector<vector<double>> keyColour;
     vector<unsigned char> legendColourBox;

@@ -9,7 +9,7 @@ void CANDIDATES::centerOfMass(vector<double>& vdDist)
     vector<double> vdCenter(pList.size());
     for (int ii = 0; ii < vdCenter.size(); ii++)
     {
-        vdCenter[ii] = mf.coordDistPoint(pCenter, pList[ii]);
+        vdCenter[ii] = gdi.coordDistPoint(pCenter, pList[ii]);
     }
     vector<int> minMax = jf.minMax(vdCenter);
     POINT pSurvivor = pList[minMax[0]];
@@ -262,7 +262,7 @@ vector<double> CANDIDATES::reportDist(vector<POINT>& vpPast)
     {
         vpPrevious[ii] = vpPast[vpPast.size() - previous + ii];
     }
-    vector<double> vdDist = mf.coordDistPointSumList(pList, vpPrevious);
+    vector<double> vdDist = gdi.coordDistPointSumList(pList, vpPrevious);
     return vdDist;
 }
 void CANDIDATES::setImg(vector<unsigned char>& image, vector<int>& imageSpec)
@@ -274,7 +274,7 @@ bool CANDIDATES::siblings()
 {
     // Return TRUE if there are only two candidates, and they are adjacent.
     if (pList.size() != 2) { return 0; }
-    double dist = mf.coordDistPoint(pList[0], pList[1]);
+    double dist = gdi.coordDistPoint(pList[0], pList[1]);
     if (dist > 1.43) { return 0; }
     return 1;
 }
@@ -672,7 +672,7 @@ POINT IMGFUNC::getBorderPoint(vector<unsigned char>& img, vector<int>& imgSpec, 
     vector<unsigned char> rgba;
     int size1, size2;
     double greenBlue, redBlue, redGreen;
-    vector<POINT> vpPath = mf.imgVectorPath(pStart, angle, TLBR);
+    vector<POINT> vpPath = gdi.imgVectorPath(pStart, angle, TLBR);
 
     for (int ii = 0; ii < vpPath.size(); ii++)
     {

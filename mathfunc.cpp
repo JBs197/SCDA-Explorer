@@ -43,6 +43,25 @@ double MATHFUNC::angleBetweenVectors(vector<vector<double>>& pastPresentFuture)
 	else { jf.err("Indeterminate clockwise-mf.angleBetweenVectors"); }
 	return theta;
 }
+vector<double> MATHFUNC::coordCenter(vector<vector<double>>& coordList)
+{
+	// Return form [xCenter, yCenter] from the given list of coordinates.
+	double xMin = coordList[0][0];
+	double xMax = coordList[0][0];
+	double yMin = coordList[0][1];
+	double yMax = coordList[0][1];
+	for (int ii = 1; ii < coordList.size(); ii++)
+	{
+		if (coordList[ii][0] < xMin) { xMin = coordList[ii][0]; }
+		else if (coordList[ii][0] > xMax) { xMax = coordList[ii][0]; }
+		if (coordList[ii][1] < yMin) { yMin = coordList[ii][1]; }
+		else if (coordList[ii][1] > yMax) { yMax = coordList[ii][1]; }
+	}
+	vector<double> vCenter(2);
+	vCenter[0] = xMin + ((xMax - xMin) / 2.0);
+	vCenter[1] = yMin + ((yMax - yMin) / 2.0);
+	return vCenter;
+}
 int MATHFUNC::coordCircleClockwise(vector<vector<double>>& coords)
 {
 	// NOTE: Image coordinates use a reversed y-axis (positive points down) !
@@ -212,6 +231,14 @@ int MATHFUNC::coordCircleClockwise(vector<vector<int>>& icoords)
 	int answer = coordCircleClockwise(coords);
 	return answer;
 }
+void MATHFUNC::coordDisplacement(vector<vector<double>>& coordList, vector<double> delta)
+{
+	for (int ii = 0; ii < coordList.size(); ii++)
+	{
+		coordList[ii][0] += delta[0];
+		coordList[ii][1] += delta[1];
+	}
+}
 double MATHFUNC::coordDist(vector<double>& origin, vector<double>& test)
 {
 	double xTemp = pow(test[0] - origin[0], 2.0);
@@ -225,50 +252,6 @@ double MATHFUNC::coordDist(vector<int>& iv1, vector<int>& iv2)
 	vector<double> test = { (double)iv2[0], (double)iv2[1] };
 	double dist = coordDist(origin, test);
 	return dist;
-}
-double MATHFUNC::coordDistPoint(POINT origin, POINT test)
-{
-	// Return the decimal distance between two points.
-	double xTemp = pow((double)(test.x - origin.x), 2.0);
-	double yTemp = pow((double)(test.y - origin.y), 2.0);
-	double radius = sqrt(xTemp + yTemp);
-	return radius;
-}
-double MATHFUNC::coordDistPointSum(POINT& origin, vector<POINT>& testList)
-{
-	// Return the sum total of distances between the origin point and each listed test point.
-	double dsum = 0.0;
-	for (int ii = 0; ii < testList.size(); ii++)
-	{
-		dsum += coordDistPoint(origin, testList[ii]);
-	}
-	return dsum;
-}
-vector<double> MATHFUNC::coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList)
-{
-	// For each point in the origin (candidate) list, determine the sum total of distances between
-	// it and the list of test points. The returned list matches the given list of origin points. 
-	vector<double> resultList(originList.size());
-	for (int ii = 0; ii < resultList.size(); ii++)
-	{
-		resultList[ii] = coordDistPointSum(originList[ii], testList);
-	}
-	return resultList;
-}
-vector<double> MATHFUNC::coordDistPointSumList(vector<POINT>& originList, vector<POINT>& testList, int depth)
-{
-	// For each point in the origin (candidate) list, determine the sum total of distances between
-	// it and the list of test points (going back up to "depth"). The returned list matches the 
-	// given list of origin points. 
-	vector<double> resultList(originList.size());
-	int testSize = testList.size();
-	vector<POINT> vpTest;
-	vpTest.assign(testList.begin() + testSize - depth, testList.end());
-	for (int ii = 0; ii < resultList.size(); ii++)
-	{
-		resultList[ii] = coordDistPointSum(originList[ii], vpTest);
-	}
-	return resultList;
 }
 void MATHFUNC::coordOnCircle(vector<double>& origin, double& radius, double& angle, vector<double>& coord)
 {
@@ -293,6 +276,26 @@ void MATHFUNC::coordOnCircle(vector<int>& origin, int& radius, double& angle, ve
 	coord[0] = int(round(coordD[0]));
 	coord[1] = int(round(coordD[1]));
 }
+void MATHFUNC::coordReflectX(vector<vector<double>>& coordList, double xAxis)
+{
+	// Use the vertical line defined by xAxis as the pivot for xCoord reflection.
+	double dist;
+	for (int ii = 0; ii < coordList.size(); ii++)
+	{
+		dist = coordList[ii][0] - xAxis;
+		coordList[ii][0] = xAxis - dist;
+	}
+}
+void MATHFUNC::coordReflectY(vector<vector<double>>& coordList, double yAxis)
+{
+	// Use the horizontal line defined by yAxis as the pivot for yCoord reflection.
+	double dist;
+	for (int ii = 0; ii < coordList.size(); ii++)
+	{
+		dist = coordList[ii][1] - yAxis;
+		coordList[ii][1] = yAxis - dist;
+	}
+}
 double MATHFUNC::hypoteneuse(double& Dx, double& Dy)
 {
 	double hypo = sqrt(pow(Dx, 2.0) + pow(Dy, 2.0));
@@ -305,117 +308,4 @@ double MATHFUNC::hypoteneuse(int& Ix, int& Iy)
 	double hypo = sqrt(pow(Dx, 2.0) + pow(Dy, 2.0));
 	return hypo;
 }
-vector<POINT> MATHFUNC::imgVectorPath(POINT p1, double angle, vector<POINT>& TLBR)
-{
-	// The final path point will be along the TLBR rectangle.
-	// NOTE: Image coordinates use a reversed y-axis (positive points down) !
-	// Angle is measured from the positive x-axis, and travels CLOCKWISE within [0.0, 360.0)
-	//   6       7
-	//    \  3  /
-	//     \   /
-	//  2    +    0      <--- Quadrant diagram. Lines are 90deg apart.
-	//     /   \ 
-	//    /  1  \
-	//   5       4
 
-	if (angle < 0.0 || angle >= 360.0) { jf.err("Invalid angle-mf.initImgVector"); }
-	if (p1.x < TLBR[0].x || p1.y < TLBR[0].y) { jf.err("Invalid pStart-mf.initImgVector"); }
-	if (p1.x > TLBR[1].x || p1.y > TLBR[1].y) { jf.err("Invalid pStart-mf.initImgVector"); }
-
-	vector<POINT> vpPath = { p1 };
-	double ddx, ddy;
-	double xCoord = (double)p1.x; 
-	double yCoord = (double)p1.y;
-	int quadrant, idx = 0, idy = 0;
-
-	// Determine this vector's quadrant on an image canvas.
-	if (angle == 45.0) { quadrant = 4; }
-	else if (angle == 135.0) { quadrant = 5; }
-	else if (angle == 225.0) { quadrant = 6; }
-	else if (angle == 315.0) { quadrant = 7; }
-	else if (angle < 45.0) { quadrant = 0; }
-	else if (angle < 135.0) { quadrant = 1; }
-	else if (angle < 225.0) { quadrant = 2; }
-	else if (angle < 315.0) { quadrant = 3; }
-	else { quadrant = 0; }
-
-	// Determine the pixel increments.
-	switch (quadrant)
-	{
-	case 0:
-	{
-		idx = 1;
-		ddy = tan(angle * pi / 180.0);
-		break;
-	}
-	case 1:
-	{
-		idy = 1;
-		ddx = 1.0 / tan(angle * pi / 180.0);
-		break;
-	}
-	case 2:
-	{
-		idx = -1;
-		ddy = -1.0 * tan(angle * pi / 180.0);
-		break;
-	}
-	case 3:
-	{
-		idy = -1;
-		ddx = -1.0 / tan(angle * pi / 180.0);
-		break;
-	}
-	case 4:
-	{
-		idx = 1;
-		idy = 1;
-		break;
-	}
-	case 5:
-	{
-		idx = -1;
-		idy = 1;
-		break;
-	}
-	case 6:
-	{
-		idx = -1;
-		idy = -1;
-		break;
-	}
-	case 7:
-	{
-		idx = 1;
-		idy = -1;
-		break;
-	}
-	}
-
-	// Fly straight and true.
-	while (1)
-	{
-		if (!idx)
-		{
-			p1.y += idy;
-			xCoord += ddx;
-			p1.x = int(round(xCoord));
-		}
-		else if (!idy)
-		{
-			p1.x += idx;
-			yCoord += ddy;
-			p1.y = int(round(yCoord));
-		}
-		else
-		{
-			p1.x += idx;
-			p1.y += idy;
-		}
-		vpPath.push_back(p1);
-		if (p1.x == TLBR[0].x || p1.x == TLBR[1].x) { break; }
-		if (p1.y == TLBR[0].y || p1.y == TLBR[1].y) { break; }
-	}
-
-	return vpPath;
-}
