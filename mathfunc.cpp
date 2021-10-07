@@ -308,4 +308,75 @@ double MATHFUNC::hypoteneuse(int& Ix, int& Iy)
 	double hypo = sqrt(pow(Dx, 2.0) + pow(Dy, 2.0));
 	return hypo;
 }
-
+double MATHFUNC::rounding(double dNum, int decimalPlaces)
+{
+	double answer;
+	string temp = "1";
+	for (int ii = 0; ii < abs(decimalPlaces); ii++)
+	{
+		temp += "0";
+	}
+	double shifter = stod(temp);
+	if (decimalPlaces > 0)
+	{
+		dNum *= shifter;
+		answer = round(dNum);
+		answer /= shifter;
+	}
+	else if (decimalPlaces < 0)
+	{
+		dNum /= shifter;
+		answer = round(dNum);
+		answer *= shifter;
+	}
+	else { answer = round(dNum); }
+	return answer;
+}
+double MATHFUNC::roundingCeil(double dNum, int decimalPlaces)
+{
+	double answer;
+	string temp = "1";
+	for (int ii = 0; ii < abs(decimalPlaces); ii++)
+	{
+		temp += "0";
+	}
+	double shifter = stod(temp);
+	if (decimalPlaces > 0)
+	{
+		dNum *= shifter;
+		answer = ceil(dNum);
+		answer /= shifter;
+	}
+	else if (decimalPlaces < 0)
+	{
+		dNum /= shifter;
+		answer = ceil(dNum);
+		answer *= shifter;
+	}
+	else { answer = ceil(dNum); }
+	return answer;
+}
+double MATHFUNC::roundingFloor(double dNum, int decimalPlaces)
+{
+	double answer;
+	string temp = "1";
+	for (int ii = 0; ii < abs(decimalPlaces); ii++)
+	{
+		temp += "0";
+	}
+	double shifter = stod(temp);
+	if (decimalPlaces > 0)
+	{
+		dNum *= shifter;
+		answer = floor(dNum);
+		answer /= shifter;
+	}
+	else if (decimalPlaces < 0)
+	{
+		dNum /= shifter;
+		answer = floor(dNum);
+		answer *= shifter;
+	}
+	else { answer = floor(dNum); }
+	return answer;
+}

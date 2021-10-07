@@ -99,7 +99,7 @@ public:
 	void setErrorPath(string sEP) { error_path = sEP; }
 	void setLogPath(string sLP) { log_path = sLP; }
 	void set_navigator_asset_path(string&);
-	void sortAlphabetically(vector<string>& vs);
+	void sortAlphabetically(vector<string>& vsList);
 	string stringifyCoord(vector<int>& coord);
 	string stringifyCoord(vector<unsigned char>& coord);
 	vector<int> svectorToIvector(vector<string>&);

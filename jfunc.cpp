@@ -1225,10 +1225,24 @@ void JFUNC::set_navigator_asset_path(string& path)
 {
 	navigator_asset_path = path;
 }
-void JFUNC::sortAlphabetically(vector<string>& vs)
+void JFUNC::sortAlphabetically(vector<string>& vsList)
 {
 	// Sort a list of strings, such that capital letters are not given complete
 	// precedence over non-capital letters. 
+	int count = 1, compare;
+	while (count > 0)
+	{
+		count = 0;
+		for (int ii = 0; ii < vsList.size() - 1; ii++)
+		{
+			compare = vsList[ii].compare(vsList[ii + 1]);
+			if (compare > 0)
+			{
+				vsList[ii].swap(vsList[ii + 1]);
+				count++;
+			}
+		}
+	}
 }
 string JFUNC::stringifyCoord(vector<int>& coord)
 {

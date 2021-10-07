@@ -25,5 +25,7 @@ public:
 	void coordReflectY(vector<vector<double>>& coordList, double yAxis);
 	double hypoteneuse(double& Dx, double& Dy);
 	double hypoteneuse(int& Ix, int& Iy);
-
+	double rounding(double dNum, int decimalPlaces);
+	double roundingCeil(double dNum, int decimalPlaces);
+	double roundingFloor(double dNum, int decimalPlaces);
 };
