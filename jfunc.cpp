@@ -350,7 +350,7 @@ int JFUNC::countChar(string& bbq, char target)
 	}
 	return count;
 }
-string JFUNC::decToHex(int& idec)
+string JFUNC::decToHex(int idec)
 {
 	string shex;
 	vector<int> remainders = { idec % 16 };
@@ -373,9 +373,10 @@ string JFUNC::decToHex(int& idec)
 			shex.push_back(remainders[ii] + 55);
 		}
 	}
+	if (shex.size() == 1) { shex.insert(shex.begin(), '0'); }
 	return shex;
 }
-string JFUNC::decToHex(unsigned char& ucdec)
+string JFUNC::decToHex(unsigned char ucdec)
 {
 	string shex;
 	vector<int> remainders = { ucdec % 16 };
@@ -398,6 +399,7 @@ string JFUNC::decToHex(unsigned char& ucdec)
 			shex.push_back(remainders[ii] + 55);
 		}
 	}
+	if (shex.size() == 1) { shex.insert(shex.begin(), '0'); }
 	return shex;
 }
 vector<int> JFUNC::destringifyCoord(string& sCoord)
@@ -468,7 +470,8 @@ string JFUNC::doubleToCommaString(double dNum, int decimalPlaces)
 			iNum = stoi(temp);
 			iNum++;
 		}
-		sNum.resize(posDot + decimalPlaces + 1);
+		if (decimalPlaces > 0) { sNum.resize(posDot + decimalPlaces + 1); }
+		else { sNum.resize(posDot + decimalPlaces); }
 		numDecPlaces = decimalPlaces;
 	}
 	while (numDecPlaces < decimalPlaces)
@@ -1243,6 +1246,38 @@ void JFUNC::sortAlphabetically(vector<string>& vsList)
 			}
 		}
 	}
+}
+vector<string> JFUNC::splitByMarker(string& text, char marker)
+{
+	vector<string> vsText;
+	int index;
+	size_t pos1 = 0;
+	size_t pos2 = text.find(marker);
+	while (pos2 < text.size())
+	{
+		index = vsText.size();
+		vsText.push_back(text.substr(pos1, pos2 - pos1));
+		while (vsText[index].back() == ' ') { vsText[index].pop_back(); }
+		pos1 = text.find_first_not_of(' ', pos2 + 1);
+		if (pos1 > text.size()) { break; }
+		pos2 = text.find(marker, pos2 + 1);
+	}
+	if (pos2 > pos1)
+	{
+		index = vsText.size();
+		vsText.push_back(text.substr(pos1));
+		while (vsText[index].back() == ' ') { vsText[index].pop_back(); }
+	}
+	return vsText;
+}
+vector<vector<string>> JFUNC::splitByMarker(vector<string>& vsText, char marker)
+{
+	vector<vector<string>> vvsText(vsText.size(), vector<string>());
+	for (int ii = 0; ii < vsText.size(); ii++)
+	{
+		vvsText[ii] = splitByMarker(vsText[ii], marker);
+	}
+	return vvsText;
 }
 string JFUNC::stringifyCoord(vector<int>& coord)
 {

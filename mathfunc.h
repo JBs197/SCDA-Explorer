@@ -26,6 +26,8 @@ public:
 	double hypoteneuse(double& Dx, double& Dy);
 	double hypoteneuse(int& Ix, int& Iy);
 	double rounding(double dNum, int decimalPlaces);
+	double roundingCeil(double dNum);
 	double roundingCeil(double dNum, int decimalPlaces);
+	double roundingFloor(double dNum);
 	double roundingFloor(double dNum, int decimalPlaces);
 };

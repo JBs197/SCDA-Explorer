@@ -332,6 +332,42 @@ double MATHFUNC::rounding(double dNum, int decimalPlaces)
 	else { answer = round(dNum); }
 	return answer;
 }
+double MATHFUNC::roundingCeil(double dNum)
+{
+	// This variant automatically rounds upward using the first non-zero digit.
+	double answer;
+	string sNum = to_string(dNum);
+	size_t posDecimal = sNum.find('.');
+	size_t pos1 = sNum.find_first_not_of("0.");
+	int diff = posDecimal - pos1;
+	if (diff > 0)
+	{
+		diff--;
+		for (int ii = 0; ii < diff; ii++)
+		{
+			dNum /= 10.0;
+		}
+		answer = ceil(dNum);
+		for (int ii = 0; ii < diff; ii++)
+		{
+			answer *= 10.0;
+		}
+	}
+	else
+	{
+		diff *= -1;
+		for (int ii = 0; ii < diff; ii++)
+		{
+			dNum *= 10.0;
+		}
+		answer = ceil(dNum);
+		for (int ii = 0; ii < diff; ii++)
+		{
+			answer /= 10.0;
+		}
+	}
+	return answer;
+}
 double MATHFUNC::roundingCeil(double dNum, int decimalPlaces)
 {
 	double answer;
@@ -354,6 +390,42 @@ double MATHFUNC::roundingCeil(double dNum, int decimalPlaces)
 		answer *= shifter;
 	}
 	else { answer = ceil(dNum); }
+	return answer;
+}
+double MATHFUNC::roundingFloor(double dNum)
+{
+	// This variant automatically rounds downward using the first non-zero digit.
+	double answer;
+	string sNum = to_string(dNum);
+	size_t posDecimal = sNum.find('.');
+	size_t pos1 = sNum.find_first_not_of("0.");
+	int diff = posDecimal - pos1;
+	if (diff > 0)
+	{
+		diff--;
+		for (int ii = 0; ii < diff; ii++)
+		{
+			dNum /= 10.0;
+		}
+		answer = floor(dNum);
+		for (int ii = 0; ii < diff; ii++)
+		{
+			answer *= 10.0;
+		}
+	}
+	else
+	{
+		diff *= -1;
+		for (int ii = 0; ii < diff; ii++)
+		{
+			dNum *= 10.0;
+		}
+		answer = floor(dNum);
+		for (int ii = 0; ii < diff; ii++)
+		{
+			answer /= 10.0;
+		}
+	}
 	return answer;
 }
 double MATHFUNC::roundingFloor(double dNum, int decimalPlaces)

@@ -52,8 +52,8 @@ public:
 	vector<vector<string>> compareList(vector<string>& list0, vector<string>& list1);
 	vector<vector<string>> compareList(vector<vector<string>>& list0, vector<vector<string>>& list1, vector<int>& activeColumn);
 	int countChar(string& bbq, char target);
-	string decToHex(int& idec);
-	string decToHex(unsigned char& ucdec);
+	string decToHex(int idec);
+	string decToHex(unsigned char ucdec);
 	vector<int> destringifyCoord(string& sCoord);
 	vector<double> destringifyCoordD(string& sCoord);
 	string doubleToCommaString(double dNum);
@@ -100,6 +100,8 @@ public:
 	void setLogPath(string sLP) { log_path = sLP; }
 	void set_navigator_asset_path(string&);
 	void sortAlphabetically(vector<string>& vsList);
+	vector<string> splitByMarker(string& text, char marker);
+	vector<vector<string>> splitByMarker(vector<string>& vsText, char marker);
 	string stringifyCoord(vector<int>& coord);
 	string stringifyCoord(vector<unsigned char>& coord);
 	vector<int> svectorToIvector(vector<string>&);
