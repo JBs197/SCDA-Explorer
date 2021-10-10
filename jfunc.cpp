@@ -1230,8 +1230,6 @@ void JFUNC::set_navigator_asset_path(string& path)
 }
 void JFUNC::sortAlphabetically(vector<string>& vsList)
 {
-	// Sort a list of strings, such that capital letters are not given complete
-	// precedence over non-capital letters. 
 	int count = 1, compare;
 	while (count > 0)
 	{
@@ -1242,6 +1240,24 @@ void JFUNC::sortAlphabetically(vector<string>& vsList)
 			if (compare > 0)
 			{
 				vsList[ii].swap(vsList[ii + 1]);
+				count++;
+			}
+		}
+	}
+}
+void JFUNC::sortAlphabetically(vector<vector<string>>& vvsList, int iCol)
+{
+	// Use the given column to sort the entire 2D vector, keeping rows intact.
+	int count = 1, compare;
+	while (count > 0)
+	{
+		count = 0;
+		for (int ii = 0; ii < vvsList.size() - 1; ii++)
+		{
+			compare = vvsList[ii][iCol].compare(vvsList[ii + 1][iCol]);
+			if (compare > 0)
+			{
+				vvsList[ii].swap(vvsList[ii + 1]);
 				count++;
 			}
 		}
