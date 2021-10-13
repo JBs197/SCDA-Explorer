@@ -99,6 +99,7 @@ public:
 	void setErrorPath(string sEP) { error_path = sEP; }
 	void setLogPath(string sLP) { log_path = sLP; }
 	void set_navigator_asset_path(string&);
+	void sleep(int ms);
 	void sortAlphabetically(vector<string>& vsList);
 	void sortAlphabetically(vector<vector<string>>& vvsList, int iCol);
 	vector<string> splitByMarker(string& text, char marker);

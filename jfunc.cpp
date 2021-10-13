@@ -1228,6 +1228,10 @@ void JFUNC::set_navigator_asset_path(string& path)
 {
 	navigator_asset_path = path;
 }
+void JFUNC::sleep(int ms)
+{
+	this_thread::sleep_for(chrono::milliseconds(ms));
+}
 void JFUNC::sortAlphabetically(vector<string>& vsList)
 {
 	int count = 1, compare;
