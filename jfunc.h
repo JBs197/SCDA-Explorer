@@ -41,6 +41,7 @@ public:
 	string asciiOnly(string& input);
 	string asciiToUTF8(string input);
 	wstring asciiToUTF16(string aFile);
+	vector<unsigned char> baseConvert(vector<unsigned char>& source, int x, int y);
 	string bind(string&, vector<string>&);
 	bool checkPercent(string& sNum);
 	bool checkPercent(string& sNum, double tolerance);

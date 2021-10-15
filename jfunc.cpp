@@ -81,6 +81,55 @@ wstring JFUNC::asciiToUTF16(string input)
 	UTF16clean(output);
 	return output;
 }
+vector<unsigned char> JFUNC::baseConvert(vector<unsigned char>& source, int x, int y)
+{
+	// Converts binary data from base 'x' to base 'y'.
+	if (x < 2 || y < 2 || x > 256 || y > 256) { err("Invalid base-jf.baseConvert"); }
+	vector<unsigned char> converted;
+	unsigned char carry;
+	int digit, numDigit = 0;
+	if (x > y)
+	{
+		digit = x;
+		do
+		{
+			numDigit++;
+			digit /= y;
+		} while (digit > 0);
+		converted.resize(numDigit * source.size());
+		for (int ii = 0; ii < source.size(); ii++)
+		{
+			carry = source[ii];
+			for (int jj = numDigit - 1; jj >= 0; jj--)
+			{
+				converted[(ii * numDigit) + jj] = carry % y;
+				carry /= y;
+			}
+		}
+	}
+	else
+	{
+		carry = y;
+		do
+		{
+			numDigit++;
+			carry /= x;
+		} while (carry > 0);
+		digit = source.size() % numDigit;
+		if (digit != 0) { err("Blank spaces detected-jfunc.baseConvert"); }
+		converted.resize(source.size() / numDigit);
+		for (int ii = 0; ii < converted.size(); ii++)
+		{
+			digit = 0;
+			for (int jj = 0; jj < numDigit; jj++)
+			{
+				digit += (source[(ii * numDigit) + (numDigit - 1 - jj)] * pow(x, jj));
+			}
+			converted[ii] = digit;
+		}
+	}
+	return converted;
+}
 string JFUNC::bind(string& stmt0, vector<string>& params)
 {
 	// Replaces placeholders ('?') with parameter strings. Automatically adds single quotes.
