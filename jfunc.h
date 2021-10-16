@@ -80,6 +80,7 @@ public:
 	vector<int> minMax(vector<double>& dList);
 	vector<int> minMax(vector<double>* dList);
 	vector<int> minMax(vector<int>& iList);
+	void mutexDelay(mutex& m_delay);
 	string nameFromPath(string& path);
 	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
 	void navParser(string& sfile, vector<vector<string>>& search);

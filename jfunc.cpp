@@ -985,6 +985,10 @@ vector<int> JFUNC::minMax(vector<int>& iList)
 	}
 	return result;
 }
+void JFUNC::mutexDelay(mutex& m_delay)
+{
+	lock_guard<mutex> lg(m_delay);
+}
 string JFUNC::nameFromPath(string& path)
 {
 	size_t pos1 = path.rfind('\\');

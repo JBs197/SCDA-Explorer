@@ -29,7 +29,6 @@ public:
 	string browseS(string url);
 	vector<unsigned char> browseUC(string url);
 	wstring browseW(string url);
-    //static void CALLBACK call(HINTERNET, DWORD_PTR, DWORD, LPVOID, DWORD);
 	void copyFile(string& oldPath, string& newPath);
 	void delete_file(string);
     void download(string url, string filePath);
@@ -45,6 +44,7 @@ public:
     vector<string> get_folder_list(string folder_path, string search);
 	string load(string filePath);
 	void load(string filePath, string& sFile);
+	vector<unsigned char> loadBin(string filePath);
     void makeDir(string);
     void make_tree_local(vector<vector<int>>&, vector<string>&, int, string, int, string);
     void make_tree_local_helper1(vector<vector<int>>&, vector<string>&, vector<int>, string, int, int, int, string);

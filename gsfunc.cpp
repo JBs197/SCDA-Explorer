@@ -8,6 +8,39 @@ string GSFUNC::binToPng(vector<unsigned char>& binPDF, string sessionID)
 	pdfToPng(pathPDF, pathPNG);
 	return pathPNG;
 }
+string GSFUNC::binToPng(vector<unsigned char>& binPDF, string sessionID, long long& sizePNG)
+{
+	string pathPDF = docFolder + "/temp/" + sessionID + ".pdf";
+	wf.printer(pathPDF, binPDF);
+	string pathPNG = docFolder + "/temp/" + sessionID + ".png";
+	pdfToPng(pathPDF, pathPNG);
+	bool exist = wf.file_exist(pathPNG);
+	while (!exist) {
+		Sleep(20);
+		exist = wf.file_exist(pathPNG);
+	}
+	sizePNG = wf.getFileSize(pathPNG);
+	while (sizePNG < binPDF.size()) {
+		Sleep(40);
+		sizePNG = wf.getFileSize(pathPNG);
+	}
+	int count = 1;
+	vector<long long> sizeMeasurement = {0, 1, 2, 3, 4, 5};
+	while (count > 0)
+	{
+		sizeMeasurement[count % 6] = wf.getFileSize(pathPNG);
+		for (int ii = 0; ii < 5; ii++)
+		{
+			if (sizeMeasurement[ii] != sizeMeasurement[ii + 1]) { 
+				Sleep(20);
+				break; 
+			}
+			else if (ii == 2) { count = -2; }
+		}
+		count++;
+	}
+	return pathPNG;
+}
 void GSFUNC::folderConvert(string& dirPDF)
 {
 	vector<string> dirt = { "PDF", ".pdf" };
@@ -38,7 +71,8 @@ void GSFUNC::pdfToPng(string& pdfPath, string& pngPath)
 	wstring params = L"-dSAFER -sDEVICE=png16m -dGraphicsAlphaBits=4 "; 
 	params += L"-r288 -dMinFeatureSize=2 -o \"" + wPNG + L"\" \"" + wPDF + L"\"";
 	HINSTANCE openGS = ShellExecuteW(NULL, L"open", exePath.c_str(), params.c_str(), NULL, SW_SHOWNORMAL);	
-	int oGS = (int)openGS;
+	INT_PTR oGS = (INT_PTR)openGS;
+	if (oGS <= 32) { jf.err("ShellExecuteW-gs.pdfToPng"); }
 }
 void GSFUNC::pdfToTxt(string& pdfPath, string& txtPath)
 {

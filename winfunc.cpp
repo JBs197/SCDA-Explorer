@@ -574,6 +574,24 @@ void WINFUNC::load(string filePath, string& sFile)
 	CloseHandle(hFile);
 	if (sFile.size() < 1) { jf.err("File failed to load-wf.load"); }
 }
+vector<unsigned char> WINFUNC::loadBin(string filePath)
+{
+	vector<unsigned char> bin;
+	DWORD bytesRead, fileSize, fileSizeHigh = 0;
+	unsigned char* bufferU;
+	char* bufferC;
+	wstring wPath = jf.utf8to16(filePath);
+	HANDLE hFile = CreateFileW(wPath.c_str(), GENERIC_READ, (FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE), NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile == INVALID_HANDLE_VALUE) { winerr("CreateFileW-wf.loadBin"); }
+	fileSize = GetFileSize(hFile, &fileSizeHigh);
+	if (fileSize == INVALID_FILE_SIZE) { winerr("GetFileSize-wf.loadBin"); }
+	bin.resize(fileSize);
+	BOOL success = ReadFile(hFile, &bin[0], fileSize, &bytesRead, NULL);
+	if (!success) { winerr("ReadFile-wf.loadBin"); }
+	CloseHandle(hFile);
+	if (bin.size() < 1) { jf.err("File failed to load-wf.loadBin"); }
+	return bin;
+}
 void WINFUNC::makeDir(string dirPath)
 {
 	vector<int> vBslash;
