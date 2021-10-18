@@ -76,6 +76,7 @@ public:
 	vector<unsigned char> loadBin(string filePath);
 	void log(string message);
 	void logTime(string func, long long timer);
+	vector<unsigned> makeCRC32(vector<int> vPolyPower);
 	int maxNumCol(vector<vector<wstring>>& task);
 	vector<int> minMax(vector<double>& dList);
 	vector<int> minMax(vector<double>* dList);

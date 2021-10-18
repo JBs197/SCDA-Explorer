@@ -914,6 +914,30 @@ void JFUNC::logTime(string func, long long timer)
 	LOG << output << endl << endl;
 	LOG.close();
 }
+vector<unsigned> JFUNC::makeCRC32(vector<int> vPolyPower)
+{
+	// Given a list of polynomial exponents, return a list of unsigned ints for checksums.
+	vector<unsigned> crcList(256);
+	unsigned crc, poly = 0;
+	for (int ii = 0; ii < vPolyPower.size(); ii++)
+	{
+		if (vPolyPower[ii] < 0) { vPolyPower[ii] *= -1; }
+		if (vPolyPower[ii] > 31) { 
+			vPolyPower[ii] = vPolyPower[ii] % 32;
+		}
+		poly |= 1 << (31 - vPolyPower[ii]);
+	}
+	for (int ii = 0; ii < crcList.size(); ii++)
+	{
+		crc = (unsigned)ii;
+		for (int jj = 0; jj < 8; jj++)
+		{
+			crc = (crc & 1) ? poly ^ (crc >> 1) : (crc >> 1);
+		}
+		crcList[ii] = crc;
+	}
+	return crcList;
+}
 int JFUNC::maxNumCol(vector<vector<wstring>>& task)
 {
 	int count = 0;
