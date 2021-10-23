@@ -13,7 +13,6 @@ class WINFUNC
 {
     JFUNC jf;
     vector<string> domains = { ".com", ".net", ".org", ".edu", ".ca" };
-    string error_path = sroot + "\\SCDA Error Log.txt";
     static vector<wstring> objects;
     vector<int> tree_pl_int;  // List of integer payload values in the tree.
     vector<string> tree_pl_str;  // List of string payload values in the tree.
@@ -54,27 +53,9 @@ public:
 	void printer(string path, string& file);
 	void printer(string path, vector<unsigned char>& binFile);
 	void renameFile(string oldPath, string newPath);
-	void set_error_path(string);
-    //string urlRedirect(string url);
-
+	void winerr(string func);
 
 	// TEMPLATES
-    template<typename S> void winerr(S) 
-    {
-        int bbq = 1;
-    }
-    template<> void winerr<const char*>(const char* func)
-    {
-        lock_guard<mutex> lock(m_err);
-		ofstream ERR;
-        DWORD num = GetLastError();
-        string smessage = jf.timestamper() + " Windows Error #" + to_string(num) + ", from " + func + "\r\n";
-        ERR.open(error_path, ofstream::app);
-        ERR << smessage << endl;
-        ERR.close();
-        exit(EXIT_FAILURE);
-    }
-
 	template<typename ... Args> void getLayerFolder(int myIndex, vector<vector<int>>& treeST, vector<string>& treePL, Args& ... args)
 	{
 		// From a given root directory, adds all folders there to the STPL tree. Excludes system return folders. 

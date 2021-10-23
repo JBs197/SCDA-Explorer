@@ -869,9 +869,11 @@ void WINFUNC::renameFile(string oldPath, string newPath)
 		winerr("MoveFileA-wf.renameFile");
 	}
 }
-void WINFUNC::set_error_path(string errpath)
+void WINFUNC::winerr(string func)
 {
-	error_path = errpath;
+	DWORD num = GetLastError();
+	string smessage = " Windows Error #" + to_string(num) + ", from " + func + "\r\n";
+	jf.err(smessage);
 }
 
 /*

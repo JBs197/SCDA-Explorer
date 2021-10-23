@@ -96,7 +96,8 @@ void SQLFUNC::executor(vector<string> stmts)
 void SQLFUNC::executor(string stmt, string& result)
 {
     // Note that this variant of the executor function will only return the first result.
-    int type, size, ivalue;  // Type: 1(int), 2(double), 3(string)
+    int type, size;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_int64 ivalue;
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerr("prepare-sf.executor0"); }
@@ -110,7 +111,7 @@ void SQLFUNC::executor(string stmt, string& result)
         switch (type)
         {
         case 1:
-            ivalue = sqlite3_column_int(statement, 0);
+            ivalue = sqlite3_column_int64(statement, 0);
             result += to_string(ivalue);
             break;
         case 2:
@@ -150,7 +151,8 @@ void SQLFUNC::executor(string stmt, string& result)
 void SQLFUNC::executor(string stmt, wstring& result)
 {
     // Note that this variant of the executor function will only return the first result.
-    int type, size, ivalue;  // Type: 1(int), 2(double), 3(string)
+    int type, size;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_int64 ivalue;
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerr("prepare-sf.executor0"); }
@@ -164,7 +166,7 @@ void SQLFUNC::executor(string stmt, wstring& result)
         switch (type)
         {
         case 1:
-            ivalue = sqlite3_column_int(statement, 0);
+            ivalue = sqlite3_column_int64(statement, 0);
             result += to_wstring(ivalue);
             break;
         case 2:
@@ -205,7 +207,8 @@ void SQLFUNC::executor(string stmt, wstring& result)
 void SQLFUNC::executor(string stmt, vector<string>& results)
 {
     // Note that this variant of the executor function can accomodate either a column or a row as the result.
-    int type, size, ivalue, inum;  // Type: 1(int), 2(double), 3(string)
+    int type, size, inum;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_int64 ivalue;
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerr("prepare-executor1"); }
@@ -230,7 +233,7 @@ void SQLFUNC::executor(string stmt, vector<string>& results)
                 switch (type)
                 {
                 case 1:
-                    ivalue = sqlite3_column_int(statement, ii);
+                    ivalue = sqlite3_column_int64(statement, ii);
                     results[inum + ii] = to_string(ivalue);
                     break;
                 case 2:
@@ -284,7 +287,7 @@ void SQLFUNC::executor(string stmt, vector<string>& results)
             switch (type)
             {
             case 1:
-                ivalue = sqlite3_column_int(statement, 0);
+                ivalue = sqlite3_column_int64(statement, 0);
                 results.push_back(to_string(ivalue));
                 break;
             case 2:
@@ -341,7 +344,8 @@ void SQLFUNC::executor(string stmt, vector<string>& results)
 }
 void SQLFUNC::executor(string stmt, vector<vector<string>>& results)
 {
-    int type, col_count, size, ivalue;  // Type: 1(int), 2(double), 3(string)
+    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_int64 ivalue;
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerr("prepare-executor2"); }
@@ -359,7 +363,7 @@ void SQLFUNC::executor(string stmt, vector<vector<string>>& results)
             switch (type)
             {
             case 1:
-                ivalue = sqlite3_column_int(statement, ii);
+                ivalue = sqlite3_column_int64(statement, ii);
                 results[results.size() - 1][ii] = to_string(ivalue);
                 break;
             case 2:
@@ -416,7 +420,8 @@ void SQLFUNC::executor(string stmt, vector<vector<string>>& results)
 }
 void SQLFUNC::executor(string stmt, vector<vector<wstring>>& results)
 {
-    int type, col_count, size, ivalue;  // Type: 1(int), 2(double), 3(string)
+    int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_int64 ivalue;
     sqlite3_stmt* statement;
     int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
     if (error) { sqlerr("prepare-executor2"); }
@@ -434,7 +439,7 @@ void SQLFUNC::executor(string stmt, vector<vector<wstring>>& results)
             switch (type)
             {
             case 1:
-                ivalue = sqlite3_column_int(statement, ii);
+                ivalue = sqlite3_column_int64(statement, ii);
                 results[results.size() - 1][ii] = to_wstring(ivalue);
                 break;
             case 2:
@@ -1758,10 +1763,6 @@ vector<string> SQLFUNC::selectYears()
     jf.isort_ilist(sYears, JFUNC::Increasing);
     return sYears;
 }
-void SQLFUNC::set_error_path(string errpath)
-{
-    error_path = errpath;
-}
 void SQLFUNC::sqlerr(string func)
 {
     // Threadsafe error log function specific to SQL errors.
@@ -1769,12 +1770,9 @@ void SQLFUNC::sqlerr(string func)
     int errcode = sqlite3_errcode(db);
     const char* errmsg = sqlite3_errmsg(db);
     string serrmsg(errmsg);
-    string message = jf.timestamper() + " SQL ERROR #" + to_string(errcode) + ", in ";
+    string message = " SQL ERROR #" + to_string(errcode) + ", in ";
     message += func + ": " + serrmsg + "\r\n";
-    ERR.open(error_path, ofstream::app);
-    ERR << message << endl;
-    ERR.close();
-    exit(EXIT_FAILURE);
+    jf.err(message);
 }
 string SQLFUNC::sqlErrMsg()
 {
@@ -1880,11 +1878,13 @@ void SQLFUNC::update(string tname, vector<string> revisions, vector<string> cond
         sclean(revisions[ii], 3);
         stmt += revisions[ii];
     }
-    stmt += " WHERE";
-    for (int ii = 0; ii < conditions.size(); ii++)
-    {
-        sclean(conditions[ii], 2);
-        stmt += " " + conditions[ii];
+    if (conditions.size() > 0) {
+        stmt += " WHERE";
+        for (int ii = 0; ii < conditions.size(); ii++)
+        {
+            sclean(conditions[ii], 2);
+            stmt += " " + conditions[ii];
+        }
     }
     stmt += ";";
     executor(stmt);

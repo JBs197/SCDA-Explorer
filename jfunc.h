@@ -1,4 +1,13 @@
 #pragma once
+#define WINDOWS
+
+#ifdef WINDOWS
+#include <direct.h>
+#define GetCurrentDir _getcwd
+#else
+#include <unistd.h>
+#define GetCurrentDir getcwd
+#endif
 
 #include <cstdio>
 #include <iostream>
@@ -18,21 +27,17 @@
 
 using namespace std;
 extern mutex m_err;
-extern const string sroot;
-extern const string scroot;
 
 class JFUNC
 {
 	int defaultDecimalPlaces = 2;  // For percentages.
-	string error_path = sroot + "\\SCDA Error Log.txt";
-	string log_path = sroot + "\\SCDA Process Log.txt";
-	string navigator_asset_path = sroot + "\\SCDA Navigator Asset.bin";
-	vector<vector<string>> navigator_search;  // Form [search tree layer index][section start, section end, inside iteration, ...].
-
+	string error_path, execFolder, log_path;
 	chrono::high_resolution_clock::time_point t1, t2;
 
 public:
-	JFUNC() {}
+	JFUNC() {
+		init();
+	}
 	~JFUNC() {}
 
 	enum order { Increasing, Decreasing };
@@ -61,15 +66,17 @@ public:
 	string doubleToCommaString(double dNum, int decimalPlaces);
 	vector<string> doubleToCommaString(vector<double> vdNum, int decimalPlaces);
 	void err(string);
-	string get_error_path();
 	vector<string> horizontalCentering(vector<string> vsList);
-	string intToCommaString(int iNum);
-	void isort_ilist(vector<int>& iList, int type);
-	void isort_ilist(vector<string>& sList, int type);
-	int is_numeric(string&);
+	string get_error_path();
+	string getExecFolder() { return execFolder; }
 	string getExtension(string& spath);
 	int getPivot(vector<int>& treeSTrow);
 	vector<int> get_roots(vector<vector<int>>&);
+	void init();
+	string intToCommaString(long long iNum);
+	void isort_ilist(vector<int>& iList, int type);
+	void isort_ilist(vector<string>& sList, int type);
+	int is_numeric(string&);
 	vector<string> ivectorToSvector(vector<int>&);
 	vector<string> list_from_marker(string&, char);
 	string load(string);
@@ -83,7 +90,6 @@ public:
 	vector<int> minMax(vector<int>& iList);
 	void mutexDelay(mutex& m_delay);
 	string nameFromPath(string& path);
-	void navigator(vector<vector<int>>&, vector<string>&, vector<string>&, string&, int);
 	void navParser(string& sfile, vector<vector<string>>& search);
 	string numericToCommaString(string sNumeric);
 	string numericToCommaString(string sNumeric, int mode);
@@ -101,10 +107,10 @@ public:
 	vector<double> rgbxToDouble(vector<int>& vRGBX);
 	void setErrorPath(string sEP) { error_path = sEP; }
 	void setLogPath(string sLP) { log_path = sLP; }
-	void set_navigator_asset_path(string&);
 	void sleep(int ms);
 	void sortAlphabetically(vector<string>& vsList);
 	void sortAlphabetically(vector<vector<string>>& vvsList, int iCol);
+	void sortAlphabetically(vector<vector<string>>& vvsList, vector<int> viSort);
 	vector<string> splitByMarker(string& text, char marker);
 	vector<vector<string>> splitByMarker(vector<string>& vsText, char marker);
 	string stringifyCoord(vector<int>& coord);

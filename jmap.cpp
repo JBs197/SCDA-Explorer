@@ -462,7 +462,7 @@ void BINMAP::borderComplete(SWITCHBOARD& sbgui)
 		if (borderIndex > borderIndexMax) { borderIndexMax = borderIndex; }
 		if (borderIndex >= 20)
 		{
-			distHome = mf.coordDistPoint(vpBorder[0], vpBorder[borderIndex]);
+			distHome = gdi.coordDistPoint(vpBorder[0], vpBorder[borderIndex]);
 			if (distHome < 6.0) { noplacelikehome = 1; }
 		}
 

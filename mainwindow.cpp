@@ -2355,6 +2355,7 @@ void MainWindow::getGeoLayers(string sYear, string sCata, vector<string>& geoLay
 }
 void MainWindow::on_pB_usc_clicked()
 {
+    const string scroot = "www12.statcan.gc.ca/datasets/index-eng.cfm";
     int uscMode;
     QString qTemp;
     QTreeWidgetItem* qNode;
@@ -2649,65 +2650,77 @@ void MainWindow::on_pB_test_clicked()
     }
     case 3:  
     {
-        int count = 0, iDIM;
+        int index, inum;
+        unsigned long long ullNum;
+        size_t pos1, pos2;
+        string csvPath, csvFile, sGeoCode, sNum, temp, tname;
+        vector<string> conditions, revisions, vsDataIndex;
+        vector<vector<vector<string>>> vvvsData(3, vector<vector<string>>());  // Form [cata index][GEO_CODE index][sGeoCode, sVal0, sVal1, ...]
         string sYear = "2017";
-        vector<string> search = { "Catalogue" };
-        vector<string> vsCata, vsResult, revisions, conditions;
-        vector<vector<string>> vvsResult;
-        string tname = "Census$" + sYear;
-        sf.select(search, tname, vsCata);
-
-        string tnameDIM, tnameDim;
-        vector<string> searchDIM = { "MID", "DIM" };
-        vector<string> searchDim = { "MID", "Dim" };
-        vector<string> dirt = { "'" }, soap = { "''" };
-        search = { "DIMIndex" };
-        for (int ii = 0; ii < vsCata.size(); ii++)
-        {
-            tname = "Census$" + sYear + "$" + vsCata[ii] + "$DIMIndex";
-            vsResult.clear();
-            sf.select(search, tname, vsResult);
-
-            iDIM = vsResult.size() - 2;
-            if (iDIM >= 0)
-            {
-                tnameDIM = "Census$" + sYear + "$" + vsCata[ii] + "$DIM$" + to_string(iDIM);
-                vvsResult.clear();
-                sf.select(searchDIM, tnameDIM, vvsResult);
-                for (int jj = 0; jj < vvsResult.size(); jj++)
-                {
-                    if (vvsResult[jj][1].back() == '$' || vvsResult[jj][1].back() == '%')
-                    {
-                        vvsResult[jj][1].insert(vvsResult[jj][1].size() - 1, "(");
-                        vvsResult[jj][1].push_back(')');
-                        jf.clean(vvsResult[jj][1], dirt, soap);
-                        revisions = { "DIM = '" + vvsResult[jj][1] + "'" };
-                        conditions = { "MID = " + vvsResult[jj][0] };
-                        sf.update(tnameDIM, revisions, conditions);
-                        count++;
-                    }
+        vector<string> vsCata = { "98-400-X2016114", "98-400-X2016116", "98-400-X2016146" };
+        vector<string> searchGeo = { "GEO_CODE" };
+        vector<string> searchData = { "DataIndex"};
+        for (int ii = 0; ii < vsCata.size(); ii++) {
+            sGeoCode.clear();
+            csvPath = "E:\\2017\\" + vsCata[ii] + "\\" + vsCata[ii] + "_English_CSV_data.csv";
+            csvFile = wf.load(csvPath);
+            pos2 = csvFile.find("\r\n");
+            pos2 = csvFile.find(',', pos2);
+            while (pos2 < csvFile.size()) {
+                for (int jj = 0; jj < 6; jj++) {
+                    pos2 = csvFile.find(',', pos2 + 1);
                 }
-            }
-
-            tnameDim = "Census$" + sYear + "$" + vsCata[ii] + "$Dim";
-            vvsResult.clear();
-            sf.select(searchDim, tnameDim, vvsResult);
-            for (int jj = 0; jj < vvsResult.size(); jj++)
-            {
-                if (vvsResult[jj][1].back() == '$' || vvsResult[jj][1].back() == '%')
-                {
-                    vvsResult[jj][1].insert(vvsResult[jj][1].size() - 1, "(");
-                    vvsResult[jj][1].push_back(')');
-                    jf.clean(vvsResult[jj][1], dirt, soap);
-                    revisions = { "Dim = '" + vvsResult[jj][1] + "'" };
-                    conditions = { "MID = " + vvsResult[jj][0] };
-                    sf.update(tnameDIM, revisions, conditions);
-                    count++;
+                pos2--;
+                pos1 = csvFile.rfind('"', pos2 - 1) + 1;
+                temp = csvFile.substr(pos1, pos2 - pos1);
+                try {
+                    inum = stoi(temp);
                 }
+                catch (invalid_argument) { jf.err("stoi-test3:" + temp); }
+                temp = to_string(inum);
+                if (temp.size() > 5) {
+                    pos2 = csvFile.find("\r\n", pos2);
+                    pos2 = csvFile.find(',', pos2);
+                    continue;
+                }
+                if (temp != sGeoCode) {
+                    index = vvvsData[ii].size();
+                    sGeoCode = temp;
+                    vvvsData[ii].push_back({ sGeoCode });
+                }
+
+                pos2 = csvFile.find("\r\n", pos2);
+                pos1 = csvFile.rfind(',', pos2) + 1;
+                sNum = csvFile.substr(pos1, pos2 - pos1);
+                ullNum = stoull(sNum);
+                ullNum *= 1000;
+                vvvsData[ii][index].push_back(to_string(ullNum));
+                pos2 = csvFile.find(',', pos2);
             }
         }
 
-        qshow(to_string(count) + " corrections");
+        string orderby = "DataIndex ASC";
+        for (int ii = 0; ii < vvvsData.size(); ii++) {
+            for (int jj = 0; jj < vvvsData[ii].size(); jj++) {
+                tname = "Data$" + sYear + "$" + vsCata[ii] + "$" + vvvsData[ii][jj][0];
+                vsDataIndex.clear();
+                inum = sf.selectOrderBy(searchData, tname, vsDataIndex, orderby);
+                if (inum != vvvsData[ii][jj].size() - 1) {
+                    temp = vsCata[ii] + " | numDataIndex = " + to_string(inum);
+                    temp += ", numDataValue = " + to_string(vvvsData[ii][jj].size() - 1);
+                    jf.err(temp);
+                }
+                
+                for (int kk = 1; kk < vvvsData[ii][jj].size(); kk++) {
+                    conditions = { "DataIndex = " + to_string(kk - 1) };
+                    revisions = { "dim5 = " + vvvsData[ii][jj][kk] };
+                    sf.update(tname, revisions, conditions);
+                }
+            }
+            qshow("Finished " + vsCata[ii]);
+        }
+
+        qshow("Done!");
         break;
     }
     case 4:  // Insert a complete geo table using the given tnameGeo.

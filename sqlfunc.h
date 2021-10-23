@@ -12,8 +12,6 @@ class SQLFUNC
     bool analyze = 0;
 	sqlite3* db;
     string dbPath;
-    ofstream ERR;
-    string error_path = sroot + "\\SCDA Error Log.txt";
     JFUNC jf;
     set<string> tableSet;
     vector<string> TPrefix, tableList;
@@ -75,7 +73,6 @@ public:
     int selectOrderBy(vector<string> search, string tname, vector<vector<string>>& results, string orderby);
     void select_tree(string tname, vector<vector<int>>& tree_st, vector<string>& tree_pl);
     vector<string> selectYears();
-    void set_error_path(string);
     string sqlErrMsg();
     int statusCata(string sname);
     size_t table_exist(string);

@@ -638,7 +638,7 @@ void JFUNC::err(string func)
 	lock_guard<mutex> lock(m_err);
 	ofstream ERR;
 	ERR.open(error_path, ofstream::app);
-	string message = timestamper() + " General error from " + func;
+	string message = timestamper() + " Error from " + func;
 	ERR << message << endl << endl;
 	ERR.close();
  	exit(EXIT_FAILURE);
@@ -714,7 +714,19 @@ vector<string> JFUNC::horizontalCentering(vector<string> vsList)
 	}
 	return vsList;
 }
-string JFUNC::intToCommaString(int iNum)
+void JFUNC::init()
+{
+	const int maxLength = 255;
+	char buffer[maxLength];
+	GetCurrentDir(buffer, maxLength);
+	string temp(buffer);
+	size_t pos1 = temp.find_last_of("/\\");
+	char marker = temp[pos1];
+	execFolder = temp + marker;
+	error_path = execFolder + "JFUNC Error Log.txt";
+	log_path = execFolder + "JFUNC Process Log.txt";
+}
+string JFUNC::intToCommaString(long long iNum)
 {
 	// Every third digit from the end is separated by a comma. 
 	string sNum = to_string(iNum);
@@ -1020,91 +1032,6 @@ string JFUNC::nameFromPath(string& path)
 	string name = path.substr(pos1 + 1);
 	return name;
 }
-void JFUNC::navigator(vector<vector<int>>& tree_st, vector<string>& tree_pl, vector<string>& tree_url, string& webpage, int id)
-{
-	// Recursive function used to make a tree of web URLs. Requires outside support to provide
-	// complete webpages in string form. From the starting page, it will search through its 
-	// layered search criteria and extract the objective data, or the required URLs to proceed
-	// to the next tree layer and try again. Every generation of navigator will analyze a 
-	// webpage given by its predecessor.
-	// tree_st has form [node index][ancestors, ..., node, children, ...].
-	// tree_pl has form [node index][extracted string 1, ...].
-
-	// Ensure that the search criteria is loaded into object memory. 
-	int inum, num_intervals;
-	string line, temp;
-	size_t pos1, pos2, pos_start, pos_stop;
-	if (navigator_search.size() < 1)
-	{
-		line = load(navigator_asset_path);
-		pos1 = line.find('$') + 1;
-		pos_start = line.rfind('\n', pos1);
-		pos_stop = line.find('\n', pos1);
-		do
-		{
-			inum = navigator_search.size();
-			navigator_search.push_back(vector<string>());
-			pos1 = line.find('$', pos_start) + 1;
-			if (pos1 > line.size()) { break; }
-			pos2 = line.find('$', pos1);
-			while (pos2 < pos_stop)
-			{
-				temp = line.substr(pos1, pos2 - pos1);
-				navigator_search[inum].push_back(temp);
-				pos1 = pos2 + 1;
-				pos2 = line.find('$', pos1);
-			}
-			pos_start = pos_stop;
-			pos_stop = line.find('\n', pos_start + 1);
-
-		} while (pos_stop < line.size());
-	}
-
-	// Go through the list of search criteria, from leaf->trunk, until a match is found.
-	for (int ii = 0; ii < navigator_search.size(); ii++)
-	{
-		pos1 = webpage.find(navigator_search[ii][0]);  
-		if (pos1 < webpage.size())  
-		{
-			num_intervals = 1;  // Determine how many intervals we must scan from this webpage.
-			for (int jj = ii + 1; jj < navigator_search.size(); jj++)
-			{
-				if (navigator_search[jj][0] == navigator_search[ii][0])
-				{
-					num_intervals++;
-				}
-				else
-				{
-					break;
-				}
-			}
-			
-			if (ii == 0)  // Leaf webpage.
-			{
-				for (int jj = ii; jj < ii + num_intervals; jj++)
-				{
-					pos_start = webpage.find(navigator_search[jj][1]);
-					pos_stop = webpage.find(navigator_search[jj][2], pos_start);
-					pos1 = webpage.find(navigator_search[jj][3], pos_start);
-					while (pos1 < pos_stop)
-					{
-						pos2 = webpage.find(navigator_search[jj][4], pos1 + 1);
-						temp = webpage.substr(pos1, pos2 - pos1);
-						//tree_pl[id].push_back(temp);
-					}
-				}
-
-			}
-			else  // Branch webpage.
-			{
-
-			}
-			break;
-		}
-		else if (ii == navigator_search.size() - 1) { err("Failed to match unique page criteria-jf.navigator"); }
-	}
-
-}
 void JFUNC::navParser(string& sfile, vector<vector<string>>& search)
 {
 	size_t pos1, pos2, posNL1, posNL2;
@@ -1155,12 +1082,12 @@ string JFUNC::numericToCommaString(string sNumeric, int mode)
 	// This variant allows for a specific conversion type:
 	// mode 0 = int, mode 1 = double
 	string sNum;
-	int iNum;
+	long long iNum;
 	double dNum;
 	switch (mode)
 	{
 	case 0:
-		try { iNum = stoi(sNumeric); }
+		try { iNum = stoll(sNumeric); }
 		catch (invalid_argument) { err("stoi-jf.numericToCommaString"); }
 		sNum = intToCommaString(iNum);
 		break;
@@ -1301,10 +1228,6 @@ vector<double> JFUNC::rgbxToDouble(vector<int>& vRGBX)
 	}
 	return vdRGBX;
 }
-void JFUNC::set_navigator_asset_path(string& path)
-{
-	navigator_asset_path = path;
-}
 void JFUNC::sleep(int ms)
 {
 	this_thread::sleep_for(chrono::milliseconds(ms));
@@ -1329,17 +1252,63 @@ void JFUNC::sortAlphabetically(vector<string>& vsList)
 void JFUNC::sortAlphabetically(vector<vector<string>>& vvsList, int iCol)
 {
 	// Use the given column to sort the entire 2D vector, keeping rows intact.
-	int count = 1, compare;
+	int count = 1, comparison;
 	while (count > 0)
 	{
 		count = 0;
 		for (int ii = 0; ii < vvsList.size() - 1; ii++)
 		{
-			compare = vvsList[ii][iCol].compare(vvsList[ii + 1][iCol]);
-			if (compare > 0)
+			comparison = vvsList[ii][iCol].compare(vvsList[ii + 1][iCol]);
+			if (comparison > 0)
 			{
 				vvsList[ii].swap(vvsList[ii + 1]);
 				count++;
+			}
+		}
+	}
+}
+void JFUNC::sortAlphabetically(vector<vector<string>>& vvsList, vector<int> viSort)
+{
+	// viSort indicates INCREASING priority of indices for sorting vvsList. Elements 
+	// inside viSort are (vvsList column index + 1), negative for descending order.
+	int topIndex = viSort.size() - 1;
+	vector<int> vIndex(topIndex + 1), vIndexOrder(topIndex + 1);
+	for (int ii = 0; ii < topIndex + 1; ii++) {
+		vIndex[ii] = abs(viSort[ii]) - 1;
+		if (viSort[ii] > 0) {
+			vIndexOrder[ii] = 1;
+		}
+		else {
+			vIndexOrder[ii] = -1;
+		}
+	}
+	
+	int count = 1, comparison;
+	while (count > 0)
+	{
+		count = 0;
+		for (int ii = 0; ii < vvsList.size() - 1; ii++)
+		{
+			for (int jj = topIndex; jj >= 0; jj--) {
+				comparison = vvsList[ii][vIndex[jj]].compare(vvsList[ii + 1][vIndex[jj]]);
+				if (vIndexOrder[jj] > 0) {
+					if (comparison < 0) { break; }
+					else if (comparison > 0)
+					{
+						vvsList[ii].swap(vvsList[ii + 1]);
+						count++;
+						break;
+					}
+				}
+				else {
+					if (comparison > 0) { break; }
+					else if (comparison < 0)
+					{
+						vvsList[ii].swap(vvsList[ii + 1]);
+						count++;
+						break;
+					}
+				}
 			}
 		}
 	}

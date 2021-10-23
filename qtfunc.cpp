@@ -198,7 +198,7 @@ string QTFUNC::getBranchPath(QTreeWidgetItem*& qBranch, string rootDir)
 	for (int ii = qGenealogy.size() - 2; ii >= 0; ii--)
 	{
 		qtemp = qGenealogy[ii]->text(0);
-		temp = qtemp.toUtf8();
+		temp = (string)qtemp.toUtf8();
 		sPath += "\\" + temp;
 	}
 	return sPath;
