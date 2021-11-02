@@ -13,7 +13,7 @@ class SQLFUNC
 	sqlite3* db;
     string dbPath;
     JFUNC jf;
-    set<string> tableSet;
+    set<string> columnType, tableSet;
     vector<string> TPrefix, tableList;
     
     void bind(string&, vector<string>&);
@@ -22,9 +22,12 @@ class SQLFUNC
 public:
     explicit SQLFUNC() {}
 	~SQLFUNC() {}
+
+    void addColumn(string tname, string colTitle, string colType);
     void all_tables(vector<string>& table_list);
     int count(string tname);
     void create_table(string, vector<string>&, vector<int>&);
+    void dropTable(string tname);
     void executor(string stmt);
     void executor(vector<string> stmts);
     void executor(string stmt, string& result);
@@ -44,7 +47,7 @@ public:
     vector<string> getTableList(string search);
     void init(string db_path);
     void insert(string tname, vector<string>& row_data);
-    void insert(string tname, vector<vector<string>>& row_data);
+    void insert(string tname, vector<vector<string>>& rowData);
     void insertBinMap(string& binPath, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent8, vector<vector<int>>& border);
     void insertGeo(string cataName, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
     void insertTMI(string myCoreDir);
@@ -55,6 +58,7 @@ public:
     string insert_stmt(string, vector<string>&, vector<string>&);
     void makeANSI(string&);
     unordered_map<string, string> makeMapDataIndex(string tname);
+    void refreshTableList();
     void remove(string& tname);
     void removeCol(string& tname, string colTitle);
     void removeRow(string& tname, vector<string>& conditions);

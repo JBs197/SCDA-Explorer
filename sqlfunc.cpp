@@ -2,6 +2,14 @@
 
 using namespace std;
 
+void SQLFUNC::addColumn(string tname, string colTitle, string colType)
+{
+    // Note that this function can only append a column on the rightmost side.
+    if (!columnType.count(colType)) { jf.err("Invalid column type-sf.addColumn"); }
+    string stmt = "ALTER TABLE \"" + tname + "\" ADD COLUMN \"";
+    stmt += colTitle + "\" " + colType + ";";
+    executor(stmt);
+}
 void SQLFUNC::all_tables(vector<string>& table_list)
 {
     table_list.clear();
@@ -49,23 +57,31 @@ int SQLFUNC::count(string tname)
 }
 void SQLFUNC::create_table(string tname, vector<string>& titles, vector<int>& types)
 {
-    string stmt = "CREATE TABLE IF NOT EXISTS [" + tname + "] (";
+    // types 0 = TEXT, 1 = NUMERIC, 2 = INT
+    string stmt = "CREATE TABLE IF NOT EXISTS \"" + tname + "\" (";
     for (int ii = 0; ii < titles.size(); ii++)
     {
-        stmt += "[" + titles[ii] + "] ";
-        if (types[ii] == 0)
-        {
+        stmt += "\"" + titles[ii] + "\" ";
+        switch (types[ii]) {
+        case 0:
             stmt += "TEXT, ";
-        }
-        else if (types[ii] == 1)
-        {
+            break;
+        case 1:
             stmt += "NUMERIC, ";
+            break;
+        case 2:
+            stmt += "INT, ";
+            break;
         }
     }
     stmt.pop_back();
     stmt.pop_back();
     stmt += ");";
-
+    executor(stmt);
+}
+void SQLFUNC::dropTable(string tname)
+{
+    string stmt = "DROP TABLE IF EXISTS \"" + tname + "\"";
     executor(stmt);
 }
 void SQLFUNC::executor(string stmt)
@@ -746,6 +762,13 @@ void SQLFUNC::init(string db_path)
     {
         tableSet.emplace(tableList[ii]);
     }
+
+    columnType.emplace("TEXT");
+    columnType.emplace("NUMERIC");
+    columnType.emplace("INT");
+    columnType.emplace("INTEGER");
+    columnType.emplace("REAL");
+    columnType.emplace("BLOB");
 }
 void SQLFUNC::insert(string tname, vector<string>& row_data)
 {
@@ -783,33 +806,22 @@ void SQLFUNC::insert(string tname, vector<string>& row_data)
     bind(stmt0, row_data);
     executor(stmt0);
 }
-void SQLFUNC::insert(string tname, vector<vector<string>>& row_data)
+void SQLFUNC::insert(string tname, vector<vector<string>>& rowData)
 {
-    vector<string> column_titles;
-    get_col_titles(tname, column_titles);
-    if (column_titles.size() > row_data.size())
-    {
-        column_titles.resize(row_data.size());
-    }
-    else if (column_titles.size() < row_data.size())
-    {
-        safe_col(tname, row_data.size());
-    }
-    string stmt0 = "INSERT INTO [" + tname + "] (";
-    for (int ii = 0; ii < column_titles.size(); ii++)
-    {
-        stmt0 += "[" + column_titles[ii];
-        if (ii < column_titles.size() - 1)
-        {
-            stmt0 += "], ";
+    vector<string> colTitle;
+    get_col_titles(tname, colTitle);
+    int numCol = colTitle.size();
+    string stmt0 = "INSERT INTO \"" + tname + "\" (";
+    for (int ii = 0; ii < numCol; ii++) {
+        stmt0 += "\"" + colTitle[ii];
+        if (ii < numCol - 1) {
+            stmt0 += "\", ";
         }
-        else
-        {
-            stmt0 += "]) VALUES (";
+        else {
+            stmt0 += "\") VALUES (";
         }
     }
-    for (int ii = 0; ii < column_titles.size(); ii++)
-    {
+    for (int ii = 0; ii < numCol; ii++) {
         stmt0 += "?, ";
     }
     stmt0.pop_back();
@@ -819,10 +831,11 @@ void SQLFUNC::insert(string tname, vector<vector<string>>& row_data)
     string stmt;
     int error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
     if (error) { sqlerr("begin transaction-insert_rows"); }
-    for (int ii = 0; ii < row_data.size(); ii++)
+    for (int ii = 0; ii < rowData.size(); ii++)
     {
+        while (rowData[ii].size() < numCol) { rowData[ii].push_back(""); }
         stmt = stmt0;
-        bind(stmt, row_data[ii]);
+        bind(stmt, rowData[ii]);
         executor(stmt);
     }
     error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
@@ -1205,6 +1218,15 @@ unordered_map<string, string> SQLFUNC::makeMapDataIndex(string tname)
     }
     return mapDataIndex;
 }
+void SQLFUNC::refreshTableList()
+{
+    tableList.clear();
+    tableSet.clear();
+    all_tables(tableList);
+    for (int ii = 0; ii < tableList.size(); ii++) {
+        tableSet.emplace(tableList[ii]);
+    }
+}
 void SQLFUNC::remove(string& tname)
 {
     string stmt = "DROP TABLE IF EXISTS [" + tname + "];";
@@ -1447,15 +1469,7 @@ int SQLFUNC::select(vector<string> search, string tname, vector<vector<string>>&
         stmt += " FROM \"" + tname + "\"";
     }
     executor(stmt, results);
-    int max_col = 0;
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        if (results[ii].size() > max_col)
-        {
-            max_col = results[ii].size();
-        }
-    }
-    return max_col;
+    return results.size();
 }
 int SQLFUNC::select(vector<string> search, string tname, vector<vector<wstring>>& results)
 {
@@ -1474,15 +1488,7 @@ int SQLFUNC::select(vector<string> search, string tname, vector<vector<wstring>>
         stmt += " FROM \"" + tname + "\"";
     }
     executor(stmt, results);
-    int max_col = 0;
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        if (results[ii].size() > max_col)
-        {
-            max_col = results[ii].size();
-        }
-    }
-    return max_col;
+    return results.size();
 }
 int SQLFUNC::select(vector<string> search, string tname, string& result, vector<string>& conditions)
 {
@@ -1587,15 +1593,7 @@ int SQLFUNC::select(vector<string> search, string tname, vector<vector<string>>&
     }
     stmt += ");";
     executor(stmt, results);
-    int max_col = 0;
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        if (results[ii].size() > max_col)
-        {
-            max_col = results[ii].size();
-        }
-    }
-    return max_col;
+    return results.size();
 }
 int SQLFUNC::select(vector<string> search, string tname, vector<vector<wstring>>& results, vector<string>& conditions)
 {
@@ -1623,15 +1621,7 @@ int SQLFUNC::select(vector<string> search, string tname, vector<vector<wstring>>
     }
     stmt += ");";
     executor(stmt, results);
-    int max_col = 0;
-    for (int ii = 0; ii < results.size(); ii++)
-    {
-        if (results[ii].size() > max_col)
-        {
-            max_col = results[ii].size();
-        }
-    }
-    return max_col;
+    return results.size();
 }
 int SQLFUNC::selectOrderBy(vector<string> search, string tname, vector<string>& results, string orderby)
 {
