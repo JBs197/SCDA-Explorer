@@ -13,6 +13,7 @@ class SQLFUNC
 	sqlite3* db;
     string dbPath;
     JFUNC jf;
+    unordered_map<string, int> mapColType;
     set<string> columnType, tableSet;
     vector<string> TPrefix, tableList;
     
@@ -27,6 +28,7 @@ public:
     void all_tables(vector<string>& table_list);
     int count(string tname);
     void create_table(string, vector<string>&, vector<int>&);
+    void createTable(string tname, vector<vector<string>>& vvsColTitle);
     void dropTable(string tname);
     void executor(string stmt);
     void executor(vector<string> stmts);
@@ -36,6 +38,7 @@ public:
     void executor(string stmt, vector<vector<string>>& results);
     void executor(string stmt, vector<vector<wstring>>& results);
     void get_col_titles(string tname, vector<string>& titles);
+    vector<vector<string>> getColTitles(string tname);
     string getColType(string tname, int colIndex);
     string getColType(string tname, string colTitle);
     string getLinearizedTitle(string& cataName, string& rowTitle, string& colTitle);
@@ -47,7 +50,7 @@ public:
     vector<string> getTableList(string search);
     void init(string db_path);
     void insert(string tname, vector<string>& row_data);
-    void insert(string tname, vector<vector<string>>& rowData);
+    void insert(string tname, vector<vector<string>>& vvsColTitle, vector<vector<string>>& rowData);
     void insertBinMap(string& binPath, vector<vector<vector<int>>>& frames, double& scale, vector<double>& position, string& sParent8, vector<vector<int>>& border);
     void insertGeo(string cataName, vector<int>& gidList, vector<string>& regionList, vector<string>& layerList, vector<string>& geoLayers);
     void insertTMI(string myCoreDir);

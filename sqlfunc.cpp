@@ -79,6 +79,17 @@ void SQLFUNC::create_table(string tname, vector<string>& titles, vector<int>& ty
     stmt += ");";
     executor(stmt);
 }
+void SQLFUNC::createTable(string tname, vector<vector<string>>& vvsColTitle)
+{
+    // vvsColTitle has form [col index][name, type].
+    string stmt = "CREATE TABLE IF NOT EXISTS \"" + tname + "\" (";
+    for (int ii = 0; ii < vvsColTitle.size(); ii++) {
+        if (ii > 0) { stmt += ", "; }
+        stmt += "\"" + vvsColTitle[ii][0] + "\" " + vvsColTitle[ii][1];
+    }
+    stmt += ");";
+    executor(stmt);
+}
 void SQLFUNC::dropTable(string tname)
 {
     string stmt = "DROP TABLE IF EXISTS \"" + tname + "\"";
@@ -507,6 +518,19 @@ void SQLFUNC::get_col_titles(string tname, vector<string>& titles)
         titles[ii] = results[ii][1];
     }
 }
+vector<vector<string>> SQLFUNC::getColTitles(string tname)
+{
+    // Return form [column index][name, type].
+    vector<vector<string>> colTitle, vvsResult;
+    string stmt = "PRAGMA table_info('" + tname + "');";
+    executor(stmt, vvsResult);
+    colTitle.resize(vvsResult.size(), vector<string>(2));
+    for (int ii = 0; ii < vvsResult.size(); ii++) {
+        colTitle[ii][0] = vvsResult[ii][1];
+        colTitle[ii][1] = vvsResult[ii][2];
+    }
+    return colTitle;
+}
 string SQLFUNC::getColType(string tname, int colIndex)
 {
     vector<vector<string>> results;
@@ -769,6 +793,15 @@ void SQLFUNC::init(string db_path)
     columnType.emplace("INTEGER");
     columnType.emplace("REAL");
     columnType.emplace("BLOB");
+
+    mapColType.emplace("TEXT", 0);
+    mapColType.emplace("NUM", 1);
+    mapColType.emplace("NUMERIC", 1);
+    mapColType.emplace("INT", 2);
+    mapColType.emplace("INTEGER", 2);
+    mapColType.emplace("INTEGER PRIMARY KEY", 2);
+    mapColType.emplace("REAL", 3);
+    mapColType.emplace("BLOB", 4);
 }
 void SQLFUNC::insert(string tname, vector<string>& row_data)
 {
@@ -806,27 +839,23 @@ void SQLFUNC::insert(string tname, vector<string>& row_data)
     bind(stmt0, row_data);
     executor(stmt0);
 }
-void SQLFUNC::insert(string tname, vector<vector<string>>& rowData)
+void SQLFUNC::insert(string tname, vector<vector<string>>& vvsColTitle, vector<vector<string>>& rowData)
 {
-    vector<string> colTitle;
-    get_col_titles(tname, colTitle);
-    int numCol = colTitle.size();
+    int numCol = vvsColTitle.size();
+    vector<int> viColType(numCol);
+    for (int ii = 0; ii < numCol; ii++) {
+        if (mapColType.count(vvsColTitle[ii][1])) {
+            viColType[ii] = mapColType.at(vvsColTitle[ii][1]);
+        }
+        else { jf.err("Unknown column type-sf.insert"); }
+    }
+
     string stmt0 = "INSERT INTO \"" + tname + "\" (";
     for (int ii = 0; ii < numCol; ii++) {
-        stmt0 += "\"" + colTitle[ii];
-        if (ii < numCol - 1) {
-            stmt0 += "\", ";
-        }
-        else {
-            stmt0 += "\") VALUES (";
-        }
+        if (ii > 0) { stmt0 += ", "; }
+        stmt0 += "\"" + vvsColTitle[ii][0] + "\"";
     }
-    for (int ii = 0; ii < numCol; ii++) {
-        stmt0 += "?, ";
-    }
-    stmt0.pop_back();
-    stmt0.pop_back();
-    stmt0 += ");";
+    stmt0 += ") VALUES (";
 
     string stmt;
     int error = sqlite3_exec(db, "BEGIN EXCLUSIVE TRANSACTION", NULL, NULL, NULL);
@@ -835,7 +864,17 @@ void SQLFUNC::insert(string tname, vector<vector<string>>& rowData)
     {
         while (rowData[ii].size() < numCol) { rowData[ii].push_back(""); }
         stmt = stmt0;
-        bind(stmt, rowData[ii]);
+        for (int jj = 0; jj < numCol; jj++) {
+            if (jj > 0) { stmt += ", "; }
+            if (rowData[ii][jj] == "") { stmt += "NULL"; }
+            else {
+                if (viColType[jj] == 0) {
+                    stmt += "'" + rowData[ii][jj] + "'";  // TEXT
+                }
+                else { stmt += rowData[ii][jj]; }
+            }
+        }
+        stmt += ");";
         executor(stmt);
     }
     error = sqlite3_exec(db, "COMMIT TRANSACTION", NULL, NULL, NULL);
