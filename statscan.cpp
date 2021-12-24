@@ -626,7 +626,7 @@ string STATSCAN::makeBinParentNew(string binPath, string& sParent)
         return binParent;
     }
     string geoFile = wf.load(geoPath);
-    string regionName8 = jf.asciiToUTF8(regionName);
+    string regionName8 = jstr.asciiToUTF8(regionName);
     pos1 = geoFile.find("$" + regionName8 + "$") + 1;
     if (pos1 > geoFile.size()) { jf.err("Region not found in geo-sc.makeBinParent"); }
     pos1 = geoFile.find('$', pos1) + 1;
@@ -789,8 +789,8 @@ vector<string> STATSCAN::makeCreateInsertDIMIndex()
     stmts[0] += "PRIMARY KEY, DIM TEXT, Definition TEXT);";
     for (int ii = 0; ii < DIMList.size(); ii++)
     {
-        jf.clean(DIMList[ii], dirt, soap);
-        jf.clean(defn[ii], dirt, soap);
+        jstr.clean(DIMList[ii], dirt, soap);
+        jstr.clean(defn[ii], dirt, soap);
         stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (DIMIndex, DIM, Definition) ";
         stmt += "VALUES (" + to_string(ii) + ", '" + DIMList[ii] + "', '" + defn[ii] + "');";
         stmts.push_back(stmt);
@@ -873,7 +873,7 @@ vector<string> STATSCAN::makeCreateInsertDIM(vector<vector<string>>& vvsDIM)
         for (int ii = 0; ii < nameDIM.size(); ii++)
         {
             vvsDIM[indexDIM][ii] = nameDIM[ii];
-            jf.clean(nameDIM[ii], dirt, soap);
+            jstr.clean(nameDIM[ii], dirt, soap);
             stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (MID, DIM";
             for (int jj = 0; jj < vvsMIDAncestry[ii].size(); jj++)
             {
@@ -959,7 +959,7 @@ vector<string> STATSCAN::makeCreateInsertDim()
 
     for (int ii = 0; ii < dimList.size(); ii++)
     {
-        jf.clean(dimList[ii], dirt, soap);
+        jstr.clean(dimList[ii], dirt, soap);
         stmt = "INSERT OR IGNORE INTO \"" + tname + "\" (MID, Dim";
         for (int jj = 0; jj < vvsMIDAncestry[ii].size(); jj++)
         {
@@ -988,7 +988,7 @@ vector<string> STATSCAN::makeCreateInsertTopic(vector<string>& colTitles)
         else if (ii == colTitles.size() - 1) { mode = 1; }
     }
     temp = topic;
-    jf.clean(temp, dirt, soap);
+    jstr.clean(temp, dirt, soap);
     switch (mode)
     {
     case 0:
@@ -1247,7 +1247,7 @@ string STATSCAN::makeInsertForWhom()
     }
     trimMID(forWhom);
     vector<string> dirt = { "'", "  " }, soap = { "''", " " };
-    jf.clean(forWhom, dirt, soap);
+    jstr.clean(forWhom, dirt, soap);
     string stmt = "INSERT OR IGNORE INTO \"ForWhom$" + cataYear;
     stmt += "\" (Catalogue, ForWhom) VALUES ('" + cataName;
     stmt += "', '" + forWhom + "');";
@@ -1278,7 +1278,7 @@ string STATSCAN::makeInsertGeo(string& csvFile, size_t& nextLine)
     }
     vector<string> lineData = extractCSVLineValue(csvLine, scoopIndex);
     vector<string> dirt = { "'" }, soap = { "''" };
-    jf.clean(lineData[1], dirt, soap);
+    jstr.clean(lineData[1], dirt, soap);
     string tnameGeo = "Geo$" + cataYear + "$" + cataName;
     string geoStmt = "INSERT OR IGNORE INTO \"" + tnameGeo + "\" (GEO_CODE, ";
     geoStmt += "\"Region Name\", GEO_LEVEL) VALUES (" + temp;
@@ -1345,7 +1345,7 @@ string STATSCAN::makeInsertTopic(string tname, vector<string>& vsTopic)
     {
         if (vsTopic[ii] == myTopic) { return ""; }
     }
-    jf.clean(myTopic, dirt, soap);
+    jstr.clean(myTopic, dirt, soap);
     int index = vsTopic.size();
     string stmt = "INSERT INTO \"" + tname + "\" (\"Topic Index\", Topic)";
     stmt += " VALUES (" + to_string(index) + ", '" + myTopic + "');";
@@ -1356,7 +1356,7 @@ string STATSCAN::makeInsertYear()
     if (metaFile.size() < 1) { jf.err("No init-sc.makeInsertCensus"); }
     string temp = topic;
     vector<string> dirt = { "'" }, soap = { "''" };
-    jf.clean(temp, dirt, soap);
+    jstr.clean(temp, dirt, soap);
     string stmt = "INSERT OR IGNORE INTO \"Census$" + cataYear + "\" (";
     stmt += "Catalogue, Topic) VALUES ('" + cataName + "', '" + temp + "');";
     return stmt;

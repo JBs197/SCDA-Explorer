@@ -17,6 +17,7 @@ class STATSCAN
 	vector<vector<string>> geo;
 	bool ignoreSplitRegions = 1;
 	JFUNC jf;
+	JSTRING jstr;
 	string nl;
 	unordered_map<string, string> mapDataIndex;  // DIMparam->DataIndex
 	unordered_map<string, string> mapGeoLayer;  // Listed layer name->internal name

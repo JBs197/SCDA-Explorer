@@ -15,11 +15,11 @@
 #include <QTabWidget>
 #include <sqlite3.h>
 #include <iostream>
-#include "jmap.h"
 #include "gdifunc.h"
 #include "gsfunc.h"
 #include "imgfunc.h"
 #include "iofunc.h"
+#include "jmap.h"
 #include "jtree.h"
 #include "qtfunc.h"
 #include "qtpaint.h"
@@ -47,6 +47,7 @@ public:
     IOFUNC io;
     IMGFUNC im;
     JFUNC jf;
+    JSTRING jstr;
     JTREE jtCataLocal, jtMapLocal, jtMapDB, jtCataOnline;
     MATHFUNC mf;
     PNGMAP pngm;
@@ -139,6 +140,7 @@ private:
     void insertGeoLayers(string sYear, string sCata);
     void judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui);
     void makeInsertDataThr(SWITCHBOARD& sbjudi, SQLFUNC& sfgui);
+    unordered_map<string, string> makeMapDataIndex(SQLFUNC& sfgui, string tname);
     void pauseDebugMap(string mapPath);
     void qshow(string message);
     void qshow(vector<string> message);

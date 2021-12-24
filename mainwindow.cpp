@@ -64,7 +64,7 @@ void MainWindow::initGUI()
     ui->cB_drives->setCurrentIndex(inum);
 
     // Database catalogue tree.
-    if (sf.table_exist("Census")) { updateDBCata(); }
+    if (sf.tableExist("Census")) { updateDBCata(); }
 
     // Plain Text Edit.
     pteDefault = ui->pte_search;
@@ -368,7 +368,7 @@ void MainWindow::on_pB_search_clicked()
     if (query == "" || query == "all")
     {
         ui->listW_searchresult->clear();
-        sf.all_tables(tableList);
+        sf.allTables(tableList);
         for (int ii = 0; ii < tableList.size(); ii++)
         {
             qTemp = QString::fromStdString(tableList[ii]);
@@ -378,7 +378,7 @@ void MainWindow::on_pB_search_clicked()
     else if (!wildcard)
     {
         ui->listW_searchresult->clear();
-        sf.all_tables(tableList);
+        sf.allTables(tableList);
         for (int ii = 0; ii < tableList.size(); ii++)
         {
             pos1 = tableList[ii].find(query);
@@ -701,7 +701,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     scjudi.loadGeoList(geoPath, viGeoCode, vsRegion, viBegin, viEnd);
     string tname = "Geo$" + prompt[0] + "$" + prompt[1];
     vector<string> search = { "GEO_CODE" };
-    if (sfgui.table_exist(tname)) { sfgui.select(search, tname, vsResult); }
+    if (sfgui.tableExist(tname)) { sfgui.select(search, tname, vsResult); }
     vector<string> geoToDo = scjudi.compareGeoListDB(viGeoCode, vsResult); // List of GEO_CODEs present in geoList but absent from the DB.
     if (geoToDo.size() > 0)
     {
@@ -716,7 +716,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 
     // Add this year to the Census table. 
     tname = "Census";
-    if (!sfgui.table_exist(tname))
+    if (!sfgui.tableExist(tname))
     {
         result = scjudi.makeCreateCensus();
         sfgui.executor(result);
@@ -727,7 +727,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 
     // Add this catalogue (and its topic) to the CensusYear table.
     tname = "Census$" + prompt[0];
-    if (!sfgui.table_exist(tname))
+    if (!sfgui.tableExist(tname))
     {
         result = scjudi.makeCreateYear();
         sfgui.executor(result);
@@ -738,7 +738,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 
     // Add this catalogue's topic to the appropriate 'Topic' table.
     tname = "Topic$" + prompt[0];
-    if (!sfgui.table_exist(tname))
+    if (!sfgui.tableExist(tname))
     {
         result = scjudi.makeCreateTopic(tname);
         sfgui.executor(result);
@@ -775,7 +775,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     
     // Create the DataIndex table for this catalogue.
     tname = "DataIndex$" + prompt[0] + "$" + prompt[1];
-    if (!sfgui.table_exist(tname))
+    if (!sfgui.tableExist(tname))
     {
         result = scjudi.makeCreateDataIndex();
         sfgui.executor(result);
@@ -790,7 +790,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     {
         auto insertDI = new vector<string>(numStmt);
         scjudi.getVSBuffer(*insertDI);
-        sfgui.insert_prepared(*insertDI);
+        sfgui.insertPrepared(*insertDI);
         delete insertDI;
         jf.log("Inserted " + to_string(numStmt) + " DataIndex rows for " + prompt[1]);
     }
@@ -799,7 +799,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     int sCDsize = scjudi.makeCreateData(viGeoCode);
     auto vsCreateData = new vector<string>(sCDsize);
     scjudi.getVSBuffer(*vsCreateData);
-    sfgui.insert_prepared(*vsCreateData);
+    sfgui.insertPrepared(*vsCreateData);
     delete vsCreateData;
     jf.log("Created data table statements for " + prompt[1]);
 
@@ -809,7 +809,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     mycomm[1] = -1;
     sbgui.update(myid, mycomm);
     sbjudi.setErrorPath(sroot + "\\SCDA SWITCHBOARD Error Log(Judicator).txt");
-    sbjudi.setMapSS(sfgui.makeMapDataIndex(tname));
+    sbjudi.setMapSS(makeMapDataIndex(sfgui, tname));
     sbjudi.start_call(myid, 3, commJudi[0]);
     if (geoToDo.size() > 0)
     {
@@ -975,7 +975,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
     search = { "GEO_LEVEL" };
     tname = "Geo$" + prompt[0] + "$" + prompt[1];
     sfgui.select(search, tname, vsResult);
-    int numCol = sfgui.get_num_col(tname), maxLevel = -1, inum, iGeoLevel;
+    int numCol = sfgui.getNumCol(tname), maxLevel = -1, inum, iGeoLevel;
     for (int ii = 0; ii < vsResult.size(); ii++)
     {
         try { inum = stoi(vsResult[ii]); }
@@ -1033,7 +1033,7 @@ void MainWindow::judicator(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 
     // Add this catalogue to its "ForWhom" table.
     tname = "ForWhom$" + prompt[0];
-    if (!sfgui.table_exist(tname))
+    if (!sfgui.tableExist(tname))
     {
         result = scjudi.makeCreateForWhom();
         sfgui.executor(result);
@@ -1051,12 +1051,12 @@ void MainWindow::insertGeoLayers(string sYear, string sCata)
 {
     string stmt;
     string tname = "GeoLayers$" + sYear;
-    if (!sf.table_exist(tname))
+    if (!sf.tableExist(tname))
     {
         stmt = sc.makeCreateGeoLayers(sYear);
         sf.executor(stmt);
     }
-    int numCol = sf.get_num_col(tname);
+    int numCol = sf.getNumCol(tname);
     vector<string> geoLayers;
     getGeoLayers(sYear, sCata, geoLayers);
     int numColNeeded = geoLayers.size() + 1 - numCol;
@@ -1124,13 +1124,34 @@ void MainWindow::makeInsertDataThr(SWITCHBOARD& sbjudi, SQLFUNC& sfgui)
         comm = sbjudi.update(myid, mycomm);
         if (comm[0][1] == viPrompt[0])
         {
-            sfgui.insert_prepared(vsStmt);
+            sfgui.insertPrepared(vsStmt);
             mycomm[0] = 2;
             sbjudi.update(myid, mycomm);
             break;
         }
     }
     sbjudi.terminateSelf(myid);
+}
+unordered_map<string, string> MainWindow::makeMapDataIndex(SQLFUNC& sfgui, string tname)
+{
+    // Returns a map connecting col1$col2$...$colN -> col0
+    vector<string> search = { "*" };
+    vector<vector<string>> vvsResult;
+    sfgui.select(search, tname, vvsResult);
+    unordered_map<string, string> mapDataIndex;
+    if (vvsResult.size() < 1) { jf.err("Table is empty-sf.makeMapDataIndex"); }
+    else if (vvsResult.size() == 1) { return mapDataIndex; }
+    string params;
+    for (int ii = 0; ii < vvsResult.size(); ii++)
+    {
+        params = vvsResult[ii][1];
+        for (int jj = 2; jj < vvsResult[ii].size(); jj++)
+        {
+            params += "$" + vvsResult[ii][jj];
+        }
+        mapDataIndex.emplace(params, vvsResult[ii][0]);
+    }
+    return mapDataIndex;
 }
 
 // Local map listings.
@@ -1301,7 +1322,7 @@ void MainWindow::createBinMap(SWITCHBOARD& sbgui)
         im.pngLoadHere(pngPath[ii], img, imgSpec);
         if (!bm.checkSpec(imgSpec)) { jf.err("Incorrect PNG resolution-MainWindow.createBinMap"); }
         binPath = pngPath[ii];
-        jf.clean(binPath, dirt, soap);
+        jstr.clean(binPath, dirt, soap);
         bool scale = 0, position = 0, frame = 0, border = 0;
         if (wf.file_exist(binPath))
         {
@@ -1809,7 +1830,7 @@ void MainWindow::insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
 
     // Get the folder paths.
     string tname = "GeoLayers$" + prompt[0], stmt, mapPath, mapFile;
-    if (!sfgui.table_exist(tname))
+    if (!sfgui.tableExist(tname))
     {
         stmt = sc.makeCreateGeoLayers(prompt[0]);
         sfgui.executor(stmt);
@@ -1844,7 +1865,7 @@ void MainWindow::insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
         pos1 = geo[ii][1].find(" part)");
         if (pos1 < geo[ii][1].size()) { continue; }
         tname = "Map$" + prompt[0] + "$" + geo[ii][0];
-        if (!sfgui.table_exist(tname))
+        if (!sfgui.tableExist(tname))
         {
             stmt = sc.makeCreateMap(tname);
             sfgui.executor(stmt);
@@ -1853,11 +1874,11 @@ void MainWindow::insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
             catch (invalid_argument) { jf.err("stoi-MainWindow.insertCataMaps"); }
             mapPath = folderPath[geoLevel] + "\\" + geo[ii][1] + ".bin";
             vsRow = sc.makeInsertMap(tname, mapPath);
-            sfgui.insert_prepared(vsRow);
+            sfgui.insertPrepared(vsRow);
         }
         
         tname = "MapFrame$" + prompt[0] + "$" + geo[ii][0];
-        if (!sfgui.table_exist(tname))
+        if (!sfgui.tableExist(tname))
         {
             stmt = sc.makeCreateMapFrame(tname);
             sfgui.executor(stmt);
@@ -1866,7 +1887,7 @@ void MainWindow::insertCataMaps(SWITCHBOARD& sbgui, SQLFUNC& sfgui)
             catch (invalid_argument) { jf.err("stoi-MainWindow.insertCataMaps"); }
             mapPath = folderPath[geoLevel] + "\\" + geo[ii][1] + ".bin";
             vsRow = sc.makeInsertMapFrame(tname, mapPath);
-            sfgui.insert_prepared(vsRow);
+            sfgui.insertPrepared(vsRow);
         }
         mycomm[1]++;
         sbgui.update(myid, mycomm);
@@ -1939,9 +1960,9 @@ void MainWindow::on_pB_deletemap_clicked()
         try { sYear = mapCataToYear.at(sCata); }
         catch (out_of_range) { jf.err("mapCataToYear-MainWindow.on_pB_deletemap_clicked"); }
         string tname = "Map$" + sYear + "$" + sGeoCode;
-        sf.remove(tname);
+        sf.dropTable(tname);
         tname = "MapFrame$" + sYear + "$" + sGeoCode;
-        sf.remove(tname);
+        sf.dropTable(tname);
         on_pB_maplocal_clicked();
     }
     else
@@ -1984,7 +2005,7 @@ void MainWindow::displayTable(QTableWidget*& qTable, string tname)
     jf.timerStart();
     QString qTemp;
     vector<vector<string>> vvsResult;
-    vector<string> colTitles, prompt = { tname };
+    vector<string> prompt = { tname };
     sb.set_prompt(prompt);
     vector<vector<int>> comm(1, vector<int>());
     comm[0].assign(comm_length, 0);
@@ -2020,9 +2041,10 @@ void MainWindow::displayTable(QTableWidget*& qTable, string tname)
     }
     sb.end_call(myid);
     if (vvsResult.size() < 1) { jf.err("No rows found-MainWindow.displayTable"); }
-    sf.get_col_titles(tname, colTitles);
+    vector<vector<string>> vvsColTitle = sf.getColTitles(tname);
+    int numCol = vvsColTitle.size();
     qTable->clear();
-    qTable->setColumnCount(colTitles.size());
+    qTable->setColumnCount(numCol);
     qTable->setRowCount(vvsResult.size());
     QTableWidgetItem* qCell = nullptr;
     QSize qSize(30, 30);
@@ -2038,9 +2060,9 @@ void MainWindow::displayTable(QTableWidget*& qTable, string tname)
         }
     }
     QStringList hHeaderLabels;
-    for (int ii = 0; ii < colTitles.size(); ii++)
+    for (int ii = 0; ii < numCol; ii++)
     {
-        qTemp = QString::fromStdString(colTitles[ii]);
+        qTemp = QString::fromStdString(vvsColTitle[ii][0]);
         hHeaderLabels.append(qTemp);
     }
     qTemp = QString::fromStdString(tname);
@@ -2081,7 +2103,7 @@ void MainWindow::on_pB_deletetable_clicked()
         {
             qTemp = qSel[ii]->text();
             tname = qTemp.toStdString();
-            sf.remove(tname);
+            sf.dropTable(tname);
             qSel[ii]->setHidden(1);
             barUpdate(ii + 1);
         }
@@ -2113,7 +2135,7 @@ void MainWindow::on_pB_deletetable_clicked()
         {
             conditions[0] += "\" = " + sValue;
         }
-        sf.removeRow(tname, conditions);
+        sf.deleteRow(tname, conditions);
         ui->tableW_db->removeRow(iRow);
         break;
     }
@@ -2175,7 +2197,7 @@ void MainWindow::on_pB_commitedit_clicked()
 {
     QList<QTableWidgetItem*> qSel = ui->tableW_db->selectedItems();
     if (qSel.size() != 1) { return; }
-    if (!sf.table_exist(activeTableDB)) { return; }
+    if (!sf.tableExist(activeTableDB)) { return; }
     editTable(qSel[0], activeTableDB);
 }
 void MainWindow::on_tableW_db_currentCellChanged(int RowNow, int ColNow, int RowThen, int ColThen)
@@ -2635,14 +2657,14 @@ void MainWindow::on_pB_test_clicked()
     {
         size_t pos1, pos2;
         vector<string> vsAll;
-        sf.all_tables(vsAll);
+        sf.allTables(vsAll);
         for (int ii = 0; ii < vsAll.size(); ii++)
         {
             pos1 = vsAll[ii].find("DIM");
             pos2 = vsAll[ii].find("Dim");
             if (pos1 < vsAll[ii].size() || pos2 < vsAll[ii].size())
             {
-                sf.remove(vsAll[ii]);
+                sf.dropTable(vsAll[ii]);
             }
         }
         ui->pte_search->setPlainText("Done deleting.");
@@ -2836,7 +2858,7 @@ void MainWindow::on_pB_test_clicked()
             {
                 stmt += ", Ancestor" + to_string(jj);
             }
-            jf.clean(geoData[ii][1], dirt, soap);
+            jstr.clean(geoData[ii][1], dirt, soap);
             stmt += ") VALUES (" + geoData[ii][0] + ", '" + geoData[ii][1];
             stmt += "', " + geoData[ii][2];
             for (int jj = 3; jj < geoData[ii].size(); jj++)
@@ -2846,7 +2868,7 @@ void MainWindow::on_pB_test_clicked()
             stmt += ");";
             stmts.push_back(stmt);
         }
-        sf.insert_prepared(stmts);
+        sf.insertPrepared(stmts);
         break;
     }
     case 5:  // Search for a small image within a larger one.
@@ -3890,14 +3912,14 @@ void MainWindow::addTGRow(SQLFUNC& sfjudi, STATSCAN& scjudi, string cataName)
     string tname = "TG_Row$" + cataName;
     int tg_row_col;
     vector<string> row_queue;
-    if (!sfjudi.table_exist(tname))
+    if (!sfjudi.tableExist(tname))
     {
         log("Begin row indexing (TGR) for catalogue " + cataName);
         tg_row_col = scjudi.make_tgrow_statements(row_queue);
         sfjudi.executor(row_queue[0]);
         row_queue.erase(row_queue.begin());
         sfjudi.safe_col(tname, tg_row_col);
-        sfjudi.insert_prepared(row_queue);
+        sfjudi.insertPrepared(row_queue);
         log("Completed row indexing (TGR) for catalogue " + cataName);
     }
 }
@@ -3906,14 +3928,14 @@ void MainWindow::addTGRegion(SQLFUNC& sfjudi, STATSCAN& scjudi, string cataYear,
     string tname = "TG_Region$" + cataName;
     int tg_region_col;
     vector<string> geo_queue;
-    if (!sfjudi.table_exist(tname))
+    if (!sfjudi.tableExist(tname))
     {
         log("Begin region indexing (TGR) for catalogue " + cataName);
         tg_region_col = scjudi.make_tgr_statements(geo_queue, cataYear, cataName);
         sfjudi.executor(geo_queue[0]);
         geo_queue.erase(geo_queue.begin());
         sfjudi.safe_col(tname, tg_region_col);
-        sfjudi.insert_prepared(geo_queue);
+        sfjudi.insertPrepared(geo_queue);
         log("Completed region indexing (TGR) for catalogue " + cataName);
     }
 }
@@ -3922,7 +3944,7 @@ void MainWindow::addTMap(SQLFUNC& sfjudi, vector<int>& gidList, vector<string>& 
     string tname = "TMap$" + cataName, stmt, stmt0, mapPath, temp;
     vector<string> params(2), coreDir;
     int index, inum;
-    if (!sfjudi.table_exist(tname))
+    if (!sfjudi.tableExist(tname))
     {
         log("Begin map indexing for catalogue " + cataName);
         stmt = "CREATE TABLE \"" + tname;
@@ -4179,7 +4201,7 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
     // Remove all of this catalogue's CSV tables.
     timer.start();
     vector<string> table_list;
-    sf.all_tables(table_list);
+    sf.allTables(table_list);
     vector<string> table_split, csv_list;
     int mode = 1;
     for (int ii = 0; ii < table_list.size(); ii++)
@@ -4192,49 +4214,49 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
     }
     for (int ii = 0; ii < csv_list.size(); ii++)
     {
-        sf.remove(csv_list[ii]);
+        sf.dropTable(csv_list[ii]);
     }
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove CSV tables: " << timer.restart();
 
     // Remove the catalogue's primary table.
-    sf.remove(prompt[1]);
+    sf.dropTable(prompt[1]);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove the primary table: " << timer.restart();
 
     // Remove the catalogue's TG_Region.
     string tname = "TG_Region$" + prompt[1];
-    sf.remove(tname);
+    sf.dropTable(tname);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove TG_Region: " << timer.restart();
 
     // Remove the catalogue's TG_Row.
     tname = "TG_Row$" + prompt[1];
-    sf.remove(tname);
+    sf.dropTable(tname);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove TG_Row: " << timer.restart();
 
     // Remove the catalogue's TMap.
     tname = "TMap$" + prompt[1];
-    sf.remove(tname);
+    sf.dropTable(tname);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove TMap: " << timer.restart();
 
     // Remove the catalogue's Geo.
     tname = prompt[1] + "$Geo";
-    sf.remove(tname);
+    sf.dropTable(tname);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove Geo: " << timer.restart();
 
     // Remove the catalogue's Geo_Layers.
     tname = prompt[1] + "$Geo_Layers";
-    sf.remove(tname);
+    sf.dropTable(tname);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove Geo_Layers: " << timer.restart();
@@ -4242,7 +4264,7 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
     // Remove entries from TDamaged.
     vector<string> conditions = {"[Catalogue Name] = '" + prompt[1] + "'"};
     tname = "TDamaged";
-    sf.remove(tname, conditions);
+    sf.dropTable(tname, conditions);
     mycomm[1]++;
     sb.update(myid, mycomm);
     qDebug() << "Time to remove entries from TDamaged: " << timer.restart();
@@ -4250,7 +4272,7 @@ void MainWindow::delete_cata(SWITCHBOARD& sb, SQLFUNC& sf)
     // Remove entry from TCatalogueIndex.
     tname = "TCatalogueIndex";
     conditions = { "[Name] = '" + prompt[1] + "'" };
-    sf.remove(tname, conditions);
+    sf.dropTable(tname, conditions);
     mycomm[1]++;
     qDebug() << "Time to remove entry from TCatalogueIndex: " << timer.restart();
 
@@ -4288,7 +4310,7 @@ void MainWindow::on_pB_viewtable_clicked()
         wTemp = qtemp.toStdWString();
         temp = qtemp.toStdString();
         string temp2 = "'";
-        jf.clean(temp, { "" }, temp2);
+        jstr.clean(temp, { "" }, temp2);
         search = { "GID" };
         tname = "TG_Region$" + viewcata_data[1];
         conditions = { "[Region Name] = '" + temp + "'" };
@@ -4410,7 +4432,7 @@ void MainWindow::on_pB_deletetable_clicked()
         wTemp = qtemp.toStdWString();
         temp = qtemp.toStdString();
         string temp2 = "'";
-        jf.clean(temp, { "" }, temp2);
+        jstr.clean(temp, { "" }, temp2);
         search = { "GID" };
         tname = "TG_Region$" + viewcata_data[1];
         conditions = { "[Region Name] = '" + temp + "'" };
@@ -4429,7 +4451,7 @@ void MainWindow::on_pB_deletetable_clicked()
     }
 
     // Delete.
-    sf.remove(tname);
+    sf.dropTable(tname);
 
 }
 
@@ -4793,13 +4815,13 @@ void MainWindow::on_pB_search_clicked()
     if (pos1 == 0)
     {
         temp = tname.substr(6);
-        sf.all_tables(results);
+        sf.allTables(results);
         for (int ii = 0; ii < results.size(); ii++)
         {
             pos1 = results[ii].find(temp);
             if (pos1 < results[ii].size())
             {
-                sf.remove(results[ii]);
+                sf.dropTable(results[ii]);
             }
         }
         tname = "Deleted " + temp + " !";
@@ -4809,7 +4831,7 @@ void MainWindow::on_pB_search_clicked()
     else if (tname == "all")
     {
         ui->listW_search->clear();
-        sf.all_tables(results);
+        sf.allTables(results);
         for (int ii = 0; ii < results.size(); ii++)
         {
             qtemp = QString::fromStdString(results[ii]);
@@ -4849,7 +4871,7 @@ void MainWindow::on_pB_search_clicked()
         string sfile = jf.load(csvPath);
         sc.cata_init(sfile);
         temp = "TG_Row$" + sName;
-        sf.remove(temp);
+        sf.dropTable(temp);
         vector<string> tgRowStmts;
         sc.make_tgrow_statements(tgRowStmts);
         for (int ii = 0; ii < tgRowStmts.size(); ii++)
@@ -4858,10 +4880,10 @@ void MainWindow::on_pB_search_clicked()
         }
         int bbq = 1;
     }
-    else if (sf.table_exist(tname))
+    else if (sf.tableExist(tname))
     {
         timer = jf.timerRestart();
-        qDebug() << "pB_search to table_exist: " << timer;
+        qDebug() << "pB_search to tableExist: " << timer;
         display_table(tname);
         timer = jf.timerStop();
         qDebug() << "display_table: " << timer;
@@ -4985,7 +5007,7 @@ void MainWindow::on_pB_convert_clicked()
         if (temp != "")
         {
             dirt = { " " };
-            jf.clean(temp, dirt);
+            jstr.clean(temp, dirt);
             try { inum = stoi(temp); }
             catch (invalid_argument& ia) { inum = -1; }
         }
@@ -5381,7 +5403,7 @@ void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorde
     string folderPathBIN = prompt[1];
     vector<string> dirt = { "mapsPNG" };
     vector<string> soap = { "mapsBIN" };
-    jf.clean(folderPathBIN, dirt, soap);
+    jstr.clean(folderPathBIN, dirt, soap);
     wf.makeDir(folderPathBIN);
     temp = "*.png";
     vector<string> pngNameList = wf.get_file_list(prompt[1], temp);
@@ -5396,7 +5418,7 @@ void MainWindow::convertGuide(SWITCHBOARD& sbgui, QPainterPath& painterPathBorde
     {
         filepathPNG = prompt[1] + "\\" + pngNameList[ii];
         filepathBIN = folderPathBIN + "\\" + pngNameList[ii];
-        jf.clean(filepathBIN, dirt, soap);
+        jstr.clean(filepathBIN, dirt, soap);
         if (!wf.file_exist(filepathBIN))
         {
             im.pngToBin(sbgui, filepathPNG, filepathBIN);
@@ -5460,7 +5482,7 @@ void MainWindow::on_pB_advance_clicked()
     QString qtemp = ui->pte_advance->toPlainText();
     string temp = qtemp.toStdString();
     vector<string> dirt = { " " };
-    jf.clean(temp, dirt);
+    jstr.clean(temp, dirt);
     int inum;
     if (temp == "")
     {
@@ -5491,7 +5513,7 @@ void MainWindow::on_pB_backspace_clicked()
     QString qtemp = ui->pte_advance->toPlainText();
     string temp = qtemp.toStdString();
     vector<string> dirt = { " " };
-    jf.clean(temp, dirt);
+    jstr.clean(temp, dirt);
     int inum;
     if (temp == "")
     {
@@ -5612,7 +5634,7 @@ void MainWindow::on_pB_savemap_clicked()
         qtemp = qlist[0]->text();
         temp = qtemp.toUtf8();
         mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
-        jf.clean(mapBinPath, dirt, soap);
+        jstr.clean(mapBinPath, dirt, soap);
         qf.printEditedMap(mapBinPath);
     }
 }
@@ -5628,7 +5650,7 @@ void MainWindow::on_pB_deletemap_clicked()
         qtemp = qlist[0]->text();
         temp = qtemp.toUtf8();
         mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
-        jf.clean(mapBinPath, dirt, soap);
+        jstr.clean(mapBinPath, dirt, soap);
         wf.delete_file(mapBinPath);
         on_pB_correct_clicked();
     }
@@ -5646,7 +5668,7 @@ void MainWindow::on_pB_pos_clicked()
     string binPath = selectedMapFolder + "\\" + binName + ".bin";
     vector<string> dirt = { "mapsPNG", "mapsPDF" };
     vector<string> soap = { "mapsBIN", "mapsBIN" };
-    jf.clean(binPath, dirt, soap);
+    jstr.clean(binPath, dirt, soap);
     string binFile = wf.load(binPath), geoLayersPath, sNum, sParent;
     int inum, numLayers = 0;
     vector<double> binPos;
@@ -5717,7 +5739,7 @@ void MainWindow::on_pB_pos_clicked()
     dirt = { "mapsBIN", ".bin" };
     soap = { "pos", ".png" };
     pngParentPath = binPath;                   // pngParent refers to the small 
-    jf.clean(pngParentPath, dirt, soap);       // "minimap" png from which we 
+    jstr.clean(pngParentPath, dirt, soap);       // "minimap" png from which we 
     if (!wf.file_exist(pngParentPath))         // derive position for the bin map.
     {
         pos1 = pngParentPath.rfind('\\');
@@ -5726,7 +5748,7 @@ void MainWindow::on_pB_pos_clicked()
         dirt = { "\\pos\\" };
         soap = { "\\mapsPNG\\" };
         pngGrandparentPath = pngParentPath;
-        jf.clean(pngGrandparentPath, dirt, soap);
+        jstr.clean(pngGrandparentPath, dirt, soap);
         pngGPathASCII = jf.asciiOnly(pngGrandparentPath);
         if (!wf.file_exist(pngGPathASCII)) { err("Missing PNG map-MainWindow.on_pB_pos_clicked"); }
         pngPPathASCII = jf.asciiOnly(pngParentPath);
@@ -5761,7 +5783,7 @@ void MainWindow::on_pB_pos_clicked()
         newBin += binFile.substr(pos1);
         dirt = { "\r\n" };
         soap = { "\n" };
-        jf.clean(newBin, dirt, soap);
+        jstr.clean(newBin, dirt, soap);
         jf.printer(binPath, newBin);
     }
 }
@@ -6006,7 +6028,7 @@ void MainWindow::on_listW_bindone_itemSelectionChanged()
             qtemp = qlist[0]->text();
             temp = qtemp.toUtf8();
             mapBinPath = selectedMapFolder + "\\" + jf.utf8ToAscii(temp) + ".bin";
-            jf.clean(mapBinPath, dirt, soap);
+            jstr.clean(mapBinPath, dirt, soap);
             qf.displayBin(ui->label_maps, mapBinPath);
             break;
         }

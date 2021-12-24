@@ -50,7 +50,7 @@ void QTFUNC::displayBinList(QListWidget*& qLW, vector<string>& pathBin)
 		if (pos2 > pathBin[ii].size()) { jf.err("Failed to locate .bin extension-qf.displayBinList"); }
 		pos1 = pathBin[ii].rfind('\\', pos2) + 1;
 		temp = pathBin[ii].substr(pos1, pos2 - pos1);
-		temp8 = jf.asciiToUTF8(temp);
+		temp8 = jstr.asciiToUTF8(temp);
 		qtemp = QString::fromUtf8(temp8.c_str());
 		mapListPathBin.insert(qtemp, ii);
 		qLW->addItem(qtemp);

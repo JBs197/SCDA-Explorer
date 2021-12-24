@@ -26,6 +26,7 @@ class QTFUNC
 	int diameterDefault = 5;
 	IMGFUNC im;
 	JFUNC jf;
+	JSTRING jstr;
 	int lastMap = -1;  // -1 = nothing loaded yet, 0 = debug map, 1 = bin map
 	vector<string> listPathBin;
 	QMap<QString, int> mapListPathBin;
