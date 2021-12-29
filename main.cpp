@@ -3,20 +3,31 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBI_ASSERT(x)
 #define STBI_ONLY_PNG
-#include "mainwindow.h"
+#include "jlog.h"
+#include "SCDAexplorer.h"
 #include <QApplication>
 
-mutex m_err;
-const string sroot = "E:";
-const string scroot = "www12.statcan.gc.ca/datasets/index-eng.cfm";
+JLOG* JLOG::instance = 0;
+int JNODE::nextID{ 1 };
+mutex m_bar, m_err;
+//const string scroot = "www12.statcan.gc.ca/datasets/index-eng.cfm";
 
 int main(int argc, char* argv[])
 {
     setlocale(LC_ALL, ".UTF8");
 
     QApplication a(argc, argv);
-    MainWindow w;
-    w.show();
+    a.setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles, 1);
 
+    QString qsExecFolder = a.applicationDirPath();
+    string sExecFolder = qsExecFolder.toUtf8();
+    string cssPath = sExecFolder + "\\css.txt";
+    a.setStyleSheet(cssPath.c_str());
+
+    JLOG::getInstance()->init(sExecFolder, "SCDA-Explorer");
+
+    SCDA scda(sExecFolder);
+    scda.show();
+    scda.postRender();
     return a.exec();
 }

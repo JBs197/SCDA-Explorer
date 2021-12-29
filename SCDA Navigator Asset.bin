@@ -1,7 +1,0 @@
-// Line marker used is dollar sign 'ds'. Section start/end criteria must be unique to the file. 
-// Line form:  'ds' "unique page identifier" 'ds' "this page start search" 'ds' "this page end search" 'ds' "this page iterative search begin" 'ds' "this page iterative search end" 'ds'
-
-$<select name="Temporal"$<select name="Temporal"$</select>$<option value="$" $
-$<select name="Temporal"$<tbody>$</tbody>$&ips=$" targ$
-
-// eof 
