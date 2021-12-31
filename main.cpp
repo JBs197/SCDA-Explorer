@@ -10,7 +10,6 @@
 JLOG* JLOG::instance = 0;
 int JNODE::nextID{ 1 };
 mutex m_bar, m_err;
-//const string scroot = "www12.statcan.gc.ca/datasets/index-eng.cfm";
 
 int main(int argc, char* argv[])
 {

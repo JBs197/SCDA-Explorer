@@ -1,1 +1,0 @@
-C:/users/joelb/source/sqlfunc.h

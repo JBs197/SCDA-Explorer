@@ -27,6 +27,7 @@ public:
 
 signals:
 	void driveSelected(string drive);
+	void sendOnlineCata();
 
 public slots:
 	void driveChanged(const QString& qsDrive);

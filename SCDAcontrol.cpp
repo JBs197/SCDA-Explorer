@@ -28,6 +28,7 @@ void SCDAcontrol::init()
 	indexFetch = 1;
 	QPushButton* pbFetch = new QPushButton("Fetch Online\nCatalogues");
 	vLayout->insertWidget(indexFetch, pbFetch, 0);
+	connect(pbFetch, &QPushButton::clicked, this, &SCDAcontrol::sendOnlineCata);
 
 	vLayout->addSpacing(20);
 	QLabel* labelText = new QLabel("I/O Text Box");

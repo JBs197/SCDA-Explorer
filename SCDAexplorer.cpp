@@ -43,10 +43,8 @@ void SCDA::driveSelected(string drive)
 	case 0:
 	{
 		SCDAcatalogue* page = (SCDAcatalogue*)tab->currentWidget();
-		QGridLayout* cataLayout = (QGridLayout*)page->layout();
-		qlItem = cataLayout->itemAtPosition(1, page->indexLocal);
-		QJTREE* treeLocal = (QJTREE*)qlItem->widget();
-		treeLocal->jt.reset();
+		QJTREEMODEL* qjtm = page->getModel(page->indexLocal);
+		qjtm->jt.reset();
 
 		vector<vector<int>> comm(1, vector<int>());
 		comm[0].assign(commLength, 0);
@@ -54,7 +52,7 @@ void SCDA::driveSelected(string drive)
 		vector<string> prompt = { drive + ":\\" };
 		sb.set_prompt(prompt);
 		sb.start_call(myid, 1, comm[0]);
-		std::thread thr(&SCDA::scanCataLocal, this, ref(sb), ref(treeLocal->jt));
+		std::thread thr(&SCDA::scanCataLocal, this, ref(sb), ref(qjtm->jt));
 		thr.detach();
 		while (1)
 		{
@@ -64,7 +62,7 @@ void SCDA::driveSelected(string drive)
 			if (comm.size() > 1 && comm[1][0] == 1) { break; }
 		}
 		sb.end_call(myid);
-		treeLocal->showTree();
+		qjtm->populate();
 		barMessage("Displaying local catalogues from drive " + drive);
 
 		break;
@@ -121,6 +119,14 @@ void SCDA::initControl(SCDAcontrol*& control)
 	connect(control, &SCDAcontrol::driveSelected, this, &SCDA::driveSelected);
 	cb->setCurrentIndex(activeIndex);
 
+	QWidget* central = this->centralWidget();
+	hLayout = (QHBoxLayout*)central->layout();
+	qlItem = hLayout->itemAt(indexDisplay);
+	vLayout = (QVBoxLayout*)qlItem->layout();
+	qlItem = vLayout->itemAt(0);
+	QTabWidget* tab = (QTabWidget*)qlItem->widget();
+	SCDAcatalogue* page = (SCDAcatalogue*)tab->currentWidget();
+	connect(control, &SCDAcontrol::sendOnlineCata, page, &SCDAcatalogue::displayOnlineCata);
 }
 void SCDA::initDatabase()
 {
@@ -148,6 +154,7 @@ void SCDA::initGUI()
 	vLayout->addWidget(tab, 1);
 	indexCata = 0;
 	SCDAcatalogue* cata = new SCDAcatalogue;
+	connect(this, &SCDA::sendConfigXML, cata, &SCDAcatalogue::getConfigXML);
 	tab->addTab(cata, "Catalogues");
 	indexTable = 1;
 	indexMap = 2;
@@ -175,6 +182,9 @@ void SCDA::postRender()
 	QProgressBar* pBar = (QProgressBar*)qlItem->widget();
 	QRect rect = pBar->geometry();
 	labelBar->setGeometry(rect);
+
+	emit sendConfigXML(configXML);
+
 }
 void SCDA::scanCataLocal(SWITCHBOARD& sbgui, JTREE& jtgui)
 {
@@ -185,7 +195,7 @@ void SCDA::scanCataLocal(SWITCHBOARD& sbgui, JTREE& jtgui)
 	string cataPath, metaPath, search = "*", yearPath;
 	vector<string> folderList = wf.get_folder_list(prompt[0], search);
 	vector<string> cataList, sYearList;
-	vector<int> iYearList, csvCount;
+	vector<int> csvCount;
 	JNODE jnRoot = jtgui.getRoot();
 	int iYear, numCata, parentID, rootID = jnRoot.ID;
 	size_t pos1;
@@ -197,17 +207,15 @@ void SCDA::scanCataLocal(SWITCHBOARD& sbgui, JTREE& jtgui)
 			try { iYear = stoi(folderList[ii]); }
 			catch (invalid_argument) { err("stoi-MainWindow-on_cB_drives"); }
 			if (iYear >= 1981 && iYear <= 2017) {
-				iYearList.push_back(iYear);
+				sYearList.push_back(folderList[ii]);
 			}
 		}
 	}
-	jf.sortInteger(iYearList, JFUNC::Increasing);
-	int numYear = iYearList.size();
-	sYearList.resize(numYear);
+	jf.sortInteger(sYearList, JFUNC::Increasing);
+	int numYear = sYearList.size();
 	for (int ii = 0; ii < numYear; ii++) {
-		sYearList[ii] = to_string(iYearList[ii]);
 		JNODE jnYear;
-		jnYear.sValue = sYearList[ii];
+		jnYear.vsData.push_back(sYearList[ii]);
 		jtgui.addChild(rootID, jnYear);
 	}
 
@@ -229,7 +237,7 @@ void SCDA::scanCataLocal(SWITCHBOARD& sbgui, JTREE& jtgui)
 			meta = wf.file_exist(metaPath);
 			if (meta == 1 && csvCount[jj] > 0) {
 				JNODE jn;
-				jn.sValue = folderList[jj];
+				jn.vsData.push_back(folderList[jj]);
 				jtgui.addChild(viYearID[ii], jn);
 			}
 		}
@@ -246,12 +254,10 @@ void SCDA::updateCataDB()
 	qlItem = vLayout->itemAt(0);
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();
 	SCDAcatalogue* page = (SCDAcatalogue*)tab->widget(indexCata);
-	QGridLayout* gLayout = (QGridLayout*)page->layout();
-	qlItem = gLayout->itemAtPosition(1, page->indexDatabase);
-	QJTREE* treeDB = (QJTREE*)qlItem->widget();
-	treeDB->clear();
+	QJTREEMODEL* qjtm = page->getModel(page->indexDatabase);
+	qjtm->jt.reset();
 
-	JNODE jnRoot = treeDB->jt.getRoot();
+	JNODE jnRoot = qjtm->jt.getRoot();
 	int index, rootID = jnRoot.ID;
 	vector<string> search = { "Year" }, yearList, cataList;
 	string tname = "Census";
@@ -260,12 +266,12 @@ void SCDA::updateCataDB()
 	int numCata, numYear = yearList.size();
 	for (int ii = 0; ii < numYear; ii++) {
 		JNODE jnYear;
-		jnYear.sValue = yearList[ii];
-		treeDB->jt.addChild(rootID, jnYear);
+		jnYear.vsData.push_back(yearList[ii]);
+		qjtm->jt.addChild(rootID, jnYear);
 	}
 
 	vector<int> viYearID(numYear);
-	vector<reference_wrapper<JNODE>> vJNYear = treeDB->jt.getChildren(rootID);
+	vector<reference_wrapper<JNODE>> vJNYear = qjtm->jt.getChildren(rootID);
 	for (int ii = 0; ii < numYear; ii++) {
 		viYearID[ii] = vJNYear[ii].get().ID;
 	}
@@ -277,10 +283,10 @@ void SCDA::updateCataDB()
 		numCata = sf.select(search, tname, cataList);
 		for (int jj = 0; jj < numCata; jj++) {
 			JNODE jn;
-			jn.sValue = cataList[jj];
-			treeDB->jt.addChild(viYearID[ii], jn);
+			jn.vsData.push_back(cataList[jj]);
+			qjtm->jt.addChild(viYearID[ii], jn);
 		}
 	}
 
-	treeDB->showTree();
+	qjtm->populate();
 }

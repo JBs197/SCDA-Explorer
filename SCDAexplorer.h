@@ -1,12 +1,13 @@
+#pragma once
 #include <QApplication>
 #include <QMainWindow>
 #include <QProgressBar>
 #include <QTabWidget>
 #include "SCDAcatalogue.h"
 #include "SCDAcontrol.h"
+#include "SConline.h"
 #include "sqlfunc.h"
 #include "switchboard.h"
-#include "winfunc.h"
 
 using namespace std;
 extern mutex m_bar;
@@ -38,6 +39,9 @@ public:
 	~SCDA() {}
 
 	void postRender();
+
+signals:
+	void sendConfigXML(string configXML);
 
 public slots:
 	void driveSelected(string drive);
