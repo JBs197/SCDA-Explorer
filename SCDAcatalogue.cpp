@@ -4,9 +4,20 @@ void SCDAcatalogue::displayOnlineCata()
 {
 	QJTREEMODEL* qjtm = modelStatscan.get();
 	qjtm->jt.reset();
-
+	qjtm->reset();
 	sco.getCataTree(qjtm->jt);
-	qjtm->populate();
+
+	qjtm->jt.compare(modelDatabase->jt);
+	vector<int> viNoTwin = qjtm->jt.hasTwin(0);
+	string sBG = "#80FF0000#FFFFFF";  // #AARRGGBB#RRGGBB BG over primer.
+	qjtm->jt.setColourBG(viNoTwin, sBG);
+
+	qjtm->populate();  // RESUME HERE - NEEDS TO CHECK FOR BG,FG COLOUR
+	QGridLayout* gLayout = (QGridLayout*)this->layout();
+	QLayoutItem* qlItem = gLayout->itemAtPosition(1, indexStatscan);
+	QJTREEVIEW* treeStatscan = (QJTREEVIEW*)qlItem->widget();
+	treeStatscan->setModel(qjtm);
+	treeStatscan->update();
 }
 void SCDAcatalogue::err(string message)
 {
@@ -37,7 +48,7 @@ void SCDAcatalogue::init()
 	QLabel* label = new QLabel("Online Catalogues");
 	gLayout->addWidget(label, 0, indexStatscan);
 	QJTREEVIEW* treeStatscan = new QJTREEVIEW;
-	treeStatscan->setModel(modelStatscan.get());
+	//treeStatscan->setModel(modelStatscan.get());
 	gLayout->addWidget(treeStatscan, 1, indexStatscan);
 
 	indexLocal = 1;
@@ -70,5 +81,15 @@ QJTREEMODEL* SCDAcatalogue::getModel(int indexTree)
 }
 void SCDAcatalogue::resetModel(int indexTree)
 {
-
+	switch (indexTree) {
+	case 0:
+		modelStatscan.reset();
+		break;
+	case 1:
+		modelLocal.reset();
+		break;
+	case 2:
+		modelDatabase.reset();
+		break;
+	}
 }

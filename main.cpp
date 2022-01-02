@@ -8,7 +8,7 @@
 #include <QApplication>
 
 JLOG* JLOG::instance = 0;
-int JNODE::nextID{ 1 };
+int JNODE::nextID{ 0 };
 mutex m_bar, m_err;
 
 int main(int argc, char* argv[])
