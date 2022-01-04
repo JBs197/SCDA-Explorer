@@ -8,11 +8,8 @@ void SCDAcatalogue::displayOnlineCata()
 	sco.getCataTree(qjtm->jt);
 
 	qjtm->jt.compare(modelDatabase->jt);
-	vector<int> viNoTwin = qjtm->jt.hasTwin(0);
-	string sBG = "#80FF0000#FFFFFF";  // #AARRGGBB#RRGGBB BG over primer.
-	qjtm->jt.setColourBG(viNoTwin, sBG);
+	qjtm->populate(); 
 
-	qjtm->populate();  // RESUME HERE - NEEDS TO CHECK FOR BG,FG COLOUR
 	QGridLayout* gLayout = (QGridLayout*)this->layout();
 	QLayoutItem* qlItem = gLayout->itemAtPosition(1, indexStatscan);
 	QJTREEVIEW* treeStatscan = (QJTREEVIEW*)qlItem->widget();
@@ -31,6 +28,20 @@ void SCDAcatalogue::getConfigXML(string configXML)
 	vector<string> vsTag = { "url", "statscan" };
 	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
 	sco.urlRoot = vvsTag[0][1];
+
+	initItemColour(configXML);
+}
+QJTREEMODEL* SCDAcatalogue::getModel(int indexTree)
+{
+	switch (indexTree) {
+	case 0:
+		return modelStatscan.get();
+	case 1:
+		return modelLocal.get();
+	case 2:
+		return modelDatabase.get();
+	}
+	return nullptr;
 }
 void SCDAcatalogue::getStatscanURL(string url)
 {
@@ -48,8 +59,9 @@ void SCDAcatalogue::init()
 	QLabel* label = new QLabel("Online Catalogues");
 	gLayout->addWidget(label, 0, indexStatscan);
 	QJTREEVIEW* treeStatscan = new QJTREEVIEW;
-	//treeStatscan->setModel(modelStatscan.get());
+	treeStatscan->indexTree = indexStatscan;
 	gLayout->addWidget(treeStatscan, 1, indexStatscan);
+	connect(treeStatscan, &QJTREEVIEW::nodeClicked, this, &SCDAcatalogue::nodeClicked);
 
 	indexLocal = 1;
 	modelLocal = make_shared<QJTREEMODEL>(vsHeader, this);
@@ -67,17 +79,63 @@ void SCDAcatalogue::init()
 	treeDatabase->setModel(modelDatabase.get());
 	gLayout->addWidget(treeDatabase, 1, indexDatabase);
 }
-QJTREEMODEL* SCDAcatalogue::getModel(int indexTree)
+void SCDAcatalogue::initItemColour(string& configXML)
 {
-	switch (indexTree) {
-	case 0:
-		return modelStatscan.get();
-	case 1:
-		return modelLocal.get();
-	case 2:
-		return modelDatabase.get();
+	QMap<int, QVariant> itemColourDefault;
+	vector<string> vsTag = { "colour", "item_default" };
+	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") {
+			itemColourDefault[Qt::UserRole] = vvsTag[ii][1].c_str();
+		}
+		else if (vvsTag[ii][0] == "foreground") {
+			itemColourDefault[Qt::UserRole + 1] = vvsTag[ii][1].c_str();
+		}
 	}
-	return nullptr;
+	
+	QMap<int, QVariant> itemColourFail;
+	vsTag = { "colour", "item_fail" };
+	vvsTag = jf.getXML(configXML, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") {
+			itemColourFail[Qt::UserRole] = vvsTag[ii][1].c_str();
+		}
+		else if (vvsTag[ii][0] == "foreground") {
+			itemColourFail[Qt::UserRole + 1] = vvsTag[ii][1].c_str();
+		}
+	}
+	
+	QMap<int, QVariant> itemColourSelected;
+	vsTag = { "colour", "item_selected" };
+	vvsTag = jf.getXML(configXML, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") {
+			itemColourSelected[Qt::UserRole] = vvsTag[ii][1].c_str();
+		}
+		else if (vvsTag[ii][0] == "foreground") {
+			itemColourSelected[Qt::UserRole + 1] = vvsTag[ii][1].c_str();
+		}
+	}
+
+	QGridLayout* gLayout = (QGridLayout*)this->layout();
+	QLayoutItem* qlItem = nullptr;
+	QJTREEVIEW* qjTree = nullptr;
+	for (int ii = 0; ii < 3; ii++) {
+		qlItem = gLayout->itemAtPosition(1, ii);
+		qjTree = (QJTREEVIEW*)qlItem->widget();
+		qjTree->itemColourDefault = itemColourDefault;
+		qjTree->itemColourFail = itemColourFail;
+		qjTree->itemColourSelected = itemColourSelected;
+	}
+}
+void SCDAcatalogue::nodeClicked(const QModelIndex& qmIndex, int indexTree)
+{
+	QGridLayout* gLayout = (QGridLayout*)this->layout();
+	QLayoutItem* qlItem = gLayout->itemAtPosition(1, indexTree);
+	QJTREEVIEW* qjTree = (QJTREEVIEW*)qlItem->widget();
+	QItemSelectionModel* selModel = qjTree->selectionModel();
+	QModelIndexList selList = selModel->selectedIndexes();
+	int bbq = 1;
 }
 void SCDAcatalogue::resetModel(int indexTree)
 {

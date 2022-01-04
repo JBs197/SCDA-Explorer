@@ -19,6 +19,7 @@ private:
 
 	void err(string message);
 	void init();
+	void initItemColour(string& configXML);
 
 public:
 	SCDAcatalogue() { init(); }
@@ -32,5 +33,6 @@ public slots:
 	void displayOnlineCata();
 	void getConfigXML(string configXML);
 	void getStatscanURL(string url);
+	void nodeClicked(const QModelIndex& qmIndex, int indexTree);
 	void resetModel(int indexTree);
 };
