@@ -28,8 +28,6 @@ void QJDELEGATE::enableDisable(const QModelIndex& index) const
 }
 void QJDELEGATE::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
-    int iCol = index.column();
-    int iRow = index.row();
     bool success;
     QString qsTemp;
     QRect cell = option.rect;

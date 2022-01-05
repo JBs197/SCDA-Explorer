@@ -2,7 +2,7 @@
 
 QJTREEITEM::QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent) 
 	: qjtiParent(parent) {
-	int numCol = vsData.size();
+	int numCol = (int)vsData.size();
 	qlData.reserve(numCol);
 	for (int ii = 0; ii < numCol; ii++) {
 		qlData << vsData[ii].c_str();

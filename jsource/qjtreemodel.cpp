@@ -13,7 +13,7 @@ void QJTREEMODEL::addChildrenAll(int parentID, QJTREEITEM*& qjtiParent)
 	vector<string> vsData, vsDataUserRole;
 	QJTREEITEM* qjtiChild = nullptr;
 	vector<int> childrenID = jt.getChildrenID(parentID);
-	int numChildren = childrenID.size();
+	int numChildren = (int)childrenID.size();
 	for (int ii = 0; ii < numChildren; ii++) {
 		vsData = jt.getData(childrenID[ii]);
 		vsDataUserRole = jt.getDataUserRole(childrenID[ii]);
@@ -118,7 +118,7 @@ int QJTREEMODEL::rowCount(const QModelIndex& parent) const
 void QJTREEMODEL::setHeaderData(vector<string> vsHeader, int role)
 {
 	headerTitles = 0;
-	int numCol = vsHeader.size();
+	int numCol = (int)vsHeader.size();
 	for (int ii = 0; ii < numCol; ii++) {
 		if (vsHeader[ii].size() > 0) {
 			QAbstractItemModel::setHeaderData(ii, Qt::Horizontal, vsHeader[ii].c_str(), role);

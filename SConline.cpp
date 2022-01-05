@@ -11,7 +11,7 @@ void SConline::getCataTree(JTREE& jt)
 	// structure it as a tree. 
 
 	vector<string> vsCata, vsYear = getListYear();
-	int numCata, numYear = vsYear.size();
+	int numCata, numYear = (int)vsYear.size();
 	jt.reset();
 	JNODE jnRoot = jt.getRoot();
 	int yearID, rootID = jnRoot.ID;
@@ -22,7 +22,7 @@ void SConline::getCataTree(JTREE& jt)
 		jt.addChild(rootID, jnYear);
 
 		vsCata = getListCata(vsYear[ii]);
-		numCata = vsCata.size();
+		numCata = (int)vsCata.size();
 		for (int jj = 0; jj < numCata; jj++) {
 			JNODE jnCata;
 			jnCata.vsData.push_back(vsCata[jj]);
@@ -38,7 +38,7 @@ vector<string> SConline::getListCata(string sYear)
 	string url = urlYear(sYear);
 	string webpage = wf.browseS(url);
 	vector<vector<string>> vvsClippings = jf.parseFromXML(webpage, vvsTag);
-	int numCata = vvsClippings.size();
+	int numCata = (int)vvsClippings.size();
 	vsCata.resize(numCata);
 	for (int ii = 0; ii < numCata; ii++) {
 		vsCata[ii] = vvsClippings[ii][0];
@@ -56,7 +56,7 @@ vector<string> SConline::getListYear()
 	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
 	string webpage = wf.browseS(urlRoot);
 	vector<vector<string>> vvsClippings = jf.parseFromXML(webpage, vvsTag);
-	int numYear = vvsClippings.size();
+	int numYear = (int)vvsClippings.size();
 	vsYear.resize(numYear);
 	for (int ii = 0; ii < numYear; ii++) {
 		vsYear[ii] = vvsClippings[ii][0];

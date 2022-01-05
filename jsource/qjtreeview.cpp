@@ -15,7 +15,7 @@ void QJTREEVIEW::nodeSelectionChanged(const QItemSelection& selected, const QIte
 	QModelIndexList qmiList = deselected.indexes();
 	int numNode = qmiList.size();
 	for (int ii = 0; ii < numNode; ii++) {
-
+		// RESUME HERE
 	}
 
 	int bbq = 1;

@@ -14,7 +14,6 @@ SCDA::SCDA(string execFolder, QWidget* parent)
 
 void SCDA::barMessage(string message)
 {
-	int numChar = message.size();
 	QString qsMessage = QString::fromUtf8(message.c_str());
 	QCoreApplication::processEvents();
 
@@ -197,7 +196,7 @@ void SCDA::scanCataLocal(SWITCHBOARD& sbgui, JTREE& jtgui)
 	vector<string> cataList, sYearList;
 	vector<int> csvCount;
 	JNODE jnRoot = jtgui.getRoot();
-	int iYear, numCata, parentID, rootID = jnRoot.ID;
+	int iYear, numCata, rootID = jnRoot.ID;
 	size_t pos1;
 	bool meta;
 
@@ -212,7 +211,7 @@ void SCDA::scanCataLocal(SWITCHBOARD& sbgui, JTREE& jtgui)
 		}
 	}
 	jf.sortInteger(sYearList, JFUNC::Increasing);
-	int numYear = sYearList.size();
+	int numYear = (int)sYearList.size();
 	for (int ii = 0; ii < numYear; ii++) {
 		JNODE jnYear;
 		jnYear.vsData.push_back(sYearList[ii]);
@@ -228,7 +227,7 @@ void SCDA::scanCataLocal(SWITCHBOARD& sbgui, JTREE& jtgui)
 	for (int ii = 0; ii < numYear; ii++) {
 		yearPath = prompt[0] + "\\" + sYearList[ii];
 		folderList = wf.get_folder_list(yearPath, search);
-		numCata = folderList.size();
+		numCata = (int)folderList.size();
 		csvCount.resize(numCata);
 		for (int jj = 0; jj < numCata; jj++) {
 			cataPath = yearPath + "\\" + folderList[jj];
@@ -258,12 +257,12 @@ void SCDA::updateCataDB()
 	qjtm->jt.reset();
 
 	JNODE jnRoot = qjtm->jt.getRoot();
-	int index, rootID = jnRoot.ID;
+	int rootID = jnRoot.ID;
 	vector<string> search = { "Year" }, yearList, cataList;
 	string tname = "Census";
 	string orderby = "Year ASC";
 	sf.selectOrderBy(search, tname, yearList, orderby);
-	int numCata, numYear = yearList.size();
+	int numCata, numYear = (int)yearList.size();
 	for (int ii = 0; ii < numYear; ii++) {
 		JNODE jnYear;
 		jnYear.vsData.push_back(yearList[ii]);
