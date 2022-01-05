@@ -30,11 +30,16 @@ void SCDAcontrol::init()
 	vLayout->insertWidget(indexFetch, pbFetch, 0);
 	connect(pbFetch, &QPushButton::clicked, this, &SCDAcontrol::sendOnlineCata);
 
+	indexDebug = 2;
+	QPushButton* pbDebug = new QPushButton("Debug");
+	vLayout->insertWidget(indexDebug, pbDebug, 0);
+	connect(pbDebug, &QPushButton::clicked, this, &SCDAcontrol::sendDebug);
+
 	vLayout->addSpacing(20);
 	QLabel* labelText = new QLabel("I/O Text Box");
 	vLayout->addWidget(labelText, 0, Qt::AlignLeft);
 
-	indexText = 4;
+	indexText = 5;
 	QTextEdit* teIO = new QTextEdit;
 	vLayout->insertWidget(indexText, teIO, 1);
 }

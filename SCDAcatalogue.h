@@ -3,6 +3,7 @@
 #include <QLabel>
 #include "qjtreeview.h"
 #include "SConline.h"
+#include "switchboard.h"
 
 using namespace std;
 
@@ -11,10 +12,8 @@ class SCDAcatalogue : public QWidget
 	Q_OBJECT
 
 private:
+	pair<string, string> itemColourDefault, itemColourFail, itemColourSelected;  // Solid colours (background, foreground)
 	JFUNC jf;
-	shared_ptr<QJTREEMODEL> modelDatabase = nullptr;
-	shared_ptr<QJTREEMODEL> modelLocal = nullptr;
-	shared_ptr<QJTREEMODEL> modelStatscan = nullptr;
 	SConline sco;
 
 	void err(string message);
@@ -26,11 +25,17 @@ public:
 	~SCDAcatalogue() {}
 
 	int indexDatabase, indexLocal, indexStatscan;
+	shared_ptr<QJTREEMODEL> modelDatabase = nullptr;
+	shared_ptr<QJTREEMODEL> modelLocal = nullptr;
+	shared_ptr<QJTREEMODEL> modelStatscan = nullptr;
 
+	void displayOnlineCata();
 	QJTREEMODEL* getModel(int indexTree);
 
+signals:
+	void busyStop();
+
 public slots:
-	void displayOnlineCata();
 	void getConfigXML(string configXML);
 	void getStatscanURL(string url);
 	void nodeClicked(const QModelIndex& qmIndex, int indexTree);

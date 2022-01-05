@@ -1,6 +1,5 @@
 #pragma once
 #include <QAbstractItemModel>
-#include "jtree.h"
 #include "qjtreeitem.h"
 
 using namespace std;
@@ -31,5 +30,6 @@ public:
 	void populate();
 	void reset();
 	int rowCount(const QModelIndex& parent = QModelIndex()) const override;
+	bool setData(const QModelIndex& index, const QVariant& value, int role = Qt::EditRole) override;
 	void setHeaderData(vector<string> vsHeader, int role = Qt::DisplayRole);
 };

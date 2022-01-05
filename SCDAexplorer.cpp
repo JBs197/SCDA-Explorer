@@ -4,10 +4,12 @@ SCDA::SCDA(string execFolder, QWidget* parent)
 	: QMainWindow(parent), sExecFolder(execFolder)
 {
 	setWindowTitle("SCDA Explorer");
+	QRect rectDesktop = getDesktop();
 
 	initConfig();
 	initDatabase();
 	initGUI();
+	initBusy(rectDesktop.width(), rectDesktop.height());
 
 	this->setWindowState(Qt::WindowMaximized);
 }
@@ -28,6 +30,66 @@ void SCDA::barMessage(string message)
 	QRect rect = pBar->geometry();
 	labelBar->setGeometry(rect);
 	labelBar->setText(qsMessage);
+}
+void SCDA::busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm)
+{
+	QJBUSY* dialogBusy = this->findChild<QJBUSY*>("Busy", Qt::FindDirectChildrenOnly);
+	dialogBusy->show();
+	dialogBusy->busy(sb, comm);
+	dialogBusy->hide();
+}
+void SCDA::debug()
+{
+	vector<pair<double, double>> vPerimeter = jf.rectangleRound(400.0, 300.0, 50.0);
+	vector<pair<int, int>> vPixel = jf.pixelate(vPerimeter);
+	set<pair<int, int>> setCoord = jf.solidShape(vPixel);
+	QColor qcBG = QColor::fromRgbF(0.0, 0.0, 0.0, 1.0);
+	QImage qiBG;
+	string bgPath = sExecFolder + "\\BusyWheelBG.png";
+	bool success = qiBG.load(bgPath.c_str());
+	if (!success) { 
+		err("QImage load-debug"); 
+	}
+	for (auto it = setCoord.begin(); it != setCoord.end(); ++it) {
+		qiBG.setPixel(get<0>(*it), get<1>(*it), qcBG.rgba());
+	}
+	bgPath = sExecFolder + "\\BusyBG.png";
+	success = qiBG.save(bgPath.c_str());
+}
+void SCDA::displayOnlineCata()
+{
+	QWidget* central = this->centralWidget();
+	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
+	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
+	qlItem = vLayout->itemAt(0);
+	QTabWidget* tab = (QTabWidget*)qlItem->widget();
+	tab->setCurrentIndex(indexCata);
+	SCDAcatalogue* cata = (SCDAcatalogue*)tab->widget(indexCata);
+
+	thread::id myid = this_thread::get_id();
+	vector<vector<int>> comm(1, vector<int>());
+	comm[0].assign(commLength, 0);
+	sb.start_call(myid, 1, comm[0]);
+	std::thread thr(&SCDA::displayOnlineCataWorker, this, ref(sb), ref(cata));
+	thr.detach();
+	busyWheel(sb, comm);
+	sb.end_call(myid);
+
+	QGridLayout* gLayout = (QGridLayout*)cata->layout();
+	qlItem = gLayout->itemAtPosition(1, cata->indexStatscan);
+	QJTREEVIEW* treeStatscan = (QJTREEVIEW*)qlItem->widget();
+	treeStatscan->setModel(cata->modelStatscan.get());
+	treeStatscan->update();
+}
+void SCDA::displayOnlineCataWorker(SWITCHBOARD& sbgui, SCDAcatalogue*& cata)
+{
+	thread::id myid = this_thread::get_id();
+	vector<int> mycomm;
+	sbgui.answer_call(myid, mycomm);
+	cata->displayOnlineCata();
+	mycomm[0] = 1;
+	sbgui.update(myid, mycomm);
 }
 void SCDA::driveSelected(string drive)
 {
@@ -73,6 +135,26 @@ void SCDA::err(string message)
 	string errorMessage = "SCDA error:\n" + message;
 	JLOG::getInstance()->err(errorMessage);
 }
+QRect SCDA::getDesktop()
+{
+	QList<QScreen*> listScreen = qApp->screens();
+	if (listScreen.size() < 1) { err("No screens found-getDesktop"); }
+	return listScreen[0]->geometry();
+}
+void SCDA::initBusy(int width, int height)
+{
+	vector<string> vsTag = { "path", "resource" };
+	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	string busyFolder = vvsTag[0][1] + "/qjbusy";
+	string busySearch = "BusyWheel*.png";
+	vector<string> vsBusyWheel = wf.getFileList(busyFolder, busySearch);
+	int numPNG = (int)vsBusyWheel.size();
+
+	QJBUSY* dialogBusy = new QJBUSY(this);
+	dialogBusy->setObjectName("Busy");
+	dialogBusy->init(busyFolder + "/" + busySearch, numPNG);
+	dialogBusy->setSize(width, height);
+}
 void SCDA::initConfig()
 {
 	string configPath = sExecFolder + "\\SCDA_Explorer_Config.xml";
@@ -116,6 +198,7 @@ void SCDA::initControl(SCDAcontrol*& control)
 		}
 	}
 	connect(control, &SCDAcontrol::driveSelected, this, &SCDA::driveSelected);
+	connect(control, &SCDAcontrol::sendDebug, this, &SCDA::debug);
 	cb->setCurrentIndex(activeIndex);
 
 	QWidget* central = this->centralWidget();
@@ -125,7 +208,7 @@ void SCDA::initControl(SCDAcontrol*& control)
 	qlItem = vLayout->itemAt(0);
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();
 	SCDAcatalogue* page = (SCDAcatalogue*)tab->currentWidget();
-	connect(control, &SCDAcontrol::sendOnlineCata, page, &SCDAcatalogue::displayOnlineCata);
+	connect(control, &SCDAcontrol::sendOnlineCata, this, &SCDA::displayOnlineCata);
 }
 void SCDA::initDatabase()
 {
@@ -170,9 +253,11 @@ void SCDA::initGUI()
 }
 void SCDA::postRender()
 {
-	// Casserole function for tasks to be done after main window rendering.
+	// Casserole function for tasks to be done after main window rendering.	
 	QCoreApplication::processEvents();
 	QWidget* central = this->centralWidget();
+	QRect rectCentral = central->geometry();
+
 	QLabel* labelBar = central->findChild<QLabel*>("labelBar", Qt::FindDirectChildrenOnly);
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
 	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
@@ -183,7 +268,6 @@ void SCDA::postRender()
 	labelBar->setGeometry(rect);
 
 	emit sendConfigXML(configXML);
-
 }
 void SCDA::scanCataLocal(SWITCHBOARD& sbgui, JTREE& jtgui)
 {

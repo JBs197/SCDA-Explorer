@@ -1,5 +1,21 @@
 #include "qjtreeitem.h"
 
+QJTREEITEM::QJTREEITEM(const JNODE& jn, QJTREEITEM* parent) : qjtiParent(parent)
+{
+	int numCol = (int)jn.vsData.size();
+	qlData.reserve(numCol);
+	for (int ii = 0; ii < numCol; ii++) {
+		qlData << jn.vsData[ii].c_str();
+	}
+	for (int ii = 0; ii < 8; ii++) {
+		qlDataUserRole.append("");
+	}
+	if (jn.sColourBG.size() > 0) { qlDataUserRole[0] = jn.sColourBG.c_str(); }
+	if (jn.sColourFG.size() > 0) { qlDataUserRole[1] = jn.sColourFG.c_str(); }
+	qlDataUserRole[5] = "0";
+	if (jn.sColourBGSel.size() > 0) { qlDataUserRole[6] = jn.sColourBGSel.c_str(); }
+	if (jn.sColourFGSel.size() > 0) { qlDataUserRole[7] = jn.sColourFGSel.c_str(); }
+}
 QJTREEITEM::QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent) 
 	: qjtiParent(parent) {
 	int numCol = (int)vsData.size();
@@ -59,11 +75,49 @@ int QJTREEITEM::getRow() const
 	}
 	return -1;
 }
-void QJTREEITEM::setDataUserRole(int role, string sDataUserRole)
+void QJTREEITEM::setData(int role, string sData)
 {
-	if (role - Qt::UserRole < 0) { return; }
-	else if (role - Qt::UserRole >= qlDataUserRole.size()) {
-		qlDataUserRole.reserve(role - Qt::UserRole + 1);
+	// If setting DisplayRole data, then sData is assumed to be a 
+	// MIME-friendly list of column values, with the first char 
+	// being the marker/splitter char. 
+	if (role < 0) { return; }
+
+	if (role == Qt::DisplayRole) {
+		QString qsData = QString::fromUtf8(sData.c_str());
+		QStringList qslData = qsData.split(qsData[0], Qt::KeepEmptyParts, Qt::CaseSensitive);
+		qlData.clear();
+		qlData.reserve(qslData.size());
+		for (int ii = 1; ii < qslData.size(); ii++) {
+			qlData << qslData[ii];
+		}
 	}
-	qlDataUserRole[role - Qt::UserRole] = sDataUserRole.c_str();
+	else if (role >= Qt::UserRole) {
+		while (role - Qt::UserRole >= qlDataUserRole.size()) {
+			qlDataUserRole.append("");
+		}
+		qlDataUserRole[role - Qt::UserRole] = sData.c_str();
+	}
+}
+void QJTREEITEM::setData(int role, QVariant qvData)
+{
+	// If setting DisplayRole data, then qvData is assumed to be a 
+	// MIME-friendly list of column values, with the first char 
+	// being the marker/splitter char. 
+	if (role < 0) { return; }
+
+	QString qsData = qvData.toString();
+	if (role == Qt::DisplayRole) {
+		QStringList qslData = qsData.split(qsData[0], Qt::KeepEmptyParts, Qt::CaseSensitive);
+		qlData.clear();
+		qlData.reserve(qslData.size());
+		for (int ii = 1; ii < qslData.size(); ii++) {
+			qlData << qslData[ii];
+		}
+	}
+	else if (role >= Qt::UserRole) {
+		while (role - Qt::UserRole >= qlDataUserRole.size()) {
+			qlDataUserRole.append("");
+		}
+		qlDataUserRole[role - Qt::UserRole] = qsData;
+	}
 }

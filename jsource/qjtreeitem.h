@@ -1,6 +1,6 @@
 #pragma once
 #include <QVariant>
-#include "jstring.h"
+#include "jtree.h"
 
 using namespace std;
 
@@ -12,6 +12,7 @@ class QJTREEITEM
 	QList<QVariant> qlDataUserRole;
 
 public:
+	explicit QJTREEITEM(const JNODE& jn, QJTREEITEM* parent = nullptr);
 	explicit QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent = nullptr);
 	explicit QJTREEITEM(const QStringList& qslData, QJTREEITEM* parent = nullptr);
 	~QJTREEITEM() { qDeleteAll(qlChildren); }
@@ -24,5 +25,6 @@ public:
 	int getNumCol();
 	QJTREEITEM* getParent();
 	int getRow() const;
-	void setDataUserRole(int role, string sDataUserRole);
+	void setData(int role, string sData);
+	void setData(int role, QVariant qvData);
 };

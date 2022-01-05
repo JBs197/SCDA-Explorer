@@ -5,16 +5,15 @@ void SCDAcatalogue::displayOnlineCata()
 	QJTREEMODEL* qjtm = modelStatscan.get();
 	qjtm->jt.reset();
 	qjtm->reset();
+
 	sco.getCataTree(qjtm->jt);
-
+	qjtm->jt.setNodeColourSel({}, get<0>(itemColourSelected), get<1>(itemColourSelected));
 	qjtm->jt.compare(modelDatabase->jt);
+	vector<int> viNoTwin = qjtm->jt.hasTwinList(0);
+	qjtm->jt.setNodeColour(viNoTwin, get<0>(itemColourFail), get<1>(itemColourFail));
+	vector<int> viTwin = qjtm->jt.hasTwinList(1);
+	qjtm->jt.setNodeColour(viTwin, get<0>(itemColourDefault), get<1>(itemColourFail));
 	qjtm->populate(); 
-
-	QGridLayout* gLayout = (QGridLayout*)this->layout();
-	QLayoutItem* qlItem = gLayout->itemAtPosition(1, indexStatscan);
-	QJTREEVIEW* treeStatscan = (QJTREEVIEW*)qlItem->widget();
-	treeStatscan->setModel(qjtm);
-	treeStatscan->update();
 }
 void SCDAcatalogue::err(string message)
 {
@@ -81,52 +80,30 @@ void SCDAcatalogue::init()
 }
 void SCDAcatalogue::initItemColour(string& configXML)
 {
-	QMap<int, QVariant> itemColourDefault;
-	vector<string> vsTag = { "colour", "item_default" };
+	int indexBG, indexFG;
+	vector<string> vsTag = { "colour", "solid", "item_default" };
 	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
-		if (vvsTag[ii][0] == "background") {
-			itemColourDefault[Qt::UserRole] = vvsTag[ii][1].c_str();
-		}
-		else if (vvsTag[ii][0] == "foreground") {
-			itemColourDefault[Qt::UserRole + 1] = vvsTag[ii][1].c_str();
-		}
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii;	}
 	}
+	itemColourDefault = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 	
-	QMap<int, QVariant> itemColourFail;
-	vsTag = { "colour", "item_fail" };
+	vsTag = { "colour", "solid", "item_fail" };
 	vvsTag = jf.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
-		if (vvsTag[ii][0] == "background") {
-			itemColourFail[Qt::UserRole] = vvsTag[ii][1].c_str();
-		}
-		else if (vvsTag[ii][0] == "foreground") {
-			itemColourFail[Qt::UserRole + 1] = vvsTag[ii][1].c_str();
-		}
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
 	}
+	itemColourFail = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 	
-	QMap<int, QVariant> itemColourSelected;
-	vsTag = { "colour", "item_selected" };
+	vsTag = { "colour", "solid", "item_selected" };
 	vvsTag = jf.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
-		if (vvsTag[ii][0] == "background") {
-			itemColourSelected[Qt::UserRole] = vvsTag[ii][1].c_str();
-		}
-		else if (vvsTag[ii][0] == "foreground") {
-			itemColourSelected[Qt::UserRole + 1] = vvsTag[ii][1].c_str();
-		}
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
 	}
-
-	QGridLayout* gLayout = (QGridLayout*)this->layout();
-	QLayoutItem* qlItem = nullptr;
-	QJTREEVIEW* qjTree = nullptr;
-	for (int ii = 0; ii < 3; ii++) {
-		qlItem = gLayout->itemAtPosition(1, ii);
-		qjTree = (QJTREEVIEW*)qlItem->widget();
-		qjTree->itemColourDefault = itemColourDefault;
-		qjTree->itemColourFail = itemColourFail;
-		qjTree->itemColourSelected = itemColourSelected;
-	}
+	itemColourSelected = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 }
 void SCDAcatalogue::nodeClicked(const QModelIndex& qmIndex, int indexTree)
 {

@@ -10,16 +10,12 @@ void QJTREEMODEL::addChildrenAll(int parentID, QJTREEITEM*& qjtiParent)
 {
 	// Recursive function which takes matching nodes from a JTREE and this
 	// model, and adds the node's immediate children to the model from the JTREE.
-	vector<string> vsData, vsDataUserRole;
 	QJTREEITEM* qjtiChild = nullptr;
 	vector<int> childrenID = jt.getChildrenID(parentID);
 	int numChildren = (int)childrenID.size();
 	for (int ii = 0; ii < numChildren; ii++) {
-		vsData = jt.getData(childrenID[ii]);
-		vsDataUserRole = jt.getDataUserRole(childrenID[ii]);
-		qjtiChild = new QJTREEITEM(vsData, qjtiParent);
-		qjtiChild->setDataUserRole(Qt::UserRole + 5, "0");
-		qjtiChild->setDataUserRole(Qt::UserRole + 5, "0");
+		JNODE& jn = jt.getNode(childrenID[ii]);
+		qjtiChild = new QJTREEITEM(jn, qjtiParent);
 		qjtiParent->addChild(qjtiChild);
 		addChildrenAll(childrenID[ii], qjtiChild);
 	}
@@ -114,6 +110,13 @@ int QJTREEMODEL::rowCount(const QModelIndex& parent) const
 	}
 	else { qjtiParent = qjtiRoot; }
 	return qjtiParent->getNumChildren();
+}
+bool QJTREEMODEL::setData(const QModelIndex& index, const QVariant& value, int role)
+{
+	if (!index.isValid()) { return 0; }
+	QJTREEITEM* qjti = static_cast<QJTREEITEM*>(index.internalPointer());
+	qjti->setData(role, value);
+	return 1;
 }
 void QJTREEMODEL::setHeaderData(vector<string> vsHeader, int role)
 {

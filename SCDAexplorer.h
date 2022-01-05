@@ -2,7 +2,9 @@
 #include <QApplication>
 #include <QMainWindow>
 #include <QProgressBar>
+#include <QScreen>
 #include <QTabWidget>
+#include "qjbusy.h"
 #include "SCDAcatalogue.h"
 #include "SCDAcontrol.h"
 #include "SConline.h"
@@ -27,7 +29,11 @@ private:
 	WINFUNC wf;
 
 	void barMessage(string message);
+	void busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm);
+	void displayOnlineCataWorker(SWITCHBOARD& sbgui, SCDAcatalogue*& cata);
 	void err(string message);
+	QRect getDesktop();
+	void initBusy(int width, int height);
 	void initConfig();
 	void initControl(SCDAcontrol*& control);
 	void initDatabase();
@@ -44,6 +50,8 @@ signals:
 	void sendConfigXML(string configXML);
 
 public slots:
+	void debug();
+	void displayOnlineCata();
 	void driveSelected(string drive);
 	void updateCataDB();
 };

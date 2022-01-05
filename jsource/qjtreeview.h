@@ -22,9 +22,6 @@ public:
 	~QJTREEVIEW() {}
 
 	int indexTree;
-	QMap<int, QVariant> itemColourDefault;
-	QMap<int, QVariant> itemColourFail;
-	QMap<int, QVariant> itemColourSelected;
 
 	void setModel(QJTREEMODEL* qjtm);
 

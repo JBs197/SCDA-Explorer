@@ -12,10 +12,19 @@ void QJTREEVIEW::init()
 }
 void QJTREEVIEW::nodeSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected)
 {
+	QJTREEMODEL* qjtm = (QJTREEMODEL*)this->model();
+
+	QVariant qvData = "0";
 	QModelIndexList qmiList = deselected.indexes();
 	int numNode = qmiList.size();
 	for (int ii = 0; ii < numNode; ii++) {
-		// RESUME HERE
+		qjtm->setData(qmiList[ii], qvData, Qt::UserRole + 5);
+	}
+	qvData = "1";
+	qmiList = selected.indexes();
+	numNode = qmiList.size();
+	for (int ii = 0; ii < numNode; ii++) {
+		qjtm->setData(qmiList[ii], qvData, Qt::UserRole + 5);
 	}
 
 	int bbq = 1;
@@ -30,6 +39,9 @@ void QJTREEVIEW::setModel(QJTREEMODEL* qjtm)
 
 	QHeaderView* headerH = this->header();
 	headerH->setVisible(qjtm->headerTitles);
+
+
+
 	QTreeView::setModel(qjtm);
 
 	QItemSelectionModel* selModel = this->selectionModel();

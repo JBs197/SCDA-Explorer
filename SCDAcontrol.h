@@ -23,10 +23,11 @@ public:
 	SCDAcontrol() { init(); }
 	~SCDAcontrol() {}
 
-	int indexDrive, indexFetch, indexText;
+	int indexDebug, indexDrive, indexFetch, indexText;
 
 signals:
 	void driveSelected(string drive);
+	void sendDebug();
 	void sendOnlineCata();
 
 public slots:
