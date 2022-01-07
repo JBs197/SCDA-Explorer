@@ -1,5 +1,14 @@
 #include "qjtreeview.h"
 
+void QJTREEVIEW::contextMenuEvent(QContextMenuEvent* event)
+{
+	QPoint globalPos = event->globalPos();
+	QPoint pos = event->pos();
+	QModelIndex qmi = indexAt(pos);
+	if (qmi.isValid()) {
+		emit nodeRightClicked(pos, qmi, indexTree);
+	}
+}
 void QJTREEVIEW::err(string message)
 {
 	string errorMessage = "QJTREE error:\n" + message;
@@ -39,8 +48,6 @@ void QJTREEVIEW::setModel(QJTREEMODEL* qjtm)
 
 	QHeaderView* headerH = this->header();
 	headerH->setVisible(qjtm->headerTitles);
-
-
 
 	QTreeView::setModel(qjtm);
 

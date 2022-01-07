@@ -1,19 +1,33 @@
 #include "SCDAcatalogue.h"
 
-void SCDAcatalogue::displayOnlineCata()
+void SCDAcatalogue::displayOnlineCata(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, SConline& sco)
 {
-	QJTREEMODEL* qjtm = modelStatscan.get();
+	thread::id myid = this_thread::get_id();
+	vector<int> mycomm;
+	sbgui.answer_call(myid, mycomm);
+
+	QJTREEMODEL* qjtm = cata->modelStatscan.get();
 	qjtm->jt.reset();
 	qjtm->reset();
 
 	sco.getCataTree(qjtm->jt);
 	qjtm->jt.setNodeColourSel({}, get<0>(itemColourSelected), get<1>(itemColourSelected));
-	qjtm->jt.compare(modelDatabase->jt);
+	qjtm->jt.compare(cata->modelDatabase->jt);
 	vector<int> viNoTwin = qjtm->jt.hasTwinList(0);
 	qjtm->jt.setNodeColour(viNoTwin, get<0>(itemColourFail), get<1>(itemColourFail));
 	vector<int> viTwin = qjtm->jt.hasTwinList(1);
 	qjtm->jt.setNodeColour(viTwin, get<0>(itemColourDefault), get<1>(itemColourFail));
 	qjtm->populate(); 
+
+	mycomm[0] = 1;
+	sbgui.update(myid, mycomm);
+}
+void SCDAcatalogue::downloadCata()
+{
+	QVariant qVar = qaDownload->data();
+	QString qsTemp = qVar.toString();
+	string prompt = qsTemp.toUtf8();
+	emit sendDownloadCata(prompt);
 }
 void SCDAcatalogue::err(string message)
 {
@@ -22,12 +36,6 @@ void SCDAcatalogue::err(string message)
 }
 void SCDAcatalogue::getConfigXML(string configXML)
 {
-	sco.configXML = configXML;
-
-	vector<string> vsTag = { "url", "statscan" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
-	sco.urlRoot = vvsTag[0][1];
-
 	initItemColour(configXML);
 }
 QJTREEMODEL* SCDAcatalogue::getModel(int indexTree)
@@ -41,10 +49,6 @@ QJTREEMODEL* SCDAcatalogue::getModel(int indexTree)
 		return modelDatabase.get();
 	}
 	return nullptr;
-}
-void SCDAcatalogue::getStatscanURL(string url)
-{
-	sco.urlRoot = url;
 }
 void SCDAcatalogue::init()
 {
@@ -61,6 +65,7 @@ void SCDAcatalogue::init()
 	treeStatscan->indexTree = indexStatscan;
 	gLayout->addWidget(treeStatscan, 1, indexStatscan);
 	connect(treeStatscan, &QJTREEVIEW::nodeClicked, this, &SCDAcatalogue::nodeClicked);
+	connect(treeStatscan, &QJTREEVIEW::nodeRightClicked, this, &SCDAcatalogue::nodeRightClicked);
 
 	indexLocal = 1;
 	modelLocal = make_shared<QJTREEMODEL>(vsHeader, this);
@@ -69,6 +74,7 @@ void SCDAcatalogue::init()
 	QJTREEVIEW* treeLocal = new QJTREEVIEW;
 	treeLocal->setModel(modelLocal.get());
 	gLayout->addWidget(treeLocal, 1, indexLocal);
+	connect(treeStatscan, &QJTREEVIEW::nodeRightClicked, this, &SCDAcatalogue::nodeRightClicked);
 
 	indexDatabase = 2;
 	modelDatabase = make_shared<QJTREEMODEL>(vsHeader, this);
@@ -77,6 +83,14 @@ void SCDAcatalogue::init()
 	QJTREEVIEW* treeDatabase = new QJTREEVIEW;
 	treeDatabase->setModel(modelDatabase.get());
 	gLayout->addWidget(treeDatabase, 1, indexDatabase);
+	connect(treeStatscan, &QJTREEVIEW::nodeRightClicked, this, &SCDAcatalogue::nodeRightClicked);
+
+	initAction();
+}
+void SCDAcatalogue::initAction()
+{
+	qaDownload = new QAction("Download", this);
+	connect(qaDownload, &QAction::triggered, this, &SCDAcatalogue::downloadCata);
 }
 void SCDAcatalogue::initItemColour(string& configXML)
 {
@@ -107,12 +121,27 @@ void SCDAcatalogue::initItemColour(string& configXML)
 }
 void SCDAcatalogue::nodeClicked(const QModelIndex& qmIndex, int indexTree)
 {
-	QGridLayout* gLayout = (QGridLayout*)this->layout();
-	QLayoutItem* qlItem = gLayout->itemAtPosition(1, indexTree);
-	QJTREEVIEW* qjTree = (QJTREEVIEW*)qlItem->widget();
-	QItemSelectionModel* selModel = qjTree->selectionModel();
-	QModelIndexList selList = selModel->selectedIndexes();
 	int bbq = 1;
+}
+void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree)
+{
+	QMenu menu(this);
+	QJTREEMODEL* qjtm = getModel(indexTree);
+	vector<string> vsGenealogy = qjtm->getGenealogy(qmIndex);
+	int numNode = (int)vsGenealogy.size();
+	switch (indexTree) {
+	case 0:
+	{
+		string sData = "";
+		for (int ii = 0; ii < numNode; ii++) {
+			sData += "@" + vsGenealogy[ii];
+		}
+		qaDownload->setData(sData.c_str());
+		menu.addAction(qaDownload);
+		break;
+	}
+	}
+	menu.exec(globalPos);
 }
 void SCDAcatalogue::resetModel(int indexTree)
 {

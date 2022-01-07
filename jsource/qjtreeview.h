@@ -28,6 +28,7 @@ public:
 signals:
 	void nodeClicked(const QModelIndex& qmIndex, int indexTree);
 	void nodeDeselected(const QModelIndex& qmIndex);
+	void nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree);
 	void nodeSelected(const QModelIndex& qmIndex);
 
 private slots:
@@ -35,4 +36,7 @@ private slots:
 
 public slots:
 	void nodeSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected);
+
+protected:
+	void contextMenuEvent(QContextMenuEvent* event) override;
 };

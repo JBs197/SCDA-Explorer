@@ -55,6 +55,32 @@ QVariant QJTREEMODEL::headerData(int section, Qt::Orientation orientation, int r
 	}	
 	return QVariant();
 }
+vector<string> QJTREEMODEL::getGenealogy(const QModelIndex& index) const
+{
+	// Return form [node col0, parent col0, grandparent col0, ...]
+	vector<string> vsGenealogy, vsTemp(1);
+	QJTREEITEM* node = static_cast<QJTREEITEM*>(index.internalPointer());
+	QVariant qVar = node->data(0);
+	QString qsTemp = qVar.toString();
+	string temp = qsTemp.toUtf8();
+	vsTemp[0] = temp;
+	QJTREEITEM* parent = node->getParent();
+	while (parent != nullptr) {
+		node = parent;
+		qVar = node->data(0);
+		qsTemp = qVar.toString();
+		temp = qsTemp.toUtf8();
+		vsTemp.push_back(temp);
+		parent = node->getParent();
+	}
+	vsTemp.pop_back();
+	int numNode = (int)vsTemp.size();
+	vsGenealogy.resize(numNode);
+	for (int ii = 0; ii < numNode; ii++) {
+		vsGenealogy[ii] = vsTemp[numNode - 1 - ii];
+	}
+	return vsGenealogy;
+}
 QModelIndex QJTREEMODEL::index(int row, int column, const QModelIndex& parent) const
 {
 	if (!hasIndex(row, column, parent)) { return QModelIndex(); }		

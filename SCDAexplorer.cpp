@@ -9,28 +9,10 @@ SCDA::SCDA(string execFolder, QWidget* parent)
 	initConfig();
 	initDatabase();
 	initGUI();
-	initBusy(rectDesktop.width(), rectDesktop.height());
 
 	this->setWindowState(Qt::WindowMaximized);
 }
 
-void SCDA::barMessage(string message)
-{
-	QString qsMessage = QString::fromUtf8(message.c_str());
-	QCoreApplication::processEvents();
-
-	lock_guard<mutex> lock(m_bar);
-	QWidget* central = this->centralWidget();
-	QLabel* labelBar = central->findChild<QLabel*>("labelBar", Qt::FindDirectChildrenOnly);
-	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
-	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
-	qlItem = vLayout->itemAt(1);
-	QProgressBar* pBar = (QProgressBar*)qlItem->widget();
-	QRect rect = pBar->geometry();
-	labelBar->setGeometry(rect);
-	labelBar->setText(qsMessage);
-}
 void SCDA::busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm)
 {
 	QJBUSY* dialogBusy = this->findChild<QJBUSY*>("Busy", Qt::FindDirectChildrenOnly);
@@ -71,7 +53,7 @@ void SCDA::displayOnlineCata()
 	vector<vector<int>> comm(1, vector<int>());
 	comm[0].assign(commLength, 0);
 	sb.start_call(myid, 1, comm[0]);
-	std::thread thr(&SCDA::displayOnlineCataWorker, this, ref(sb), ref(cata));
+	std::thread thr(&SCDAcatalogue::displayOnlineCata, cata, ref(sb), ref(cata), ref(sco));
 	thr.detach();
 	busyWheel(sb, comm);
 	sb.end_call(myid);
@@ -82,14 +64,33 @@ void SCDA::displayOnlineCata()
 	treeStatscan->setModel(cata->modelStatscan.get());
 	treeStatscan->update();
 }
-void SCDA::displayOnlineCataWorker(SWITCHBOARD& sbgui, SCDAcatalogue*& cata)
+void SCDA::downloadCata(string prompt)
 {
+	// Prompt should have form (@year@cata0@cata1...). If the prompt
+	// contains only the year, then all catalogues for that year are 
+	// downloaded. 
+	vector<string> vsPrompt = jf.splitByMarker(prompt, prompt[0]);
+	if (vsPrompt.size() < 1) { err("Invalid prompt-downloadCata"); }
+
+	vector<string> vsProgress = {
+		"Downloading files ...",
+		"Unzipping files ...",
+		"Splitting large files ...",
+		"Finished downloading catalogues."
+	};
+	vector<double> vdProgress = { 0.0, 1.0/3.0, 2.0/3.0, 1.0 };
+	emit initProgress(vdProgress, vsProgress);
+
 	thread::id myid = this_thread::get_id();
-	vector<int> mycomm;
-	sbgui.answer_call(myid, mycomm);
-	cata->displayOnlineCata();
-	mycomm[0] = 1;
-	sbgui.update(myid, mycomm);
+	vector<vector<int>> comm(1, vector<int>());
+	comm[0].assign(commLength, 0);
+	sb.set_prompt(vsPrompt);
+	sb.start_call(myid, 1, comm[0]);
+	std::thread thr(&SConline::downloadCata, sco, ref(sb));
+	thr.detach();
+	busyWheel(sb, comm);
+	sb.end_call(myid);
+
 }
 void SCDA::driveSelected(string drive)
 {
@@ -124,7 +125,7 @@ void SCDA::driveSelected(string drive)
 		}
 		sb.end_call(myid);
 		qjtm->populate();
-		barMessage("Displaying local catalogues from drive " + drive);
+		emit barMessage("Displaying local catalogues from drive " + drive);
 
 		break;
 	}
@@ -141,24 +142,31 @@ QRect SCDA::getDesktop()
 	if (listScreen.size() < 1) { err("No screens found-getDesktop"); }
 	return listScreen[0]->geometry();
 }
-void SCDA::initBusy(int width, int height)
+void SCDA::initBusy(QJBUSY*& dialogBusy)
 {
+	dialogBusy->setObjectName("Busy");
+
 	vector<string> vsTag = { "path", "resource" };
 	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
 	string busyFolder = vvsTag[0][1] + "/qjbusy";
 	string busySearch = "BusyWheel*.png";
 	vector<string> vsBusyWheel = wf.getFileList(busyFolder, busySearch);
 	int numPNG = (int)vsBusyWheel.size();
-
-	QJBUSY* dialogBusy = new QJBUSY(this);
-	dialogBusy->setObjectName("Busy");
 	dialogBusy->init(busyFolder + "/" + busySearch, numPNG);
-	dialogBusy->setSize(width, height);
 }
 void SCDA::initConfig()
 {
-	string configPath = sExecFolder + "\\SCDA_Explorer_Config.xml";
+	string configPath = sExecFolder + "/SCDA_Explorer_Config.xml";
+	if (!wf.file_exist(configPath)) {
+		string backupPath = configPath;
+		size_t pos2 = backupPath.rfind('/');
+		size_t pos1 = backupPath.find_last_of("/\\", pos2 - 1);
+		backupPath.erase(pos1, pos2 - pos1);
+		if (!wf.file_exist(backupPath)) { err("XML config file not found-initConfig"); }
+		wf.copyFile(backupPath, configPath);
+	}
 	configXML = jf.load(configPath);
+	initStatscan();
 
 	commLength = 4;
 	sleepTime = 50;  // ms
@@ -219,6 +227,7 @@ void SCDA::initDatabase()
 }
 void SCDA::initGUI()
 {
+	// Note: qjBusy must already exist as a child of the MainWindow.
 	QWidget* central = new QWidget;
 	this->setCentralWidget(central);
 	QHBoxLayout* hLayout = new QHBoxLayout;
@@ -232,24 +241,45 @@ void SCDA::initGUI()
 	QVBoxLayout* vLayout = new QVBoxLayout;
 	hLayout->insertLayout(indexDisplay, vLayout, 1);
 
+	indexTab = 0;
 	QTabWidget* tab = new QTabWidget;
-	vLayout->addWidget(tab, 1);
+	vLayout->insertWidget(indexTab, tab, 1);
 	indexCata = 0;
 	SCDAcatalogue* cata = new SCDAcatalogue;
 	connect(this, &SCDA::sendConfigXML, cata, &SCDAcatalogue::getConfigXML);
+	connect(cata, &SCDAcatalogue::sendDownloadCata, this, &SCDA::downloadCata);
 	tab->addTab(cata, "Catalogues");
 	indexTable = 1;
 	indexMap = 2;
 
+	indexPBar = 1;
+	QJPROGRESSBAR* qjPBar = new QJPROGRESSBAR;
+	connect(this, &SCDA::barMessage, qjPBar, &QJPROGRESSBAR::barMessage);
+	connect(this, &SCDA::initProgress, qjPBar, &QJPROGRESSBAR::initProgress);
+	vLayout->insertWidget(indexPBar, qjPBar, 0);
+
+	/*
 	QProgressBar* pBar = new QProgressBar;
 	vLayout->addWidget(pBar, 0);
 	QLabel* labelBar = new QLabel("", central);
 	labelBar->setObjectName("labelBar");
 	labelBar->setAlignment(Qt::AlignCenter);
 	labelBar->move(0, 0);
+	*/
+
+	QJBUSY* dialogBusy = new QJBUSY(this);
+	initBusy(dialogBusy);
+	connect(dialogBusy, &QJBUSY::reportProgress, qjPBar, &QJPROGRESSBAR::report);
 
 	initControl(control);
 	updateCataDB();
+}
+void SCDA::initStatscan()
+{
+	sco.configXML = configXML;
+	vector<string> vsTag = { "url", "statscan" };
+	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	sco.urlRoot = vvsTag[0][1];
 }
 void SCDA::postRender()
 {
@@ -257,7 +287,13 @@ void SCDA::postRender()
 	QCoreApplication::processEvents();
 	QWidget* central = this->centralWidget();
 	QRect rectCentral = central->geometry();
+	QHBoxLayout* mainLayout = (QHBoxLayout*)central->layout();
+	QLayoutItem* qlItem = mainLayout->itemAt(indexDisplay);
+	QVBoxLayout* displayLayout = (QVBoxLayout*)qlItem->layout();
+	qlItem = displayLayout->itemAt(indexPBar);
+	QJPROGRESSBAR* qjPBar = (QJPROGRESSBAR*)qlItem->widget();
 
+	/*
 	QLabel* labelBar = central->findChild<QLabel*>("labelBar", Qt::FindDirectChildrenOnly);
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
 	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
@@ -266,6 +302,9 @@ void SCDA::postRender()
 	QProgressBar* pBar = (QProgressBar*)qlItem->widget();
 	QRect rect = pBar->geometry();
 	labelBar->setGeometry(rect);
+	*/
+
+	qjPBar->initChildren();
 
 	emit sendConfigXML(configXML);
 }

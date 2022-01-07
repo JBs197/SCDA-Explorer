@@ -5,6 +5,7 @@
 #include <QScreen>
 #include <QTabWidget>
 #include "qjbusy.h"
+#include "qjprogressbar.h"
 #include "SCDAcatalogue.h"
 #include "SCDAcontrol.h"
 #include "SConline.h"
@@ -19,25 +20,25 @@ class SCDA : public QMainWindow
 	Q_OBJECT
 
 private:
-	int commLength, indexCata, indexControl, indexDisplay; 
-	int indexMap, indexTable, labelCharHeight, labelCharWidth, sleepTime;
+	int commLength, indexCata, indexControl, indexDisplay, indexMap, indexPBar;
+	int indexTab, indexTable, labelCharHeight, labelCharWidth, sleepTime;
 	string configXML;
 	JFUNC jf;
 	string sExecFolder;
 	SQLFUNC sf;
 	SWITCHBOARD sb;
+	SConline sco;
 	WINFUNC wf;
 
-	void barMessage(string message);
 	void busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm);
-	void displayOnlineCataWorker(SWITCHBOARD& sbgui, SCDAcatalogue*& cata);
 	void err(string message);
 	QRect getDesktop();
-	void initBusy(int width, int height);
+	void initBusy(QJBUSY*& dialogBusy);
 	void initConfig();
 	void initControl(SCDAcontrol*& control);
 	void initDatabase();
 	void initGUI();
+	void initStatscan();
 	void scanCataLocal(SWITCHBOARD& sbgui, JTREE& jtgui);
 
 public:
@@ -47,11 +48,14 @@ public:
 	void postRender();
 
 signals:
+	void barMessage(string message);
+	void initProgress(vector<double> vdProgress, vector<string> vsProgress);
 	void sendConfigXML(string configXML);
 
 public slots:
 	void debug();
 	void displayOnlineCata();
+	void downloadCata(string prompt);
 	void driveSelected(string drive);
 	void updateCataDB();
 };

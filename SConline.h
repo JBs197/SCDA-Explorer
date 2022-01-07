@@ -1,6 +1,7 @@
 #pragma once
 #include "jfunc.h"
 #include "jtree.h"
+#include "switchboard.h"
 #include "winfunc.h"
 
 using namespace std;
@@ -9,10 +10,13 @@ class SConline
 {
 	JFUNC jf;
 	JTREE jt;
+	long long maxFileSize = -1;
+	vector<vector<string>> vvsCata;  // Form [index][year, cata0, cata1, ...]
 	WINFUNC wf;
 
 	void err(string message);
-	string urlYear(string syear);
+	string urlCataDownload(string sYear, string sCata);
+	string urlYear(string sYear);
 
 public:
 	SConline() {}
@@ -20,6 +24,7 @@ public:
 
 	string configXML, urlRoot;
 
+	void downloadCata(SWITCHBOARD& sbgui);
 	void getCataTree(JTREE& jt);
 	vector<string> getListCata(string sYear);
 	vector<string> getListYear();

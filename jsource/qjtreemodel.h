@@ -24,6 +24,7 @@ public:
 	int columnCount(const QModelIndex& parent = QModelIndex()) const override;
 	QVariant data(const QModelIndex& index, int role) const override;
 	Qt::ItemFlags flags(const QModelIndex& index) const override;
+	vector<string> getGenealogy(const QModelIndex& index) const;
 	QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
 	QModelIndex index(int row, int column, const QModelIndex& index = QModelIndex()) const override;
 	QModelIndex parent(const QModelIndex& parent = QModelIndex()) const override;
