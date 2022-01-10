@@ -30,7 +30,12 @@ void SCDAcontrol::init()
 	vLayout->insertWidget(indexFetch, pbFetch, 0);
 	connect(pbFetch, &QPushButton::clicked, this, &SCDAcontrol::sendOnlineCata);
 
-	indexDebug = 2;
+	indexDBTable = 2;
+	QPushButton* pbDBTable = new QPushButton("Search\nDatabase Tables");
+	vLayout->insertWidget(indexDBTable, pbDBTable, 0);
+	connect(pbDBTable, &QPushButton::clicked, this, &SCDAcontrol::prepSearchDBTable);
+
+	indexDebug = 3;
 	QPushButton* pbDebug = new QPushButton("Debug");
 	vLayout->insertWidget(indexDebug, pbDebug, 0);
 	connect(pbDebug, &QPushButton::clicked, this, &SCDAcontrol::sendDebug);
@@ -42,4 +47,23 @@ void SCDAcontrol::init()
 	indexText = 5;
 	QTextEdit* teIO = new QTextEdit;
 	vLayout->insertWidget(indexText, teIO, 1);
+}
+void SCDAcontrol::prepSearchDBTable()
+{
+	QVBoxLayout* vLayout = (QVBoxLayout*)this->layout();
+	QLayoutItem* qlItem = vLayout->itemAt(indexText);
+	QTextEdit* teIO = (QTextEdit*)qlItem->widget();
+	QString qsTemp = teIO->toPlainText();
+	string sQuery = qsTemp.toUtf8();
+
+	vector<string> dirt = { " ", "\r", "\n" }, soap = { "", "", "" };
+	jf.clean(sQuery, dirt, soap);
+	emit sendSearchDBTable(sQuery);
+}
+void SCDAcontrol::textOutput(string sMessage)
+{
+	QVBoxLayout* vLayout = (QVBoxLayout*)this->layout();
+	QLayoutItem* qlItem = vLayout->itemAt(indexText);
+	QTextEdit* teIO = (QTextEdit*)qlItem->widget();
+	teIO->setText(sMessage.c_str());
 }

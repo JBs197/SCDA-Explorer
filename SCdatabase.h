@@ -1,4 +1,5 @@
 #pragma once
+#include "jtree.h"
 #include "sqlfunc.h"
 #include "switchboard.h"
 
@@ -10,6 +11,7 @@ class SCdatabase
 	SQLFUNC sf;
 
 	void err(string message);
+	void log(string message);
 
 public:
 	SCdatabase() {}
@@ -17,5 +19,7 @@ public:
 
 	string configXML;
 
+	void getCataTree(JTREE& jt);
+	void initDatabase(string dbPath) { sf.init(dbPath); }
 	void insertCata(SWITCHBOARD& sbgui);
 };

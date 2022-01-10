@@ -8,6 +8,7 @@
 #include "qjprogressbar.h"
 #include "SCDAcatalogue.h"
 #include "SCDAcontrol.h"
+#include "SCDAtable.h"
 #include "SCdatabase.h"
 #include "SConline.h"
 #include "sqlfunc.h"
@@ -26,7 +27,6 @@ private:
 	string configXML;
 	JFUNC jf;
 	string sExecFolder;
-	SQLFUNC sf;
 	SWITCHBOARD sb;
 	SCdatabase scdb;
 	SConline sco;

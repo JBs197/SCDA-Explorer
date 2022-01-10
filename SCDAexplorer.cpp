@@ -227,7 +227,7 @@ void SCDA::initDatabase()
 	vector<string> vsTag = { "path", "database" };
 	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
 	if (vvsTag[0][1].size() < 1) { err("Failed to extract database file path-initDatabase"); }
-	sf.init(vvsTag[0][1]);
+	scdb.initDatabase(vvsTag[0][1]);
 }
 void SCDA::initGUI()
 {
@@ -255,6 +255,9 @@ void SCDA::initGUI()
 	connect(cata, &SCDAcatalogue::sendInsertCata, this, &SCDA::insertCata);
 	tab->addTab(cata, "Catalogues");
 	indexTable = 1;
+	SCDAtable* table = new SCDAtable;
+	tab->addTab(table, "Tables");
+	tab->setTabEnabled(indexTable, 0);
 	indexMap = 2;
 
 	indexPBar = 1;

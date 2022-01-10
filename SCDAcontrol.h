@@ -23,13 +23,16 @@ public:
 	SCDAcontrol() { init(); }
 	~SCDAcontrol() {}
 
-	int indexDebug, indexDrive, indexFetch, indexText;
+	int indexDBTable, indexDebug, indexDrive, indexFetch, indexText;
 
 signals:
 	void driveSelected(string drive);
 	void sendDebug();
 	void sendOnlineCata();
+	void sendSearchDBTable(string sQuery);
 
 public slots:
 	void driveChanged(const QString& qsDrive);
+	void prepSearchDBTable();
+	void textOutput(string sMessage);
 };
