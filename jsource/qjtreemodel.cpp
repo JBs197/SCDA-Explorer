@@ -98,8 +98,8 @@ QModelIndex QJTREEMODEL::index(int row, int column, const QModelIndex& parent) c
 QModelIndex QJTREEMODEL::parent(const QModelIndex& index) const
 {
 	if (!index.isValid()) { return QModelIndex(); }		
-
 	QJTREEITEM* qjtiChild = static_cast<QJTREEITEM*>(index.internalPointer());
+
 	QJTREEITEM* qjtiParent = qjtiChild->getParent();
 	if (qjtiParent == qjtiRoot) { return QModelIndex(); }		
 
@@ -111,20 +111,6 @@ void QJTREEMODEL::populate()
 	JNODE jnRoot = jt.getRoot();
 	int rootID = jnRoot.ID;
 	addChildrenAll(rootID, qjtiRoot);
-}
-void QJTREEMODEL::reset()
-{
-	// Removes all tree items without affecting the headers. 
-	int numCol = qjtiRoot->getNumCol();
-	QStringList qslData;
-	QVariant qVar;
-	for (int ii = 0; ii < numCol; ii++) {
-		qVar = qjtiRoot->data(ii);
-		qslData.append(qVar.toString());
-	}
-	delete qjtiRoot;
-
-	qjtiRoot = new QJTREEITEM(qslData);
 }
 int QJTREEMODEL::rowCount(const QModelIndex& parent) const
 {

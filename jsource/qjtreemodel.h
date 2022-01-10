@@ -29,7 +29,6 @@ public:
 	QModelIndex index(int row, int column, const QModelIndex& index = QModelIndex()) const override;
 	QModelIndex parent(const QModelIndex& parent = QModelIndex()) const override;
 	void populate();
-	void reset();
 	int rowCount(const QModelIndex& parent = QModelIndex()) const override;
 	bool setData(const QModelIndex& index, const QVariant& value, int role = Qt::EditRole) override;
 	void setHeaderData(vector<string> vsHeader, int role = Qt::DisplayRole);

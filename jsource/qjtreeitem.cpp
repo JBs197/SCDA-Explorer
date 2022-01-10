@@ -7,14 +7,15 @@ QJTREEITEM::QJTREEITEM(const JNODE& jn, QJTREEITEM* parent) : qjtiParent(parent)
 	for (int ii = 0; ii < numCol; ii++) {
 		qlData << jn.vsData[ii].c_str();
 	}
+	
 	for (int ii = 0; ii < 8; ii++) {
 		qlDataUserRole.append("");
 	}
-	if (jn.sColourBG.size() > 0) { qlDataUserRole[0] = jn.sColourBG.c_str(); }
-	if (jn.sColourFG.size() > 0) { qlDataUserRole[1] = jn.sColourFG.c_str(); }
+	qlDataUserRole[0] = get<0>(jn.colour).c_str();
+	qlDataUserRole[1] = get<1>(jn.colour).c_str();
 	qlDataUserRole[5] = "0";
-	if (jn.sColourBGSel.size() > 0) { qlDataUserRole[6] = jn.sColourBGSel.c_str(); }
-	if (jn.sColourFGSel.size() > 0) { qlDataUserRole[7] = jn.sColourFGSel.c_str(); }
+	qlDataUserRole[6] = get<0>(jn.colourSelected).c_str();
+	qlDataUserRole[7] = get<1>(jn.colourSelected).c_str();
 }
 QJTREEITEM::QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent) 
 	: qjtiParent(parent) {
@@ -23,13 +24,10 @@ QJTREEITEM::QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent)
 	for (int ii = 0; ii < numCol; ii++) {
 		qlData << vsData[ii].c_str();
 	}
-}
-QJTREEITEM::QJTREEITEM(const QStringList& qslData, QJTREEITEM* parent) 
-	: qjtiParent(parent) {
-	int numCol = qslData.length();
-	qlData.reserve(numCol);
-	for (int ii = 0; ii < numCol; ii++) {
-		qlData << qslData[ii];
+	if (parent != nullptr) {
+		if (parent->qlDataUserRole.size() > 0) {
+			qlDataUserRole = parent->qlDataUserRole;
+		}
 	}
 }
 
@@ -74,6 +72,10 @@ int QJTREEITEM::getRow() const
 		return qjtiParent->qlChildren.indexOf(const_cast<QJTREEITEM*>(this));
 	}
 	return -1;
+}
+void QJTREEITEM::removeChildren()
+{
+	qDeleteAll(qlChildren);
 }
 void QJTREEITEM::setData(int role, string sData)
 {

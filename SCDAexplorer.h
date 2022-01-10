@@ -8,6 +8,7 @@
 #include "qjprogressbar.h"
 #include "SCDAcatalogue.h"
 #include "SCDAcontrol.h"
+#include "SCdatabase.h"
 #include "SConline.h"
 #include "sqlfunc.h"
 #include "switchboard.h"
@@ -27,6 +28,7 @@ private:
 	string sExecFolder;
 	SQLFUNC sf;
 	SWITCHBOARD sb;
+	SCdatabase scdb;
 	SConline sco;
 	WINFUNC wf;
 
@@ -39,7 +41,6 @@ private:
 	void initDatabase();
 	void initGUI();
 	void initStatscan();
-	void scanCataLocal(SWITCHBOARD& sbgui, JTREE& jtgui);
 
 public:
 	SCDA(string execFolder, QWidget* parent = nullptr);
@@ -57,5 +58,6 @@ public slots:
 	void displayOnlineCata();
 	void downloadCata(string prompt);
 	void driveSelected(string drive);
+	void insertCata(string prompt);
 	void updateCataDB();
 };

@@ -14,7 +14,6 @@ class QJTREEITEM
 public:
 	explicit QJTREEITEM(const JNODE& jn, QJTREEITEM* parent = nullptr);
 	explicit QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent = nullptr);
-	explicit QJTREEITEM(const QStringList& qslData, QJTREEITEM* parent = nullptr);
 	~QJTREEITEM() { qDeleteAll(qlChildren); }
 
 	void addChild(QJTREEITEM* qjti);
@@ -25,6 +24,7 @@ public:
 	int getNumCol();
 	QJTREEITEM* getParent();
 	int getRow() const;
+	void removeChildren();
 	void setData(int role, string sData);
 	void setData(int role, QVariant qvData);
 };

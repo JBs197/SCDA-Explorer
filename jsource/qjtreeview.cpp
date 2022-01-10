@@ -6,7 +6,7 @@ void QJTREEVIEW::contextMenuEvent(QContextMenuEvent* event)
 	QPoint pos = event->pos();
 	QModelIndex qmi = indexAt(pos);
 	if (qmi.isValid()) {
-		emit nodeRightClicked(pos, qmi, indexTree);
+		emit nodeRightClicked(globalPos, qmi, indexTree);
 	}
 }
 void QJTREEVIEW::err(string message)

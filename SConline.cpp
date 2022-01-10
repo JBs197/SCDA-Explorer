@@ -4,8 +4,9 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 {
 	thread::id myid = this_thread::get_id();
 	vector<int> mycomm;
-	sbgui.answer_call(myid, mycomm);
-	vector<string> vsPrompt = sbgui.get_prompt();  // Form (year, cata0, cata1, ...)
+	sbgui.answerCall(myid, mycomm);
+	vector<string> vsPrompt;
+	sbgui.getPrompt(vsPrompt);  // Form (year, cata0, cata1, ...)
 
 	// Make the root directory for this census year. 
 	int iYear, numMissing, numThread, numZip;
@@ -51,7 +52,9 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 		for (int jj = 0; jj < vvsTag.size(); jj++) {
 			fileName = cataFolder + "/" + vvsTag[jj][1];
 			pos1 = fileName.rfind(replace);
-			fileName.replace(pos1, replace.size(), vsPrompt[1 + ii]);
+			if (pos1 < fileName.size()) {
+				fileName.replace(pos1, replace.size(), vsPrompt[1 + ii]);
+			}
 			if (!wf.file_exist(fileName)) {
 				numMissing++;
 				break;
@@ -81,12 +84,9 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 	try { numThread = stoi(vvsTag[0][1]); }
 	catch (invalid_argument) { err("stoi-downloadCata"); }
 	numZip = (int)vsZipFile.size();
-	if (numZip == 1) {
-		jf.unzip(vsZipFile[0], vsZipFolder[0]);
-	}
+	if (numZip == 1) { jf.unzip(vsZipFile[0], vsZipFolder[0]); }
 	else { jf.unzip(numThread, vsZipFile, vsZipFolder); }
 	
-
 	mycomm[1] += numZip;
 	sbgui.update(myid, mycomm);
 
@@ -116,6 +116,7 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 
 	// Split all the large files, using multiple worker threads.
 	jf.fileSplitter(numThread, vsLarge, maxFileSize);
+	wf.deleteFile(vsLarge);
 	mycomm[1] = mycomm[2];
 	mycomm[0] = 1;
 	sbgui.update(myid, mycomm);
