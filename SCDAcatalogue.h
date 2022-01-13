@@ -25,16 +25,19 @@ public:
 		initItemColour(configXML);
 		init(); 
 	}
-	SCDAcatalogue() { 
+	SCDAcatalogue() {
 		itemColourDefault = make_pair("#FFFFFF", "#000000");
 		itemColourSelected = make_pair("#000080", "#FFFFFF");
 		init(); 
 	}
 	~SCDAcatalogue() {}
 
-	int indexDatabase, indexLocal, indexStatscan;
-	pair<string, string> itemColourDefault, itemColourFail;  // Solid colours (background, foreground)
+	enum index { Statscan, Local, Database };
+
+	// Solid colours (background, foreground)
+	pair<string, string> itemColourDefault, itemColourFail;  
 	pair<string, string> itemColourSelected, itemColourWarning;
+
 	shared_ptr<QJTREEMODEL> modelDatabase = nullptr;
 	shared_ptr<QJTREEMODEL> modelLocal = nullptr;
 	shared_ptr<QJTREEMODEL> modelStatscan = nullptr;

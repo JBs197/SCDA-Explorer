@@ -28,6 +28,7 @@ public:
 signals:
 	void nodeClicked(const QModelIndex& qmIndex, int indexTree);
 	void nodeDeselected(const QModelIndex& qmIndex);
+	void nodeDoubleClicked(const QModelIndex& qmIndex, int indexTree);
 	void nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree);
 	void nodeSelected(const QModelIndex& qmIndex);
 
@@ -39,4 +40,5 @@ public slots:
 
 protected:
 	void contextMenuEvent(QContextMenuEvent* event) override;
+	void mouseDoubleClickEvent(QMouseEvent* event) override;
 };

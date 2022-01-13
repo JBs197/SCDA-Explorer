@@ -22,8 +22,8 @@ class SCDA : public QMainWindow
 	Q_OBJECT
 
 private:
-	int commLength, indexCata, indexControl, indexDisplay, indexMap, indexPBar;
-	int indexTab, indexTable, labelCharHeight, labelCharWidth, sleepTime;
+	int commLength, indexControl, indexDisplay, indexPBar;
+	int indexTab, labelCharHeight, labelCharWidth, sleepTime;
 	string configXML;
 	JFUNC jf;
 	string sExecFolder;
@@ -31,6 +31,8 @@ private:
 	SCdatabase scdb;
 	SConline sco;
 	WINFUNC wf;
+
+	enum indexTab { Catalogue, Table, Map };
 
 	void busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm);
 	void err(string message);
@@ -49,9 +51,11 @@ public:
 	void postRender();
 
 signals:
+	void appendTextIO(string message);
 	void barMessage(string message);
 	void initProgress(vector<double> vdProgress, vector<string> vsProgress);
 	void sendConfigXML(string configXML);
+	void setTextIO(string message);
 
 public slots:
 	void debug();
@@ -59,5 +63,6 @@ public slots:
 	void downloadCata(string prompt);
 	void driveSelected(string drive);
 	void insertCata(string prompt);
+	void searchDBTable(string sQuery);
 	void updateCataDB();
 };

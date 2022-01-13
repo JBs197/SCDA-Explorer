@@ -46,9 +46,9 @@ void SCDA::displayOnlineCata()
 	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
 	qlItem = vLayout->itemAt(0);
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();
-	tab->setCurrentIndex(indexCata);
-	SCDAcatalogue* cata = (SCDAcatalogue*)tab->widget(indexCata);
-	cata->resetModel(cata->indexStatscan);
+	tab->setCurrentIndex(indexTab::Catalogue);
+	SCDAcatalogue* cata = (SCDAcatalogue*)tab->widget(indexTab::Catalogue);
+	cata->resetModel(cata->index::Statscan);
 
 	thread::id myid = this_thread::get_id();
 	vector<vector<int>> comm(1, vector<int>());
@@ -60,7 +60,7 @@ void SCDA::displayOnlineCata()
 	sb.endCall(myid);
 
 	QGridLayout* gLayout = (QGridLayout*)cata->layout();
-	qlItem = gLayout->itemAtPosition(1, cata->indexStatscan);
+	qlItem = gLayout->itemAtPosition(1, cata->index::Statscan);
 	QJTREEVIEW* treeStatscan = (QJTREEVIEW*)qlItem->widget();
 	treeStatscan->setModel(cata->modelStatscan.get());
 	treeStatscan->update();
@@ -104,10 +104,10 @@ void SCDA::driveSelected(string drive)
 	QJTREEMODEL* qjtm = nullptr;
 	int indexPage = tab->currentIndex();
 	switch (indexPage) {
-	case 0:
+	case indexTab::Catalogue:
 	{
-		page->resetModel(page->indexLocal);
-		qjtm = page->getModel(page->indexLocal);
+		page->resetModel(page->index::Local);
+		qjtm = page->getModel(page->index::Local);
 		vector<vector<int>> comm(1, vector<int>());
 		comm[0].assign(commLength, 0);
 		thread::id myid = this_thread::get_id();
@@ -126,7 +126,7 @@ void SCDA::driveSelected(string drive)
 
 		qjtm->populate();
 		QGridLayout* gLayout = (QGridLayout*)page->layout();
-		qlItem = gLayout->itemAtPosition(1, page->indexLocal);
+		qlItem = gLayout->itemAtPosition(1, page->index::Local);
 		QJTREEVIEW* qjTree = (QJTREEVIEW*)qlItem->widget();
 		qjTree->setModel(qjtm);
 
@@ -179,7 +179,7 @@ void SCDA::initControl(SCDAcontrol*& control)
 {
 	QVBoxLayout* vLayout = (QVBoxLayout*)control->layout();
 
-	QLayoutItem* qlItem = vLayout->itemAt(control->indexDrive);
+	QLayoutItem* qlItem = vLayout->itemAt(control->index::Drive);
 	QHBoxLayout* hLayout = (QHBoxLayout*)qlItem->layout();
 	int numItem = hLayout->count();
 	qlItem = hLayout->itemAt(numItem - 1);
@@ -209,18 +209,19 @@ void SCDA::initControl(SCDAcontrol*& control)
 			}
 		}
 	}
+	
+	qlItem = vLayout->itemAt(control->index::Text);
+	QTextEdit* teIO = (QTextEdit*)qlItem->widget();
+	teIO->setFocus();
+
 	connect(control, &SCDAcontrol::driveSelected, this, &SCDA::driveSelected);
 	connect(control, &SCDAcontrol::sendDebug, this, &SCDA::debug);
-	cb->setCurrentIndex(activeIndex);
-
-	QWidget* central = this->centralWidget();
-	hLayout = (QHBoxLayout*)central->layout();
-	qlItem = hLayout->itemAt(indexDisplay);
-	vLayout = (QVBoxLayout*)qlItem->layout();
-	qlItem = vLayout->itemAt(0);
-	QTabWidget* tab = (QTabWidget*)qlItem->widget();
-	SCDAcatalogue* page = (SCDAcatalogue*)tab->currentWidget();
 	connect(control, &SCDAcontrol::sendOnlineCata, this, &SCDA::displayOnlineCata);
+	connect(control, &SCDAcontrol::sendSearchDBTable, this, &SCDA::searchDBTable);
+	connect(this, &SCDA::appendTextIO, control, &SCDAcontrol::textAppend);
+	connect(this, &SCDA::setTextIO, control, &SCDAcontrol::textOutput);
+	
+	cb->setCurrentIndex(activeIndex);
 }
 void SCDA::initDatabase()
 {
@@ -248,17 +249,14 @@ void SCDA::initGUI()
 	indexTab = 0;
 	QTabWidget* tab = new QTabWidget;
 	vLayout->insertWidget(indexTab, tab, 1);
-	indexCata = 0;
 	SCDAcatalogue* cata = new SCDAcatalogue(configXML);
 	connect(this, &SCDA::sendConfigXML, cata, &SCDAcatalogue::getConfigXML);
 	connect(cata, &SCDAcatalogue::sendDownloadCata, this, &SCDA::downloadCata);
 	connect(cata, &SCDAcatalogue::sendInsertCata, this, &SCDA::insertCata);
 	tab->addTab(cata, "Catalogues");
-	indexTable = 1;
 	SCDAtable* table = new SCDAtable;
+	connect(table, &SCDAtable::fetchTable, this, &SCDA::searchDBTable);
 	tab->addTab(table, "Tables");
-	tab->setTabEnabled(indexTable, 0);
-	indexMap = 2;
 
 	indexPBar = 1;
 	QJPROGRESSBAR* qjPBar = new QJPROGRESSBAR;
@@ -355,6 +353,59 @@ void SCDA::postRender()
 
 	qjPBar->initChildren();
 }
+void SCDA::searchDBTable(string sQuery)
+{
+	// Display a tree structure of database tables which satisfy the 
+	// given search criteria. '*' is treated as a wildcard char. 
+
+	QWidget* central = this->centralWidget();
+	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
+	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
+	qlItem = vLayout->itemAt(0);
+	QTabWidget* tab = (QTabWidget*)qlItem->widget();
+	tab->setCurrentIndex(indexTab::Table);
+	SCDAtable* table = (SCDAtable*)tab->widget(indexTab::Table);
+	table->resetModel(table->index::Search);
+	QJTREEMODEL* model = table->getModelTree(table->index::Search);
+
+	vector<string> vsTable;
+	sb.setPrompt(sQuery);
+	thread::id myid = this_thread::get_id();
+	vector<vector<int>> comm(1, vector<int>());
+	comm[0].assign(commLength, 0);
+	sb.startCall(myid, comm[0]);
+	std::thread thr(&SCdatabase::searchTable, scdb, ref(sb), ref(model->jt), ref(vsTable));
+	thr.detach();
+	busyWheel(sb, comm);
+	sb.endCall(myid);
+	model->jt.setExpandGeneration(20);
+	model->populate();
+
+	QGridLayout* gLayout = (QGridLayout*)table->layout();
+	qlItem = gLayout->itemAtPosition(1, table->index::Search);
+	QJTREEVIEW* treeSearch = (QJTREEVIEW*)qlItem->widget();
+	treeSearch->setModel(model);
+	treeSearch->expandRecursively(QModelIndex(), 1);
+	treeSearch->update();
+
+	// Report the number of tables found.
+	int numTable = (int)vsTable.size();
+	string sReport = "\n" + to_string(numTable);
+	if (numTable == 1) { sReport += " database table found."; }
+	else { sReport += " database tables found."; }
+	emit appendTextIO(sReport);
+
+	// If only one table was found, display it.
+	if (numTable == 1) {
+		string title = "Table (" + vsTable[0] + ")";
+		vector<vector<string>> vvsData, vvsColTitle;
+		scdb.loadTable(vvsData, vvsColTitle, vsTable[0]);
+		if (vvsData.size() > 0) {
+			table->displayTable(vvsData, vvsColTitle, title);
+		}
+	}
+}
 void SCDA::updateCataDB()
 {
 	QWidget* central = this->centralWidget();
@@ -363,39 +414,17 @@ void SCDA::updateCataDB()
 	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
 	qlItem = vLayout->itemAt(0);
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();
-	SCDAcatalogue* page = (SCDAcatalogue*)tab->widget(indexCata);
-	QJTREEMODEL* qjtm = page->getModel(page->indexDatabase);
-	qjtm->jt.reset();
+	SCDAcatalogue* page = (SCDAcatalogue*)tab->widget(indexTab::Catalogue);
+	QJTREEMODEL* qjtm = page->getModel(page->index::Database);
+	
+	thread::id myid = this_thread::get_id();
+	vector<vector<int>> comm(1, vector<int>());
+	comm[0].assign(commLength, 0);
+	sb.startCall(myid, comm[0]);
+	std::thread thr(&SCdatabase::makeTreeCata, scdb, ref(sb), ref(qjtm->jt));
+	thr.detach();
+	busyWheel(sb, comm);
+	sb.endCall(myid);
 
-	JNODE jnRoot = qjtm->jt.getRoot();
-	int rootID = jnRoot.ID;
-	vector<string> search = { "Year" }, yearList, cataList;
-	string tname = "Census";
-	string orderby = "Year ASC";
-	sf.selectOrderBy(search, tname, yearList, orderby);
-	int numCata, numYear = (int)yearList.size();
-	for (int ii = 0; ii < numYear; ii++) {
-		JNODE jnYear;
-		jnYear.vsData.push_back(yearList[ii]);
-		qjtm->jt.addChild(rootID, jnYear);
-	}
-
-	vector<int> viYearID(numYear);
-	vector<reference_wrapper<JNODE>> vJNYear = qjtm->jt.getChildren(rootID);
-	for (int ii = 0; ii < numYear; ii++) {
-		viYearID[ii] = vJNYear[ii].get().ID;
-	}
-
-	search = { "Catalogue" };
-	for (int ii = 0; ii < numYear; ii++) {
-		cataList.clear();
-		tname = "Census$" + yearList[ii];
-		numCata = sf.select(search, tname, cataList);
-		for (int jj = 0; jj < numCata; jj++) {
-			JNODE jn;
-			jn.vsData.push_back(cataList[jj]);
-			qjtm->jt.addChild(viYearID[ii], jn);
-		}
-	}
 	qjtm->populate();
 }

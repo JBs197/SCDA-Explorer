@@ -36,6 +36,7 @@ int SWITCHBOARD::answerCall(thread::id id, vector<int>& comm)
 	int commLength = (int)phoneLines[0].size();
 	phoneLines.push_back(vector<int>());
 	phoneLines[myIndex].assign(commLength, 0);
+	comm = phoneLines[myIndex];
 
 	return 0;
 }
@@ -52,6 +53,7 @@ int SWITCHBOARD::answerCall(thread::id id, vector<int>& comm, int myIndex)
 	int commLength = (int)phoneLines[0].size();
 	if (phoneLines.size() <= myIndex) { phoneLines.resize(myIndex + 1); }
 	phoneLines[myIndex].assign(commLength, 0);
+	comm = phoneLines[myIndex];
 
 	return 0;
 }
@@ -143,6 +145,12 @@ vector<int> SWITCHBOARD::getMyComm(thread::id id)
 }
 
 // Functions related to the switchboard buffers shared between threads. 
+void SWITCHBOARD::setPrompt(string& prompt)
+{
+	lock_guard<mutex> addrem(m_sb);
+	vvsPrompt.resize(1, vector<string>(1));
+	vvsPrompt[0][0] = prompt;
+}
 void SWITCHBOARD::setPrompt(vector<string>& prompt)
 {
 	lock_guard<mutex> addrem(m_sb);
@@ -153,6 +161,12 @@ void SWITCHBOARD::setPrompt(vector<vector<string>>& prompt)
 {
 	lock_guard<mutex> addrem(m_sb);
 	vvsPrompt = prompt;
+}
+void SWITCHBOARD::getPrompt(string& prompt)
+{
+	lock_guard<mutex> addrem(m_sb);
+	if (vvsPrompt.size() < 1 || vvsPrompt[0].size() < 1) { prompt = ""; }
+	else { prompt = vvsPrompt[0][0]; }
 }
 void SWITCHBOARD::getPrompt(vector<string>& prompt)
 {

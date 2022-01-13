@@ -22,6 +22,8 @@ void SCDAcatalogue::downloadCata()
 	QString qsTemp = qVar.toString();
 	string prompt = qsTemp.toUtf8();
 	emit sendDownloadCata(prompt);
+
+
 }
 void SCDAcatalogue::err(string message)
 {
@@ -51,34 +53,31 @@ void SCDAcatalogue::init()
 	QGridLayout* gLayout = new QGridLayout;
 	this->setLayout(gLayout);
 
-	indexStatscan = 0;
 	modelStatscan = make_shared<QJTREEMODEL>(vsHeader, this);
 	modelStatscan->jt.setNodeColour(-1, itemColourDefault, itemColourSelected);
 	QLabel* label = new QLabel("Online Catalogues");
-	gLayout->addWidget(label, 0, indexStatscan);
+	gLayout->addWidget(label, 0, index::Statscan);
 	QJTREEVIEW* treeStatscan = new QJTREEVIEW;
-	treeStatscan->indexTree = indexStatscan;
-	gLayout->addWidget(treeStatscan, 1, indexStatscan);
+	treeStatscan->indexTree = index::Statscan;
+	gLayout->addWidget(treeStatscan, 1, index::Statscan);
 	connect(treeStatscan, &QJTREEVIEW::nodeRightClicked, this, &SCDAcatalogue::nodeRightClicked);
 
-	indexLocal = 1;
 	modelLocal = make_shared<QJTREEMODEL>(vsHeader, this);
 	modelLocal->jt.setNodeColour(-1, itemColourDefault, itemColourSelected);
 	label = new QLabel("Local Catalogues");
-	gLayout->addWidget(label, 0, indexLocal);
+	gLayout->addWidget(label, 0, index::Local);
 	QJTREEVIEW* treeLocal = new QJTREEVIEW;
-	treeLocal->indexTree = indexLocal;
-	gLayout->addWidget(treeLocal, 1, indexLocal);
+	treeLocal->indexTree = index::Local;
+	gLayout->addWidget(treeLocal, 1, index::Local);
 	connect(treeLocal, &QJTREEVIEW::nodeRightClicked, this, &SCDAcatalogue::nodeRightClicked);
 
-	indexDatabase = 2;
 	modelDatabase = make_shared<QJTREEMODEL>(vsHeader, this);
 	modelDatabase->jt.setNodeColour(-1, itemColourDefault, itemColourSelected);
 	label = new QLabel("Database Catalogues");
-	gLayout->addWidget(label, 0, indexDatabase);
+	gLayout->addWidget(label, 0, index::Database);
 	QJTREEVIEW* treeDatabase = new QJTREEVIEW;
 	treeDatabase->setModel(modelDatabase.get());
-	gLayout->addWidget(treeDatabase, 1, indexDatabase);
+	gLayout->addWidget(treeDatabase, 1, index::Database);
 	connect(treeStatscan, &QJTREEVIEW::nodeRightClicked, this, &SCDAcatalogue::nodeRightClicked);
 
 	initAction();
@@ -143,8 +142,8 @@ void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex&
 	vector<string> vsGenealogy = qjtm->getGenealogy(qmIndex);
 	int numNode = (int)vsGenealogy.size();
 	switch (indexTree) {
-	case 0:
-	{   // Database
+	case index::Statscan:
+	{
 		string sData = "";
 		for (int ii = 0; ii < numNode; ii++) {
 			sData += "@" + vsGenealogy[ii];
@@ -153,8 +152,8 @@ void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex&
 		menu.addAction(qaDownload);
 		break;
 	}
-	case 1:
-	{   // Local
+	case index::Local:
+	{
 		string sData = "";
 		for (int ii = 0; ii < numNode; ii++) {
 			sData += "@" + vsGenealogy[ii];
@@ -176,12 +175,15 @@ void SCDAcatalogue::resetModel(int indexTree)
 	switch (indexTree) {
 	case 0:
 		modelStatscan.swap(model);
+		modelStatscan->jt.setNodeColour(-1, itemColourDefault, itemColourSelected);
 		break;
 	case 1:
 		modelLocal.swap(model);
+		modelLocal->jt.setNodeColour(-1, itemColourDefault, itemColourSelected);
 		break;
 	case 2:
 		modelDatabase.swap(model);
+		modelDatabase->jt.setNodeColour(-1, itemColourDefault, itemColourSelected);
 		break;
 	}
 }
@@ -200,7 +202,7 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 	vector<string> folderList = wf.getFolderList(prompt[0], search);
 	vector<string> cataList, sYearList;
 	size_t pos1;
-	QJTREEMODEL* qjtm = cata->getModel(cata->indexLocal);
+	QJTREEMODEL* qjtm = cata->getModel(cata->index::Local);
 	JNODE jnRoot = qjtm->jt.getRoot();
 	int iYear, numCata, numMissing, rootID = jnRoot.ID;
 

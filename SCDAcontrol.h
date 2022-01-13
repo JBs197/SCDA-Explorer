@@ -23,7 +23,7 @@ public:
 	SCDAcontrol() { init(); }
 	~SCDAcontrol() {}
 
-	int indexDBTable, indexDebug, indexDrive, indexFetch, indexText;
+	enum index{ Drive, Fetch, DBTable, Debug, Spacing0, Clear, Text };
 
 signals:
 	void driveSelected(string drive);
@@ -32,7 +32,9 @@ signals:
 	void sendSearchDBTable(string sQuery);
 
 public slots:
+	void clearText();
 	void driveChanged(const QString& qsDrive);
 	void prepSearchDBTable();
+	void textAppend(string sMessage);
 	void textOutput(string sMessage);
 };

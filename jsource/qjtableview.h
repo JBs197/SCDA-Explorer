@@ -64,7 +64,10 @@ public:
 	QList<QStandardItem*> mimeTextToQRow(QString& qsMime);
 	void resetModel(int keepLast);
 	void select(int iRow, int iCol);
+	void setColTitles(vector<vector<string>>& vvsColTitles);
+	void setModel(QAbstractItemModel* model) override;
 	void setName(int indexTab, int indexRow, int indexCol);
+	void setTableData(vector<vector<string>>& vvsData);
 	void updateModel();
 	void updateModel(vector<vector<int>> vviCol);
 

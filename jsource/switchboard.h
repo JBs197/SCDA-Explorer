@@ -26,11 +26,13 @@ public:
 	int answerCall(thread::id workerID, vector<int>& myComm, int myIndex);
 	int endCall(thread::id managerID);                       // 3 = paused task
 	vector<int> getMyComm(thread::id id);
+	void getPrompt(string& sPrompt);
 	void getPrompt(vector<string>& vsPrompt);
 	void getPrompt(vector<vector<string>>& vvsPrompt);
 	int pullAny(thread::id id);
 	bool push(thread::id id);
 	bool pushHard(thread::id id);
+	void setPrompt(string& sPrompt);
 	void setPrompt(vector<string>& vsPrompt);
 	void setPrompt(vector<vector<string>>& vvsPrompt);
 	int startCall(thread::id managerID, vector<int>& myComm);  // 1 = completed task

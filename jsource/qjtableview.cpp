@@ -231,8 +231,6 @@ QModelIndexList QJTABLEVIEW::getSelected()
 }
 void QJTABLEVIEW::init()
 {
-    
-
     indexTable = -1;
     startDragDist = 10;  // Pixels
     posStart = QPoint();  // Null
@@ -378,7 +376,7 @@ void QJTABLEVIEW::mousePressEvent(QMouseEvent* event)
             }
             //QItemSelectionModel::SelectionFlags command = selectionCommand(qmIndex, event);
         }
-        //QTableView::mousePressEvent(event);
+        QTableView::mousePressEvent(event);
     }
 }
 void QJTABLEVIEW::mouseReleaseEvent(QMouseEvent* event)
@@ -461,6 +459,27 @@ void QJTABLEVIEW::setColColour(QModelIndex qmi, pair<string, string> colour)
     }
     setCellColour(qmiList, colour);
 }
+void QJTABLEVIEW::setColTitles(vector<vector<string>>& vvsColTitle)
+{
+    QStandardItemModel* model = (QStandardItemModel*)this->model();
+    if (model == nullptr) { return; }
+
+    int numCol = (int)vvsColTitle.size();
+    QStringList qsl;
+    for (int ii = 0; ii < numCol; ii++) {
+        qsl.append(vvsColTitle[ii][0].c_str());
+    }
+    model->setHorizontalHeaderLabels(qsl);
+}
+void QJTABLEVIEW::setModel(QAbstractItemModel* model)
+{
+    QTableView::setModel(model);
+    setItemDelegate(new QJDELEGATE(0, this));
+}
+void QJTABLEVIEW::setName(int indexTab, int indexRow, int indexCol)
+{
+    viName = { indexTab, indexRow, indexCol };
+}
 void QJTABLEVIEW::setRowColour(QModelIndex qmi, pair<string, string> colour)
 {
     QModelIndexList qmiList;
@@ -472,9 +491,34 @@ void QJTABLEVIEW::setRowColour(QModelIndex qmi, pair<string, string> colour)
     }
     setCellColour(qmiList, colour);
 }
-void QJTABLEVIEW::setName(int indexTab, int indexRow, int indexCol)
+void QJTABLEVIEW::setTableData(vector<vector<string>>& vvsData)
 {
-    viName = { indexTab, indexRow, indexCol };
+    int numCol = -1, numRow = (int)vvsData.size();
+    if (numRow > 0) { numCol = (int)vvsData[0].size(); }
+    if (numRow < 1 || numCol < 1) { return; }
+    QStandardItemModel* model = (QStandardItemModel*)this->model();
+    if (model == nullptr) { return; }
+
+    QVariant qVar;
+    QStandardItem* qsItem = nullptr;
+    model->setRowCount(numRow);
+    model->setColumnCount(numCol);
+    for (int ii = 0; ii < numRow; ii++) {
+        for (int jj = 0; jj < numCol; jj++) {
+            qsItem = new QStandardItem(vvsData[ii][jj].c_str());
+
+            qVar = get<0>(itemColourDefault).c_str();
+            qsItem->setData(qVar, Qt::UserRole + 0);
+            qVar = get<1>(itemColourDefault).c_str();
+            qsItem->setData(qVar, Qt::UserRole + 1);
+            qVar = get<0>(itemColourSelected).c_str();
+            qsItem->setData(qVar, Qt::UserRole + 6);
+            qVar = get<1>(itemColourSelected).c_str();
+            qsItem->setData(qVar, Qt::UserRole + 7);
+
+            model->setItem(ii, jj, qsItem);
+        }
+    }
 }
 void QJTABLEVIEW::startDrag(Qt::DropActions supportedActions)
 {

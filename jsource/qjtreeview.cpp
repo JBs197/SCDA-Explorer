@@ -19,6 +19,14 @@ void QJTREEVIEW::init()
 	indexTree = -1;
 	connect(this, &QJTREEVIEW::clicked, this, &QJTREEVIEW::relayClicked);
 }
+void QJTREEVIEW::mouseDoubleClickEvent(QMouseEvent* event)
+{
+	QPoint pos = event->pos();
+	QModelIndex qmi = indexAt(pos);
+	if (qmi.isValid()) {
+		emit nodeDoubleClicked(qmi, indexTree);
+	}
+}
 void QJTREEVIEW::nodeSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected)
 {
 	QJTREEMODEL* qjtm = (QJTREEMODEL*)this->model();
@@ -44,13 +52,12 @@ void QJTREEVIEW::relayClicked(const QModelIndex& qmIndex)
 }
 void QJTREEVIEW::setModel(QJTREEMODEL* qjtm)
 {
-	this->setItemDelegate(new QJDELEGATE(2, this));
-
 	QHeaderView* headerH = this->header();
 	headerH->setVisible(qjtm->headerTitles);
 
 	QTreeView::setModel(qjtm);
 
+	this->setItemDelegate(new QJDELEGATE(2, this));
 	QItemSelectionModel* selModel = this->selectionModel();
 	connect(selModel, &QItemSelectionModel::selectionChanged, this, &QJTREEVIEW::nodeSelectionChanged);
 }

@@ -3,6 +3,7 @@
 #include <QGridLayout>
 #include <QLabel>
 #include "qjtableview.h"
+#include "qjtreeview.h"
 
 using namespace std;
 
@@ -18,14 +19,36 @@ private:
 	void initAction();
 
 public:
-	SCDAtable() {}
+	SCDAtable(string& configXML) {
+		initItemColour(configXML);
+		init();
+	}
+	SCDAtable() { 
+		itemColourDefault = make_pair("#FFFFFF", "#000000");
+		itemColourSelected = make_pair("#000080", "#FFFFFF");
+		init(); 
+	}
 	~SCDAtable() {}
 
-	int indexOnDemand = -1;
-	shared_ptr<QStandardItemModel> modelOnDemand = nullptr;
+	enum index { OnDemand, Search };
 
-	void initItemColour(QJTABLEVIEW*& qjTable, string& configXML);
+	// Solid colours (background, foreground)
+	pair<string, string> itemColourDefault, itemColourFail, itemColourHover;  
+	pair<string, string> itemColourSelected, itemColourWarning;
+
+	shared_ptr<QStandardItemModel> modelOnDemand = nullptr;
+	shared_ptr<QJTREEMODEL> modelSearch = nullptr;
+
+	void displayTable(vector<vector<string>>& vvsData, vector<vector<string>>& vvsColTitle, string title);
+	QStandardItemModel* getModelTable(int index);
+	QJTREEMODEL* getModelTree(int index);
+	void initItemColour(string& configXML);
+
+signals:
+	void fetchTable(string tname);
 
 public slots:
-	void cellRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTable);
+	void cellRightClicked(const QPoint& globalPos, const QModelIndex& qmiCell, int indexTable);
+	void nodeDoubleClicked(const QModelIndex& qmiNode, int indexTree);
+	void resetModel(int indexModel);
 };
