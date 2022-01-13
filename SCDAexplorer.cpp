@@ -140,6 +140,24 @@ void SCDA::err(string message)
 	string errorMessage = "SCDA error:\n" + message;
 	JLOG::getInstance()->err(errorMessage);
 }
+void SCDA::fetchDBTable(string tname)
+{
+	vector<vector<string>> vvsData, vvsColTitle;
+	scdb.loadTable(vvsData, vvsColTitle, tname);
+	if (vvsData.size() > 0) {
+		QWidget* central = this->centralWidget();
+		QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
+		QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+		QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
+		qlItem = vLayout->itemAt(0);
+		QTabWidget* tab = (QTabWidget*)qlItem->widget();
+		tab->setCurrentIndex(indexTab::Table);
+		SCDAtable* table = (SCDAtable*)tab->widget(indexTab::Table);
+
+		string title = "Table (" + tname + ")";
+		table->displayTable(vvsData, vvsColTitle, title);
+	}
+}
 QRect SCDA::getDesktop()
 {
 	QList<QScreen*> listScreen = qApp->screens();
@@ -253,9 +271,10 @@ void SCDA::initGUI()
 	connect(this, &SCDA::sendConfigXML, cata, &SCDAcatalogue::getConfigXML);
 	connect(cata, &SCDAcatalogue::sendDownloadCata, this, &SCDA::downloadCata);
 	connect(cata, &SCDAcatalogue::sendInsertCata, this, &SCDA::insertCata);
+	connect(cata, &SCDAcatalogue::sendSearchCata, this, &SCDA::searchDBTable);
 	tab->addTab(cata, "Catalogues");
 	SCDAtable* table = new SCDAtable;
-	connect(table, &SCDAtable::fetchTable, this, &SCDA::searchDBTable);
+	connect(table, &SCDAtable::fetchTable, this, &SCDA::fetchDBTable);
 	tab->addTab(table, "Tables");
 
 	indexPBar = 1;
@@ -397,14 +416,7 @@ void SCDA::searchDBTable(string sQuery)
 	emit appendTextIO(sReport);
 
 	// If only one table was found, display it.
-	if (numTable == 1) {
-		string title = "Table (" + vsTable[0] + ")";
-		vector<vector<string>> vvsData, vvsColTitle;
-		scdb.loadTable(vvsData, vvsColTitle, vsTable[0]);
-		if (vvsData.size() > 0) {
-			table->displayTable(vvsData, vvsColTitle, title);
-		}
-	}
+	if (numTable == 1) { fetchDBTable(vsTable[0]); }
 }
 void SCDA::updateCataDB()
 {

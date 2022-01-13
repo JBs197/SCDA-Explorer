@@ -62,6 +62,7 @@ public slots:
 	void displayOnlineCata();
 	void downloadCata(string prompt);
 	void driveSelected(string drive);
+	void fetchDBTable(string tname);
 	void insertCata(string prompt);
 	void searchDBTable(string sQuery);
 	void updateCataDB();

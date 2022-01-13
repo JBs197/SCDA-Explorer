@@ -12,7 +12,7 @@ class SCDAcatalogue : public QWidget
 
 private:
 	JFUNC jf;
-	QAction* qaDownload, *qaInsert;
+	QAction* qaDownload, *qaInsert, *qaSearch;
 	WINFUNC wf;
 
 	void err(string message);
@@ -47,10 +47,12 @@ public:
 	QJTREEMODEL* getModel(int indexTree);
 	void initItemColour(string& configXML);
 	void scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& configXML);
+	void searchCata();
 
 signals:
 	void sendDownloadCata(string prompt);
 	void sendInsertCata(string prompt);
+	void sendSearchCata(string prompt);
 
 public slots:
 	void getConfigXML(string configXML);

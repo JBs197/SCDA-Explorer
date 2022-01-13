@@ -76,9 +76,10 @@ void SCDAcatalogue::init()
 	label = new QLabel("Database Catalogues");
 	gLayout->addWidget(label, 0, index::Database);
 	QJTREEVIEW* treeDatabase = new QJTREEVIEW;
+	treeDatabase->indexTree = index::Database;
 	treeDatabase->setModel(modelDatabase.get());
 	gLayout->addWidget(treeDatabase, 1, index::Database);
-	connect(treeStatscan, &QJTREEVIEW::nodeRightClicked, this, &SCDAcatalogue::nodeRightClicked);
+	connect(treeDatabase, &QJTREEVIEW::nodeRightClicked, this, &SCDAcatalogue::nodeRightClicked);
 
 	initAction();
 }
@@ -88,6 +89,8 @@ void SCDAcatalogue::initAction()
 	connect(qaDownload, &QAction::triggered, this, &SCDAcatalogue::downloadCata);
 	qaInsert = new QAction("Insert", this);
 	connect(qaInsert, &QAction::triggered, this, &SCDAcatalogue::insertCata);
+	qaSearch = new QAction("Search", this);
+	connect(qaSearch, &QAction::triggered, this, &SCDAcatalogue::searchCata);
 }
 void SCDAcatalogue::initItemColour(string& configXML)
 {
@@ -141,10 +144,10 @@ void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex&
 	QJTREEMODEL* qjtm = getModel(indexTree);
 	vector<string> vsGenealogy = qjtm->getGenealogy(qmIndex);
 	int numNode = (int)vsGenealogy.size();
+	string sData = "";
 	switch (indexTree) {
 	case index::Statscan:
 	{
-		string sData = "";
 		for (int ii = 0; ii < numNode; ii++) {
 			sData += "@" + vsGenealogy[ii];
 		}
@@ -154,12 +157,20 @@ void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex&
 	}
 	case index::Local:
 	{
-		string sData = "";
 		for (int ii = 0; ii < numNode; ii++) {
 			sData += "@" + vsGenealogy[ii];
 		}
 		qaInsert->setData(sData.c_str());
 		menu.addAction(qaInsert);
+		break;
+	}
+	case index::Database:
+	{
+		for (int ii = 0; ii < numNode; ii++) {
+			sData += "@" + vsGenealogy[ii];
+		}
+		qaSearch->setData(sData.c_str());
+		menu.addAction(qaSearch);
 		break;
 	}
 	}
@@ -277,4 +288,15 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 	qjtm->jt.setNodeColour(viNoTwin, itemColourWarning, itemColourSelected);
 
 	sbgui.endCall(myid);
+}
+void SCDAcatalogue::searchCata()
+{
+	QVariant qVar = qaSearch->data();
+	QString qsTemp = qVar.toString();
+	string prompt = qsTemp.toUtf8();
+	prompt.insert(0, "*");
+	prompt.push_back('*');
+	vector<string> dirt = { "@" }, soap = { "$" };
+	jf.clean(prompt, dirt, soap);
+	emit sendSearchCata(prompt);
 }
