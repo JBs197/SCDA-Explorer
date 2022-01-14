@@ -22,6 +22,9 @@ void SCDA::busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm)
 }
 void SCDA::debug()
 {
+
+
+	/*
 	vector<pair<double, double>> vPerimeter = jf.rectangleRound(400.0, 300.0, 50.0);
 	vector<pair<int, int>> vPixel = jf.pixelate(vPerimeter);
 	set<pair<int, int>> setCoord = jf.solidShape(vPixel);
@@ -37,6 +40,7 @@ void SCDA::debug()
 	}
 	bgPath = sExecFolder + "\\BusyBG.png";
 	success = qiBG.save(bgPath.c_str());
+	*/
 }
 void SCDA::displayOnlineCata()
 {
@@ -91,6 +95,8 @@ void SCDA::downloadCata(string prompt)
 	thr.detach();
 	busyWheel(sb, comm);
 	sb.endCall(myid);
+
+
 }
 void SCDA::driveSelected(string drive)
 {
@@ -329,11 +335,33 @@ void SCDA::insertCata(string prompt)
 		}
 	}
 
+	// Inform the GUI thread of task progression.
+	size_t pos1, pos2;
+	string temp;
 	vector<string> vsProgress = {
-		"Inserting local catalogue files ...",
+		"Inserting local files for catalogue ",
 		"Finished inserting catalogues into the database."
 	};
 	vector<double> vdProgress = { 0.0, 1.0 };
+	if (numCata == 1) { vsProgress[0] += vsPrompt[1] + " ..."; }
+	else {
+		vsProgress[0] += "(1 of " + to_string(numCata) + ") ...";
+		vsProgress.resize(numCata + 1);
+		vsProgress.back().swap(vsProgress[1]);
+		for (int ii = 2; ii <= numCata; ii++) {
+			vsProgress[ii - 1] = vsProgress[ii - 2];
+			pos1 = vsProgress[ii - 1].rfind('(') + 1;
+			pos2 = vsProgress[ii - 1].find(' ', pos1);
+			temp = to_string(ii);
+			vsProgress[ii - 1].replace(pos1, pos2 - pos1, temp);
+		}
+		vdProgress.resize(numCata + 1);
+		vdProgress[numCata] = vdProgress[1];
+		double bandwidth = 1.0 / (double)numCata;
+		for (int ii = 1; ii < numCata; ii++) {
+			vdProgress[ii] = vdProgress[ii - 1] + bandwidth;
+		}
+	}
 	emit initProgress(vdProgress, vsProgress);
 
 	thread::id myid = this_thread::get_id();
@@ -346,6 +374,8 @@ void SCDA::insertCata(string prompt)
 	thr.detach();
 	busyWheel(sb, comm);
 	sb.endCall(myid);
+
+
 }
 void SCDA::postRender()
 {
