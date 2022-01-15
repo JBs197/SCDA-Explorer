@@ -22,8 +22,6 @@ void SCDAcatalogue::downloadCata()
 	QString qsTemp = qVar.toString();
 	string prompt = qsTemp.toUtf8();
 	emit sendDownloadCata(prompt);
-
-
 }
 void SCDAcatalogue::err(string message)
 {

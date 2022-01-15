@@ -463,13 +463,20 @@ void QJTABLEVIEW::setColTitles(vector<vector<string>>& vvsColTitle)
 {
     QStandardItemModel* model = (QStandardItemModel*)this->model();
     if (model == nullptr) { return; }
-
-    int numCol = (int)vvsColTitle.size();
+    QHeaderView* headerH = horizontalHeader();
     QStringList qsl;
-    for (int ii = 0; ii < numCol; ii++) {
-        qsl.append(vvsColTitle[ii][0].c_str());
+    if (vvsColTitle.size() < 1) {  // Clear the horizontal header.
+        model->setHorizontalHeaderLabels(qsl);
+        headerH->setVisible(0);
     }
-    model->setHorizontalHeaderLabels(qsl);
+    else {
+        int numCol = (int)vvsColTitle[0].size();
+        for (int ii = 0; ii < numCol; ii++) {
+            qsl.append(vvsColTitle[0][ii].c_str());
+        }
+        model->setHorizontalHeaderLabels(qsl);
+        headerH->setVisible(1);
+    }
 }
 void QJTABLEVIEW::setModel(QAbstractItemModel* model)
 {

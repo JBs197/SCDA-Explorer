@@ -14,8 +14,10 @@ class SConline
 	vector<vector<string>> vvsCata;  // Form [index][year, cata0, cata1, ...]
 	WINFUNC wf;
 
+	void downloadTopic(string filePath);
 	void err(string message);
 	string urlCataDownload(string sYear, string sCata);
+	string urlCataTopic(string sYear, string sCata);
 	string urlYear(string sYear);
 
 public:

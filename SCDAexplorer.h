@@ -4,6 +4,7 @@
 #include <QProgressBar>
 #include <QScreen>
 #include <QTabWidget>
+#include "jtxml.h"
 #include "qjbusy.h"
 #include "qjprogressbar.h"
 #include "SCDAcatalogue.h"
@@ -26,10 +27,9 @@ private:
 	int indexTab, labelCharHeight, labelCharWidth, sleepTime;
 	string configXML;
 	JFUNC jf;
+	JTXML jtx;
 	string sExecFolder;
 	SWITCHBOARD sb;
-	SCdatabase scdb;
-	SConline sco;
 	WINFUNC wf;
 
 	enum indexTab { Catalogue, Table, Map };
@@ -48,6 +48,9 @@ public:
 	SCDA(string execFolder, QWidget* parent = nullptr);
 	~SCDA() {}
 
+	SCdatabase scdb;
+	SConline sco;
+
 	void postRender();
 
 signals:
@@ -59,6 +62,7 @@ signals:
 
 public slots:
 	void debug();
+	void deleteTable(string tname);
 	void displayOnlineCata();
 	void downloadCata(string prompt);
 	void driveSelected(string drive);

@@ -22,7 +22,11 @@ void SCDA::busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm)
 }
 void SCDA::debug()
 {
-
+	vector<string> search = { "*" };
+	string tname = "GeoLayers$2016";
+	vector<vector<string>> vvsResult;
+	scdb.sf.select(search, tname, vvsResult);
+	int bbq = 1;
 
 	/*
 	vector<pair<double, double>> vPerimeter = jf.rectangleRound(400.0, 300.0, 50.0);
@@ -41,6 +45,18 @@ void SCDA::debug()
 	bgPath = sExecFolder + "\\BusyBG.png";
 	success = qiBG.save(bgPath.c_str());
 	*/
+}
+void SCDA::deleteTable(string tname)
+{
+	scdb.deleteTable(tname);
+	
+	QWidget* central = this->centralWidget();
+	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
+	QLayoutItem* qlItem = hLayout->itemAt(indexControl);
+	SCDAcontrol* control = (SCDAcontrol*)qlItem->widget();
+	if (control->sLastQuery.size() > 0) {
+		searchDBTable(control->sLastQuery);
+	}
 }
 void SCDA::displayOnlineCata()
 {
@@ -194,6 +210,7 @@ void SCDA::initConfig()
 		wf.copyFile(backupPath, configPath);
 	}
 	configXML = jf.load(configPath);
+	jtx.loadXML(configPath);
 	initStatscan();
 
 	commLength = 4;
@@ -281,6 +298,7 @@ void SCDA::initGUI()
 	tab->addTab(cata, "Catalogues");
 	SCDAtable* table = new SCDAtable;
 	connect(table, &SCDAtable::fetchTable, this, &SCDA::fetchDBTable);
+	connect(table, &SCDAtable::sendDeleteTable, this, &SCDA::deleteTable);
 	tab->addTab(table, "Tables");
 
 	indexPBar = 1;
@@ -313,7 +331,7 @@ void SCDA::insertCata(string prompt)
 	if (numCata < 0) { err("Invalid prompt-insertCata"); }
 
 	// Determine the local root directory for this census year. 
-	int iYear, numMissing, numThread, numZip;
+	int iYear;
 	try { iYear = stoi(vsPrompt[0]); }
 	catch (invalid_argument) { err("stoi-insertCata"); }
 	if (iYear < 1981 || iYear > 2017) { err("Invalid year-insertCata"); }

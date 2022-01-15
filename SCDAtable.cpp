@@ -4,6 +4,13 @@ void SCDAtable::cellRightClicked(const QPoint& globalPos, const QModelIndex& qmI
 {
 	//
 }
+void SCDAtable::deleteTable()
+{
+	QVariant qVar = qaDelete->data();
+	QString qsTemp = qVar.toString();
+	string tname = qsTemp.toUtf8();
+	emit sendDeleteTable(tname);
+}
 void SCDAtable::displayTable(vector<vector<string>>& vvsData, vector<vector<string>>& vvsColTitle, string title)
 {
 	int numCol = -1, numRow = (int)vvsData.size();
@@ -18,8 +25,8 @@ void SCDAtable::displayTable(vector<vector<string>>& vvsData, vector<vector<stri
 	QJTABLEVIEW* qjTable = (QJTABLEVIEW*)qlItem->widget();
 	qjTable->resetModel(0);
 	QHeaderView* headerH = qjTable->horizontalHeader();
-	if (vvsColTitle.size() < 1) { headerH->setVisible(0); }
-	else if (vvsColTitle.size() != numCol) { err("Column titles do not match columns-displayTable"); }
+	if (vvsColTitle[0].size() < 1) { headerH->setVisible(0); }
+	else if (vvsColTitle[0].size() != numCol) { err("Column titles do not match columns-displayTable"); }
 	if (numRow < 1 || numCol < 1) { return; }
 
 	qjTable->setColTitles(vvsColTitle);
@@ -71,12 +78,14 @@ void SCDAtable::init()
 	treeSearch->indexTree = index::Search;
 	gLayout->addWidget(treeSearch, 1, index::Search);
 	connect(treeSearch, &QJTREEVIEW::nodeDoubleClicked, this, &SCDAtable::nodeDoubleClicked);
+	connect(treeSearch, &QJTREEVIEW::nodeRightClicked, this, &SCDAtable::nodeRightClicked);
 
 	initAction();
 }
 void SCDAtable::initAction()
 {
-	//
+	qaDelete = new QAction("Delete Table", this);
+	connect(qaDelete, &QAction::triggered, this, &SCDAtable::deleteTable);
 }
 void SCDAtable::initItemColour(string& configXML)
 {
@@ -130,6 +139,21 @@ void SCDAtable::nodeDoubleClicked(const QModelIndex& qmiNode, int indexTree)
 		emit fetchTable(tname);
 	}
 	}
+}
+void SCDAtable::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree)
+{
+	QMenu menu(this);
+	QJTREEMODEL* qjtm = modelSearch.get();
+	vector<string> vsGenealogy = qjtm->getGenealogy(qmIndex);
+	int numNode = (int)vsGenealogy.size();
+	string tname = "";
+	for (int ii = 0; ii < numNode; ii++) {
+		if (ii > 0) { tname += "$"; }
+		tname += vsGenealogy[ii];
+	}
+	qaDelete->setData(tname.c_str());
+	menu.addAction(qaDelete);
+	menu.exec(globalPos);
 }
 void SCDAtable::resetModel(int indexModel)
 {

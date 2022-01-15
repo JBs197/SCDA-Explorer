@@ -20,6 +20,8 @@ void SCDAcontrol::err(string message)
 }
 void SCDAcontrol::init()
 {
+	sLastQuery = "";
+
 	QVBoxLayout* vLayout = new QVBoxLayout;
 	this->setLayout(vLayout);
 
@@ -69,8 +71,9 @@ void SCDAcontrol::prepSearchDBTable()
 	vector<string> dirt = { " ", "\r", "\n" }, soap = { "", "", "" };
 	jf.clean(sQuery, dirt, soap);
 	emit sendSearchDBTable(sQuery);
+	sLastQuery = sQuery;
 
-	string sMessage = "Searching for ";
+	string sMessage = sQuery + "\nSearching for ";
 	if (sQuery == "" || sQuery == "*") { sMessage += "all tables"; }
 	else { sMessage += sQuery; }
 	sMessage += " ...";

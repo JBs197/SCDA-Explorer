@@ -25,6 +25,8 @@ public:
 
 	enum index{ Drive, Fetch, DBTable, Debug, Spacing0, Clear, Text };
 
+	string sLastQuery;
+
 signals:
 	void driveSelected(string drive);
 	void sendDebug();

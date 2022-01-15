@@ -13,6 +13,7 @@ class SCDAtable : public QWidget
 
 private:
 	JFUNC jf;
+	QAction* qaDelete;
 
 	void err(string message);
 	void init();
@@ -46,9 +47,12 @@ public:
 
 signals:
 	void fetchTable(string tname);
+	void sendDeleteTable(string tname);
 
 public slots:
 	void cellRightClicked(const QPoint& globalPos, const QModelIndex& qmiCell, int indexTable);
+	void deleteTable();
 	void nodeDoubleClicked(const QModelIndex& qmiNode, int indexTree);
+	void nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree);
 	void resetModel(int indexModel);
 };
