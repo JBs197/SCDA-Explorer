@@ -175,7 +175,7 @@ void SConline::getCataTree(JTREE& jt)
 	int yearID, rootID = jnRoot.ID;
 	for (int ii = 0; ii < numYear; ii++) {
 		JNODE jnYear;
-		jnYear.vsData.push_back(vsYear[ii]);
+		jnYear.vsData[0] = vsYear[ii];
 		yearID = jnYear.ID;
 		jt.addChild(rootID, jnYear);
 
@@ -188,7 +188,7 @@ void SConline::getCataTree(JTREE& jt)
 
 		for (int jj = 0; jj < numCata; jj++) {
 			JNODE jnCata;
-			jnCata.vsData.push_back(vsCata[jj]);
+			jnCata.vsData[0] = vsCata[jj];
 			jt.addChild(yearID, jnCata);
 
 			vvsCata[index][1 + jj] = vsCata[jj];

@@ -12,7 +12,7 @@ void SCDAcatalogue::displayOnlineCata(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, 
 	qjtm->jt.compare(cata->modelDatabase->jt);
 	vector<int> viNoTwin = qjtm->jt.hasTwinList(0);
 	qjtm->jt.setNodeColour(viNoTwin, itemColourFail, itemColourSelected);
-	qjtm->populate(); 
+	qjtm->populate(qjtm->tree::jtree); 
 
 	sbgui.endCall(myid);
 }
@@ -235,7 +235,7 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 	}
 	for (int ii = 0; ii < numYear; ii++) {
 		JNODE jnYear;
-		jnYear.vsData.push_back(sYearList[ii]);
+		jnYear.vsData[0] = sYearList[ii];
 		qjtm->jt.addChild(rootID, jnYear);
 	}
 
@@ -273,7 +273,7 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 			}
 			if (numMissing == 0) {
 				JNODE jn;
-				jn.vsData.push_back(folderList[jj]);
+				jn.vsData[0] = folderList[jj];
 				qjtm->jt.addChild(viYearID[ii], jn);
 			}
 		}

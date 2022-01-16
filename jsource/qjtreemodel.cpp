@@ -4,6 +4,7 @@ QJTREEMODEL::QJTREEMODEL(vector<string> vsHeader, QObject* parent)
 	: QAbstractItemModel(parent) {
 	qjtiRoot = new QJTREEITEM(vsHeader);
 	setHeaderData(vsHeader);
+	treeType = -1;
 }
 
 void QJTREEMODEL::addChildrenAll(int parentID, QJTREEITEM*& qjtiParent)
@@ -11,13 +12,33 @@ void QJTREEMODEL::addChildrenAll(int parentID, QJTREEITEM*& qjtiParent)
 	// Recursive function which takes matching nodes from a JTREE and this
 	// model, and adds the node's immediate children to the model from the JTREE.
 	QJTREEITEM* qjtiChild = nullptr;
-	vector<int> childrenID = jt.getChildrenID(parentID);
-	int numChildren = (int)childrenID.size();
-	for (int ii = 0; ii < numChildren; ii++) {
-		JNODE& jn = jt.getNode(childrenID[ii]);
-		qjtiChild = new QJTREEITEM(jn, qjtiParent);
-		qjtiParent->addChild(qjtiChild);
-		addChildrenAll(childrenID[ii], qjtiChild);
+	vector<int> childrenID; 	
+	int numChildren; 
+	switch (treeType) {
+	case tree::jtree:
+	{
+		childrenID = jt.getChildrenID(parentID);
+		numChildren = (int)childrenID.size();
+		for (int ii = 0; ii < numChildren; ii++) {
+			JNODE& jn = jt.getNode(childrenID[ii]);
+			qjtiChild = new QJTREEITEM(jn, qjtiParent);
+			qjtiParent->addChild(qjtiChild);
+			addChildrenAll(childrenID[ii], qjtiChild);
+		}
+		break;
+	}
+	case tree::jtxml:
+	{
+		childrenID = jtx.getChildrenID(parentID);
+		numChildren = (int)childrenID.size();
+		for (int ii = 0; ii < numChildren; ii++) {
+			JNODE& jn = jtx.getNode(childrenID[ii]);
+			qjtiChild = new QJTREEITEM(jn, qjtiParent);
+			qjtiParent->addChild(qjtiChild);
+			addChildrenAll(childrenID[ii], qjtiChild);
+		}
+		break;
+	}
 	}
 }
 int QJTREEMODEL::columnCount(const QModelIndex& parent) const
@@ -105,12 +126,28 @@ QModelIndex QJTREEMODEL::parent(const QModelIndex& index) const
 
 	return createIndex(qjtiParent->getRow(), 0, qjtiParent);
 }
-void QJTREEMODEL::populate()
+void QJTREEMODEL::populate(int enumTree)
 {
-	// Loads a JTREE into this model.
-	JNODE jnRoot = jt.getRoot();
-	int rootID = jnRoot.ID;
-	addChildrenAll(rootID, qjtiRoot);
+	// Loads a JTREE (or derivative) into this model.
+	treeType = enumTree;
+	qjtiRoot->treeType = enumTree;
+
+	switch (enumTree) {
+	case tree::jtree:
+	{
+		JNODE jnRoot = jt.getRoot();
+		int rootID = jnRoot.ID;
+		addChildrenAll(rootID, qjtiRoot);
+		break;
+	}
+	case tree::jtxml:
+	{
+		JNODE jnRoot = jtx.getRoot();
+		int rootID = jnRoot.ID;
+		addChildrenAll(rootID, qjtiRoot);
+		break;
+	}
+	}
 }
 int QJTREEMODEL::rowCount(const QModelIndex& parent) const
 {

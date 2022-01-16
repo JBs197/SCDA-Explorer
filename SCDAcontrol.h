@@ -23,7 +23,7 @@ public:
 	SCDAcontrol() { init(); }
 	~SCDAcontrol() {}
 
-	enum index{ Drive, Fetch, DBTable, Debug, Spacing0, Clear, Text };
+	enum index{ Drive, Fetch, DBTable, Structure, Debug, Spacing0, Clear, Text };
 
 	string sLastQuery;
 
@@ -32,6 +32,7 @@ signals:
 	void sendDebug();
 	void sendOnlineCata();
 	void sendSearchDBTable(string sQuery);
+	void sendStructure();
 
 public slots:
 	void clearText();

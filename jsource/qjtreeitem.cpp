@@ -2,12 +2,6 @@
 
 QJTREEITEM::QJTREEITEM(const JNODE& jn, QJTREEITEM* parent) : qjtiParent(parent)
 {
-	int numCol = (int)jn.vsData.size();
-	qlData.reserve(numCol);
-	for (int ii = 0; ii < numCol; ii++) {
-		qlData << jn.vsData[ii].c_str();
-	}
-	
 	for (int ii = 0; ii < 8; ii++) {
 		qlDataUserRole.append("");
 	}
@@ -16,6 +10,30 @@ QJTREEITEM::QJTREEITEM(const JNODE& jn, QJTREEITEM* parent) : qjtiParent(parent)
 	qlDataUserRole[5] = "0";
 	qlDataUserRole[6] = get<0>(jn.colourSelected).c_str();
 	qlDataUserRole[7] = get<1>(jn.colourSelected).c_str();
+
+	if (parent == nullptr) { treeType = -1; }
+	else { treeType = parent->treeType; }
+
+	int numCol = (int)jn.vsData.size() + (int)jn.mapAttribute.size();
+	qlData.reserve(numCol);
+	switch (treeType) {
+	case 0:
+	{
+		for (int ii = 0; ii < numCol; ii++) {
+			qlData << jn.vsData[ii].c_str();
+		}
+		break;
+	}
+	case 1:
+	{
+		qlData << jn.vsData[0].c_str();
+		for (auto it = jn.mapAttribute.begin(); it != jn.mapAttribute.end(); ++it) {
+			qlData << it->second.c_str();
+		}
+		break;
+	}
+	}
+
 }
 QJTREEITEM::QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent) 
 	: qjtiParent(parent) {
@@ -24,6 +42,7 @@ QJTREEITEM::QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent)
 	for (int ii = 0; ii < numCol; ii++) {
 		qlData << vsData[ii].c_str();
 	}
+
 	if (parent != nullptr) {
 		if (parent->qlDataUserRole.size() > 0) {
 			qlDataUserRole = parent->qlDataUserRole;

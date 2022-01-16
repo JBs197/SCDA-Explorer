@@ -42,6 +42,10 @@ void SCDAcontrol::init()
 	vLayout->insertWidget(index::DBTable, pbDBTable, 0);
 	connect(pbDBTable, &QPushButton::clicked, this, &SCDAcontrol::prepSearchDBTable);
 
+	QPushButton* pbStructure = new QPushButton("Load Catalogue\nStructure File");
+	vLayout->insertWidget(index::Structure, pbStructure, 0);
+	connect(pbStructure, &QPushButton::clicked, this, &SCDAcontrol::sendStructure);
+
 	QPushButton* pbDebug = new QPushButton("Debug");
 	vLayout->insertWidget(index::Debug, pbDebug, 0);
 	connect(pbDebug, &QPushButton::clicked, this, &SCDAcontrol::sendDebug);

@@ -499,7 +499,7 @@ void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 	int numCata, numYear = (int)yearList.size();
 	for (int ii = 0; ii < numYear; ii++) {
 		JNODE jnYear;
-		jnYear.vsData.push_back(yearList[ii]);
+		jnYear.vsData[0] = yearList[ii];
 		jt.addChild(rootID, jnYear);
 	}
 
@@ -516,7 +516,7 @@ void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 		numCata = sf.select(search, tname, cataList);
 		for (int jj = 0; jj < numCata; jj++) {
 			JNODE jn;
-			jn.vsData.push_back(cataList[jj]);
+			jn.vsData[0] = cataList[jj];
 			jt.addChild(viYearID[ii], jn);
 		}
 	}

@@ -1,6 +1,6 @@
 #pragma once
 #include <QVariant>
-#include "jtree.h"
+#include "jtxml.h"
 
 using namespace std;
 
@@ -15,6 +15,8 @@ public:
 	explicit QJTREEITEM(const JNODE& jn, QJTREEITEM* parent = nullptr);
 	explicit QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent = nullptr);
 	~QJTREEITEM() { qDeleteAll(qlChildren); }
+
+	int treeType;
 
 	void addChild(QJTREEITEM* qjti);
 	QJTREEITEM* getChild(int iRow);

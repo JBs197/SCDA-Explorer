@@ -37,7 +37,6 @@ public:
 	// Solid colours (background, foreground)
 	pair<string, string> itemColourDefault, itemColourFail;  
 	pair<string, string> itemColourSelected, itemColourWarning;
-
 	shared_ptr<QJTREEMODEL> modelDatabase = nullptr;
 	shared_ptr<QJTREEMODEL> modelLocal = nullptr;
 	shared_ptr<QJTREEMODEL> modelStatscan = nullptr;

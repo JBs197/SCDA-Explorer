@@ -58,6 +58,24 @@ void SCDA::deleteTable(string tname)
 		searchDBTable(control->sLastQuery);
 	}
 }
+void SCDA::dialogStructureStart()
+{
+	QString qsPath = QFileDialog::getOpenFileName(this, "Open File", sLocalStorage.c_str(), "XML files (*.xml)");
+	if (qsPath.size() < 1) { return; }
+	string sPath = qsPath.toUtf8();
+
+	QWidget* central = this->centralWidget();
+	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
+	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
+	qlItem = vLayout->itemAt(0);
+	QTabWidget* tab = (QTabWidget*)qlItem->widget();
+	tab->setCurrentIndex(indexTab::Structure);
+	SCDAstructure* structure = (SCDAstructure*)tab->widget(indexTab::Structure);
+	structure->loadXML(sPath);
+
+	int bbq = 1;
+}
 void SCDA::displayOnlineCata()
 {
 	QWidget* central = this->centralWidget();
@@ -83,7 +101,6 @@ void SCDA::displayOnlineCata()
 	qlItem = gLayout->itemAtPosition(1, cata->index::Statscan);
 	QJTREEVIEW* treeStatscan = (QJTREEVIEW*)qlItem->widget();
 	treeStatscan->setModel(cata->modelStatscan.get());
-	treeStatscan->update();
 }
 void SCDA::downloadCata(string prompt)
 {
@@ -146,7 +163,7 @@ void SCDA::driveSelected(string drive)
 		}
 		sb.endCall(myid);
 
-		qjtm->populate();
+		qjtm->populate(qjtm->tree::jtree);
 		QGridLayout* gLayout = (QGridLayout*)page->layout();
 		qlItem = gLayout->itemAtPosition(1, page->index::Local);
 		QJTREEVIEW* qjTree = (QJTREEVIEW*)qlItem->widget();
@@ -210,8 +227,10 @@ void SCDA::initConfig()
 		wf.copyFile(backupPath, configPath);
 	}
 	configXML = jf.load(configPath);
-	jtx.loadXML(configPath);
 	initStatscan();
+
+	vector<string> vsTag = { "path", "local_storage" };
+	sLocalStorage = jf.getXML1(configXML, vsTag);
 
 	commLength = 4;
 	sleepTime = 50;  // ms
@@ -257,6 +276,7 @@ void SCDA::initControl(SCDAcontrol*& control)
 
 	connect(control, &SCDAcontrol::driveSelected, this, &SCDA::driveSelected);
 	connect(control, &SCDAcontrol::sendDebug, this, &SCDA::debug);
+	connect(control, &SCDAcontrol::sendStructure, this, &SCDA::dialogStructureStart);
 	connect(control, &SCDAcontrol::sendOnlineCata, this, &SCDA::displayOnlineCata);
 	connect(control, &SCDAcontrol::sendSearchDBTable, this, &SCDA::searchDBTable);
 	connect(this, &SCDA::appendTextIO, control, &SCDAcontrol::textAppend);
@@ -300,6 +320,8 @@ void SCDA::initGUI()
 	connect(table, &SCDAtable::fetchTable, this, &SCDA::fetchDBTable);
 	connect(table, &SCDAtable::sendDeleteTable, this, &SCDA::deleteTable);
 	tab->addTab(table, "Tables");
+	SCDAstructure* structure = new SCDAstructure;
+	tab->addTab(structure, "Structures");
 
 	indexPBar = 1;
 	QJPROGRESSBAR* qjPBar = new QJPROGRESSBAR;
@@ -447,7 +469,7 @@ void SCDA::searchDBTable(string sQuery)
 	busyWheel(sb, comm);
 	sb.endCall(myid);
 	model->jt.setExpandGeneration(20);
-	model->populate();
+	model->populate(model->tree::jtree);
 
 	QGridLayout* gLayout = (QGridLayout*)table->layout();
 	qlItem = gLayout->itemAtPosition(1, table->index::Search);
@@ -486,5 +508,5 @@ void SCDA::updateCataDB()
 	busyWheel(sb, comm);
 	sb.endCall(myid);
 
-	qjtm->populate();
+	qjtm->populate(qjtm->tree::jtree);
 }

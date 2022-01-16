@@ -1,14 +1,15 @@
 #pragma once
 #include <QApplication>
+#include <QFileDialog>
 #include <QMainWindow>
 #include <QProgressBar>
 #include <QScreen>
 #include <QTabWidget>
-#include "jtxml.h"
 #include "qjbusy.h"
 #include "qjprogressbar.h"
 #include "SCDAcatalogue.h"
 #include "SCDAcontrol.h"
+#include "SCDAstructure.h"
 #include "SCDAtable.h"
 #include "SCdatabase.h"
 #include "SConline.h"
@@ -27,12 +28,11 @@ private:
 	int indexTab, labelCharHeight, labelCharWidth, sleepTime;
 	string configXML;
 	JFUNC jf;
-	JTXML jtx;
-	string sExecFolder;
+	string sExecFolder, sLocalStorage;
 	SWITCHBOARD sb;
 	WINFUNC wf;
 
-	enum indexTab { Catalogue, Table, Map };
+	enum indexTab { Catalogue, Table, Structure };
 
 	void busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm);
 	void err(string message);
@@ -63,6 +63,7 @@ signals:
 public slots:
 	void debug();
 	void deleteTable(string tname);
+	void dialogStructureStart();
 	void displayOnlineCata();
 	void downloadCata(string prompt);
 	void driveSelected(string drive);
