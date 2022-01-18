@@ -190,14 +190,14 @@ vector<string> JTREE::getDataUserRole(int ID)
 	vsDataUserRole[3] = get<1>(jn.colourSelected);
 	return vsDataUserRole;
 }
-int getExpandGeneration(int numRow)
+int JTREE::getExpandGeneration(int numRow)
 {
 	// Expand as many generations as possible without exceeding "numRow"
 	// nodes on display. Note that internal indices are used here, rather
 	// than unique IDs.
 	vector<vector<int>> vvGenerationIndex = { {0} };
 	vector<int> viChildren;
-	int count = 0, index = 0, numChildren, numCurrent, numPrevious;
+	int count = 0, index = 0, numChildren, numGen, numPrevious;
 	while (1) {
 		index++;
 		vvGenerationIndex.push_back(vector<int>());
@@ -210,10 +210,12 @@ int getExpandGeneration(int numRow)
 			}
 			count += numChildren;
 		}
-		if (vvGenerationIndex[index].size() < 1) { return index; }
+		if (vvGenerationIndex[index].size() < 1) { return index - 1; }
 		if (count > numRow) { break; }
 	}
-	return index;
+	if (index - 2 < 0) { numGen = 0; }
+	else { numGen = index - 2; }
+	return numGen;
 }
 vector<string> JTREE::getGenealogy(int ID, int iCol)
 {

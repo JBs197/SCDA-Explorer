@@ -97,10 +97,13 @@ void SCDA::displayOnlineCata()
 	busyWheel(sb, comm);
 	sb.endCall(myid);
 
+	QJTREEMODEL* model = cata->modelStatscan.get();
 	QGridLayout* gLayout = (QGridLayout*)cata->layout();
 	qlItem = gLayout->itemAtPosition(1, cata->index::Statscan);
 	QJTREEVIEW* treeStatscan = (QJTREEVIEW*)qlItem->widget();
-	treeStatscan->setModel(cata->modelStatscan.get());
+	treeStatscan->setModel(model);
+	int numGen = model->jt.getExpandGeneration(30);
+	treeStatscan->expandRecursively(QModelIndex(), numGen);
 }
 void SCDA::downloadCata(string prompt)
 {
@@ -164,10 +167,13 @@ void SCDA::driveSelected(string drive)
 		sb.endCall(myid);
 
 		qjtm->populate(qjtm->tree::jtree);
+		int numGen = qjtm->jt.getExpandGeneration(30);
+
 		QGridLayout* gLayout = (QGridLayout*)page->layout();
 		qlItem = gLayout->itemAtPosition(1, page->index::Local);
 		QJTREEVIEW* qjTree = (QJTREEVIEW*)qlItem->widget();
 		qjTree->setModel(qjtm);
+		qjTree->expandRecursively(QModelIndex(), numGen);
 
 		emit barMessage("Displaying local catalogues from drive " + drive);
 		break;
@@ -227,10 +233,16 @@ void SCDA::initConfig()
 		wf.copyFile(backupPath, configPath);
 	}
 	configXML = jf.load(configPath);
-	initStatscan();
 
 	vector<string> vsTag = { "path", "local_storage" };
 	sLocalStorage = jf.getXML1(configXML, vsTag);
+
+	vsTag = { "path", "css" };
+	string cssPath = jf.getXML1(configXML, vsTag);
+	string cssFile = jf.load(cssPath);
+	qApp->setStyleSheet(cssFile.c_str());
+
+	initStatscan();
 
 	commLength = 4;
 	sleepTime = 50;  // ms
@@ -470,13 +482,14 @@ void SCDA::searchDBTable(string sQuery)
 	sb.endCall(myid);
 	model->jt.setExpandGeneration(20);
 	model->populate(model->tree::jtree);
+	int numGen = model->jt.getExpandGeneration(30);
 
 	QGridLayout* gLayout = (QGridLayout*)table->layout();
 	qlItem = gLayout->itemAtPosition(1, table->index::Search);
 	QJTREEVIEW* treeSearch = (QJTREEVIEW*)qlItem->widget();
 	treeSearch->setModel(model);
-	treeSearch->expandRecursively(QModelIndex(), 1);
-	treeSearch->update();
+	//treeSearch->expandToDepth(numGen - 1);
+	treeSearch->expandRecursively(QModelIndex(), numGen);
 
 	// Report the number of tables found.
 	int numTable = (int)vsTable.size();
@@ -509,4 +522,11 @@ void SCDA::updateCataDB()
 	sb.endCall(myid);
 
 	qjtm->populate(qjtm->tree::jtree);
+	int numGen = qjtm->jt.getExpandGeneration(30);
+
+	QGridLayout* gLayout = (QGridLayout*)page->layout();
+	qlItem = gLayout->itemAtPosition(1, page->index::Database);
+	QJTREEVIEW* qjTree = (QJTREEVIEW*)qlItem->widget();
+	qjTree->setModel(qjtm);
+	qjTree->expandRecursively(QModelIndex(), numGen);
 }

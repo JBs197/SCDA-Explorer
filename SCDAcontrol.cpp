@@ -71,6 +71,7 @@ void SCDAcontrol::prepSearchDBTable()
 	QTextEdit* teIO = (QTextEdit*)qlItem->widget();
 	QString qsTemp = teIO->toPlainText();
 	string sQuery = qsTemp.toUtf8();
+	if (sQuery.size() < 1) { return; }
 
 	vector<string> dirt = { " ", "\r", "\n" }, soap = { "", "", "" };
 	jf.clean(sQuery, dirt, soap);

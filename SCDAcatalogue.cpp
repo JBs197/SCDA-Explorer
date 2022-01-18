@@ -147,7 +147,7 @@ void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex&
 	case index::Statscan:
 	{
 		for (int ii = 0; ii < numNode; ii++) {
-			sData += "@" + vsGenealogy[ii];
+			sData += "$" + vsGenealogy[ii];
 		}
 		qaDownload->setData(sData.c_str());
 		menu.addAction(qaDownload);
@@ -156,7 +156,7 @@ void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex&
 	case index::Local:
 	{
 		for (int ii = 0; ii < numNode; ii++) {
-			sData += "@" + vsGenealogy[ii];
+			sData += "$" + vsGenealogy[ii];
 		}
 		qaInsert->setData(sData.c_str());
 		menu.addAction(qaInsert);
@@ -165,7 +165,7 @@ void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex&
 	case index::Database:
 	{
 		for (int ii = 0; ii < numNode; ii++) {
-			sData += "@" + vsGenealogy[ii];
+			sData += "$" + vsGenealogy[ii];
 		}
 		qaSearch->setData(sData.c_str());
 		menu.addAction(qaSearch);

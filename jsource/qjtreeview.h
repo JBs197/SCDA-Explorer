@@ -33,6 +33,7 @@ signals:
 	void nodeSelected(const QModelIndex& qmIndex);
 
 private slots:
+	void nodeExpanded(const QModelIndex& qmiNode);
 	void relayClicked(const QModelIndex& qmIndex);
 
 public slots:

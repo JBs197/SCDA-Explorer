@@ -18,6 +18,7 @@ void QJTREEVIEW::init()
 {
 	indexTree = -1;
 	connect(this, &QJTREEVIEW::clicked, this, &QJTREEVIEW::relayClicked);
+	connect(this, &QJTREEVIEW::expanded, this, &QJTREEVIEW::nodeExpanded);
 }
 void QJTREEVIEW::mouseDoubleClickEvent(QMouseEvent* event)
 {
@@ -26,6 +27,11 @@ void QJTREEVIEW::mouseDoubleClickEvent(QMouseEvent* event)
 	if (qmi.isValid()) {
 		emit nodeDoubleClicked(qmi, indexTree);
 	}
+}
+void QJTREEVIEW::nodeExpanded(const QModelIndex& qmiNode)
+{
+	int iCol = qmiNode.column();
+	resizeColumnToContents(iCol);
 }
 void QJTREEVIEW::nodeSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected)
 {
