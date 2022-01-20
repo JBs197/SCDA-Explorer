@@ -1,5 +1,7 @@
 #include "qjtreeitem.h"
 
+using namespace std;
+
 QJTREEITEM::QJTREEITEM(const JNODE& jn, QJTREEITEM* parent) : qjtiParent(parent)
 {
 	for (int ii = 0; ii < 8; ii++) {

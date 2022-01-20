@@ -16,7 +16,6 @@
 #include "sqlfunc.h"
 #include "switchboard.h"
 
-using namespace std;
 extern mutex m_bar;
 
 class SCDA : public QMainWindow
@@ -40,9 +39,7 @@ private:
 	void initBusy(QJBUSY*& dialogBusy);
 	void initConfig();
 	void initControl(SCDAcontrol*& control);
-	void initDatabase();
 	void initGUI();
-	void initStatscan();
 
 public:
 	SCDA(string execFolder, QWidget* parent = nullptr);

@@ -1,5 +1,7 @@
 #include "jtree.h"
 
+using namespace std;
+
 void JTREE::addChild(int parentID, JNODE& jnChild)
 {
 	// Note: child node will inherit the parent node's BG/FG colours. If

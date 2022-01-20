@@ -18,8 +18,6 @@
 #include "jfunc.h"
 #include "qjdelegate.h"
 
-using namespace std;
-
 class QJTABLEVIEW : public QTableView
 {
 	Q_OBJECT

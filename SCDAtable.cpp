@@ -1,5 +1,7 @@
 #include "SCDAtable.h"
 
+using namespace std;
+
 void SCDAtable::cellRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTable)
 {
 	//

@@ -5,8 +5,6 @@
 #include "qjtableview.h"
 #include "qjtreeview.h"
 
-using namespace std;
-
 class SCDAtable : public QWidget
 {
 	Q_OBJECT

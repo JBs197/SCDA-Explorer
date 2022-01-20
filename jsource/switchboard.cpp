@@ -1,5 +1,7 @@
 #include "switchboard.h"
 
+using namespace std;
+
 // Error-related functions.
 void SWITCHBOARD::err(string message)
 {
@@ -73,7 +75,6 @@ int SWITCHBOARD::endCall(thread::id id)
 		mapPhone.clear();
 	}
 	else {
-		int commLength = (int)phoneLines[0].size();
 		phoneLines[myIndex][1] = phoneLines[myIndex][2];
 		phoneLines[myIndex][0] = 1;
 	}

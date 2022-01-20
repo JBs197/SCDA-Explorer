@@ -4,8 +4,6 @@
 #include "qjlistview.h"
 #include "qjtableview.h"
 
-using namespace std;
-
 class QJDELEGATE : public QStyledItemDelegate
 {
 	Q_OBJECT

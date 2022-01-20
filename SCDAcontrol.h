@@ -7,8 +7,6 @@
 #include <QVBoxLayout>
 #include "jfunc.h"
 
-using namespace std;
-
 class SCDAcontrol : public QFrame
 {
 	Q_OBJECT
@@ -16,7 +14,7 @@ class SCDAcontrol : public QFrame
 private:
 	JFUNC jf;
 
-	void err(string message);
+	void err(std::string message);
 	void init();
 
 public:
@@ -25,19 +23,19 @@ public:
 
 	enum index{ Drive, Fetch, DBTable, Structure, Debug, Spacing0, Clear, Text };
 
-	string sLastQuery;
+	std::string sLastQuery;
 
 signals:
-	void driveSelected(string drive);
+	void driveSelected(std::string drive);
 	void sendDebug();
 	void sendOnlineCata();
-	void sendSearchDBTable(string sQuery);
+	void sendSearchDBTable(std::string sQuery);
 	void sendStructure();
 
 public slots:
 	void clearText();
 	void driveChanged(const QString& qsDrive);
 	void prepSearchDBTable();
-	void textAppend(string sMessage);
-	void textOutput(string sMessage);
+	void textAppend(std::string sMessage);
+	void textOutput(std::string sMessage);
 };

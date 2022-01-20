@@ -5,8 +5,6 @@
 #include "qjdelegate.h"
 #include "qjtreemodel.h"
 
-using namespace std;
-
 class QJTREEVIEW : public QTreeView
 {
 	Q_OBJECT

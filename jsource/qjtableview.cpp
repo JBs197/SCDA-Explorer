@@ -1,5 +1,7 @@
 #include "qjtableview.h"
 
+using namespace std;
+
 void QJTABLEVIEW::applyFilter(string filter)
 {
     QString qsFilter = QString::fromUtf8(filter.c_str());
@@ -85,7 +87,6 @@ void QJTABLEVIEW::dragEnterEvent(QDragEnterEvent* event)
 void QJTABLEVIEW::dragLeaveEvent(QDragLeaveEvent* event)
 {
     posStart = QPoint();
-    bool success;
     if (qmiHover.isValid()) {
         int selBehaviour = (int)this->selectionBehavior();
         switch (selBehaviour) {
@@ -357,7 +358,7 @@ void QJTABLEVIEW::mouseMoveEvent(QMouseEvent* event)
 }
 void QJTABLEVIEW::mousePressEvent(QMouseEvent* event)
 {
-    int iCol, iRow, iRowOld, maxRow;
+    int iCol, iRow, maxRow;
     if (event->button() == Qt::LeftButton || event->button() == Qt::RightButton) {
         QPoint qPos = event->pos();
         QModelIndex qmIndex = indexAt(qPos);
@@ -571,7 +572,6 @@ void QJTABLEVIEW::updateHeight()
 void QJTABLEVIEW::updateModel()
 {
     QStandardItemModel* model = (QStandardItemModel*)this->model();
-    int numRow = model->rowCount();
     int numCol = model->columnCount();
     for (int ii = 0; ii < numCol; ii++) {
         this->setColumnHidden(ii, 1);

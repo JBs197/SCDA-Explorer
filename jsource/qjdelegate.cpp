@@ -1,5 +1,7 @@
 #include "qjdelegate.h"
 
+using namespace std;
+
 void QJDELEGATE::enableDisable(const QModelIndex& index) const
 {
     // Examines the given dataRole for a nonzero number - indicates a widget is present.

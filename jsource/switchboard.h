@@ -5,47 +5,40 @@
 #include <array>
 #include "jstring.h"
 
-using namespace std;
-
 class SWITCHBOARD                                   // comm protocol:
 {                                                   // comm[0] = task status
-	int iRotate = -1, managerUse;
-	mutex m_sb;                                     // comm[1] = tasks completed
-	array<recursive_mutex, 16> m_calls;             // comm[2] = maximum tasks
-	unordered_map<thread::id, int> mapPhone;        // comm[3] = max table name parameters 
-	vector<vector<int>> phoneLines;       // Form [phone index][data understood by participants].
-	vector<vector<string>> vvsPrompt;
+	int iRotate = -1, managerUse = -1;
+	std::mutex m_sb;                                     // comm[1] = tasks completed
+	std::array<std::recursive_mutex, 16> m_calls;             // comm[2] = maximum tasks
+	std::unordered_map<std::thread::id, int> mapPhone;        // comm[3] = max table name parameters 
+	std::vector<std::vector<int>> phoneLines;       // Form [phone index][data understood by participants].
+	std::vector<std::vector<std::string>> vvsPrompt;
 
-	void err(string message);
+	void err(std::string message);
 
 public:
 	SWITCHBOARD() {}                                // Task status definitions:
-	~SWITCHBOARD() {}                               // 0 = running normally
+	~SWITCHBOARD() = default;                              // 0 = running normally
 	
-	int answerCall(thread::id workerID, vector<int>& myComm);      // 2 = cancelled task
-	int answerCall(thread::id workerID, vector<int>& myComm, int myIndex);
-	int endCall(thread::id managerID);                       // 3 = paused task
-	vector<int> getMyComm(thread::id id);
-	void getPrompt(string& sPrompt);
-	void getPrompt(vector<string>& vsPrompt);
-	void getPrompt(vector<vector<string>>& vvsPrompt);
-	int pullAny(thread::id id);
-	bool push(thread::id id);
-	bool pushHard(thread::id id);
-	void setPrompt(string& sPrompt);
-	void setPrompt(vector<string>& vsPrompt);
-	void setPrompt(vector<vector<string>>& vvsPrompt);
-	int startCall(thread::id managerID, vector<int>& myComm);  // 1 = completed task
-	int terminateSelf(thread::id workerID);
-	int terminateWorker(thread::id managerID, int workerIndex);
-	vector<vector<int>> update(thread::id id, vector<int>& myComm);
+	int answerCall(std::thread::id workerID, std::vector<int>& myComm);      // 2 = cancelled task
+	int answerCall(std::thread::id workerID, std::vector<int>& myComm, int myIndex);
+	int endCall(std::thread::id managerID);                       // 3 = paused task
+	std::vector<int> getMyComm(std::thread::id id);
+	void getPrompt(std::string& sPrompt);
+	void getPrompt(std::vector<std::string>& vsPrompt);
+	void getPrompt(std::vector<std::vector<std::string>>& vvsPrompt);
+	int pullAny(std::thread::id id);
+	bool push(std::thread::id id);
+	bool pushHard(std::thread::id id);
+	void setPrompt(std::string& sPrompt);
+	void setPrompt(std::vector<std::string>& vsPrompt);
+	void setPrompt(std::vector<std::vector<std::string>>& vvsPrompt);
+	int startCall(std::thread::id managerID, std::vector<int>& myComm);  // 1 = completed task
+	int terminateSelf(std::thread::id workerID);
+	int terminateWorker(std::thread::id managerID, int workerIndex);
+	std::vector<std::vector<int>> update(std::thread::id id, std::vector<int>& myComm);
 
-	bool done(thread::id);
-
-
-
-
-
+	bool done(std::thread::id);
 
 };
 

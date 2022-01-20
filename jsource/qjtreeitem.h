@@ -2,8 +2,6 @@
 #include <QVariant>
 #include "jtxml.h"
 
-using namespace std;
-
 class QJTREEITEM
 {
 	QJTREEITEM* qjtiParent;
@@ -13,10 +11,10 @@ class QJTREEITEM
 
 public:
 	explicit QJTREEITEM(const JNODE& jn, QJTREEITEM* parent = nullptr);
-	explicit QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent = nullptr);
+	explicit QJTREEITEM(const std::vector<std::string>& vsData, QJTREEITEM* parent = nullptr);
 	~QJTREEITEM() { qDeleteAll(qlChildren); }
 
-	int treeType;
+	int treeType = -1;
 
 	void addChild(QJTREEITEM* qjti);
 	QJTREEITEM* getChild(int iRow);
@@ -27,6 +25,6 @@ public:
 	QJTREEITEM* getParent();
 	int getRow() const;
 	void removeChildren();
-	void setData(int role, string sData);
+	void setData(int role, std::string sData);
 	void setData(int role, QVariant qvData);
 };

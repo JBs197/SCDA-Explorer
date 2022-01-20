@@ -1,5 +1,7 @@
 #include "jtxml.h"
 
+using namespace std;
+
 void JTXML::addChild(int parentID, JNODE& jnChild)
 {
 	lock_guard<mutex> lg(m_tree);

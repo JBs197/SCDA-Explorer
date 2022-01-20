@@ -4,30 +4,34 @@
 #include "switchboard.h"
 #include "winfunc.h"
 
-using namespace std;
-
 class SConline
 {
 	JFUNC jf;
 	JTREE jt;
+	std::unordered_map<std::string, std::string> mapGeoLayer;
+	std::unordered_map<int, int> mapGeoLevel;
 	long long maxFileSize = -1;
-	vector<vector<string>> vvsCata;  // Form [index][year, cata0, cata1, ...]
+	std::vector<std::vector<std::string>> vvsCata;  // Form [index][year, cata0, cata1, ...]
 	WINFUNC wf;
 
-	void downloadTopic(string filePath);
-	void err(string message);
-	string urlCataDownload(string sYear, string sCata);
-	string urlCataTopic(string sYear, string sCata);
-	string urlYear(string sYear);
+	void downloadTopic(std::string filePath);
+	void err(std::string message);
+	void makeGeo(std::string cataFolder, std::string sYear, std::string sCata);
+	void makeGeoTree(std::string yearFolder, std::string sYear, SWITCHBOARD& sbgui);
+	std::string urlCataDownload(std::string sYear, std::string sCata);
+	std::string urlCataGeo(std::string sYear, std::string sCata);
+	std::string urlCataTopic(std::string sYear, std::string sCata);
+	std::string urlYear(std::string sYear);
 
 public:
 	SConline() {}
-	~SConline() {}
+	~SConline() = default;
 
-	string configXML, urlRoot;
+	std::string configXML, urlRoot;
 
 	void downloadCata(SWITCHBOARD& sbgui);
 	void getCataTree(JTREE& jt);
-	vector<string> getListCata(string sYear);
-	vector<string> getListYear();
+	void init(std::string& xml);
+	std::vector<std::string> getListCata(std::string sYear);
+	std::vector<std::string> getListYear();
 };

@@ -1,5 +1,7 @@
 #include "SCDAexplorer.h"
 
+using namespace std;
+
 SCDA::SCDA(string execFolder, QWidget* parent)
 	: QMainWindow(parent), sExecFolder(execFolder)
 {
@@ -7,7 +9,6 @@ SCDA::SCDA(string execFolder, QWidget* parent)
 	QRect rectDesktop = getDesktop();
 
 	initConfig();
-	initDatabase();
 	initGUI();
 
 	this->setWindowState(Qt::WindowMaximized);
@@ -22,29 +23,7 @@ void SCDA::busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm)
 }
 void SCDA::debug()
 {
-	vector<string> search = { "*" };
-	string tname = "GeoLayers$2016";
-	vector<vector<string>> vvsResult;
-	scdb.sf.select(search, tname, vvsResult);
-	int bbq = 1;
 
-	/*
-	vector<pair<double, double>> vPerimeter = jf.rectangleRound(400.0, 300.0, 50.0);
-	vector<pair<int, int>> vPixel = jf.pixelate(vPerimeter);
-	set<pair<int, int>> setCoord = jf.solidShape(vPixel);
-	QColor qcBG = QColor::fromRgbF(0.0, 0.0, 0.0, 1.0);
-	QImage qiBG;
-	string bgPath = sExecFolder + "\\BusyWheelBG.png";
-	bool success = qiBG.load(bgPath.c_str());
-	if (!success) { 
-		err("QImage load-debug"); 
-	}
-	for (auto it = setCoord.begin(); it != setCoord.end(); ++it) {
-		qiBG.setPixel(get<0>(*it), get<1>(*it), qcBG.rgba());
-	}
-	bgPath = sExecFolder + "\\BusyBG.png";
-	success = qiBG.save(bgPath.c_str());
-	*/
 }
 void SCDA::deleteTable(string tname)
 {
@@ -73,8 +52,6 @@ void SCDA::dialogStructureStart()
 	tab->setCurrentIndex(indexTab::Structure);
 	SCDAstructure* structure = (SCDAstructure*)tab->widget(indexTab::Structure);
 	structure->loadXML(sPath);
-
-	int bbq = 1;
 }
 void SCDA::displayOnlineCata()
 {
@@ -131,8 +108,6 @@ void SCDA::downloadCata(string prompt)
 	thr.detach();
 	busyWheel(sb, comm);
 	sb.endCall(myid);
-
-
 }
 void SCDA::driveSelected(string drive)
 {
@@ -242,7 +217,8 @@ void SCDA::initConfig()
 	string cssFile = jf.load(cssPath);
 	qApp->setStyleSheet(cssFile.c_str());
 
-	initStatscan();
+	scdb.init(configXML);
+	sco.init(configXML);
 
 	commLength = 4;
 	sleepTime = 50;  // ms
@@ -296,16 +272,8 @@ void SCDA::initControl(SCDAcontrol*& control)
 	
 	cb->setCurrentIndex(activeIndex);
 }
-void SCDA::initDatabase()
-{
-	vector<string> vsTag = { "path", "database" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
-	if (vvsTag[0][1].size() < 1) { err("Failed to extract database file path-initDatabase"); }
-	scdb.initDatabase(vvsTag[0][1]);
-}
 void SCDA::initGUI()
 {
-	// Note: qjBusy must already exist as a child of the MainWindow.
 	QWidget* central = new QWidget;
 	this->setCentralWidget(central);
 	QHBoxLayout* hLayout = new QHBoxLayout;
@@ -327,6 +295,7 @@ void SCDA::initGUI()
 	connect(cata, &SCDAcatalogue::sendDownloadCata, this, &SCDA::downloadCata);
 	connect(cata, &SCDAcatalogue::sendInsertCata, this, &SCDA::insertCata);
 	connect(cata, &SCDAcatalogue::sendSearchCata, this, &SCDA::searchDBTable);
+	connect(cata, &SCDAcatalogue::setTextIO, control, &SCDAcontrol::textOutput);
 	tab->addTab(cata, "Catalogues");
 	SCDAtable* table = new SCDAtable;
 	connect(table, &SCDAtable::fetchTable, this, &SCDA::fetchDBTable);
@@ -344,18 +313,10 @@ void SCDA::initGUI()
 	QJBUSY* dialogBusy = new QJBUSY(this);
 	initBusy(dialogBusy);
 	connect(dialogBusy, &QJBUSY::reportProgress, qjPBar, &QJPROGRESSBAR::report);
+	connect(dialogBusy, &QJBUSY::sendText, control, &SCDAcontrol::textOutput);
 
 	updateCataDB();
 	initControl(control);
-}
-void SCDA::initStatscan()
-{
-	sco.configXML = configXML;
-	vector<string> vsTag = { "url", "statscan" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
-	sco.urlRoot = vvsTag[0][1];
-
-	scdb.configXML = configXML;
 }
 void SCDA::insertCata(string prompt)
 {

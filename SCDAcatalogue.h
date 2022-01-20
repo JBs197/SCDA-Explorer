@@ -1,10 +1,12 @@
 #pragma once
+#include <QComboBox>
+#include <QDialog>
 #include <QGridLayout>
 #include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
 #include "qjtreeview.h"
 #include "SConline.h"
-
-using namespace std;
 
 class SCDAcatalogue : public QWidget
 {
@@ -12,13 +14,14 @@ class SCDAcatalogue : public QWidget
 
 private:
 	JFUNC jf;
-	QAction* qaDownload, *qaInsert, *qaSearch;
+	QAction* qaDownload, *qaInsert, *qaSearch, *qaTemplate;
 	WINFUNC wf;
 
 	void err(string message);
 	void init();
 	void initAction();
 	void insertCata();
+	void setGeoTreeTemplate();
 
 public:
 	SCDAcatalogue(string& configXML) { 
@@ -52,6 +55,7 @@ signals:
 	void sendDownloadCata(string prompt);
 	void sendInsertCata(string prompt);
 	void sendSearchCata(string prompt);
+	void setTextIO(string message);
 
 public slots:
 	void getConfigXML(string configXML);

@@ -3,37 +3,35 @@
 #include "sqlfunc.h"
 #include "switchboard.h"
 
-using namespace std;
-
 class SCdatabase
 {
 	JFUNC jf;
-	unordered_map<string, string> mapGeoLayers;
+	std::unordered_map<std::string, std::string> mapGeoLayers;
 	const char marker;
-	string sYear;
+	std::string sYear;
 
-	void err(string message);
-	vector<string> extractUnique(vector<vector<string>>& vvsTag);
-	void insertCensus(string sYear);
-	void insertCensusYear(string& metaFile, string sYear, string sCata, string sTopic);
-	void insertTopicYear(string sYear, string sTopic);
-	void loadGeo(vector<vector<string>>& vvsGeo, vector<vector<string>>& vvsGeoLayers, string dirCata, string& sCata);
-	void loadMeta(string& metaFile, string dirCata);
-	void loadTopic(string& sTopic, string dirCata);
-	void log(string message);
-	bool safeInsertRow(string tname, vector<vector<string>>& vvsRow);
+	void err(std::string message);
+	std::vector<std::string> extractUnique(std::vector<std::vector<std::string>>& vvsTag);
+	void insertCensus(std::string sYear);
+	void insertCensusYear(std::string& metaFile, std::string sYear, std::string sCata, std::string sTopic);
+	void insertTopicYear(std::string sYear, std::string sTopic);
+	void loadGeo(std::vector<std::vector<std::string>>& vvsGeo, std::vector<std::vector<std::string>>& vvsGeoLayers, std::string dirCata, std::string& sCata);
+	void loadMeta(std::string& metaFile, std::string dirCata);
+	void loadTopic(std::string& sTopic, std::string dirCata);
+	void log(std::string message);
+	bool safeInsertRow(std::string tname, std::vector<std::vector<std::string>>& vvsRow);
 
 public:
-	SCdatabase() :marker('$') {}
-	~SCdatabase() {}
+	SCdatabase() : marker('$') {}
+	~SCdatabase() = default;
 
-	string configXML;
+	std::string configXML;
 	SQLFUNC sf;
 
-	void deleteTable(string tname);
-	void initDatabase(string dbPath) { sf.init(dbPath); }
+	void deleteTable(std::string tname);
+	void init(std::string& xml);
 	void insertCata(SWITCHBOARD& sbgui);
-	void loadTable(vector<vector<string>>& vvsData, vector<vector<string>>& vvsColTitle, string tname);
+	void loadTable(std::vector<std::vector<std::string>>& vvsData, std::vector<std::vector<std::string>>& vvsColTitle, std::string tname);
 	void makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt);
-	void searchTable(SWITCHBOARD& sbgui, JTREE& jt, vector<string>& vsTable);
+	void searchTable(SWITCHBOARD& sbgui, JTREE& jt, std::vector<std::string>& vsTable);
 };

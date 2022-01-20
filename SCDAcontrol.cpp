@@ -1,5 +1,7 @@
 #include "SCDAcontrol.h"
 
+using namespace std;
+
 void SCDAcontrol::clearText()
 {
 	QVBoxLayout* vLayout = (QVBoxLayout*)this->layout();

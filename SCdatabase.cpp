@@ -1,5 +1,7 @@
 #include "SCdatabase.h"
 
+using namespace std;
+
 void SCdatabase::deleteTable(string tname)
 {
 	if (sf.tableExist(tname)) { 
@@ -28,6 +30,27 @@ vector<string> SCdatabase::extractUnique(vector<vector<string>>& vvsTag)
 	}
 	return vsUnique;
 }
+void SCdatabase::init(string& xml)
+{
+	if (xml.size() < 1) { err("Missing configXML-init"); }
+	configXML = xml;
+
+	mapGeoLayers.clear();
+	char marker;
+	size_t pos2, pos1 = 1;
+	vector<string> vsTag = { "map", "geo_layers" };
+	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		marker = vvsTag[ii][1][0];
+		pos2 = vvsTag[ii][1].find(marker, pos1);
+		if (pos2 > vvsTag[ii][1].size()) { err("Failed to locate splitter marker-initMap"); }
+		mapGeoLayers.emplace(vvsTag[ii][1].substr(pos1, pos2 - pos1), vvsTag[ii][1].substr(pos2 + 1));
+	}
+
+	vsTag = { "path", "database" };
+	string dbPath = jf.getXML1(configXML, vsTag);
+	sf.init(dbPath);
+}
 void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 {
 	thread::id myid = this_thread::get_id();
@@ -49,16 +72,9 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 	}
 
 	// Perform fast operations prior to main data insertion.
-	string metaFile, stmt, temp, sCata, sTopic;
+	string metaFile, stmt, sCata, sTopic, temp;
 	vector<string> conditions, search, vsTag;
 	vector<vector<string>> vvsRow, vvsTag;
-	if (mapGeoLayers.size() < 1) {
-		vsTag = { "map", "geo_layers" };
-		vvsTag = jf.getXML(configXML, vsTag);
-		for (int ii = 0; ii < vvsTag.size(); ii++) {
-			mapGeoLayers.emplace(vvsTag[ii][0], vvsTag[ii][1]);
-		}
-	}
 	insertCensus(sYear);
 
 	vsTag = { "table", "GeoLayers$[year]" };

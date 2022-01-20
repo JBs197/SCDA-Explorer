@@ -2,32 +2,29 @@
 #include "jfunc.h"
 #include "jtree.h"
 
-using namespace std;
-
 class JTXML : public JTREE
 {
-	string encoding;
+	std::string encoding;
 	JFUNC jf;
-	unordered_map<string, char> mapEntity;
+	std::unordered_map<std::string, char> mapEntity;
 	double version;
-	string xmlFile;
+	std::string xmlFile;
 
 	void addChild(int parentID, JNODE& jnChild);
-	void err(string message);
-	void extractDeclaration(string& xmlFile);
-	void extractNameAttribute(string element, JNODE& jxe);
+	void err(std::string message);
+	void extractDeclaration(std::string& xmlFile);
+	void extractNameAttribute(std::string element, JNODE& jxe);
 	void initEntity();
-	size_t populateTree(string& xmlFile, JNODE& jxeParent);
-	void removeComment(string& xmlText);
-	void replaceEntity(string& sData);
+	size_t populateTree(std::string& xmlFile, JNODE& jxeParent);
+	void removeComment(std::string& xmlText);
+	void replaceEntity(std::string& sData);
 
 public:
 	JTXML(const JTXML& jtxOld) : JTREE(jtxOld) { initEntity(); }
 	JTXML() { reset(); }
-	~JTXML() {}
 
 	JNODE& getNode(int ID);
 	JNODE& getRoot();
-	void loadXML(string filePath);
+	void loadXML(std::string filePath);
 	void reset() override;
 };

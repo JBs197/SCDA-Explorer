@@ -1,5 +1,7 @@
 #include "qjtreeview.h"
 
+using namespace std;
+
 void QJTREEVIEW::contextMenuEvent(QContextMenuEvent* event)
 {
 	QPoint globalPos = event->globalPos();
@@ -49,8 +51,6 @@ void QJTREEVIEW::nodeSelectionChanged(const QItemSelection& selected, const QIte
 	for (int ii = 0; ii < numNode; ii++) {
 		qjtm->setData(qmiList[ii], qvData, Qt::UserRole + 5);
 	}
-
-	int bbq = 1;
 }
 void QJTREEVIEW::relayClicked(const QModelIndex& qmIndex)
 {

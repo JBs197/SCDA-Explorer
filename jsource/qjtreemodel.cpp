@@ -1,5 +1,7 @@
 #include "qjtreemodel.h"
 
+using namespace std;
+
 QJTREEMODEL::QJTREEMODEL(vector<string> vsHeader, QObject* parent) 
 	: QAbstractItemModel(parent) {
 	qjtiRoot = new QJTREEITEM(vsHeader);
@@ -53,7 +55,7 @@ QVariant QJTREEMODEL::data(const QModelIndex& index, int role) const
 	if (!index.isValid()) { return QVariant(); }	
 	
 	QJTREEITEM* qjti = static_cast<QJTREEITEM*>(index.internalPointer());
-	if (role == Qt::DisplayRole) { return qjti->data(index.column()); }	
+	if (role < Qt::UserRole) { return qjti->data(role); }
 	else if (role >= Qt::UserRole) { return qjti->dataUserRole(role); }
 
 	return QVariant();
@@ -101,6 +103,15 @@ vector<string> QJTREEMODEL::getGenealogy(const QModelIndex& index) const
 		vsGenealogy[ii] = vsTemp[numNode - 1 - ii];
 	}
 	return vsGenealogy;
+}
+QJTREEITEM* QJTREEMODEL::getNode(const QModelIndex& qmiNode)
+{
+	if (!qmiNode.isValid()) { return nullptr; }
+	return static_cast<QJTREEITEM*>(qmiNode.internalPointer());
+}
+QJTREEITEM* QJTREEMODEL::getRoot()
+{
+	return qjtiRoot;
 }
 QModelIndex QJTREEMODEL::index(int row, int column, const QModelIndex& parent) const
 {

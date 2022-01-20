@@ -9,7 +9,7 @@
 
 JLOG* JLOG::instance = 0;
 int JNODE::nextID{ 0 };
-mutex m_bar, m_err;
+std::mutex m_bar, m_err;
 
 int main(int argc, char* argv[])
 {
@@ -19,8 +19,8 @@ int main(int argc, char* argv[])
     a.setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles, 1);
 
     QString qsExecFolder = a.applicationDirPath();
-    string sExecFolder = qsExecFolder.toUtf8();
-    string cssPath = sExecFolder + "\\css.txt";
+    std::string sExecFolder = qsExecFolder.toUtf8();
+    std::string cssPath = sExecFolder + "\\css.txt";
     a.setStyleSheet(cssPath.c_str());
 
     JLOG::getInstance()->init(sExecFolder, "SCDA-Explorer");
