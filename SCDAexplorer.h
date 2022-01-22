@@ -24,7 +24,7 @@ class SCDA : public QMainWindow
 
 private:
 	int commLength, indexControl, indexDisplay, indexPBar;
-	int indexTab, labelCharHeight, labelCharWidth, sleepTime;
+	int indexTab, labelCharHeight, labelCharWidth, numCore, sleepTime;
 	string configXML;
 	JFUNC jf;
 	string sExecFolder, sLocalStorage;
@@ -33,7 +33,7 @@ private:
 
 	enum indexTab { Catalogue, Table, Structure };
 
-	void busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm);
+	void busyWheel(SWITCHBOARD& sb);
 	void err(string message);
 	QRect getDesktop();
 	void initBusy(QJBUSY*& dialogBusy);
@@ -42,7 +42,7 @@ private:
 	void initGUI();
 
 public:
-	SCDA(string execFolder, QWidget* parent = nullptr);
+	SCDA(string sExecFolder, QWidget* parent = nullptr);
 	~SCDA() {}
 
 	SCdatabase scdb;

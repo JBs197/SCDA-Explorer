@@ -96,7 +96,7 @@ void QJDELEGATE::paintBGGradient(QPainter*& painter, QRect cell, QString qsBG, Q
     // Radial: doubleAB are coords for center, doubleC is radius [0.0, anything]. 
     // Conical: doubleAB are coords for center, doubleC is angle for the start/stop fold [0.0, 360.0].
     // doublePQ... are relative positions within the start/stop path [0.0, 1.0].
-    QString qsTemp = qsCoord[0];
+    QString qsTemp(1, qsCoord[0]);
     bool success;
     int gradientType = qsTemp.toInt(&success);  // 0 = Linear, 1 = radial, 2 = conical
     if (!success) { return; }

@@ -23,6 +23,19 @@ int SWITCHBOARD::startCall(thread::id id, vector<int>& comm)
 	mapPhone.emplace(id, 0);
 	return 0;
 }
+int SWITCHBOARD::startCall(thread::id id, int commLength)
+{
+	// Ensure that the switchboard is available.
+	lock_guard<mutex> addrem(m_sb);
+	if (mapPhone.size() > 0) { return 1; }
+
+	// Start a new task in the switchboard, and map this thread as its manager.
+	if (commLength < 1) { return 2; }
+	phoneLines.resize(1);
+	phoneLines[0].assign(commLength, 0);
+	mapPhone.emplace(id, 0);
+	return 0;
+}
 
 // Worker thread assigns itself to an existing job.
 int SWITCHBOARD::answerCall(thread::id id, vector<int>& comm)
@@ -235,4 +248,41 @@ bool SWITCHBOARD::pushHard(thread::id id)
 	else { myIndex = it->second; }
 	m_calls[myIndex - 1].lock();
 	return 1;
+}
+
+// Functions related to the work queue.
+void SWITCHBOARD::pullWork(string& work)
+{
+	lock_guard<mutex> lg(m_queue);
+	if (!qWork.empty()) {
+		work = qWork.front();
+		qWork.pop();
+	}
+	else { work.clear(); }
+}
+void SWITCHBOARD::pullWork(vector<string>& vsWork, int numRequest)
+{
+	lock_guard<mutex> lg(m_queue);
+	int numWork = min(numRequest, (int)qWork.size());
+	if (numWork == 0) {
+		vsWork.clear();
+		return;
+	}
+	vsWork.resize(numWork);
+	for (int ii = 0; ii < numWork; ii++) {
+		vsWork[ii] = qWork.front();
+		qWork.pop();
+	}
+}
+void SWITCHBOARD::pushWork(string& work)
+{
+	lock_guard<mutex> lg(m_queue);
+	qWork.emplace(work);
+}
+void SWITCHBOARD::pushWork(vector<string>& vsWork)
+{
+	lock_guard<mutex> lg(m_queue);
+	for (string work : vsWork) {
+		qWork.emplace(work);
+	}
 }

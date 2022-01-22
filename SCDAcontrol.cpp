@@ -12,7 +12,9 @@ void SCDAcontrol::clearText()
 }
 void SCDAcontrol::driveChanged(const QString& qsDrive)
 {
-	string drive = qsDrive.toUtf8();
+	wstring wsTemp = qsDrive.toStdWString();
+	string drive;
+	jf.utf16To8(drive, wsTemp);
 	emit driveSelected(drive);
 }
 void SCDAcontrol::err(string message)
@@ -72,7 +74,9 @@ void SCDAcontrol::prepSearchDBTable()
 	QLayoutItem* qlItem = vLayout->itemAt(index::Text);
 	QTextEdit* teIO = (QTextEdit*)qlItem->widget();
 	QString qsTemp = teIO->toPlainText();
-	string sQuery = qsTemp.toUtf8();
+	wstring wsTemp = qsTemp.toStdWString();
+	string sQuery;
+	jf.utf16To8(sQuery, wsTemp);
 	if (sQuery.size() < 1) { return; }
 
 	vector<string> dirt = { " ", "\r", "\n" }, soap = { "", "", "" };

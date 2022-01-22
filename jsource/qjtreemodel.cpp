@@ -78,22 +78,23 @@ QVariant QJTREEMODEL::headerData(int section, Qt::Orientation orientation, int r
 	}	
 	return QVariant();
 }
-vector<string> QJTREEMODEL::getGenealogy(const QModelIndex& index) const
+vector<string> QJTREEMODEL::getGenealogy(const QModelIndex& index)
 {
 	// Return form [node col0, parent col0, grandparent col0, ...]
 	vector<string> vsGenealogy, vsTemp(1);
 	QJTREEITEM* node = static_cast<QJTREEITEM*>(index.internalPointer());
 	QVariant qVar = node->data(0);
 	QString qsTemp = qVar.toString();
-	string temp = qsTemp.toUtf8();
-	vsTemp[0] = temp;
+	wstring wsTemp = qsTemp.toStdWString();
+	jstr.utf16To8(vsTemp[0], wsTemp);
 	QJTREEITEM* parent = node->getParent();
 	while (parent != nullptr) {
 		node = parent;
 		qVar = node->data(0);
 		qsTemp = qVar.toString();
-		temp = qsTemp.toUtf8();
-		vsTemp.push_back(temp);
+		wsTemp = qsTemp.toStdWString();
+		vsTemp.push_back("");
+		jstr.utf16To8(vsTemp.back(), wsTemp);
 		parent = node->getParent();
 	}
 	vsTemp.pop_back();

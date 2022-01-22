@@ -10,7 +10,9 @@ void SCDAtable::deleteTable()
 {
 	QVariant qVar = qaDelete->data();
 	QString qsTemp = qVar.toString();
-	string tname = qsTemp.toUtf8();
+	wstring wsTemp = qsTemp.toStdWString();
+	string tname;
+	jf.utf16To8(tname, wsTemp);
 	emit sendDeleteTable(tname);
 }
 void SCDAtable::displayTable(vector<vector<string>>& vvsData, vector<vector<string>>& vvsColTitle, string title)

@@ -22,7 +22,9 @@ void SCDAcatalogue::downloadCata()
 {
 	QVariant qVar = qaDownload->data();
 	QString qsTemp = qVar.toString();
-	string prompt = qsTemp.toUtf8();
+	wstring wsTemp = qsTemp.toStdWString();
+	string prompt;
+	jf.utf16To8(prompt, wsTemp);
 	emit sendDownloadCata(prompt);
 }
 void SCDAcatalogue::err(string message)
@@ -133,7 +135,9 @@ void SCDAcatalogue::insertCata()
 {
 	QVariant qVar = qaInsert->data();
 	QString qsTemp = qVar.toString();
-	string prompt = qsTemp.toUtf8();
+	wstring wsTemp = qsTemp.toStdWString();
+	string prompt;
+	jf.utf16To8(prompt, wsTemp);
 	emit sendInsertCata(prompt);
 }
 void SCDAcatalogue::nodeClicked(const QModelIndex& qmIndex, int indexTree)
@@ -235,7 +239,7 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 	size_t pos1;
 	QJTREEMODEL* qjtm = cata->getModel(cata->index::Local);
 	JNODE jnRoot = qjtm->jt.getRoot();
-	int iYear, numCata, numMissing, rootID = jnRoot.ID;
+	int iYear, numCata, rootID = jnRoot.ID;
 
 	// Create the first generation of tree nodes with census year folders.
 	for (int ii = 0; ii < folderList.size(); ii++) {
@@ -270,33 +274,17 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 		viYearID[ii] = vJNYear[ii].get().ID;
 	}
 
-	// Load the list of files necessary to represent a catalogue within a 
-	// census year, then determine if those files are present. 
+	// Make a tree node for each folder containing a catalogue ZIP archive.
 	string replace = "[cata]";
 	vector<string> vsTag;
 	vector<vector<string>> vvsTag;
 	for (int ii = 0; ii < numYear; ii++) {
-		vsTag = { "file_name", sYearList[ii] };
-		vvsTag = jf.getXML(configXML, vsTag);
-
 		yearPath = prompt[0] + "/" + sYearList[ii];
 		folderList = wf.getFolderList(yearPath, search);
 		numCata = (int)folderList.size();
 		for (int jj = 0; jj < numCata; jj++) {
-			numMissing = 0;
-			cataPath = yearPath + "/" + folderList[jj];
-			for (int kk = 0; kk < vvsTag.size(); kk++) {
-				filePath = cataPath + "/" + vvsTag[kk][1];
-				pos1 = filePath.rfind(replace);
-				if (pos1 < filePath.size()) {
-					filePath.replace(pos1, replace.size(), folderList[jj]);
-				}
-				if (!wf.file_exist(filePath)) {
-					numMissing++;
-					break;
-				}
-			}
-			if (numMissing == 0) {
+			filePath = yearPath + "/" + folderList[jj] + "/" + folderList[jj] + ".zip";
+			if (jf.fileExist(filePath)) {
 				JNODE jn;
 				jn.vsData[0] = folderList[jj];
 				qjtm->jt.addChild(viYearID[ii], jn);
@@ -316,7 +304,9 @@ void SCDAcatalogue::searchCata()
 {
 	QVariant qVar = qaSearch->data();
 	QString qsTemp = qVar.toString();
-	string prompt = qsTemp.toUtf8();
+	wstring wsTemp = qsTemp.toStdWString();
+	string prompt;
+	jf.utf16To8(prompt, wsTemp);
 	prompt.insert(0, "*");
 	prompt.push_back('*');
 	vector<string> dirt = { "@" }, soap = { "$" };
@@ -330,12 +320,15 @@ void SCDAcatalogue::setGeoTreeTemplate()
 
 	QVariant qVar = qaTemplate->data();
 	QString qsTemp = qVar.toString();
-	string filePath = qsTemp.toUtf8();
+	wstring wsTemp = qsTemp.toStdWString();
+	string filePath;
+	jf.utf16To8(filePath, wsTemp);
 	if (!jf.fileExist(filePath)) { 
 		emit setTextIO(filePath + " not found!\n");
 		return;
 	}
-	string geoTreeFile = jf.load(filePath);
+	string geoTreeFile;
+	jf.load(geoTreeFile, filePath);
 
 	vector<string> vsChosen, vsGeoTree;
 	vector<vector<string>> vvsCata;
@@ -422,6 +415,7 @@ void SCDAcatalogue::setGeoTreeTemplate()
 	int result = dialogGeoTree->exec();
 	if (result > 0) { 
 		string sCata, temp;
+		wstring wsTemp;
 		QString qsTemp;
 		pos2 = 0;
 		for (int ii = 0; ii <= index; ii++) {
@@ -430,14 +424,16 @@ void SCDAcatalogue::setGeoTreeTemplate()
 			qle = (QLineEdit*)qlItem->widget();
 			qsTemp = qle->text();
 			if (qsTemp.size() > 0) {
-				temp = qsTemp.toUtf8();
+				wsTemp = qsTemp.toStdWString();
+				jf.utf16To8(temp, wsTemp);
 				if (setCata.count(temp)) { sCata = temp; }
 			}
 			if (sCata.size() < 1) {
 				qlItem = gLayout->itemAtPosition(ii, 1);
 				qcb = (QComboBox*)qlItem->widget();
 				qsTemp = qcb->currentText();
-				sCata = qsTemp.toUtf8();
+				wsTemp = qsTemp.toStdWString();
+				jf.utf16To8(sCata, wsTemp);
 			}
 
 			pos2 = geoTreeFile.find("\n\n", pos2 + 2);

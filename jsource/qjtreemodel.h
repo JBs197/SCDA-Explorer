@@ -7,6 +7,7 @@ class QJTREEMODEL : public QAbstractItemModel
 	Q_OBJECT
 
 private:
+	JSTRING jstr;
 	QJTREEITEM* qjtiRoot;
 	int treeType;
 
@@ -26,7 +27,7 @@ public:
 	int columnCount(const QModelIndex& parent = QModelIndex()) const override;
 	QVariant data(const QModelIndex& index, int role) const override;
 	Qt::ItemFlags flags(const QModelIndex& index) const override;
-	std::vector<std::string> getGenealogy(const QModelIndex& index) const;
+	std::vector<std::string> getGenealogy(const QModelIndex& index);
 	QJTREEITEM* getNode(const QModelIndex& qmiNode);
 	QJTREEITEM* getRoot();
 	QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;

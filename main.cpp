@@ -19,9 +19,12 @@ int main(int argc, char* argv[])
     a.setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles, 1);
 
     QString qsExecFolder = a.applicationDirPath();
-    std::string sExecFolder = qsExecFolder.toUtf8();
-    std::string cssPath = sExecFolder + "\\css.txt";
-    a.setStyleSheet(cssPath.c_str());
+    std::wstring wsExecFolder = qsExecFolder.toStdWString();
+    QByteArray qbaTemp = qsExecFolder.toUtf8();
+    string sExecFolder = qbaTemp.toStdString();
+
+    QString qsCSS = qsExecFolder + "/css.txt";
+    a.setStyleSheet(qsCSS);
 
     JLOG::getInstance()->init(sExecFolder, "SCDA-Explorer");
 

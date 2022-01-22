@@ -2,11 +2,11 @@
 
 using namespace std;
 
-SCDA::SCDA(string execFolder, QWidget* parent)
+SCDA::SCDA(string execFolder, QWidget* parent) 
 	: QMainWindow(parent), sExecFolder(execFolder)
 {
 	setWindowTitle("SCDA Explorer");
-	QRect rectDesktop = getDesktop();
+	//QRect rectDesktop = getDesktop();
 
 	initConfig();
 	initGUI();
@@ -14,11 +14,11 @@ SCDA::SCDA(string execFolder, QWidget* parent)
 	this->setWindowState(Qt::WindowMaximized);
 }
 
-void SCDA::busyWheel(SWITCHBOARD& sb, vector<vector<int>> comm)
+void SCDA::busyWheel(SWITCHBOARD& sb)
 {
 	QJBUSY* dialogBusy = this->findChild<QJBUSY*>("Busy", Qt::FindDirectChildrenOnly);
 	dialogBusy->show();
-	dialogBusy->busy(sb, comm);
+	dialogBusy->busy(sb);
 	dialogBusy->hide();
 }
 void SCDA::debug()
@@ -41,7 +41,9 @@ void SCDA::dialogStructureStart()
 {
 	QString qsPath = QFileDialog::getOpenFileName(this, "Open File", sLocalStorage.c_str(), "XML files (*.xml)");
 	if (qsPath.size() < 1) { return; }
-	string sPath = qsPath.toUtf8();
+	wstring wsPath = qsPath.toStdWString();
+	string sPath;
+	jf.utf16To8(sPath, wsPath);
 
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
@@ -66,12 +68,10 @@ void SCDA::displayOnlineCata()
 	cata->resetModel(cata->index::Statscan);
 
 	thread::id myid = this_thread::get_id();
-	vector<vector<int>> comm(1, vector<int>());
-	comm[0].assign(commLength, 0);
-	sb.startCall(myid, comm[0]);
+	sb.startCall(myid, commLength);
 	std::thread thr(&SCDAcatalogue::displayOnlineCata, cata, ref(sb), ref(cata), ref(sco));
 	thr.detach();
-	busyWheel(sb, comm);
+	busyWheel(sb);
 	sb.endCall(myid);
 
 	QJTREEMODEL* model = cata->modelStatscan.get();
@@ -88,25 +88,47 @@ void SCDA::downloadCata(string prompt)
 	// contains only the year, then all catalogues for that year are 
 	// downloaded. 
 	vector<string> vsPrompt = jf.splitByMarker(prompt, prompt[0]);
-	if (vsPrompt.size() < 1) { err("Invalid prompt-downloadCata"); }
+	int numCata = (int)vsPrompt.size() - 1;
+	if (numCata < 0) { err("Invalid prompt-downloadCata"); }
+	else if (numCata == 0) {
+		QWidget* central = this->centralWidget();
+		QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
+		QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+		QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
+		qlItem = vLayout->itemAt(0);
+		QTabWidget* tab = (QTabWidget*)qlItem->widget();
+		SCDAcatalogue* cata = (SCDAcatalogue*)tab->widget(indexTab::Catalogue);
+		QJTREEMODEL* model = cata->getModel(cata->index::Statscan);
+		vector<int> vID = model->jt.searchData(vsPrompt[0], 0);
+		if (vID.size() != 1) { err("Failed to obtain year node-downloadCata"); }
+		vector<reference_wrapper<JNODE>> vChildren = model->jt.getChildren(vID[0]);
+		numCata = (int)vChildren.size();
+		vsPrompt.resize(1 + numCata);
+		int index = 0;
+		for (JNODE& child : vChildren) {
+			index++;
+			vsPrompt[index] = child.vsData[0];
+		}
+	}
 
-	vector<string> vsProgress = {
-		"Downloading files ...",
-		"Unzipping files ...",
-		"Splitting large files ...",
-		"Finished downloading catalogues."
-	};
-	vector<double> vdProgress = { 0.0, 1.0/3.0, 2.0/3.0, 1.0 };
+	string sEnd = " of " + to_string(numCata) + ") ...";
+	double dNumCata = (double)numCata;
+	vector<string> vsProgress(numCata + 1);
+	vector<double> vdProgress(numCata + 1);
+	for (int ii = 0; ii < numCata; ii++) {
+		vsProgress[ii] = "Downloading catalogues (" + to_string(ii + 1) + sEnd;
+		vdProgress[ii] = (double)ii / dNumCata;
+	}
+	vsProgress.back() = "Finished downloading catalogues.";
+	vdProgress.back() = 1.0;
 	emit initProgress(vdProgress, vsProgress);
 
 	thread::id myid = this_thread::get_id();
-	vector<vector<int>> comm(1, vector<int>());
-	comm[0].assign(commLength, 0);
+	sb.startCall(myid, commLength);
 	sb.setPrompt(vsPrompt);
-	sb.startCall(myid, comm[0]);
 	std::thread thr(&SConline::downloadCata, sco, ref(sb));
 	thr.detach();
-	busyWheel(sb, comm);
+	busyWheel(sb);
 	sb.endCall(myid);
 }
 void SCDA::driveSelected(string drive)
@@ -207,14 +229,19 @@ void SCDA::initConfig()
 		if (!wf.file_exist(backupPath)) { err("XML config file not found-initConfig"); }
 		wf.copyFile(backupPath, configPath);
 	}
-	configXML = jf.load(configPath);
+	jf.load(configXML, configPath);
 
 	vector<string> vsTag = { "path", "local_storage" };
 	sLocalStorage = jf.getXML1(configXML, vsTag);
+	vsTag = { "settings", "cpu_cores" };
+	string sCore = jf.getXML1(configXML, vsTag);
+	try { numCore = stoi(sCore); }
+	catch (invalid_argument) { err("cpu_cores stoi-initConfig"); }
 
 	vsTag = { "path", "css" };
 	string cssPath = jf.getXML1(configXML, vsTag);
-	string cssFile = jf.load(cssPath);
+	string cssFile;
+	jf.load(cssFile, cssPath);
 	qApp->setStyleSheet(cssFile.c_str());
 
 	scdb.init(configXML);
@@ -328,11 +355,10 @@ void SCDA::insertCata(string prompt)
 	// Determine the local root directory for this census year. 
 	int iYear;
 	try { iYear = stoi(vsPrompt[0]); }
-	catch (invalid_argument) { err("stoi-insertCata"); }
+	catch (invalid_argument) { err("iYear stoi-insertCata"); }
 	if (iYear < 1981 || iYear > 2017) { err("Invalid year-insertCata"); }
 	vector<string> vsTag = { "path", "local_storage" };
-	string yearFolder = jf.getXML1(configXML, vsTag);
-	yearFolder += "/" + vsPrompt[0];
+	string yearFolder = jf.getXML1(configXML, vsTag) + "/" + vsPrompt[0];
 
 	// If the prompt contains only the year, then all available catalogues 
 	// for that year are inserted (unless already present).
@@ -348,47 +374,43 @@ void SCDA::insertCata(string prompt)
 		}
 	}
 
-	// Inform the GUI thread of task progression.
-	size_t pos1, pos2;
-	string temp;
-	vector<string> vsProgress = {
-		"Inserting local files for catalogue ",
-		"Finished inserting catalogues into the database."
-	};
-	vector<double> vdProgress = { 0.0, 1.0 };
-	if (numCata == 1) { vsProgress[0] += vsPrompt[1] + " ..."; }
-	else {
-		vsProgress[0] += "(1 of " + to_string(numCata) + ") ...";
-		vsProgress.resize(numCata + 1);
-		vsProgress.back().swap(vsProgress[1]);
-		for (int ii = 2; ii <= numCata; ii++) {
-			vsProgress[ii - 1] = vsProgress[ii - 2];
-			pos1 = vsProgress[ii - 1].rfind('(') + 1;
-			pos2 = vsProgress[ii - 1].find(' ', pos1);
-			temp = to_string(ii);
-			vsProgress[ii - 1].replace(pos1, pos2 - pos1, temp);
-		}
-		vdProgress.resize(numCata + 1);
-		vdProgress[numCata] = vdProgress[1];
-		double bandwidth = 1.0 / (double)numCata;
-		for (int ii = 1; ii < numCata; ii++) {
-			vdProgress[ii] = vdProgress[ii - 1] + bandwidth;
-		}
+	// Initialize the progress bar.
+	string sEnd;
+	double dNumCata = (double)numCata;
+	vector<string> vsProgress(numCata + 1);
+	vector<double> vdProgress;
+	if (numCata == 1) {
+		vsProgress[0] = "Inserting catalogue " + vsPrompt[1] + " ...";
+		vdProgress = { 0.0, 1.0 };
 	}
+	else {
+		sEnd = " of " + to_string(numCata) + ") ...";
+		vdProgress.resize(numCata + 1);
+		for (int ii = 0; ii < numCata; ii++) {
+			vsProgress[ii] = "Inserting catalogue (" + to_string(1 + ii) + sEnd;
+			vdProgress[ii] = (double)ii / dNumCata;
+		}
+		vdProgress.back() = 1.0;
+	}
+	vsProgress.back() = "Finished inserting catalogue " + vsPrompt[1];
 	emit initProgress(vdProgress, vsProgress);
 
+	// Take care of necessary data insertion which is not bound to any specific catalogue.
+	scdb.insertCensus(vsPrompt[0]);
+	//
+
+	// Launch worker threads. Each one will pull the top catalogue from the work queue 
+	// until all catalogues have been inserted.
 	thread::id myid = this_thread::get_id();
-	vector<vector<int>> comm(1, vector<int>());
-	comm[0].assign(commLength, 0);
-	comm[0][2] = numCata;
-	sb.setPrompt(vsCataFolder);
-	sb.startCall(myid, comm[0]);
-	std::thread thr(&SCdatabase::insertCata, scdb, ref(sb));
-	thr.detach();
-	busyWheel(sb, comm);
+	sb.startCall(myid, commLength);
+	sb.pushWork(vsCataFolder);
+	int numThread = min(numCata, numCore);
+	for (int ii = 0; ii < numThread; ii++) {
+		std::thread thr(&SCdatabase::insertCata, scdb, ref(sb));
+		thr.detach();
+	}
+	busyWheel(sb);
 	sb.endCall(myid);
-
-
 }
 void SCDA::postRender()
 {
@@ -434,12 +456,10 @@ void SCDA::searchDBTable(string sQuery)
 	vector<string> vsTable;
 	sb.setPrompt(sQuery);
 	thread::id myid = this_thread::get_id();
-	vector<vector<int>> comm(1, vector<int>());
-	comm[0].assign(commLength, 0);
-	sb.startCall(myid, comm[0]);
+	sb.startCall(myid, commLength);
 	std::thread thr(&SCdatabase::searchTable, scdb, ref(sb), ref(model->jt), ref(vsTable));
 	thr.detach();
-	busyWheel(sb, comm);
+	busyWheel(sb);
 	sb.endCall(myid);
 	model->jt.setExpandGeneration(20);
 	model->populate(model->tree::jtree);
@@ -474,12 +494,10 @@ void SCDA::updateCataDB()
 	QJTREEMODEL* qjtm = page->getModel(page->index::Database);
 	
 	thread::id myid = this_thread::get_id();
-	vector<vector<int>> comm(1, vector<int>());
-	comm[0].assign(commLength, 0);
-	sb.startCall(myid, comm[0]);
+	sb.startCall(myid, commLength);
 	std::thread thr(&SCdatabase::makeTreeCata, scdb, ref(sb), ref(qjtm->jt));
 	thr.detach();
-	busyWheel(sb, comm);
+	busyWheel(sb);
 	sb.endCall(myid);
 
 	qjtm->populate(qjtm->tree::jtree);
