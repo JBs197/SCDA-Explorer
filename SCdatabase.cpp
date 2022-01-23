@@ -262,7 +262,7 @@ void SCdatabase::searchTable(SWITCHBOARD& sbgui, JTREE& jt, vector<string>& vsTa
 	vector<int> childrenID;
 	JNODE jnRoot = jt.getRoot();
 	for (int ii = 0; ii < numTable; ii++) {
-		vsParam = jf.splitByMarker(vsTable[ii], marker);
+		jf.splitByMarker(vsParam, vsTable[ii], marker);
 		numParam = (int)vsParam.size();
 		if (numParam < 1) { err("splitByMarker-searchTable"); }
 
@@ -328,8 +328,18 @@ void SCdatabase::xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitl
 {
 	// Convert extracted XML tags into the SQL-friendly form [col title, col type][value].
 	// If the table has unique columns, those are placed into vsUnique.
+	vvsColTitle.resize(2, vector<string>());
+	vsUnique.clear();
 	int numTag = (int)vvsTag.size();
 	for (int ii = 0; ii < numTag; ii++) {
-
+		if (vvsTag[ii][0].starts_with("title")) {
+			vvsColTitle[0].emplace_back(vvsTag[ii][1]);
+		}
+		else if (vvsTag[ii][0].starts_with("type")) {
+			vvsColTitle[1].emplace_back(vvsTag[ii][1]);
+		}
+		else if (vvsTag[ii][0].starts_with("unique")) {
+			vsUnique.emplace_back(vvsTag[ii][1]);
+		}
 	}
 }

@@ -260,10 +260,11 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 		return; 
 	}
 	for (int ii = 0; ii < numYear; ii++) {
-		filePath = prompt[0] + sYearList[ii] + "/GeoTree_" + sYearList[ii] + ".txt";
-
 		JNODE jnYear;
 		jnYear.vsData[0] = sYearList[ii];
+		filePath = prompt[0] + sYearList[ii] + "/GeoTree_" + sYearList[ii] + ".txt";
+		if (jf.fileExist(filePath)) { jnYear.vsData.push_back(filePath); }
+		filePath = prompt[0] + sYearList[ii] + "/GeoTreeTemplate_" + sYearList[ii] + ".txt";
 		if (jf.fileExist(filePath)) { jnYear.vsData.push_back(filePath); }
 		qjtm->jt.addChild(rootID, jnYear);
 	}
@@ -317,66 +318,62 @@ void SCDAcatalogue::setGeoTreeTemplate()
 {
 	// Parse a census year's GeoTree file for GeoTrees lacking a catalogue template.
 	// Create a dialog for the user to specify template choices.
-
 	QVariant qVar = qaTemplate->data();
 	QString qsTemp = qVar.toString();
 	wstring wsTemp = qsTemp.toStdWString();
-	string filePath;
-	jf.utf16To8(filePath, wsTemp);
-	if (!jf.fileExist(filePath)) { 
-		emit setTextIO(filePath + " not found!\n");
+	string geoTreePath;
+	jf.utf16To8(geoTreePath, wsTemp);
+	if (!jf.fileExist(geoTreePath)) { 
+		emit setTextIO(geoTreePath + " not found!\n");
 		return;
 	}
-	string geoTreeFile;
-	jf.load(geoTreeFile, filePath);
+	string geoTreeFile, geoTreeTemplateFile;
+	jf.load(geoTreeFile, geoTreePath);
 
-	vector<string> vsChosen, vsGeoTree;
+	// If some or all templates have already been saved, load them as initial values.
+	size_t pos2, pos3;
+	unordered_map<string, string> mapTemplate;
+	string geoTreeTemplatePath = geoTreePath;
+	size_t pos1 = geoTreeTemplatePath.rfind('_');
+	geoTreeTemplatePath.insert(pos1, "Template");
+	if (jf.fileExist(geoTreeTemplatePath)) {
+		jf.load(geoTreeTemplateFile, geoTreeTemplatePath);
+		pos1 = 0;
+		pos3 = geoTreeTemplateFile.find("\n\n");
+		while (pos3 < geoTreeTemplateFile.size()) {
+			pos2 = geoTreeTemplateFile.rfind('\n', pos3 - 1);
+			mapTemplate.emplace(geoTreeTemplateFile.substr(pos1, pos2 - pos1), geoTreeTemplateFile.substr(pos2 + 1, pos3 - pos2 - 1));
+			pos1 = geoTreeTemplateFile.find_first_not_of('\n', pos3);
+			pos3 = geoTreeTemplateFile.find("\n\n", pos3 + 2);
+		}
+	}
+
+	// Assign each catalogue to a GeoTree.
+	string cataList, sChosen;
+	vector<string> vsGeoTree;
 	vector<vector<string>> vvsCata;
 	set<string> setCata;
-	char marker;
-	int index = -1, nlCount;
-	size_t pos1 = 0, pos3;
-	size_t pos2 = geoTreeFile.find("\n\n");
-	if (pos2 > geoTreeFile.size()) { err("Invalid GeoTree file-setGeoTreeTemplate"); }
-	while (pos2 < geoTreeFile.size()) {
-		nlCount = count(geoTreeFile.begin() + pos1, geoTreeFile.begin() + pos2, '\n');
-		index = (int)vsChosen.size();
-		vsChosen.push_back("");
-		if (nlCount == 0) { err("Invalid GeoTree file-setGeoTreeTemplate"); }
-		else if (nlCount > 1) {
-			pos3 = geoTreeFile.rfind('\n', pos2 - 1) + 1;
-			vsChosen[index] = geoTreeFile.substr(pos3, pos2 - pos3);		
+	pos3 = geoTreeFile.find("\n\n");
+	if (pos3 > geoTreeFile.size()) { err("Invalid GeoTree file-setGeoTreeTemplate"); }
+	pos1 = 0;
+	while (pos3 < geoTreeFile.size()) {
+		pos2 = geoTreeFile.find('\n', pos1);
+		vsGeoTree.emplace_back(geoTreeFile.substr(pos1, pos2 - pos1));
+		cataList = geoTreeFile.substr(pos2 + 1, pos3 - pos2 - 1);
+		vvsCata.push_back({});
+		jf.splitByMarker(vvsCata.back(), cataList, '\0');
+		for (int ii = 0; ii < vvsCata.back().size(); ii++) {
+			setCata.emplace(vvsCata.back()[ii]);
 		}
 
-		pos3 = geoTreeFile.find('\n', pos1);
-		vsGeoTree.push_back(geoTreeFile.substr(pos1, pos3 - pos1));
-		vvsCata.push_back({ "[None]" });
-
-		pos1 = pos3 + 1;
-		marker = geoTreeFile[pos1];
-		pos1++;
-		pos3 = geoTreeFile.find(marker, pos1);
-		while (pos3 < pos2) {
-			setCata.emplace(geoTreeFile.substr(pos1, pos3 - pos1));
-			vvsCata[index].push_back(geoTreeFile.substr(pos1, pos3 - pos1));
-			pos1 = pos3 + 1;
-			pos3 = geoTreeFile.find(marker, pos1);
-		}
-		if (pos1 < pos2) {
-			pos3 = geoTreeFile.find('\n', pos1);
-			vvsCata[index].push_back(geoTreeFile.substr(pos1, pos3 - pos1));
-			setCata.emplace(geoTreeFile.substr(pos1, pos3 - pos1));
-		}
-
-		pos1 = geoTreeFile.find_first_not_of('\n', pos2);
-		if (pos1 > geoTreeFile.size()) { break; }
-		pos2 = geoTreeFile.find("\n\n", pos1);
+		pos1 = geoTreeFile.find_first_not_of('\n', pos3);
+		pos3 = geoTreeFile.find("\n\n", pos3 + 2);
 	}
 
 	QDialog* dialogGeoTree = new QDialog(this);
-	pos2 = filePath.rfind('.');
-	pos1 = filePath.rfind('_', pos2) + 1;
-	string sTitle = "GeoTree: " + filePath.substr(pos1, pos2 - pos1);
+	pos2 = geoTreePath.rfind('.');
+	pos1 = geoTreePath.rfind('_', pos2) + 1;
+	string sTitle = "GeoTree: " + geoTreePath.substr(pos1, pos2 - pos1);
 	dialogGeoTree->setWindowTitle(sTitle.c_str());
 	dialogGeoTree->setWindowFlag(Qt::CustomizeWindowHint, 1);
 	dialogGeoTree->setWindowFlag(Qt::WindowCloseButtonHint, 0);
@@ -387,23 +384,34 @@ void SCDAcatalogue::setGeoTreeTemplate()
 	QComboBox* qcb = nullptr;
 	QLineEdit* qle = nullptr;
 	QLayoutItem* qlItem = nullptr;
-	for (int ii = 0; ii <= index; ii++) {
+	unordered_map<string, string>::iterator it;
+	int numGeoTree = (int)vsGeoTree.size();
+	for (int ii = 0; ii < numGeoTree; ii++) {
+		it = mapTemplate.find(vsGeoTree[ii]);
+		if (it != mapTemplate.end()) { sChosen = it->second; }
+		else { sChosen.clear(); }
+
 		label = new QLabel(vsGeoTree[ii].c_str());
 		gLayout->addWidget(label, ii, 0, Qt::AlignRight);
 		qcb = new QComboBox;
+		qcb->addItem("[None]");
 		for (int jj = 0; jj < vvsCata[ii].size(); jj++) {
 			qcb->addItem(vvsCata[ii][jj].c_str());
-			if (vvsCata[ii][jj] == vsChosen[ii]) {
+			if (vvsCata[ii][jj] == sChosen) {
 				qcb->setCurrentIndex(jj);
 			}
 		}
 		gLayout->addWidget(qcb, ii, 1, Qt::AlignLeft);
 		qle = new QLineEdit;
 		qle->setPlaceholderText("Override catalogue ...");
+		if (qcb->currentIndex() == 0 && sChosen.size() > 0) {
+			// Chosen catalogue template was manually entered (override).
+			qle->setText(sChosen.c_str());
+		}
 		gLayout->addWidget(qle, ii, 2);
 	}
 	QHBoxLayout* hLayout = new QHBoxLayout;
-	gLayout->addLayout(hLayout, index + 1, 2, Qt::AlignRight);
+	gLayout->addLayout(hLayout, numGeoTree, 2, Qt::AlignRight);
 	hLayout->addStretch(1);
 	QPushButton* pbSave = new QPushButton("Save");
 	hLayout->addWidget(pbSave, 0);
@@ -415,37 +423,39 @@ void SCDAcatalogue::setGeoTreeTemplate()
 	int result = dialogGeoTree->exec();
 	if (result > 0) { 
 		string sCata, temp;
-		wstring wsTemp;
 		QString qsTemp;
-		pos2 = 0;
-		for (int ii = 0; ii <= index; ii++) {
+		if (geoTreeTemplateFile.size() < 1) {
+			for (int ii = 0; ii < numGeoTree; ii++) {
+				geoTreeTemplateFile += vsGeoTree[ii] + "\n\n";
+			}
+		}
+
+		for (int ii = 0; ii < numGeoTree; ii++) {
 			sCata.clear();
 			qlItem = gLayout->itemAtPosition(ii, 2);
 			qle = (QLineEdit*)qlItem->widget();
 			qsTemp = qle->text();
 			if (qsTemp.size() > 0) {
-				wsTemp = qsTemp.toStdWString();
-				jf.utf16To8(temp, wsTemp);
+				temp = qsTemp.toStdString();
 				if (setCata.count(temp)) { sCata = temp; }
 			}
 			if (sCata.size() < 1) {
 				qlItem = gLayout->itemAtPosition(ii, 1);
 				qcb = (QComboBox*)qlItem->widget();
 				qsTemp = qcb->currentText();
-				wsTemp = qsTemp.toStdWString();
-				jf.utf16To8(sCata, wsTemp);
+				sCata = qsTemp.toStdString();
 			}
 
-			pos2 = geoTreeFile.find("\n\n", pos2 + 2);
-			if (vsChosen[ii].size() > 0) {
-				pos1 = geoTreeFile.rfind('\n', pos2 - 1) + 1;
-				geoTreeFile.replace(pos1, pos2 - pos1, sCata);
+			pos1 = geoTreeTemplateFile.find(vsGeoTree[ii]);
+			pos1 = geoTreeTemplateFile.find('\n', pos1);
+			if (geoTreeTemplateFile[pos1 + 1] == '\n') {
+				geoTreeTemplateFile.insert(pos1 + 1, sCata + "\n");
 			}
 			else {
-				geoTreeFile.insert(pos2, "\n" + sCata);
+				pos2 = geoTreeTemplateFile.find('\n', pos1 + 1);
+				geoTreeTemplateFile.replace(pos1 + 1, pos2 - pos1 - 1, sCata);
 			}
-			pos2 += 3 + sCata.size();
 		}
-		jf.printer(filePath, geoTreeFile);
+		jf.printer(geoTreePath, geoTreeFile);
 	}
 }

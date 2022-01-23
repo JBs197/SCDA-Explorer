@@ -87,7 +87,8 @@ void SCDA::downloadCata(string prompt)
 	// Prompt should have form (@year@cata0@cata1...). If the prompt
 	// contains only the year, then all catalogues for that year are 
 	// downloaded. 
-	vector<string> vsPrompt = jf.splitByMarker(prompt, prompt[0]);
+	vector<string> vsPrompt;
+	jf.splitByMarker(vsPrompt, prompt, prompt[0]);
 	int numCata = (int)vsPrompt.size() - 1;
 	if (numCata < 0) { err("Invalid prompt-downloadCata"); }
 	else if (numCata == 0) {
@@ -348,7 +349,8 @@ void SCDA::initGUI()
 void SCDA::insertCata(string prompt)
 {
 	// Prompt should have form (@year@cata0@cata1...). 
-	vector<string> vsPrompt = jf.splitByMarker(prompt, prompt[0]);
+	vector<string> vsPrompt;
+	jf.splitByMarker(vsPrompt, prompt, prompt[0]);
 	int numCata = (int)vsPrompt.size() - 1;
 	if (numCata < 0) { err("Invalid prompt-insertCata"); }
 
@@ -397,7 +399,6 @@ void SCDA::insertCata(string prompt)
 
 	// Take care of necessary data insertion which is not bound to any specific catalogue.
 	scdb.insertCensus(vsPrompt[0]);
-	//
 
 	// Launch worker threads. Each one will pull the top catalogue from the work queue 
 	// until all catalogues have been inserted.
