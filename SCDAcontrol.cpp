@@ -14,7 +14,7 @@ void SCDAcontrol::driveChanged(const QString& qsDrive)
 {
 	wstring wsTemp = qsDrive.toStdWString();
 	string drive;
-	jf.utf16To8(drive, wsTemp);
+	jstr.utf16To8(drive, wsTemp);
 	emit driveSelected(drive);
 }
 void SCDAcontrol::err(string message)
@@ -76,11 +76,11 @@ void SCDAcontrol::prepSearchDBTable()
 	QString qsTemp = teIO->toPlainText();
 	wstring wsTemp = qsTemp.toStdWString();
 	string sQuery;
-	jf.utf16To8(sQuery, wsTemp);
+	jstr.utf16To8(sQuery, wsTemp);
 	if (sQuery.size() < 1) { return; }
 
 	vector<string> dirt = { " ", "\r", "\n" }, soap = { "", "", "" };
-	jf.clean(sQuery, dirt, soap);
+	jstr.clean(sQuery, dirt, soap);
 	emit sendSearchDBTable(sQuery);
 	sLastQuery = sQuery;
 

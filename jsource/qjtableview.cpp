@@ -317,7 +317,7 @@ QList<QStandardItem*> QJTABLEVIEW::mimeTextToQRow(QString& qsMime)
         qslData = qslTemp[1].split('|');
         for (int ii = 0; ii < qslHeader.size(); ii++) {
             wsTemp = qslHeader[ii].toStdWString();
-            jf.utf16To8(sColHeader, wsTemp);
+            jstr.utf16To8(sColHeader, wsTemp);
             if (mapColIndex.count(sColHeader)) {
                 indexCol = mapColIndex.at(sColHeader);
                 qsItem = new QStandardItem;

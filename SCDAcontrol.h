@@ -5,14 +5,15 @@
 #include <QPushButton>
 #include <QTextEdit>
 #include <QVBoxLayout>
-#include "jfunc.h"
+#include "jlog.h"
+#include "jstring.h"
 
 class SCDAcontrol : public QFrame
 {
 	Q_OBJECT
 
 private:
-	JFUNC jf;
+	JSTRING jstr;
 
 	void err(std::string message);
 	void init();

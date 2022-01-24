@@ -22,7 +22,7 @@ void SCdatabase::init(string& xml)
 	char marker;
 	size_t pos2, pos1 = 1;
 	vector<string> vsTag = { "map", "geo_layers" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		marker = vvsTag[ii][1][0];
 		pos2 = vvsTag[ii][1].find(marker, pos1);
@@ -31,7 +31,7 @@ void SCdatabase::init(string& xml)
 	}
 
 	vsTag = { "path", "database" };
-	string dbPath = jf.getXML1(configXML, vsTag);
+	string dbPath = jparse.getXML1(configXML, vsTag);
 	sf.init(dbPath);
 }
 void SCdatabase::insertCata(SWITCHBOARD& sbgui)
@@ -42,7 +42,7 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 	
 	int iYear, numFile;
 	uintmax_t fileSize;
-	string cataDir, filePath, sCata, zipPath;
+	string cataDir, filePath, sCata, sTopic, zipPath;
 	vector<string> vsFileName, vsFilePath;
 	string sMarker(1, marker);
 
@@ -56,9 +56,9 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 
 	unordered_map<string, string> mapTag;
 	vector<string> vsTag{ "file_name", sYear };
-	jf.getXML(mapTag, configXML, vsTag);
+	jparse.getXML(mapTag, configXML, vsTag);
 	vsTag = { "settings", "max_file_size" };
-	string temp = jf.getXML1(configXML, vsTag);
+	string temp = jparse.getXML1(configXML, vsTag);
 	long long maxFileSize;
 	try { 
 		iYear = stoi(sYear);
@@ -74,9 +74,9 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 		// Establish the state of the catalogue's local files. 
 		// Required files still in the archive are unzipped.
 		zipPath = cataDir + sMarker + sCata + ".zip";
-		if (!jf.fileExist(zipPath)) { err("Missing catalogue zip file-insertCata"); }
+		if (!jfile.fileExist(zipPath)) { err("Missing catalogue zip file-insertCata"); }
 		vsFileName.clear();
-		jf.zipFileList(vsFileName, zipPath);
+		jfile.zipFileList(vsFileName, zipPath);
 		numFile = (int)vsFileName.size();
 		vsFilePath.resize(numFile);
 		for (int ii = 0; ii < numFile; ii++) {
@@ -84,23 +84,28 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 			filePath = vsFilePath[ii];
 			pos1 = filePath.rfind('.');
 			filePath.insert(pos1, 1, '*');  // Wildcard inserted in case the file has been split (renamed).
-			if (!jf.fileExist(filePath)) { 
-				jf.unzipFile(vsFileName[ii], zipPath, cataDir);
+			if (!jfile.fileExist(filePath)) { 
+				jfile.unzipFile(vsFileName[ii], zipPath, cataDir);
 			}			
 		}
 		
 		// Large files are split into pieces.
 		for (int ii = 0; ii < numFile; ii++) {
-			if (jf.fileExist(vsFilePath[ii])) {
-				fileSize = jf.fileSize(vsFilePath[ii]);
+			if (jfile.fileExist(vsFilePath[ii])) {
+				fileSize = jfile.fileSize(vsFilePath[ii]);
 				if (fileSize > maxFileSize) {
-					jf.fileSplitter(vsFilePath[ii], maxFileSize);
+					jfile.fileSplitter(vsFilePath[ii], maxFileSize);
 				}
 			}
 		}
 
-		//
+		// Determine the catalogue's topic, and use it to insert this catalogue into
+		// the TopicYear and CensusYear tables.
+		loadTopic(sTopic, cataDir);
+		insertTopicYear(sYear, sTopic);
+		insertCensusYear(sYear, sCata, sTopic);
 
+		// GEO
 	}
 
 
@@ -113,7 +118,7 @@ void SCdatabase::insertCensus(string sYear)
 	vector<string> vsUnique;
 	vector<vector<string>> vvsColTitle;
 	vector<string> vsTag = { "table", "Census" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	xmlToColTitle(vvsColTitle, vsUnique, vvsTag);
 
 	string tname = "Census";
@@ -125,12 +130,13 @@ void SCdatabase::insertCensus(string sYear)
 		sf.insertRow(tname, vvsColTitle);
 	}
 }
-void SCdatabase::insertCensusYear(string& metaFile, string sYear, string sCata, string sTopic)
+void SCdatabase::insertCensusYear(string sYear, string sCata, string sTopic)
 {
+	if (sYear.size() < 1 || sCata.size() < 1 || sTopic.size() < 1) { err("Missing input-insertCensusYear"); }
 	vector<string> vsUnique;
 	vector<vector<string>> vvsColTitle;
 	vector<string> vsTag = { "table", "Census_year" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	xmlToColTitle(vvsColTitle, vsUnique, vvsTag);
 
 	string tname = "Census$" + sYear;
@@ -138,15 +144,6 @@ void SCdatabase::insertCensusYear(string& metaFile, string sYear, string sCata, 
 		sf.createTable(tname, vvsColTitle, vsUnique);
 	}
 
-
-
-	if (sTopic.size() < 1) {
-		size_t pos1 = metaFile.find("Topic:");
-		if (pos1 > metaFile.size()) { err("Failed to extract topic from metaFile-insertCensusYear"); }		
-		pos1 = metaFile.find_first_not_of(' ', pos1 + 6);
-		size_t pos2 = metaFile.find_first_of("\r\n", pos1);
-		sTopic = metaFile.substr(pos1, pos2 - pos1);
-	}
 	vvsColTitle[1][0] = sCata;
 	vvsColTitle[1][1] = sTopic;
 	
@@ -154,14 +151,156 @@ void SCdatabase::insertCensusYear(string& metaFile, string sYear, string sCata, 
 		sf.insertRow(tname, vvsColTitle);
 	}
 }
+void SCdatabase::insertGeoTreeTemplate(string yearDir)
+{
+	// GeoTreeTemplates are tree structures representing geographic region families. 
+	// The templates are used to fill in the gaps present in some catalogues (otherwise
+	// missing some regions). Templates for different catalogue types must be specified 
+	// by the user prior to inserting catalogues from a given year.
+	size_t pos1 = yearDir.find_last_of("/\\") + 1;
+	string sYear = yearDir.substr(pos1);
+	vector<string> vsTag = { "file_name", sYear, "geo_tree_template" };
+	string filePath = yearDir + "/" + jparse.getXML1(configXML, vsTag);
+	string geoTreeTemplate;
+	jfile.load(geoTreeTemplate, filePath);
+	
+	vector<string> vsCata, vsGeoLayer, vsUnique;
+	size_t maxAncestor, pos2, pos3;
+	pos1 = 0;
+	pos3 = geoTreeTemplate.find("\n\n");
+	while (pos1 < geoTreeTemplate.size()) {
+		pos2 = geoTreeTemplate.find('\n', pos1);
+		if (pos2 == pos3) { err("Missing values-insertGeoTreeTemplate"); }
+		vsGeoLayer.emplace_back(geoTreeTemplate.substr(pos1, pos2 - pos1));
+		vsCata.emplace_back(geoTreeTemplate.substr(pos2 + 1, pos3 - pos2 - 1));
 
+		pos1 = geoTreeTemplate.find_first_not_of('\n', pos3 + 2);
+		pos3 = geoTreeTemplate.find("\n\n", pos3 + 2);
+	}
+
+	vsTag = { "table", "Geo_year_cata" };
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
+	vector<vector<string>> vvsColTitle, vvsRow; 
+	xmlToColTitle(vvsColTitle, vsUnique, vvsTag);
+
+	string geoFile, geoLayerFile, geoPath, marker, tname;
+	int geoCode, geoLevel, index, indexCode, indexLevel, indexRegion;
+	vector<int> viAncestry;
+	int numCata = (int)vsCata.size();
+	for (int ii = 0; ii < numCata; ii++) {
+		geoPath = yearDir + "/" + vsCata[ii] + "/GeoLayer_" + vsCata[ii] + ".txt";
+		jfile.load(geoLayerFile, geoPath);
+		while (geoLayerFile.back() == '\n') { geoLayerFile.pop_back(); }
+		tname = "GeoTreeTemplate$" + sYear + geoLayerFile;
+		if (!sf.tableExist(tname)) {
+			sf.createTable(tname, vvsColTitle, vsUnique);
+		}
+
+		vvsRow.clear();
+		geoPath = yearDir + "/" + vsCata[ii] + "/Geo_" + vsCata[ii] + ".txt";
+		jfile.load(geoFile, geoPath);
+		marker = geoFile[0];
+		pos1 = 1;
+		pos3 = geoFile.find('\n');
+		while (pos1 < geoFile.size()) {
+			index = (int)vvsRow.size();
+			vvsRow.push_back(vector<string>());
+			
+			pos2 = geoFile.find(marker, pos1);
+			while (pos2 < pos3) {
+				vvsRow[index].emplace_back(geoFile.substr(pos1, pos2 - pos1));
+				pos1 = pos2 + 1;
+				pos2 = geoFile.find(marker, pos1);
+			}
+			vvsRow[index].emplace_back(geoFile.substr(pos1, pos3 - pos1));
+
+			pos1 = geoFile.find_first_not_of(marker + "\n", pos3 + 1);
+			pos3 = geoFile.find('\n', pos3 + 1);
+		}
+
+		// Ensure that "Canada" has GEO_LEVEL 0, and that split regions are given their
+		// proper GEO_LEVEL (relative to individual parent).
+		indexCode = -1, indexLevel = -1, indexRegion = -1;
+		for (int jj = 0; jj < vvsRow[0].size(); jj++) {
+			pos1 = vvsRow[0][jj].find("GEO_CODE");
+			if (pos1 < vvsRow[0][jj].size()) { indexCode = jj; }
+
+			pos1 = vvsRow[0][jj].find("GEO_LEVEL");
+			if (pos1 < vvsRow[0][jj].size()) { indexLevel = jj; }
+			
+			pos1 = vvsRow[0][jj].find("Region");
+			if (pos1 < vvsRow[0][jj].size()) { indexRegion = jj; }
+		}		
+		if (indexCode < 0 || indexLevel < 0 || indexRegion < 0) { err("Failed to determine a geo column index-insertGeoTreeTemplate"); }
+		for (int jj = 0; jj < vvsRow.size(); jj++) {
+			if (vvsRow[jj][indexRegion] == "Canada") {
+				vvsRow[jj][indexLevel] = "0";
+				continue;
+			}
+			
+			// Je m'excuse ici - c'est pour la simplicité...
+			pos1 = vvsRow[jj][indexRegion].find(" part");
+			if (pos1 < vvsRow[jj][indexRegion].size()) {
+				pos2 = vvsRow[jj][indexRegion].find('/');
+				if (pos1 < pos2) {  // English listed first.
+					vvsRow[jj][indexRegion].resize(pos1 + 6);
+					vvsRow[jj][indexRegion].back() = ')';
+				}
+				else {  // French listed first.
+					pos1 = vvsRow[jj][indexRegion].rfind(' ', pos1 - 1) + 1;
+					pos2 = vvsRow[jj][indexRegion].rfind('(', pos2);
+					vvsRow[jj][indexRegion].replace(pos2, pos1 - pos2, "(");
+				}
+				try { geoLevel = stoi(vvsRow[jj][indexLevel]); }
+				catch (invalid_argument) { err("geoLevel stoi-insertGeoTreeTemplate"); }
+				geoLevel--;
+				vvsRow[jj][indexLevel] = to_string(geoLevel);
+			}
+			pos1 = vvsRow[jj][indexRegion].find(" / ");
+			if (pos1 < vvsRow[jj][indexRegion].size()) {
+				vvsRow[jj][indexRegion].resize(pos1);
+			}
+		}
+
+		// Add ancestry columns to the geo data.
+		viAncestry = { -1 };
+		maxAncestor = 0;
+		for (int jj = 1; jj < vvsRow.size(); jj++) {
+			try {
+				geoCode = stoi(vvsRow[jj][indexCode]);
+				geoLevel = stoi(vvsRow[jj][indexLevel]);
+			}
+			catch (invalid_argument) { err("geoCode/geoLevel stoi-insertGeoTreeTemplate"); }
+			
+			if (geoLevel > viAncestry.size()) { err("Skipped a region-insertGeoTreeTemplate"); }
+			else if (geoLevel == viAncestry.size()) { viAncestry.push_back(geoCode); }
+			else {
+				while (geoLevel < viAncestry.size() - 1) { viAncestry.pop_back(); }
+				viAncestry.back() = geoCode;
+			}
+
+			for (int kk = 0; kk < viAncestry.size() - 1; kk++) {
+				vvsRow[jj].emplace_back(to_string(viAncestry[kk]));
+			}
+			if (viAncestry.size() - 1 > maxAncestor) { maxAncestor = viAncestry.size() - 1; }
+		}
+		for (int jj = 0; jj < maxAncestor; jj++) {
+			vvsRow[0].emplace_back("Ancestor" + to_string(jj));
+		}
+
+		// Insert the geographic data into the database, as a transaction.
+		if (safeInsertRow(tname, vvsRow)) {
+			sf.insertRow(tname, vvsRow);
+		}
+	}
+}
 void SCdatabase::insertTopicYear(string sYear, string sTopic)
 {
 	if (sYear.size() < 1 || sTopic.size() < 1) { err("Missing input-insertTopicYear"); }
 	vector<string> vsUnique;
 	vector<vector<string>> vvsColTitle;
 	vector<string> vsTag = { "table", "Topic_year" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	xmlToColTitle(vvsColTitle, vsUnique, vvsTag);
 
 	string tname = "Topic$" + sYear;
@@ -186,17 +325,25 @@ void SCdatabase::loadTable(vector<vector<string>>& vvsData, vector<vector<string
 		vvsColTitle = sf.getColTitle(tname);
 	}
 }
-void SCdatabase::loadTopic(string& sTopic, string dirCata)
+void SCdatabase::loadTopic(string& sTopic, string cataDir)
 {
-	size_t pos1 = dirCata.find_last_of("/\\") + 1;
-	string sCata = dirCata.substr(pos1);
-	string filePath = dirCata + "/Topic_" + sCata + ".txt";
-	sTopic.clear();
-	if (jf.fileExist(filePath)) {
-		jf.load(sTopic, filePath);
-		pos1 = sTopic.find_last_not_of("\r\n") + 1;
-		sTopic.resize(pos1);
+	size_t pos1 = cataDir.find_last_of("/\\") + 1;
+	string sCata = cataDir.substr(pos1);
+	size_t pos2 = pos1 - 1;
+	pos1 = cataDir.find_last_of("/\\", pos2 - 1) + 1;
+	string sYear = cataDir.substr(pos1, pos2 - pos1);
+
+	vector<string> vsTag = { "file_name", sYear, "topic" };
+	string fileName = jparse.getXML1(configXML, vsTag);
+	pos1 = fileName.rfind("[cata]");
+	if (pos1 < fileName.size()) {
+		fileName.replace(pos1, 6, sCata);
 	}
+
+	string filePath = cataDir + "/" + fileName;
+	sTopic.clear();
+	jfile.load(sTopic, filePath);
+	while (sTopic.back() == '\n') { sTopic.pop_back(); }
 }
 void SCdatabase::log(string message)
 {
@@ -236,11 +383,13 @@ void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 	for (int ii = 0; ii < numYear; ii++) {
 		cataList.clear();
 		tname = "Census$" + yearList[ii];
-		numCata = sf.select(search, tname, cataList);
-		for (int jj = 0; jj < numCata; jj++) {
-			JNODE jn;
-			jn.vsData[0] = cataList[jj];
-			jt.addChild(viYearID[ii], jn);
+		if (sf.tableExist(tname)) {
+			numCata = sf.select(search, tname, cataList);
+			for (int jj = 0; jj < numCata; jj++) {
+				JNODE jn;
+				jn.vsData[0] = cataList[jj];
+				jt.addChild(viYearID[ii], jn);
+			}
 		}
 	}
 
@@ -262,7 +411,7 @@ void SCdatabase::searchTable(SWITCHBOARD& sbgui, JTREE& jt, vector<string>& vsTa
 	vector<int> childrenID;
 	JNODE jnRoot = jt.getRoot();
 	for (int ii = 0; ii < numTable; ii++) {
-		jf.splitByMarker(vsParam, vsTable[ii], marker);
+		jparse.splitByMarker(vsParam, vsTable[ii], marker);
 		numParam = (int)vsParam.size();
 		if (numParam < 1) { err("splitByMarker-searchTable"); }
 

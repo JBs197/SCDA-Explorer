@@ -43,7 +43,7 @@ void SCDA::dialogStructureStart()
 	if (qsPath.size() < 1) { return; }
 	wstring wsPath = qsPath.toStdWString();
 	string sPath;
-	jf.utf16To8(sPath, wsPath);
+	jparse.utf16To8(sPath, wsPath);
 
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
@@ -88,7 +88,7 @@ void SCDA::downloadCata(string prompt)
 	// contains only the year, then all catalogues for that year are 
 	// downloaded. 
 	vector<string> vsPrompt;
-	jf.splitByMarker(vsPrompt, prompt, prompt[0]);
+	jparse.splitByMarker(vsPrompt, prompt, prompt[0]);
 	int numCata = (int)vsPrompt.size() - 1;
 	if (numCata < 0) { err("Invalid prompt-downloadCata"); }
 	else if (numCata == 0) {
@@ -157,7 +157,7 @@ void SCDA::driveSelected(string drive)
 		std::thread thr(&SCDAcatalogue::scanLocal, page, ref(sb), ref(page), ref(configXML));
 		thr.detach();
 		while (1) {
-			jf.sleep(sleepTime);
+			jtime.sleep(sleepTime);
 			QCoreApplication::processEvents();
 			comm = sb.update(myid, comm[0]);
 			if (comm.size() > 1 && comm[1][0] == 1) { break; }
@@ -212,7 +212,7 @@ void SCDA::initBusy(QJBUSY*& dialogBusy)
 	dialogBusy->setObjectName("Busy");
 
 	vector<string> vsTag = { "path", "resource" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	string busyFolder = vvsTag[0][1] + "/qjbusy";
 	string busySearch = "BusyWheel*.png";
 	vector<string> vsBusyWheel = wf.getFileList(busyFolder, busySearch);
@@ -230,19 +230,19 @@ void SCDA::initConfig()
 		if (!wf.file_exist(backupPath)) { err("XML config file not found-initConfig"); }
 		wf.copyFile(backupPath, configPath);
 	}
-	jf.load(configXML, configPath);
+	jfile.load(configXML, configPath);
 
 	vector<string> vsTag = { "path", "local_storage" };
-	sLocalStorage = jf.getXML1(configXML, vsTag);
+	sLocalStorage = jparse.getXML1(configXML, vsTag);
 	vsTag = { "settings", "cpu_cores" };
-	string sCore = jf.getXML1(configXML, vsTag);
+	string sCore = jparse.getXML1(configXML, vsTag);
 	try { numCore = stoi(sCore); }
 	catch (invalid_argument) { err("cpu_cores stoi-initConfig"); }
 
 	vsTag = { "path", "css" };
-	string cssPath = jf.getXML1(configXML, vsTag);
+	string cssPath = jparse.getXML1(configXML, vsTag);
 	string cssFile;
-	jf.load(cssFile, cssPath);
+	jfile.load(cssFile, cssPath);
 	qApp->setStyleSheet(cssFile.c_str());
 
 	scdb.init(configXML);
@@ -263,13 +263,13 @@ void SCDA::initControl(SCDAcontrol*& control)
 	cb->addItem("");
 	int activeIndex = 0;
 	vector<string> vsTag = { "settings", "default_drive" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	string defaultDrive = "";
 	if (vvsTag.size() > 0) {
 		defaultDrive = vvsTag[0][1];
 	}
 	vsTag = { "settings", "drive_type" };
-	vvsTag = jf.getXML(configXML, vsTag);
+	vvsTag = jparse.getXML(configXML, vsTag);
 	set<string> setDriveType;
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		if (vvsTag[ii][1] == "1" || vvsTag[ii][1] == "TRUE" || vvsTag[ii][1] == "true") {
@@ -350,7 +350,7 @@ void SCDA::insertCata(string prompt)
 {
 	// Prompt should have form (@year@cata0@cata1...). 
 	vector<string> vsPrompt;
-	jf.splitByMarker(vsPrompt, prompt, prompt[0]);
+	jparse.splitByMarker(vsPrompt, prompt, prompt[0]);
 	int numCata = (int)vsPrompt.size() - 1;
 	if (numCata < 0) { err("Invalid prompt-insertCata"); }
 
@@ -360,7 +360,7 @@ void SCDA::insertCata(string prompt)
 	catch (invalid_argument) { err("iYear stoi-insertCata"); }
 	if (iYear < 1981 || iYear > 2017) { err("Invalid year-insertCata"); }
 	vector<string> vsTag = { "path", "local_storage" };
-	string yearFolder = jf.getXML1(configXML, vsTag) + "/" + vsPrompt[0];
+	string yearFolder = jparse.getXML1(configXML, vsTag) + "/" + vsPrompt[0];
 
 	// If the prompt contains only the year, then all available catalogues 
 	// for that year are inserted (unless already present).
@@ -399,6 +399,7 @@ void SCDA::insertCata(string prompt)
 
 	// Take care of necessary data insertion which is not bound to any specific catalogue.
 	scdb.insertCensus(vsPrompt[0]);
+	scdb.insertGeoTreeTemplate(yearFolder);
 
 	// Launch worker threads. Each one will pull the top catalogue from the work queue 
 	// until all catalogues have been inserted.

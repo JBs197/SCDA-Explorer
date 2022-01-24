@@ -24,7 +24,7 @@ void SCDAcatalogue::downloadCata()
 	QString qsTemp = qVar.toString();
 	wstring wsTemp = qsTemp.toStdWString();
 	string prompt;
-	jf.utf16To8(prompt, wsTemp);
+	jparse.utf16To8(prompt, wsTemp);
 	emit sendDownloadCata(prompt);
 }
 void SCDAcatalogue::err(string message)
@@ -100,7 +100,7 @@ void SCDAcatalogue::initItemColour(string& configXML)
 {
 	int indexBG = -1, indexFG = -1;
 	vector<string> vsTag = { "colour", "solid", "item_default" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		if (vvsTag[ii][0] == "background") { indexBG = ii; }
 		else if (vvsTag[ii][0] == "foreground") { indexFG = ii;	}
@@ -108,7 +108,7 @@ void SCDAcatalogue::initItemColour(string& configXML)
 	itemColourDefault = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 	
 	vsTag = { "colour", "solid", "item_fail" };
-	vvsTag = jf.getXML(configXML, vsTag);
+	vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		if (vvsTag[ii][0] == "background") { indexBG = ii; }
 		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
@@ -116,7 +116,7 @@ void SCDAcatalogue::initItemColour(string& configXML)
 	itemColourFail = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 	
 	vsTag = { "colour", "solid", "item_selected" };
-	vvsTag = jf.getXML(configXML, vsTag);
+	vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		if (vvsTag[ii][0] == "background") { indexBG = ii; }
 		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
@@ -124,7 +124,7 @@ void SCDAcatalogue::initItemColour(string& configXML)
 	itemColourSelected = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 
 	vsTag = { "colour", "solid", "item_warning" };
-	vvsTag = jf.getXML(configXML, vsTag);
+	vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		if (vvsTag[ii][0] == "background") { indexBG = ii; }
 		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
@@ -137,7 +137,7 @@ void SCDAcatalogue::insertCata()
 	QString qsTemp = qVar.toString();
 	wstring wsTemp = qsTemp.toStdWString();
 	string prompt;
-	jf.utf16To8(prompt, wsTemp);
+	jparse.utf16To8(prompt, wsTemp);
 	emit sendInsertCata(prompt);
 }
 void SCDAcatalogue::nodeClicked(const QModelIndex& qmIndex, int indexTree)
@@ -252,7 +252,7 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 			}
 		}
 	}
-	jf.sortInteger(sYearList, JFUNC::Increasing);
+	jsort.integerList(sYearList, JFUNC::Increasing);
 	int numYear = (int)sYearList.size();
 	if (numYear < 1) { 
 		mycomm[0] = 1;
@@ -263,9 +263,9 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 		JNODE jnYear;
 		jnYear.vsData[0] = sYearList[ii];
 		filePath = prompt[0] + sYearList[ii] + "/GeoTree_" + sYearList[ii] + ".txt";
-		if (jf.fileExist(filePath)) { jnYear.vsData.push_back(filePath); }
+		if (jfile.fileExist(filePath)) { jnYear.vsData.push_back(filePath); }
 		filePath = prompt[0] + sYearList[ii] + "/GeoTreeTemplate_" + sYearList[ii] + ".txt";
-		if (jf.fileExist(filePath)) { jnYear.vsData.push_back(filePath); }
+		if (jfile.fileExist(filePath)) { jnYear.vsData.push_back(filePath); }
 		qjtm->jt.addChild(rootID, jnYear);
 	}
 
@@ -285,7 +285,7 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 		numCata = (int)folderList.size();
 		for (int jj = 0; jj < numCata; jj++) {
 			filePath = yearPath + "/" + folderList[jj] + "/" + folderList[jj] + ".zip";
-			if (jf.fileExist(filePath)) {
+			if (jfile.fileExist(filePath)) {
 				JNODE jn;
 				jn.vsData[0] = folderList[jj];
 				qjtm->jt.addChild(viYearID[ii], jn);
@@ -307,11 +307,11 @@ void SCDAcatalogue::searchCata()
 	QString qsTemp = qVar.toString();
 	wstring wsTemp = qsTemp.toStdWString();
 	string prompt;
-	jf.utf16To8(prompt, wsTemp);
+	jparse.utf16To8(prompt, wsTemp);
 	prompt.insert(0, "*");
 	prompt.push_back('*');
 	vector<string> dirt = { "@" }, soap = { "$" };
-	jf.clean(prompt, dirt, soap);
+	jparse.clean(prompt, dirt, soap);
 	emit sendSearchCata(prompt);
 }
 void SCDAcatalogue::setGeoTreeTemplate()
@@ -322,13 +322,13 @@ void SCDAcatalogue::setGeoTreeTemplate()
 	QString qsTemp = qVar.toString();
 	wstring wsTemp = qsTemp.toStdWString();
 	string geoTreePath;
-	jf.utf16To8(geoTreePath, wsTemp);
-	if (!jf.fileExist(geoTreePath)) { 
+	jparse.utf16To8(geoTreePath, wsTemp);
+	if (!jfile.fileExist(geoTreePath)) { 
 		emit setTextIO(geoTreePath + " not found!\n");
 		return;
 	}
 	string geoTreeFile, geoTreeTemplateFile;
-	jf.load(geoTreeFile, geoTreePath);
+	jfile.load(geoTreeFile, geoTreePath);
 
 	// If some or all templates have already been saved, load them as initial values.
 	size_t pos2, pos3;
@@ -336,8 +336,8 @@ void SCDAcatalogue::setGeoTreeTemplate()
 	string geoTreeTemplatePath = geoTreePath;
 	size_t pos1 = geoTreeTemplatePath.rfind('_');
 	geoTreeTemplatePath.insert(pos1, "Template");
-	if (jf.fileExist(geoTreeTemplatePath)) {
-		jf.load(geoTreeTemplateFile, geoTreeTemplatePath);
+	if (jfile.fileExist(geoTreeTemplatePath)) {
+		jfile.load(geoTreeTemplateFile, geoTreeTemplatePath);
 		pos1 = 0;
 		pos3 = geoTreeTemplateFile.find("\n\n");
 		while (pos3 < geoTreeTemplateFile.size()) {
@@ -361,7 +361,7 @@ void SCDAcatalogue::setGeoTreeTemplate()
 		vsGeoTree.emplace_back(geoTreeFile.substr(pos1, pos2 - pos1));
 		cataList = geoTreeFile.substr(pos2 + 1, pos3 - pos2 - 1);
 		vvsCata.push_back({});
-		jf.splitByMarker(vvsCata.back(), cataList, '\0');
+		jparse.splitByMarker(vvsCata.back(), cataList, '\0');
 		for (int ii = 0; ii < vvsCata.back().size(); ii++) {
 			setCata.emplace(vvsCata.back()[ii]);
 		}
@@ -456,6 +456,6 @@ void SCDAcatalogue::setGeoTreeTemplate()
 				geoTreeTemplateFile.replace(pos1 + 1, pos2 - pos1 - 1, sCata);
 			}
 		}
-		jf.printer(geoTreePath, geoTreeFile);
+		jfile.printer(geoTreePath, geoTreeFile);
 	}
 }

@@ -1,7 +1,7 @@
 #pragma once
 #include <QHeaderView>
 #include <QTreeView>
-#include "jfunc.h"
+#include "jlog.h"
 #include "qjdelegate.h"
 #include "qjtreemodel.h"
 
@@ -10,14 +10,12 @@ class QJTREEVIEW : public QTreeView
 	Q_OBJECT
 
 private:
-	JFUNC jf;
-
 	void err(string message);
 	void init();
 
 public:
 	QJTREEVIEW(QWidget* parent = nullptr) : QTreeView(parent) { init(); }
-	~QJTREEVIEW() {}
+	~QJTREEVIEW() = default;
 
 	int indexTree;
 

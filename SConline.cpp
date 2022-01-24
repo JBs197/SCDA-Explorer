@@ -2,6 +2,21 @@
 
 using namespace std;
 
+string SConline::cataPID(std::string sYear, std::string sCata)
+{
+	// Return a catalogue's PID (product identification number). It is frequently needed
+	// when navigating Stats Canada's census website.
+	string page, urlTemp;
+	urlYear(urlTemp, sYear);
+	wf.browse(page, urlTemp);
+	string temp = "title=\"Dataset " + sCata;
+	size_t pos2 = page.find(temp);
+	size_t pos1 = page.find("PID=", pos2) + 4;
+	pos2 = page.find_first_not_of("1234567890", pos1);
+	string sPID = page.substr(pos1, pos2 - pos1);
+	if (sPID.size() < 1) { err("Failed to parse yearly catalogue list-cataPID"); }
+	return sPID;
+}
 void SConline::downloadCata(SWITCHBOARD& sbgui)
 {
 	thread::id myid = this_thread::get_id();
@@ -16,14 +31,14 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 	catch (invalid_argument) { err("stoi-downloadCata"); }
 	if (iYear < 1981 || iYear > 2017) { err("Invalid year-downloadCata"); }
 	vector<string> vsTag = { "path", "local_storage" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	string yearFolder = vvsTag[0][1] + "/" + vsPrompt[0];
 	wf.makeDir(yearFolder);
 
 	// Make a GeoTree file for this year, containing a list of all region
 	// tree types used by the year's catalogues.
 	string geoTreePath = yearFolder + "/GeoTree_" + vsPrompt[0] + ".txt";
-	if (!jf.fileExist(geoTreePath)) {
+	if (!jfile.fileExist(geoTreePath)) {
 		makeGeoTree(yearFolder, vsPrompt[0], sbgui);
 	}
 
@@ -32,7 +47,7 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 	string replace = "[cata]";
 	vsTag = { "file_name", vsPrompt[0] };
 	unordered_map<string, string> mapTag;
-	jf.getXML(mapTag, configXML, vsTag);
+	jparse.getXML(mapTag, configXML, vsTag);
 	auto it = mapTag.find("topic");
 	if (it != mapTag.end()) { topicFileName = it->second; }
 
@@ -77,8 +92,8 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 
 		// Download the catalogue ZIP archive, if not already present.
 		filePath = cataFolder + "/" + vsPrompt[1 + ii] + ".zip";
-		if (!jf.fileExist(filePath)) {
-			url = urlCataDownload(vsPrompt[0], vsPrompt[1 + ii]);
+		if (!jfile.fileExist(filePath)) {
+			urlCataDownload(url, vsPrompt[0], vsPrompt[1 + ii]);
 			wf.download(url, filePath);
 		}
 
@@ -92,22 +107,20 @@ void SConline::downloadTopic(string filePath)
 {
 	// Niche function to make a tiny "topic" file detailing a catalogue's
 	// topic (as some census years do not specify it within the meta file).
-	if (jf.fileExist(filePath)) { return; }
-
+	if (jfile.fileExist(filePath)) { return; }
+	string webpage, url;
 	size_t pos2 = filePath.find_last_of("/\\");
 	size_t pos1 = filePath.find_last_of("/\\", pos2 - 1) + 1;
 	string sCata = filePath.substr(pos1, pos2 - pos1);
 	pos2 = pos1 - 1;
 	pos1 = filePath.find_last_of("/\\", pos2 - 1) + 1;
 	string sYear = filePath.substr(pos1, pos2 - pos1);
-
-	string url = urlCataTopic(sYear, sCata);
-	string webpage;
+	urlCataTopic(url, sYear, sCata);
 	wf.browse(webpage, url);
 
 	vector<string> vsTag = { "parse", "statscan_topic" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
-	vector<vector<string>> vvsClippings = jf.parseFromXML(webpage, vvsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
+	vector<vector<string>> vvsClippings = jparse.parseFromXML(webpage, vvsTag);
 	if (vvsClippings.size() < 1) { err("parseFromXML-downloadTopic"); }
 
 	wf.printer(filePath, vvsClippings[0][0]);
@@ -151,19 +164,19 @@ void SConline::getCataTree(JTREE& jt)
 }
 vector<string> SConline::getListCata(string sYear)
 {
+	string webpage, url;
 	vector<string> vsCata;
 	vector<string> vsTag = { "parse", "statscan_cata" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
-	string url = urlYear(sYear);
-	string webpage;
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
+	urlYear(url, sYear);
 	wf.browse(webpage, url);
-	vector<vector<string>> vvsClippings = jf.parseFromXML(webpage, vvsTag);
+	vector<vector<string>> vvsClippings = jparse.parseFromXML(webpage, vvsTag);
 	int numCata = (int)vvsClippings.size();
 	vsCata.resize(numCata);
 	for (int ii = 0; ii < numCata; ii++) {
 		vsCata[ii] = vvsClippings[ii][0];
 	}
-	jf.sortAlphabetically(vsCata);
+	jsort.sortAlphabetically(vsCata);
 	return vsCata;
 }
 vector<string> SConline::getListYear()
@@ -173,16 +186,16 @@ vector<string> SConline::getListYear()
 	if (urlRoot.size() < 1) { return vsYear; }
 
 	vector<string> vsTag = { "parse", "statscan_year" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	string webpage;
 	wf.browse(webpage, urlRoot);
-	vector<vector<string>> vvsClippings = jf.parseFromXML(webpage, vvsTag);
+	vector<vector<string>> vvsClippings = jparse.parseFromXML(webpage, vvsTag);
 	int numYear = (int)vvsClippings.size();
 	vsYear.resize(numYear);
 	for (int ii = 0; ii < numYear; ii++) {
 		vsYear[ii] = vvsClippings[ii][0];
 	}
-	jf.sortInteger(vsYear, JFUNC::Increasing);
+	jsort.integerList(vsYear, JSORT::Increasing);
 	return vsYear;
 }
 void SConline::init(string& xml)
@@ -191,13 +204,13 @@ void SConline::init(string& xml)
 	configXML = xml;
 
 	vector<string> vsTag = { "url", "statscan_root" };
-	urlRoot = jf.getXML1(configXML, vsTag);
+	urlRoot = jparse.getXML1(configXML, vsTag);
 
 	mapGeoLayer.clear();
 	char marker;
 	size_t pos2, pos1 = 1;
 	vsTag = { "map", "geo_layer" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		marker = vvsTag[ii][1][0];
 		pos2 = vvsTag[ii][1].find(marker, pos1);
@@ -209,7 +222,7 @@ void SConline::init(string& xml)
 	mapGeoLevel.clear();
 	pos1 = 1;
 	vsTag = { "map", "geo_level" };
-	vvsTag = jf.getXML(configXML, vsTag);
+	vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		marker = vvsTag[ii][1][0];
 		pos2 = vvsTag[ii][1].find(marker, pos1);
@@ -234,9 +247,9 @@ void SConline::makeGeo(string cataFolder, string sYear, string sCata)
 	vector<vector<string>> vvsTag;
 
 	string geoLayerPath = cataFolder + "/GeoLayers_" + sCata + ".txt";
-	if (!jf.fileExist(geoLayerPath)) {
+	if (!jfile.fileExist(geoLayerPath)) {
 		if (page.size() < 1) {
-			url = urlCataGeo(sYear, sCata);
+			urlCataGeo(url, sYear, sCata);
 			wf.browse(page, url);
 			pos1 = page.find("<title>File Not Found");
 			if (pos1 < page.size()) { return; }
@@ -244,8 +257,8 @@ void SConline::makeGeo(string cataFolder, string sYear, string sCata)
 
 		vsLayer.clear();
 		vsTag = { "parse", "statscan_geo_layer" };
-		vvsTag = jf.getXML(configXML, vsTag);
-		geoLayers = jf.parseFromXML1(page, vvsTag);
+		vvsTag = jparse.getXML(configXML, vsTag);
+		geoLayers = jparse.parseFromXML1(page, vvsTag);
 		pos1 = 0;
 		pos2 = geoLayers.find('/');
 		while (pos2 < geoLayers.size()) {
@@ -271,13 +284,13 @@ void SConline::makeGeo(string cataFolder, string sYear, string sCata)
 				geoFile += "$" + it->second;
 			}
 		}
-		jf.printer(geoLayerPath, geoFile);
+		jfile.printer(geoLayerPath, geoFile);
 	}
 
 	string geoPath = cataFolder + "/Geo_" + sCata + ".txt";
-	if (!jf.fileExist(geoPath)) {
+	if (!jfile.fileExist(geoPath)) {
 		if (page.size() < 1) {
-			url = urlCataGeo(sYear, sCata);
+			urlCataGeo(url, sYear, sCata);
 			wf.browse(page, url);
 			pos1 = page.find("<title>File Not Found");
 			if (pos1 < page.size()) { return; }
@@ -287,7 +300,7 @@ void SConline::makeGeo(string cataFolder, string sYear, string sCata)
 		int geoLevel, indent;
 		unsigned long long geoCode;
 		vsTag = { "parse", "statscan_geo" };
-		vvsTag = jf.getXML(configXML, vsTag);
+		vvsTag = jparse.getXML(configXML, vsTag);
 		if (vvsTag.size() < 10) { err("Missing vvsTag-makeGeo"); }
 
 		posBegin = page.find(vvsTag[0][1]);
@@ -340,7 +353,7 @@ void SConline::makeGeo(string cataFolder, string sYear, string sCata)
 			posStart = page.find(vvsTag[2][1], posStop);
 		}
 
-		jf.printer(geoPath, geoFile);
+		jfile.printer(geoPath, geoFile);
 	}
 }
 void SConline::makeGeoTree(string yearFolder, string sYear, SWITCHBOARD& sbgui)
@@ -367,7 +380,7 @@ void SConline::makeGeoTree(string yearFolder, string sYear, SWITCHBOARD& sbgui)
 		mycomm[1]++;
 		sbgui.update(myid, mycomm);
 
-		url = urlCataGeo(sYear, vsCata[ii]);
+		urlCataGeo(url, sYear, vsCata[ii]);
 		wf.browse(page, url);
 
 		// Disregard catalogues which do not have Geographic Index pages.
@@ -376,8 +389,8 @@ void SConline::makeGeoTree(string yearFolder, string sYear, SWITCHBOARD& sbgui)
 		if (pos1 < page.size()) { continue; }
 
 		// Extract the GeoLayers.
-		vvsTag = jf.getXML(configXML, vsTag);
-		geoLayer = jf.parseFromXML1(page, vvsTag);
+		vvsTag = jparse.getXML(configXML, vsTag);
+		geoLayer = jparse.parseFromXML1(page, vvsTag);
 		if (geoLayer.size() < 1) { err("Failed to extract GeoLayers-makeGeoTree"); }
 
 		// Simplify the myriad types into consistent notation.
@@ -439,102 +452,40 @@ void SConline::makeGeoTree(string yearFolder, string sYear, SWITCHBOARD& sbgui)
 		geoTreeFile += "\n\n";
 	}
 	string geoTreePath = yearFolder + "/GeoTree_" + sYear + ".txt";
-	jf.printer(geoTreePath, geoTreeFile);
+	jfile.printer(geoTreePath, geoTreeFile);
 }
-string SConline::urlCataDownload(string sYear, string sCata)
+void SConline::urlCataDownload(string& url, string sYear, string sCata)
 {
-	string url, urlTemp, temp;
-	int iYear;
-	try { iYear = stoi(sYear); }
-	catch (invalid_argument) { err("stoi-sc.urlCSVDownload"); }
+	// Return a url to download a catalogue's complete zip archive.
+	string sPID = cataPID(sYear, sCata);
 
-	urlTemp = urlRoot + "?Temporal=" + sYear;
-	wstring wCata, wPage;
-	wf.browse(wPage, urlTemp);
-	jf.utf8To16(wCata, sCata);
-	wstring wTemp = L"title=\"Dataset " + wCata;
-	size_t pos2 = wPage.find(wTemp);
-	size_t pos1 = wPage.find(L"PID=", pos2) + 4;
-	pos2 = wPage.find_first_not_of(L"1234567890", pos1);
-	wTemp = wPage.substr(pos1, pos2 - pos1);
-	jf.utf16To8(temp, wTemp);
-	if (iYear == 2016 || iYear == 2017) {
-		url = "www12.statcan.gc.ca/census-recensement/2016/dp-pd/dt-td/";
-		url += "CompDataDownload.cfm?LANG=E&PID=" + temp;
-		url += "&OFT=CSV";
-	}
-	else if (iYear == 2013) {
-		url = "www12.statcan.gc.ca/nhs-enm/2011/dp-pd/dt-td/";
-		url += "OpenDataDownload.cfm?PID=" + temp;
-	}
-	else if (iYear == 2011) {
-		url = "www12.statcan.gc.ca/census-recensement/2011/dp-pd/";
-		url += "tbt-tt/OpenDataDownload.cfm?PID=" + temp;
-	}
-	else { err("Invalid Year-urlCSVDownload"); }
-	return url;
+	vector<string> vsTag = { "url", "statscan_download", sYear };
+	url = jparse.getXML1(configXML, vsTag);
+	size_t pos1 = url.rfind("[pid]");
+	if (pos1 > url.size()) { err("Failed to locate [pid] placeholder-urlCataDownload"); }
+	url.replace(pos1, 5, sPID);
 }
-string SConline::urlCataGeo(string sYear, string sCata)
+void SConline::urlCataGeo(string& url, string sYear, string sCata)
 {
 	// Return a URL to the catalogue's geographic index page.
-	int iYear;
-	try { iYear = stoi(sYear); }
-	catch (invalid_argument) { err("iYear stoi-urlCataGeo"); }
-
-	string url = urlYear(sYear);
-	wstring wsCata, wsPage;
-	wf.browse(wsPage, url);
-	jf.utf8To16(wsCata, sCata);
-	wstring wsTemp = L"title=\"Dataset " + wsCata;
-	size_t pos2 = wsPage.find(wsTemp);
-	size_t pos1 = wsPage.find(L"PID=", pos2) + 4;
-	pos2 = wsPage.find_first_not_of(L"1234567890", pos1);
-	wstring wsPID = wsPage.substr(pos1, pos2 - pos1);
-	string sPID;
-	jf.utf16To8(sPID, wsPID);
-
+	string sPID = cataPID(sYear, sCata);
 	vector<string> vsTag = { "url", "statscan_geo", sYear };
-	url = jf.getXML1(configXML, vsTag);
-	pos1 = url.find("[pid]");
+	url = jparse.getXML1(configXML, vsTag);
+	size_t pos1 = url.rfind("[pid]");
+	if (pos1 > url.size()) { err("Failed to locate [pid] placeholder-urlCataGeo"); }
 	url.replace(pos1, 5, sPID);
-	pos1 = url.rfind("[year]");
-	url.replace(pos1, 6, sYear);
-
-	return url;
 }
-string SConline::urlCataTopic(string sYear, string sCata)
+void SConline::urlCataTopic(string& url, string sYear, string sCata)
 {
-	string url;
-	int iYear;
-	try { iYear = stoi(sYear); }
-	catch (invalid_argument) { err("iYear stoi-urlCataTopic"); }
+	string sPID = cataPID(sYear, sCata);
 
-	string urlTemp = urlRoot + "?Temporal=" + sYear;
-	wstring wCata, wPage;
-	wf.browse(wPage, urlTemp);
-	jf.utf8To16(wCata, sCata);
-	wstring wTemp = L"title=\"Dataset " + wCata;
-	size_t pos2 = wPage.find(wTemp);
-	size_t pos1 = wPage.find(L"PID=", pos2) + 4;
-	pos2 = wPage.find_first_not_of(L"1234567890", pos1);
-	wTemp = wPage.substr(pos1, pos2 - pos1);
-	string sTemp;
-	jf.utf16To8(sTemp, wTemp);
-
-	if (iYear >= 2016) { return url; }
-	else if (iYear >= 2011) {
-		url = "www12.statcan.gc.ca/";
-		if (iYear == 2011) { url += "census-recensement/2011/dp-pd/tbt-tt"; }
-		else if (iYear == 2013) { url += "nhs-enm/2011/dp-pd/dt-td"; }
-		url += "/Rp-eng.cfm?TABID=1&LANG=E&A=R&APATH=3&DETAIL=0&DIM=0&FL=A";
-		url += "&FREE=0&GC=0&GL=-1&GID=0&GK=0&GRP=1&O=D&PID=";
-		url += sTemp + "&PRID=0&PTYPE=0&S=0&SHOWALL=0&SUB=0&Temporal=";
-		url += sYear + "&THEME=0&VID=0&VNAMEE=&VNAMEF=&D1=0&D2=0&D3=0&D4=0&D5=0&D6=0";
-	}
-	return url;
+	vector<string> vsTag = { "url", "statscan_topic", sYear };
+	url = jparse.getXML1(configXML, vsTag);
+	size_t pos1 = url.rfind("[pid]");
+	if (pos1 > url.size()) { err("Failed to locate [pid] placeholder-urlCataTopic"); }
+	url.replace(pos1, 5, sPID);
 }
-string SConline::urlYear(string syear)
+void SConline::urlYear(string& url, string syear)
 {
-	string url = urlRoot + "?Temporal=" + syear;
-	return url;
+	url = urlRoot + "?Temporal=" + syear;
 }

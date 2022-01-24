@@ -4,7 +4,8 @@
 #include <set>
 #include <thread>
 #include "sqlite3.h"
-#include "jfunc.h"
+#include "jlog.h"
+#include "jstring.h"
 
 extern std::mutex m_err;
 
@@ -13,7 +14,7 @@ class SQLFUNC
     bool analyze = 0;
 	sqlite3* db = nullptr;
     std::string dbPath;
-    JFUNC jf;
+    JSTRING jstr;
     std::unordered_map<std::string, int> mapColType;
     std::set<std::string> setTable;
     

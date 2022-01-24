@@ -1,11 +1,11 @@
 #pragma once
-#include "jfunc.h"
+#include "jfile.h"
 #include "jtree.h"
 
 class JTXML : public JTREE
 {
 	std::string encoding;
-	JFUNC jf;
+	JFILE jfile;
 	std::unordered_map<std::string, char> mapEntity;
 	double version;
 	std::string xmlFile;

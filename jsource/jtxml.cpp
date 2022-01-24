@@ -128,7 +128,7 @@ void JTXML::initEntity()
 }
 void JTXML::loadXML(string filePath)
 {
-	jf.load(xmlFile, filePath);
+	jfile.load(xmlFile, filePath);
 	extractDeclaration(xmlFile);
 	removeComment(xmlFile);
 	size_t posStart = xmlFile.find('<');

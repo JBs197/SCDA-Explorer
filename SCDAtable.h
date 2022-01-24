@@ -10,7 +10,7 @@ class SCDAtable : public QWidget
 	Q_OBJECT
 
 private:
-	JFUNC jf;
+	JPARSE jparse;
 	QAction* qaDelete;
 
 	void err(string message);

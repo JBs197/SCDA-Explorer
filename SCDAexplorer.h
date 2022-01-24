@@ -16,8 +16,6 @@
 #include "sqlfunc.h"
 #include "switchboard.h"
 
-extern mutex m_bar;
-
 class SCDA : public QMainWindow
 {
 	Q_OBJECT
@@ -26,7 +24,9 @@ private:
 	int commLength, indexControl, indexDisplay, indexPBar;
 	int indexTab, labelCharHeight, labelCharWidth, numCore, sleepTime;
 	string configXML;
-	JFUNC jf;
+	JFILE jfile;
+	JPARSE jparse;
+	JTIME jtime;
 	string sExecFolder, sLocalStorage;
 	SWITCHBOARD sb;
 	WINFUNC wf;
@@ -43,7 +43,7 @@ private:
 
 public:
 	SCDA(string sExecFolder, QWidget* parent = nullptr);
-	~SCDA() {}
+	~SCDA() = default;
 
 	SCdatabase scdb;
 	SConline sco;

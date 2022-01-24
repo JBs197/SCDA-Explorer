@@ -15,7 +15,8 @@
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QTableView>
-#include "jfunc.h"
+#include "jlog.h"
+#include "jstring.h"
 #include "qjdelegate.h"
 
 class QJTABLEVIEW : public QTableView
@@ -24,7 +25,7 @@ class QJTABLEVIEW : public QTableView
 
 private:
 	int acceptActions = 0;
-	JFUNC jf;
+	JSTRING jstr;
 	unordered_map<string, int> mapColIndex;  // Column header -> column index
 	QString mimeColHeader;
 	int numBlankRow;

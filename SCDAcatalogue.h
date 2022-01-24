@@ -5,6 +5,9 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include "jfile.h"
+#include "jparse.h"
+#include "jsort.h"
 #include "qjtreeview.h"
 #include "SConline.h"
 
@@ -13,7 +16,9 @@ class SCDAcatalogue : public QWidget
 	Q_OBJECT
 
 private:
-	JFUNC jf;
+	JFILE jfile;
+	JPARSE jparse;
+	JSORT jsort;
 	QAction* qaDownload, *qaInsert, *qaSearch, *qaTemplate;
 	WINFUNC wf;
 
@@ -33,7 +38,7 @@ public:
 		itemColourSelected = make_pair("#000080", "#FFFFFF");
 		init(); 
 	}
-	~SCDAcatalogue() {}
+	~SCDAcatalogue() = default;
 
 	enum index { Statscan, Local, Database };
 

@@ -961,7 +961,7 @@ void SQLFUNC::insertRow(string tname, vector<vector<string>>& vvsRow)
     // vvsRow has form [column titles, row0, row1, ...][values].
     // Note: if vvsRow contains more than one row of data to insert, 
     // then the insertion will be done as a transaction.
-    if (vvsRow.size() < 1 || vvsRow[0].size() < 1) { err("Missing vvsRow-insertRow"); }
+    if (vvsRow.size() < 2 || vvsRow[0].size() < 1) { err("Missing vvsRow-insertRow"); }
     map<string, string> mapColTitle;
     getColTitle(mapColTitle, tname);
     int numCol = (int)vvsRow[0].size();
@@ -1201,7 +1201,7 @@ int SQLFUNC::searchTableName(vector<string>& vsTable, string sQuery)
     // Any '*' wildcards are changed into SQL '%' wildcards, which can 
     // have any string length.
     vector<string> dirt = { "*" }, soap = { "%" };
-    jf.clean(sQuery, dirt, soap);
+    jstr.clean(sQuery, dirt, soap);
     sclean(sQuery, 1);
 
     vsTable.clear();

@@ -20,7 +20,7 @@ struct JNODE
 		prefix = "";
 		vsData.resize(1);
 	}
-	~JNODE() {}
+	~JNODE() = default;
 
 	bool empty, expanded;
 	int hasTwin;
@@ -38,6 +38,11 @@ struct JNODE
 	JNODE operator=(JNODE jn) {
 		JNODE jnCopy;
 		jnCopy.vsData = jn.vsData;
+		jnCopy.vsItemRole = jn.vsItemRole;
+		if (jn.prefix.size() > 0) { jnCopy.prefix = jn.prefix; }
+		jnCopy.colour = jn.colour;
+		jnCopy.colourSelected = jn.colourSelected;
+		jnCopy.mapAttribute = jn.mapAttribute;
 		return jnCopy;
 	}
 };
@@ -65,7 +70,7 @@ public:
 		selectedID = -1;
 	}
 	JTREE() { reset(); }
-	~JTREE() {}
+	~JTREE() = default;
 
 	JTREE& operator=(const JTREE& jtOld) {
 		mapIDIndex = jtOld.mapIDIndex;

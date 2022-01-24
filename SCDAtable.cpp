@@ -12,7 +12,7 @@ void SCDAtable::deleteTable()
 	QString qsTemp = qVar.toString();
 	wstring wsTemp = qsTemp.toStdWString();
 	string tname;
-	jf.utf16To8(tname, wsTemp);
+	jparse.utf16To8(tname, wsTemp);
 	emit sendDeleteTable(tname);
 }
 void SCDAtable::displayTable(vector<vector<string>>& vvsData, vector<vector<string>>& vvsColTitle, string title)
@@ -95,7 +95,7 @@ void SCDAtable::initItemColour(string& configXML)
 {
 	int indexBG = -1, indexFG = -1;
 	vector<string> vsTag = { "colour", "solid", "item_default" };
-	vector<vector<string>> vvsTag = jf.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		if (vvsTag[ii][0] == "background") { indexBG = ii; }
 		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
@@ -103,7 +103,7 @@ void SCDAtable::initItemColour(string& configXML)
 	itemColourDefault = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 
 	vsTag = { "colour", "solid", "item_fail" };
-	vvsTag = jf.getXML(configXML, vsTag);
+	vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		if (vvsTag[ii][0] == "background") { indexBG = ii; }
 		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
@@ -111,7 +111,7 @@ void SCDAtable::initItemColour(string& configXML)
 	itemColourFail = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 
 	vsTag = { "colour", "solid", "item_selected" };
-	vvsTag = jf.getXML(configXML, vsTag);
+	vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		if (vvsTag[ii][0] == "background") { indexBG = ii; }
 		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
@@ -120,7 +120,7 @@ void SCDAtable::initItemColour(string& configXML)
 	itemColourHover = itemColourSelected;
 
 	vsTag = { "colour", "solid", "item_warning" };
-	vvsTag = jf.getXML(configXML, vsTag);
+	vvsTag = jparse.getXML(configXML, vsTag);
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		if (vvsTag[ii][0] == "background") { indexBG = ii; }
 		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
