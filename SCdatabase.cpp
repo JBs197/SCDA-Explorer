@@ -44,13 +44,12 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 	uintmax_t fileSize;
 	string cataDir, filePath, sCata, sTopic, zipPath;
 	vector<string> vsFileName, vsFilePath;
-	string sMarker(1, marker);
 
 	sbgui.pullWork(cataDir);
 	if (cataDir.size() < 1) { return; }
-	size_t pos2 = cataDir.rfind(marker);
+	size_t pos2 = cataDir.find_last_of("/\\");
 	if (pos2 > cataDir.size()) { err("Invalid sYear-insertCata"); }
-	size_t pos1 = cataDir.rfind(marker, pos2 - 1);
+	size_t pos1 = cataDir.find_last_of("/\\", pos2 - 1);
 	if (pos1 > cataDir.size()) { err("Invalid sYear-insertCata"); }
 	string sYear = cataDir.substr(pos1 + 1, pos2 - pos1 - 1);
 
@@ -67,20 +66,20 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 	catch (invalid_argument) { err("iYear/maxFileSize stoi-insertCata"); }
 
 	while (cataDir.size() > 0) {
-		pos2 = cataDir.rfind(marker);
+		pos2 = cataDir.find_last_of("/\\");
 		if (pos2 > cataDir.size()) { err("Invalid sCata-insertCata"); }
 		sCata = cataDir.substr(pos2 + 1);
 
 		// Establish the state of the catalogue's local files. 
 		// Required files still in the archive are unzipped.
-		zipPath = cataDir + sMarker + sCata + ".zip";
+		zipPath = cataDir + "/" + sCata + ".zip";
 		if (!jfile.fileExist(zipPath)) { err("Missing catalogue zip file-insertCata"); }
 		vsFileName.clear();
 		jfile.zipFileList(vsFileName, zipPath);
 		numFile = (int)vsFileName.size();
 		vsFilePath.resize(numFile);
 		for (int ii = 0; ii < numFile; ii++) {
-			vsFilePath[ii] = cataDir + sMarker + vsFileName[ii];
+			vsFilePath[ii] = cataDir + "/" + vsFileName[ii];
 			filePath = vsFilePath[ii];
 			pos1 = filePath.rfind('.');
 			filePath.insert(pos1, 1, '*');  // Wildcard inserted in case the file has been split (renamed).
@@ -105,7 +104,10 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 		insertTopicYear(sYear, sTopic);
 		insertCensusYear(sYear, sCata, sTopic);
 
-		// GEO
+		// Insert all of the catalogue's geographic table entries.
+		insertGeoLayer(cataDir, sYear, sCata);
+		insertGeo(cataDir, sYear, sCata);
+
 	}
 
 
@@ -139,7 +141,7 @@ void SCdatabase::insertCensusYear(string sYear, string sCata, string sTopic)
 	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	xmlToColTitle(vvsColTitle, vsUnique, vvsTag);
 
-	string tname = "Census$" + sYear;
+	string tname = "Census" + marker + sYear;
 	if (!sf.tableExist(tname)) {
 		sf.createTable(tname, vvsColTitle, vsUnique);
 	}
@@ -150,6 +152,188 @@ void SCdatabase::insertCensusYear(string sYear, string sCata, string sTopic)
 	if (safeInsertRow(tname, vvsColTitle)) {
 		sf.insertRow(tname, vvsColTitle);
 	}
+}
+void SCdatabase::insertGeo(string cataDir, string sYear, string sCata)
+{
+	// Insert this catalogue's geographic region tree, as a SQL table. If the catalogue
+	// has missing regions which are also parents to other (present) regions, then the
+	// appropriate GeoTreeTemplate table will be used to fill in the gaps. The missing
+	// region will not have any data attached to it, but it can prevent the tree from
+	// having missing links. 
+	int geoCode, geoLevel, index, inum;
+	string geoFile, geoLayer, myGeoCode, parentGeoCode, tnameTemplate;
+	vector<string> conditions, search, vsResult, vsTag, vsUnique;
+	vector<vector<string>> vvsColTitle, vvsRow, vvsTag;
+
+	string tname = "Geo" + marker + sYear + marker + sCata;
+	if (!sf.tableExist(tname)) {
+		vsTag = { "table", "Geo_year_cata" };
+		vvsTag = jparse.getXML(configXML, vsTag);
+		xmlToColTitle(vvsColTitle, vsUnique, vvsTag);
+		sf.createTable(tname, vvsColTitle, vsUnique);
+	}
+
+	string filePath = cataDir + "/Geo_" + sCata + ".txt";
+	jfile.load(geoFile, filePath);
+	string sMarker(1, geoFile[0]);
+	size_t pos1 = 1, pos2;
+	size_t pos3 = geoFile.find('\n');
+	while (pos1 < geoFile.size()) {
+		index = (int)vvsRow.size();
+		vvsRow.push_back(vector<string>());
+
+		pos2 = geoFile.find(marker, pos1);
+		while (pos2 < pos3) {
+			vvsRow[index].emplace_back(geoFile.substr(pos1, pos2 - pos1));
+			pos1 = pos2 + 1;
+			pos2 = geoFile.find(sMarker, pos1);
+		}
+		vvsRow[index].emplace_back(geoFile.substr(pos1, pos3 - pos1));
+
+		pos1 = geoFile.find_first_not_of(sMarker + "\n", pos3 + 1);
+		pos3 = geoFile.find('\n', pos3 + 1);
+	}
+
+	// Ensure that "Canada" has GEO_LEVEL 0, and that split regions are given their
+	// proper GEO_LEVEL (relative to individual parent).
+	int indexCode = -1, indexLevel = -1, indexRegion = -1;
+	for (int jj = 0; jj < vvsRow[0].size(); jj++) {
+		pos1 = vvsRow[0][jj].find("GEO_CODE");
+		if (pos1 < vvsRow[0][jj].size()) { indexCode = jj; }
+
+		pos1 = vvsRow[0][jj].find("GEO_LEVEL");
+		if (pos1 < vvsRow[0][jj].size()) { indexLevel = jj; }
+
+		pos1 = vvsRow[0][jj].find("Region");
+		if (pos1 < vvsRow[0][jj].size()) { indexRegion = jj; }
+	}
+	if (indexCode < 0 || indexLevel < 0 || indexRegion < 0) { err("Failed to determine a geo column index-insertGeoTreeTemplate"); }
+	for (int jj = 0; jj < vvsRow.size(); jj++) {
+		if (vvsRow[jj][indexRegion] == "Canada") {
+			vvsRow[jj][indexLevel] = "0";
+			continue;
+		}
+
+		// Je m'excuse ici - c'est pour la simplicité...
+		pos1 = vvsRow[jj][indexRegion].find(" part");
+		if (pos1 < vvsRow[jj][indexRegion].size()) {
+			pos2 = vvsRow[jj][indexRegion].find('/');
+			if (pos1 < pos2) {  // English listed first.
+				vvsRow[jj][indexRegion].resize(pos1 + 6);
+				vvsRow[jj][indexRegion].back() = ')';
+			}
+			else {  // French listed first.
+				pos1 = vvsRow[jj][indexRegion].rfind(' ', pos1 - 1) + 1;
+				pos2 = vvsRow[jj][indexRegion].rfind('(', pos2);
+				vvsRow[jj][indexRegion].replace(pos2, pos1 - pos2, "(");
+			}
+			try { geoLevel = stoi(vvsRow[jj][indexLevel]); }
+			catch (invalid_argument) { err("geoLevel stoi-insertGeoTreeTemplate"); }
+			geoLevel--;
+			vvsRow[jj][indexLevel] = to_string(geoLevel);
+		}
+		pos1 = vvsRow[jj][indexRegion].find(" / ");
+		if (pos1 < vvsRow[jj][indexRegion].size()) {
+			vvsRow[jj][indexRegion].resize(pos1);
+		}
+	}
+
+	// Add ancestry columns to the geo data.
+	vector<int> viAncestry = { -1 };
+	size_t maxAncestor = 0;
+	for (int jj = 1; jj < vvsRow.size(); jj++) {
+		try {
+			geoCode = stoi(vvsRow[jj][indexCode]);
+			geoLevel = stoi(vvsRow[jj][indexLevel]);
+		}
+		catch (invalid_argument) { err("geoCode/geoLevel stoi-insertGeoTreeTemplate"); }
+
+		if (geoLevel > viAncestry.size()) { 
+			// Use the templates to save the situation.
+			if (tnameTemplate.size() < 1) {
+				filePath = cataDir + "/GeoLayer_" + sCata + ".txt";
+				jfile.load(geoLayer, filePath);
+				while (geoLayer.back() == '\n') { geoLayer.pop_back(); }
+				tnameTemplate = "GeoTreeTemplate" + marker + sYear + geoLayer;
+			}
+			search = { "*" };
+			myGeoCode = vvsRow[jj][indexCode];
+			conditions = { "GEO_CODE = " + vvsRow[jj][indexCode] };
+			vsResult.clear();
+			inum = sf.select(search, tnameTemplate, vsResult, conditions);
+			if (inum < 1) {
+				conditions = { "\"Region Name\" LIKE '" + vvsRow[jj][indexRegion] + "'" };
+				inum = sf.select(search, tnameTemplate, vsResult, conditions);
+				if (inum < 1) { err("Failed to locate region in GeoTree-insertGeo"); }
+			}
+			while (1) {
+				parentGeoCode = vsResult.back();
+				conditions = { "GEO_CODE = " + parentGeoCode };
+				vsResult.clear();
+				inum = sf.select(search, tnameTemplate, vsResult, conditions);
+				if (inum < 1) { err("Failed to locate parent region in GeoTree-insertGeo");	}
+				vvsRow.insert(vvsRow.begin() + jj, vsResult);
+				// FILL THE GAPS
+			}
+
+
+
+		}
+		else if (geoLevel == viAncestry.size()) { 
+			viAncestry.push_back(geoCode); 
+			for (int kk = 0; kk < viAncestry.size() - 1; kk++) {
+				vvsRow[jj].emplace_back(to_string(viAncestry[kk]));
+			}
+		}
+		else {
+			while (geoLevel < viAncestry.size() - 1) { viAncestry.pop_back(); }
+			viAncestry.back() = geoCode;
+			for (int kk = 0; kk < viAncestry.size() - 1; kk++) {
+				vvsRow[jj].emplace_back(to_string(viAncestry[kk]));
+			}
+		}
+
+		if (viAncestry.size() - 1 > maxAncestor) { maxAncestor = viAncestry.size() - 1; }
+	}
+	for (int jj = 0; jj < maxAncestor; jj++) {
+		vvsRow[0].emplace_back("Ancestor" + to_string(jj));
+	}
+
+	// Insert the geographic data into the database, as a transaction.
+	if (safeInsertRow(tname, vvsRow)) {
+		sf.insertRow(tname, vvsRow);
+	}
+}
+void SCdatabase::insertGeoLayer(string cataDir, string sYear, string sCata) 
+{
+	// Insert this catalogue's entry into the GeoLayer table.
+	vector<string> vsTag, vsUnique;
+	vector<vector<string>> vvsColTitle, vvsRow, vvsTag;
+
+	string tname = "GeoLayer" + marker + sYear;
+	if (!sf.tableExist(tname)) {
+		vsTag = { "table", "GeoLayer_year" };
+		vvsTag = jparse.getXML(configXML, vsTag);
+		xmlToColTitle(vvsColTitle, vsUnique, vvsTag);
+		sf.createTable(tname, vvsColTitle, vsUnique);
+	}
+
+	string filePath = cataDir + "/GeoLayer_" + sCata + ".txt";
+	string geoLayerFile;
+	jfile.load(geoLayerFile, filePath);
+	while (geoLayerFile.back() == '\n') { geoLayerFile.pop_back(); }
+	vvsRow.resize(2, vector<string>());
+	jparse.splitByMarker(vvsRow[1], geoLayerFile);
+	if (vvsRow[1].size() > vvsColTitle[0].size()) { 
+		vvsRow[0] = vvsColTitle[0];
+		safeInsertRow(tname, vvsRow);
+	}
+	else if (vvsRow[1].size() < vvsColTitle[0].size()) {
+		for (int ii = 0; ii < vvsRow[1].size(); ii++) {
+			vvsRow[0][ii] = vvsColTitle[0][ii];
+		}
+	}
+	sf.insertRow(tname, vvsRow);
 }
 void SCdatabase::insertGeoTreeTemplate(string yearDir)
 {
@@ -180,10 +364,10 @@ void SCdatabase::insertGeoTreeTemplate(string yearDir)
 
 	vsTag = { "table", "Geo_year_cata" };
 	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
-	vector<vector<string>> vvsColTitle, vvsRow; 
+	vector<vector<string>> vvsColTitle, vvsRow, vvsSplit; 
 	xmlToColTitle(vvsColTitle, vsUnique, vvsTag);
 
-	string geoFile, geoLayerFile, geoPath, marker, tname;
+	string geoFile, geoLayerFile, geoPath, sGeoLevel, sParent, tname;
 	int geoCode, geoLevel, index, indexCode, indexLevel, indexRegion;
 	vector<int> viAncestry;
 	int numCata = (int)vsCata.size();
@@ -191,15 +375,15 @@ void SCdatabase::insertGeoTreeTemplate(string yearDir)
 		geoPath = yearDir + "/" + vsCata[ii] + "/GeoLayer_" + vsCata[ii] + ".txt";
 		jfile.load(geoLayerFile, geoPath);
 		while (geoLayerFile.back() == '\n') { geoLayerFile.pop_back(); }
-		tname = "GeoTreeTemplate$" + sYear + geoLayerFile;
+		tname = "GeoTreeTemplate" + marker + sYear + geoLayerFile;
 		if (!sf.tableExist(tname)) {
 			sf.createTable(tname, vvsColTitle, vsUnique);
 		}
 
 		vvsRow.clear();
+		vvsSplit.clear();
 		geoPath = yearDir + "/" + vsCata[ii] + "/Geo_" + vsCata[ii] + ".txt";
 		jfile.load(geoFile, geoPath);
-		marker = geoFile[0];
 		pos1 = 1;
 		pos3 = geoFile.find('\n');
 		while (pos1 < geoFile.size()) {
@@ -255,10 +439,48 @@ void SCdatabase::insertGeoTreeTemplate(string yearDir)
 				catch (invalid_argument) { err("geoLevel stoi-insertGeoTreeTemplate"); }
 				geoLevel--;
 				vvsRow[jj][indexLevel] = to_string(geoLevel);
+
+				// Remove the union region of two split regions.
+				pos1 = vvsRow[jj][indexRegion].find(vvsRow[jj - 1][indexRegion]);
+				if (pos1 == 0) {
+					vvsRow.erase(vvsRow.begin() + jj - 1);
+					jj--;
+				}
+
+				// One split region will be correctly positioned after its parent. 
+				// The other split region needs to be moved elsewhere.
+				pos2 = vvsRow[jj][indexRegion].find(" part");
+				pos1 = vvsRow[jj][indexRegion].rfind('(', pos2) + 1;
+				sParent = vvsRow[jj][indexRegion].substr(pos1, pos2 - pos1);
+				sGeoLevel = to_string(geoLevel - 1);
+				for (int kk = jj - 1; kk >= 0; kk--) {
+					if (vvsRow[kk][indexLevel] == sGeoLevel) {
+						if (vvsRow[kk][indexRegion] != sParent) {
+							vvsSplit.emplace_back(vvsRow[jj]);
+							vvsRow.erase(vvsRow.begin() + jj);
+							jj--;
+						}
+						break;
+					}
+					else if (kk == 0) { err("Failed to locate any possible parent region-insertGeo"); }
+				}
+				continue;
 			}
 			pos1 = vvsRow[jj][indexRegion].find(" / ");
 			if (pos1 < vvsRow[jj][indexRegion].size()) {
 				vvsRow[jj][indexRegion].resize(pos1);
+			}
+		}
+		for (int jj = 0; jj < vvsSplit.size(); jj++) {
+			pos2 = vvsSplit[jj][indexRegion].rfind(" part");
+			pos1 = vvsSplit[jj][indexRegion].rfind('(', pos2) + 1;
+			sParent = vvsSplit[jj][indexRegion].substr(pos1, pos2 - pos1);
+			for (int kk = 0; kk < vvsRow.size(); kk++) {
+				if (vvsRow[kk][indexRegion] == sParent) {
+					vvsRow.insert(vvsRow.begin() + kk + 1, vvsSplit[jj]);
+					break;
+				}
+				else if (kk == vvsRow.size() - 1) { err("Failed to locate correct parent for split region-insertGeo"); }
 			}
 		}
 
@@ -411,7 +633,7 @@ void SCdatabase::searchTable(SWITCHBOARD& sbgui, JTREE& jt, vector<string>& vsTa
 	vector<int> childrenID;
 	JNODE jnRoot = jt.getRoot();
 	for (int ii = 0; ii < numTable; ii++) {
-		jparse.splitByMarker(vsParam, vsTable[ii], marker);
+		jparse.splitByMarker(vsParam, vsTable[ii], marker[0]);
 		numParam = (int)vsParam.size();
 		if (numParam < 1) { err("splitByMarker-searchTable"); }
 

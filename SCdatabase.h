@@ -10,13 +10,13 @@ class SCdatabase
 	JFILE jfile;
 	JPARSE jparse;
 	std::unordered_map<std::string, std::string> mapGeoLayers;
-	const char marker;
+	const std::string marker;
 
 	void err(std::string message);
 	void insertCensusYear(std::string sYear, std::string sCata, std::string sTopic);
-	//void insertGeoLayer(std::string sYearFolder);
+	void insertGeo(std::string cataDir, std::string sYear, std::string sCata);
+	void insertGeoLayer(std::string cataDir, std::string sYear, std::string sCata);
 	void insertTopicYear(std::string sYear, std::string sTopic);
-	//void loadGeo(std::vector<std::vector<std::string>>& vvsGeo, std::vector<std::vector<std::string>>& vvsGeoLayers, std::string dirCata, std::string& sCata);
 	//void loadMeta(std::string& metaFile, std::string dirCata);
 	void loadTopic(std::string& sTopic, std::string cataDir);
 	void log(std::string message);
@@ -24,7 +24,7 @@ class SCdatabase
 	void xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag);
 
 public:
-	SCdatabase() : marker('$') {}
+	SCdatabase() : marker("$") {}
 	~SCdatabase() = default;
 
 	std::string configXML;
