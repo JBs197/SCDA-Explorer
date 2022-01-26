@@ -32,8 +32,11 @@ void QJTREEVIEW::mouseDoubleClickEvent(QMouseEvent* event)
 }
 void QJTREEVIEW::nodeExpanded(const QModelIndex& qmiNode)
 {
-	int iCol = qmiNode.column();
-	resizeColumnToContents(iCol);
+	QJTREEMODEL* model = (QJTREEMODEL*)this->model();
+	int numCol = model->columnCount(qmiNode);
+	for (int ii = 0; ii < numCol; ii++) {
+		resizeColumnToContents(ii);
+	}
 }
 void QJTREEVIEW::nodeSelectionChanged(const QItemSelection& selected, const QItemSelection& deselected)
 {

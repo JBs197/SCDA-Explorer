@@ -2,7 +2,7 @@
 #include <map>
 #include <mutex>
 #include <set>
-#include "jstring.h"
+#include "jparse.h"
 
 struct JNODE
 {
@@ -84,6 +84,7 @@ public:
 	int selectedID;
 
 	void addChild(int parentID, JNODE& jnChild);
+	void appendChildrenID(std::vector<int>& childrenID, int parentID);
 	void compare(JTREE& jtOther);
 	void deleteChildren(int ID);
 	void deleteNode(int ID);

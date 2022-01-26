@@ -118,6 +118,98 @@ JNODE& JTXML::getRoot()
 {
 	return vNode[0];
 }
+void JTXML::getValue(string& sValue, string sQuery)
+{
+	// This variant returns the first value found within the XML tree matching sQuery.
+	if (tag.size() < 1 || attr.size() < 1 || wild.size() < 1) { err("Missing initMarker-getValue"); }
+	sValue.clear();
+	size_t pos1, pos2, pos3, length;
+	bool match;
+	string temp;
+	vector<int> viTemp;
+	vector<pair<string, string>> vAttr;
+	vector<string> vsBranch;
+	jparse.splitByMarker(vsBranch, sQuery, tag[0]);
+	int numBranch = (int)vsBranch.size();
+	vector<vector<int>> vvID(numBranch + 1, vector<int>());  // Form [branch index][candidateID]
+	vvID[0] = { vNode[0].ID };
+	for (int ii = 0; ii < numBranch; ii++) {
+		length = vsBranch[ii].size();
+		if (length == 0) {
+			for (int ID : vvID[ii]) {
+				appendChildrenID(vvID[1 + ii], ID);
+			}
+			continue;
+		}		
+		
+		// Extract attribute pairs (name, value), leaving the branch as only a tag name.
+		vAttr.clear();
+		pos1 = vsBranch[ii].rfind(attr[0]);
+		while (pos1 < length) {
+			pos2 = vsBranch[ii].find("=\"", pos1);
+			if (pos2 < length) {
+				pos3 = vsBranch[ii].find('"', pos2 + 2);
+				if (pos3 < length) {
+					vAttr.emplace_back(make_pair(vsBranch[ii].substr(pos1 + 1, pos2 - pos1 - 1), vsBranch[ii].substr(pos2 + 2, pos3 - pos2 - 2)));
+				}
+			}
+			vsBranch[ii].resize(pos1);
+			pos1 = vsBranch[ii].rfind(attr[0]);
+		}
+
+		// Add the next row of candidate IDs.
+		for (int jj = 0; jj < vvID[ii].size(); jj++) {
+			viTemp = getChildrenID(vvID[ii][jj]);
+			for (int kk = 0; kk < viTemp.size(); kk++) {
+				JNODE& jn = getNode(viTemp[kk]);
+				if (jn.vsData[0] == vsBranch[ii] || vsBranch[ii] == wild) {
+					if (jn.mapAttribute.size() == vAttr.size()) {
+						for (int ll = 0; ll < vAttr.size(); ll++) {
+							// Try to disqualify this candidate node.
+							if (vAttr[ll].first == wild) {
+								match = 0;
+								for (auto it = jn.mapAttribute.begin(); it != jn.mapAttribute.end(); ++it) {
+									if (it->second == vAttr[ll].second) {
+										match = 1;
+										break;
+									}
+								}
+								if (!match) { break; }
+							}
+							else {
+								auto it = jn.mapAttribute.find(vAttr[ll].first);
+								if (it == jn.mapAttribute.end()) { break; }
+								if (vAttr[ll].second != wild) {
+									if (vAttr[ll].second != it->second) { break; }
+								}
+							}
+							if (ll == vAttr.size() - 1) {  // Candidate passes all tests.
+								vvID[1 + ii].push_back(jn.ID);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	if (vvID.back().size() < 1) { return; }
+	
+	JNODE& jn = getNode(vvID.back()[0]);
+	viTemp = getChildrenID(jn.ID);
+	if (viTemp.size() == 1) {
+		JNODE& jnChild = getNode(viTemp[0]);
+		if (jnChild.posStart == 0) {  // Value only, not an element.
+			sValue = jnChild.vsData[0];
+			return;
+		}
+	}
+	if (jn.mapAttribute.size() == 1) {
+		auto it = jn.mapAttribute.begin();
+		sValue = it->second;
+		return;
+	}
+	sValue = jn.vsData[0];
+}
 void JTXML::initEntity()
 {
 	mapEntity.emplace("&lt;", '<');
@@ -125,6 +217,13 @@ void JTXML::initEntity()
 	mapEntity.emplace("&amp;", '&');
 	mapEntity.emplace("&apos;", '\'');
 	mapEntity.emplace("&quot;", '"');
+}
+void JTXML::initMarker(std::string tagChar, std::string attrChar, std::string wildChar)
+{
+	// Each marker indicates the beginning of the variable within a string.
+	tag = tagChar;
+	attr = attrChar;
+	wild = wildChar;
 }
 void JTXML::loadXML(string filePath)
 {

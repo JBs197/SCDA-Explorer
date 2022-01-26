@@ -42,6 +42,22 @@ void JTREE::addChild(int parentID, JNODE& jnChild)
 	treeSTdes[viAncestry.back()].push_back(index);
 	mapIDIndex.emplace(vNode[index].ID, index);
 }
+void JTREE::appendChildrenID(vector<int>& childrenID, int parentID)
+{
+	// This variant appends the IDs of the parent's children to the given list.
+	lock_guard<mutex> lg(m_tree);
+	auto it = mapIDIndex.find(parentID);
+	if (it == mapIDIndex.end()) {
+		err("Failed to locate ID " + to_string(parentID) + "-appendChildrenID");
+	}
+
+	int numChildren = (int)treeSTdes[it->second].size();
+	int index = (int)childrenID.size();
+	childrenID.resize(index + numChildren);
+	for (int ii = 0; ii < numChildren; ii++) {
+		childrenID[index + ii] = vNode[treeSTdes[it->second][ii]].ID;
+	}
+}
 void JTREE::compare(JTREE& jtOther)
 {
 	// For every non-root node in this tree, compare it to jtOther

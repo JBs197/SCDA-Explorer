@@ -227,12 +227,24 @@ void SConline::init(string& xml)
 		marker = vvsTag[ii][1][0];
 		pos2 = vvsTag[ii][1].find(marker, pos1);
 		if (pos2 > vvsTag[ii][1].size()) { err("Failed to locate geo_level marker-initMap"); }
-		try {
+		try { output = stoi(vvsTag[ii][1].substr(pos2 + 1)); }
+		catch (invalid_argument) { err("stoi-initMap"); }
+		mapGeoLevel.emplace(vvsTag[ii][1].substr(pos1, pos2 - pos1), output);
+	}
+	mapGeoIndent.clear();
+	pos1 = 1;
+	vsTag = { "map", "geo_indent" };
+	vvsTag = jparse.getXML(configXML, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		marker = vvsTag[ii][1][0];
+		pos2 = vvsTag[ii][1].find(marker, pos1);
+		if (pos2 > vvsTag[ii][1].size()) { err("Failed to locate geo_indent marker-initMap"); }
+		try { 
 			input = stoi(vvsTag[ii][1].substr(pos1, pos2 - pos1));
-			output = stoi(vvsTag[ii][1].substr(pos2 + 1));
+			output = stoi(vvsTag[ii][1].substr(pos2 + 1)); 
 		}
 		catch (invalid_argument) { err("stoi-initMap"); }
-		mapGeoLevel.emplace(input, output);
+		mapGeoIndent.emplace(input, output);
 	}
 }
 void SConline::makeGeo(string cataFolder, string sYear, string sCata)
@@ -317,7 +329,7 @@ void SConline::makeGeo(string cataFolder, string sYear, string sCata)
 			temp = page.substr(pos1, pos2 - pos1);
 			try { 
 				indent = stoi(temp); 
-				geoLevel = mapGeoLevel.at(indent);
+				geoLevel = mapGeoIndent.at(indent);
 			}
 			catch (invalid_argument) { err("stoi/mapGeoLevel-makeGeo"); }
 

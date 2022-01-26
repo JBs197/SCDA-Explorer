@@ -12,8 +12,9 @@ class SConline
 	JPARSE jparse;
 	JSORT jsort;
 	JTREE jt;
+	std::unordered_map<int, int> mapGeoIndent;
 	std::unordered_map<std::string, std::string> mapGeoLayer;
-	std::unordered_map<int, int> mapGeoLevel;
+	std::unordered_map<std::string, int> mapGeoLevel;
 	long long maxFileSize = -1;
 	std::vector<std::vector<std::string>> vvsCata;  // Form [index][year, cata0, cata1, ...]
 	WINFUNC wf;

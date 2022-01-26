@@ -1,7 +1,7 @@
 #pragma once
 #include "jfile.h"
 #include "jparse.h"
-#include "jtree.h"
+#include "jtxml.h"
 #include "sqlfunc.h"
 #include "switchboard.h"
 
@@ -13,13 +13,17 @@ class SCdatabase
 	const std::string marker;
 
 	void err(std::string message);
+	bool hasGeoGap(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeoLevel, std::vector<int>& viGeoLevel);
 	void insertCensusYear(std::string sYear, std::string sCata, std::string sTopic);
+	void insertForWhom(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
 	void insertGeo(std::string cataDir, std::string sYear, std::string sCata);
-	void insertGeoLayer(std::string cataDir, std::string sYear, std::string sCata);
+	void insertGeo(std::vector<std::string>& vsGeoLayer, std::string cataDir, std::string sYear, std::string sCata);
+	std::vector<std::string> insertGeoLayer(std::string cataDir, std::string sYear, std::string sCata);
 	void insertTopicYear(std::string sYear, std::string sTopic);
-	//void loadMeta(std::string& metaFile, std::string dirCata);
+	void loadMeta(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string cataDir, std::string sYear, std::string sCata);
 	void loadTopic(std::string& sTopic, std::string cataDir);
 	void log(std::string message);
+	void prepareLocal(std::string cataDir, std::string sCata, long long maxFileSize);
 	bool safeInsertRow(std::string tname, std::vector<std::vector<std::string>>& vvsRow);
 	void xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag);
 

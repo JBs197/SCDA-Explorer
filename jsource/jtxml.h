@@ -4,8 +4,9 @@
 
 class JTXML : public JTREE
 {
-	std::string encoding;
+	std::string attr, encoding, tag, wild;
 	JFILE jfile;
+	JPARSE jparse;
 	std::unordered_map<std::string, char> mapEntity;
 	double version;
 	std::string xmlFile;
@@ -25,6 +26,8 @@ public:
 
 	JNODE& getNode(int ID);
 	JNODE& getRoot();
+	void getValue(std::string& sValue, std::string sQuery);
+	void initMarker(std::string tag, std::string attr, std::string wild);
 	void loadXML(std::string filePath);
 	void reset() override;
 };
