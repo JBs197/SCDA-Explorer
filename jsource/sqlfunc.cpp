@@ -73,24 +73,14 @@ void SQLFUNC::createTable(string tname, vector<vector<string>>& vvsColTitle, vec
     // vsUnique is a list of columns (or groups of columns) to be declared
     // unique within the table. 
     if (vvsColTitle.size() < 2) { err("Invalid vvsColTitle-createTable"); }
-    size_t pos1;
     int numCol = (int)vvsColTitle[0].size();
-    for (int ii = 0; ii < numCol; ii++) {
-        pos1 = vvsColTitle[0][ii].find("unique");
-        if (pos1 < vvsColTitle[0][ii].size()) {
-            if (!columnType.count(vvsColTitle[1][ii])) {
-                vsUnique.push_back(vvsColTitle[ii][1]);
-                vvsColTitle[0].erase(vvsColTitle[0].begin() + ii);
-                vvsColTitle[1].erase(vvsColTitle[1].begin() + ii);
-                ii--;
-            }
-        }
-    }
-
     string stmt = "CREATE TABLE IF NOT EXISTS \"" + tname + "\" (";
     for (int ii = 0; ii < numCol; ii++) {
         if (ii > 0) { stmt += ", "; }
         stmt += "\"" + vvsColTitle[0][ii] + "\" " + vvsColTitle[1][ii];
+    }
+    for (int ii = 0; ii < vsUnique.size(); ii++) {
+        stmt += ", UNIQUE(" + vsUnique[ii] + ")";
     }
     stmt += ");";
     executor(stmt);
@@ -335,6 +325,7 @@ void SQLFUNC::executor(string stmt, vector<string>& results)
                     break;
                 }
             }
+            while (results.back() == "") { results.pop_back(); }
         }
         else  // Returned result will be a column.
         {
@@ -467,6 +458,7 @@ void SQLFUNC::executor(string stmt, vector<vector<string>>& results)
                 break;
             }
         }
+        while (results.back().back() == "") { results.back().pop_back(); }
         error = sqlite3_step(statement);
     }
     if (error > 0 && error != 101) { sqlerr("step-executor2"); }
@@ -529,6 +521,7 @@ void SQLFUNC::executor(string stmt, vector<vector<wstring>>& results)
                 break;
             }
         }
+        while (results.back().back() == L"") { results.back().pop_back(); }
         error = sqlite3_step(statement);
     }
     if (error > 0 && error != 101) { sqlerr("step-executor2"); }

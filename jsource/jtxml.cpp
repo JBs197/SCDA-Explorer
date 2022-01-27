@@ -2,6 +2,7 @@
 
 using namespace std;
 
+/*
 void JTXML::addChild(int parentID, JNODE& jnChild)
 {
 	lock_guard<mutex> lg(m_tree);
@@ -37,6 +38,27 @@ void JTXML::addChild(int parentID, JNODE& jnChild)
 	}
 	treeSTdes[viAncestry.back()].push_back(index);
 	mapIDIndex.emplace(vNode[index].ID, index);
+}
+*/
+
+void JTXML::branchIgnore(string sQuery, int mode)
+{
+	// All nodes satisfying sQuery are added to or removed from to the set of 
+	// disabled IDs (which are ignored when searching).
+	vector<int> vID;
+	query(vID, sQuery, filter::Off);
+	switch (mode) {
+	case branch::Disable:
+		for (int ID : vID) {
+			setDisable.emplace(ID);
+		}
+		break;
+	case branch::Enable:
+		for (int ID : vID) {
+			setDisable.erase(ID);
+		}
+		break;
+	}
 }
 void JTXML::err(string message)
 {
@@ -105,6 +127,16 @@ void JTXML::extractNameAttribute(string element, JNODE& jn)
 		jn.vsData[0] = element;
 	}	
 }
+void JTXML::filterDisabled(std::vector<int>& vID)
+{
+	// Nodes listed in setDisable are removed from the list of IDs.
+	for (int ii = 0; ii < vID.size(); ii++) {
+		if (setDisable.count(vID[ii])) {
+			vID.erase(vID.begin() + ii);
+			ii--;
+		}
+	}
+}
 JNODE& JTXML::getNode(int ID)
 {
 	lock_guard<mutex> lg(m_tree);
@@ -121,94 +153,25 @@ JNODE& JTXML::getRoot()
 void JTXML::getValue(string& sValue, string sQuery)
 {
 	// This variant returns the first value found within the XML tree matching sQuery.
-	if (tag.size() < 1 || attr.size() < 1 || wild.size() < 1) { err("Missing initMarker-getValue"); }
-	sValue.clear();
-	size_t pos1, pos2, pos3, length;
-	bool match;
-	string temp;
-	vector<int> viTemp;
-	vector<pair<string, string>> vAttr;
-	vector<string> vsBranch;
-	jparse.splitByMarker(vsBranch, sQuery, tag[0]);
-	int numBranch = (int)vsBranch.size();
-	vector<vector<int>> vvID(numBranch + 1, vector<int>());  // Form [branch index][candidateID]
-	vvID[0] = { vNode[0].ID };
-	for (int ii = 0; ii < numBranch; ii++) {
-		length = vsBranch[ii].size();
-		if (length == 0) {
-			for (int ID : vvID[ii]) {
-				appendChildrenID(vvID[1 + ii], ID);
-			}
-			continue;
-		}		
-		
-		// Extract attribute pairs (name, value), leaving the branch as only a tag name.
-		vAttr.clear();
-		pos1 = vsBranch[ii].rfind(attr[0]);
-		while (pos1 < length) {
-			pos2 = vsBranch[ii].find("=\"", pos1);
-			if (pos2 < length) {
-				pos3 = vsBranch[ii].find('"', pos2 + 2);
-				if (pos3 < length) {
-					vAttr.emplace_back(make_pair(vsBranch[ii].substr(pos1 + 1, pos2 - pos1 - 1), vsBranch[ii].substr(pos2 + 2, pos3 - pos2 - 2)));
-				}
-			}
-			vsBranch[ii].resize(pos1);
-			pos1 = vsBranch[ii].rfind(attr[0]);
-		}
-
-		// Add the next row of candidate IDs.
-		for (int jj = 0; jj < vvID[ii].size(); jj++) {
-			viTemp = getChildrenID(vvID[ii][jj]);
-			for (int kk = 0; kk < viTemp.size(); kk++) {
-				JNODE& jn = getNode(viTemp[kk]);
-				if (jn.vsData[0] == vsBranch[ii] || vsBranch[ii] == wild) {
-					if (jn.mapAttribute.size() == vAttr.size()) {
-						for (int ll = 0; ll < vAttr.size(); ll++) {
-							// Try to disqualify this candidate node.
-							if (vAttr[ll].first == wild) {
-								match = 0;
-								for (auto it = jn.mapAttribute.begin(); it != jn.mapAttribute.end(); ++it) {
-									if (it->second == vAttr[ll].second) {
-										match = 1;
-										break;
-									}
-								}
-								if (!match) { break; }
-							}
-							else {
-								auto it = jn.mapAttribute.find(vAttr[ll].first);
-								if (it == jn.mapAttribute.end()) { break; }
-								if (vAttr[ll].second != wild) {
-									if (vAttr[ll].second != it->second) { break; }
-								}
-							}
-							if (ll == vAttr.size() - 1) {  // Candidate passes all tests.
-								vvID[1 + ii].push_back(jn.ID);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	if (vvID.back().size() < 1) { return; }
+	// Note: disabled nodes are ignored.
+	vector<int> vID, viTemp;
+	query(vID, sQuery, filter::On);
+	if (vID.size() < 1) { return; }
 	
-	JNODE& jn = getNode(vvID.back()[0]);
-	viTemp = getChildrenID(jn.ID);
-	if (viTemp.size() == 1) {
-		JNODE& jnChild = getNode(viTemp[0]);
-		if (jnChild.posStart == 0) {  // Value only, not an element.
-			sValue = jnChild.vsData[0];
-			return;
-		}
+	JNODE& jn = getNode(vID[0]);
+	sValue = nodeValue(jn);
+}
+void JTXML::getValue(vector<string>& vsValue, string sQuery)
+{
+	// Returns all values found within the XML tree matching sQuery.
+	// Note: disabled nodes are ignored.
+	vector<int> vID, viTemp;
+	query(vID, sQuery, filter::On);
+
+	for (int ii = 0; ii < vID.size(); ii++) {
+		JNODE& jn = getNode(vID[ii]);
+		vsValue.emplace_back(nodeValue(jn));
 	}
-	if (jn.mapAttribute.size() == 1) {
-		auto it = jn.mapAttribute.begin();
-		sValue = it->second;
-		return;
-	}
-	sValue = jn.vsData[0];
 }
 void JTXML::initEntity()
 {
@@ -218,7 +181,7 @@ void JTXML::initEntity()
 	mapEntity.emplace("&apos;", '\'');
 	mapEntity.emplace("&quot;", '"');
 }
-void JTXML::initMarker(std::string tagChar, std::string attrChar, std::string wildChar)
+void JTXML::initMarker(string tagChar, string attrChar, string wildChar)
 {
 	// Each marker indicates the beginning of the variable within a string.
 	tag = tagChar;
@@ -242,6 +205,43 @@ void JTXML::loadXML(string filePath)
 	addChild(vNode[0].ID, jnXMLRoot);
 
 	populateTree(xmlFile, jnXMLRoot);
+}
+string JTXML::nodeValue(JNODE& jn)
+{
+	// When evaluating an XML node, returns a value using the priority hierarchy
+	// (value-only single child) > (single-attribute value) > (element name)
+	vector<int> childrenID = getChildrenID(jn.ID);
+	if (childrenID.size() == 1) {
+		JNODE& jnChild = getNode(childrenID[0]);
+		if (jnChild.posStart == 0) {  // Value only, not an element.
+			return jnChild.vsData[0];
+		}
+	}
+	if (jn.mapAttribute.size() == 1) {
+		auto it = jn.mapAttribute.begin();
+		return it->second;
+	}
+	return jn.vsData[0];
+}
+void JTXML::populateSubtree(JTREE*& jtsub, int parentID, std::deque<std::string> dsQuery)
+{
+	// Every query within dsQuery serves as a branch splitter, with each branch 
+	// gaining its own matching values as well as gaining subbranches, and so forth. 
+	// With each recursion, the top layer of dsQuery is used to populate the next
+	// generation of child nodes.
+	// Note: disabled nodes are ignored.
+	vector<int> vID;
+	query(vID, dsQuery[0], filter::On, parentID);
+	dsQuery.pop_front();
+	size_t querySize = dsQuery.size();
+	for (int ii = 0; ii < vID.size(); ii++) {
+		JNODE& myChild = getNode(vID[ii]);
+		JNODE subChild = myChild;
+		jtsub->addChild(parentID, subChild);
+		if (querySize > 0) {
+			populateSubtree(jtsub, subChild.ID, dsQuery);
+		}
+	}
 }
 size_t JTXML::populateTree(string& xmlFile, JNODE& jnParent)
 {
@@ -298,6 +298,88 @@ size_t JTXML::populateTree(string& xmlFile, JNODE& jnParent)
 			pos2 = populateTree(xmlFile, jnChild);
 		}
 		pos1 = xmlFile.find('<', pos2);
+	}
+}
+void JTXML::query(vector<int>& vID, string sQuery, int mode, int startID)
+{
+	// Determine which nodes satisfy sQuery, and append their IDs to the list. 
+	// "mode" determines whether the "disable" filter is applied or not. 
+	// "startID" (default is root) specifies which node from which to begin searching - 
+	// note that sQuery begins where startID's own vsBranch trail ends !
+	if (tag.size() < 1 || attr.size() < 1 || wild.size() < 1) { err("Missing initMarker-query"); }
+	size_t pos1, pos2, pos3, length;
+	bool match;
+	string temp;
+	vector<int> viTemp;
+	vector<pair<string, string>> vAttr;
+	vector<string> vsBranch;
+	jparse.splitByMarker(vsBranch, sQuery, tag[0]);
+	int numBranch = (int)vsBranch.size();
+	vector<vector<int>> vvID(numBranch + 1, vector<int>());  // Form [branch index][candidateID]
+	if (startID < 0) { vvID[0] = { vNode[0].ID }; }
+	else { vvID[0] = { startID }; }
+
+	for (int ii = 0; ii < numBranch; ii++) {
+		length = vsBranch[ii].size();
+		if (length == 0) {
+			for (int ID : vvID[ii]) {
+				appendChildrenID(vvID[1 + ii], ID);
+			}
+			continue;
+		}
+
+		// Extract attribute pairs (name, value), leaving the branch as only a tag name.
+		vAttr.clear();
+		pos1 = vsBranch[ii].rfind(attr[0]);
+		while (pos1 < length) {
+			pos2 = vsBranch[ii].find("=\"", pos1);
+			if (pos2 < length) {
+				pos3 = vsBranch[ii].find('"', pos2 + 2);
+				if (pos3 < length) {
+					vAttr.emplace_back(make_pair(vsBranch[ii].substr(pos1 + 1, pos2 - pos1 - 1), vsBranch[ii].substr(pos2 + 2, pos3 - pos2 - 2)));
+				}
+			}
+			vsBranch[ii].resize(pos1);
+			pos1 = vsBranch[ii].rfind(attr[0]);
+		}
+
+		// Add the next row of candidate IDs.
+		for (int jj = 0; jj < vvID[ii].size(); jj++) {
+			viTemp = getChildrenID(vvID[ii][jj]);
+			if (mode) { filterDisabled(viTemp); }
+			for (int kk = 0; kk < viTemp.size(); kk++) {
+				JNODE& jn = getNode(viTemp[kk]);
+				if (jn.vsData[0] == vsBranch[ii] || vsBranch[ii] == wild) {
+					if (vAttr.size() < 1) { vvID[1 + ii].push_back(jn.ID); }
+					for (int ll = 0; ll < vAttr.size(); ll++) {
+						// Try to disqualify this candidate node.
+						if (vAttr[ll].first == wild) {
+							match = 0;
+							for (auto it = jn.mapAttribute.begin(); it != jn.mapAttribute.end(); ++it) {
+								if (it->second == vAttr[ll].second) {
+									match = 1;
+									break;
+								}
+							}
+							if (!match) { break; }
+						}
+						else {
+							auto it = jn.mapAttribute.find(vAttr[ll].first);
+							if (it == jn.mapAttribute.end()) { break; }
+							if (vAttr[ll].second != wild) {
+								if (vAttr[ll].second != it->second) { break; }
+							}
+						}
+						if (ll == vAttr.size() - 1) {  // Candidate passes all tests.
+							vvID[1 + ii].push_back(jn.ID);
+						}
+					}
+				}
+			}
+		}
+	}
+	for (int ii = 0; ii < vvID.back().size(); ii++) {
+		vID.emplace_back(vvID.back()[ii]);
 	}
 }
 void JTXML::removeComment(string& xmlText)

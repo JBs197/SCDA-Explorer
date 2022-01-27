@@ -503,20 +503,17 @@ void QJTABLEVIEW::setRowColour(QModelIndex qmi, pair<string, string> colour)
 }
 void QJTABLEVIEW::setTableData(vector<vector<string>>& vvsData)
 {
-    int numCol = -1, numRow = (int)vvsData.size();
-    if (numRow > 0) { numCol = (int)vvsData[0].size(); }
-    if (numRow < 1 || numCol < 1) { return; }
+    int numRow = (int)vvsData.size();
+    if (numRow < 1) { return; }
+    int numCol = 0;
     QStandardItemModel* model = (QStandardItemModel*)this->model();
     if (model == nullptr) { return; }
 
     QVariant qVar;
     QStandardItem* qsItem = nullptr;
-    model->setRowCount(numRow);
-    model->setColumnCount(numCol);
     for (int ii = 0; ii < numRow; ii++) {
-        for (int jj = 0; jj < numCol; jj++) {
+        for (int jj = 0; jj < vvsData[ii].size(); jj++) {
             qsItem = new QStandardItem(vvsData[ii][jj].c_str());
-
             qVar = get<0>(itemColourDefault).c_str();
             qsItem->setData(qVar, Qt::UserRole + 0);
             qVar = get<1>(itemColourDefault).c_str();
@@ -525,10 +522,12 @@ void QJTABLEVIEW::setTableData(vector<vector<string>>& vvsData)
             qsItem->setData(qVar, Qt::UserRole + 6);
             qVar = get<1>(itemColourSelected).c_str();
             qsItem->setData(qVar, Qt::UserRole + 7);
-
             model->setItem(ii, jj, qsItem);
         }
+        if (vvsData[ii].size() > numCol) { numCol = vvsData[ii].size(); }
     }
+    model->setRowCount(numRow);
+    model->setColumnCount(numCol);
 }
 void QJTABLEVIEW::startDrag(Qt::DropActions supportedActions)
 {

@@ -43,6 +43,8 @@ struct JNODE
 		jnCopy.colour = jn.colour;
 		jnCopy.colourSelected = jn.colourSelected;
 		jnCopy.mapAttribute = jn.mapAttribute;
+		jnCopy.posStart = jn.posStart;
+		jnCopy.posStop = jn.posStop;
 		return jnCopy;
 	}
 };

@@ -13,13 +13,15 @@ class SCdatabase
 	const std::string marker;
 
 	void err(std::string message);
-	bool hasGeoGap(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeoLevel, std::vector<int>& viGeoLevel);
+	bool hasGeoGap(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeoLevel, std::vector<int>& viGeoLevel, std::vector<std::vector<std::string>>& vvsGeo);
 	void insertCensusYear(std::string sYear, std::string sCata, std::string sTopic);
+	void insertDIM(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
 	void insertForWhom(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
-	void insertGeo(std::string cataDir, std::string sYear, std::string sCata);
-	void insertGeo(std::vector<std::string>& vsGeoLayer, std::string cataDir, std::string sYear, std::string sCata);
+	void insertGeo(std::vector<std::vector<std::string>>& vvsGeo, std::string sYear, std::string sCata);
+	void insertGeo(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeo, std::string sYear, std::string sCata);
 	std::vector<std::string> insertGeoLayer(std::string cataDir, std::string sYear, std::string sCata);
 	void insertTopicYear(std::string sYear, std::string sTopic);
+	void loadGeo(std::vector<std::vector<std::string>>& vvsGeo, std::string cataDir, std::string sCata);
 	void loadMeta(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string cataDir, std::string sYear, std::string sCata);
 	void loadTopic(std::string& sTopic, std::string cataDir);
 	void log(std::string message);
@@ -38,6 +40,7 @@ public:
 	void init(std::string& xml);
 	void insertCata(SWITCHBOARD& sbgui);
 	void insertCensus(std::string sYear);
+	void insertGeoTree(std::string yearDir);
 	void insertGeoTreeTemplate(std::string yearDir);
 	void loadTable(std::vector<std::vector<std::string>>& vvsData, std::vector<std::vector<std::string>>& vvsColTitle, std::string tname);
 	void makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt);

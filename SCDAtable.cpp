@@ -17,8 +17,8 @@ void SCDAtable::deleteTable()
 }
 void SCDAtable::displayTable(vector<vector<string>>& vvsData, vector<vector<string>>& vvsColTitle, string title)
 {
-	int numCol = -1, numRow = (int)vvsData.size();
-	if (numRow > 0) { numCol = (int)vvsData[0].size(); }
+	int numCol = (int)vvsColTitle[0].size();
+	int numRow = (int)vvsData.size();
 
 	QGridLayout* gLayout = (QGridLayout*)this->layout();
 	QLayoutItem* qlItem = gLayout->itemAtPosition(0, index::OnDemand);
