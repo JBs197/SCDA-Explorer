@@ -100,14 +100,14 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 	unordered_map<string, string> mapMeta, mapTag;
 	vector<string> vsTag{ "file_name", sYear };
 	jparse.getXML(mapTag, configXML, vsTag);
-	vsTag = { "settings", "max_file_size" };
+	vsTag = { "settings", "max_buffer_size" };
 	string temp = jparse.getXML1(configXML, vsTag);
-	long long maxFileSize;
+	long long maxBufferSize;
 	try { 
 		iYear = stoi(sYear);
-		maxFileSize = stoll(temp); 
+		maxBufferSize = stoll(temp);
 	}
-	catch (invalid_argument) { err("iYear/maxFileSize stoi-insertCata"); }
+	catch (invalid_argument) { err("iYear/maxBufferSize stoi-insertCata"); }
 
 	// Prepare the GeoLevel list, to determine if a subsequent catalogue needs assistance
 	// from a region tree template.
@@ -135,8 +135,8 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 		if (pos2 > cataDir.size()) { err("Invalid sCata-insertCata"); }
 		sCata = cataDir.substr(pos2 + 1);
 
-		// The catalogue's local files are unzipped and broken into manageable pieces. 
-		prepareLocal(cataDir, sCata, maxFileSize);
+		// The catalogue's local archive is unzipped. 
+		prepareLocal(cataDir, sCata);
 
 		// Build and insert catalogue topic-related tables.
 		loadTopic(sTopic, cataDir);
@@ -155,6 +155,10 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 		mapMeta.clear();
 		loadMeta(jtxml, mapMeta, cataDir, sYear, sCata);
 		insertForWhom(jtxml, mapMeta, sYear, sCata);
+		insertDIMIndex(jtxml, mapMeta, sYear, sCata);
+		insertDIM(jtxml, mapMeta, sYear, sCata);
+
+		// Build and insert all data tables.
 
 
 		sbgui.pullWork(cataDir);
@@ -206,39 +210,17 @@ void SCdatabase::insertDIM(JTXML*& jtxml, unordered_map<string, string>& mapMeta
 	// MID refers to "member identification" - it is the selected option for the DIM variable.
 	if (jtxml == nullptr) { err("Missing jtxml-insertDIM"); }
 	else if (jtxml->numNode() < 2) { err("Empty jtxml-insertDIM"); }
-
-	// Configure the tree to ignore non-parameter DIMs.
-	auto it = mapMeta.find("parameter_geo");
-	if (it != mapMeta.end()) { jtxml->branchIgnore(it->second, JTXML::Disable); }
-	vector<string> vsTag = { "parse", sYear, "meta" };
-	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
-	for (int ii = 0; ii < vvsTag.size(); ii++) {
-		if (vvsTag[ii][0].starts_with("parameter_ignore")) {
-			jtxml->branchIgnore(vvsTag[ii][1], JTXML::Disable);
-		}
-	}
-
-	// Insert the DIMIndex table - a list of the catalogue's parameters.
-	vector<string> vsAncestry, vsDIM, vsUnique;
-	vector<vector<string>> vvsColTitle, vvsRow;
-	vsTag = { "table", "Census_year_cata_DIMIndex" };
-	vvsTag = jparse.getXML(configXML, vsTag);
-	xmlToColTitle(vvsRow, vsUnique, vvsTag);
-	string tname = "Census" + marker + sYear + marker + sCata + marker + "DIMIndex";
-	if (!sf.tableExist(tname)) { sf.createTable(tname, vvsRow, vsUnique); }
-	vvsRow.pop_back();	
-	it = mapMeta.find("parameter_title");
-	if (it == mapMeta.end()) { err("parameter_title not found in mapMeta-insertDIM"); }
-	jtxml->getValue(vsDIM, it->second);
-	int numDIM = (int)vsDIM.size(), numRow, spacing;
-	for (int ii = 0; ii < numDIM; ii++) {
-		vvsRow.push_back({});
-		vvsRow.back().emplace_back(to_string(ii));
-		vvsRow.back().emplace_back(vsDIM[ii]);
-	}
-	sf.insertRow(tname, vvsRow);
+	string nbs{ -62, -96 };  // No-break space, in UTF8.
 
 	// Insert as many DIM tables as the catalogue has parameters. 
+	pair<int, int> parentID;
+	vector<int> vID, vIndent, vMID, vDesc;
+	auto it = mapMeta.find("parameter");
+	if (it == mapMeta.end()) { err("parameter not found in mapMeta-insertDIM"); }
+	jtxml->query(vID, it->second, JTXML::On);
+	int numDIM = (int)vID.size(), numRow, spacing;
+	if (numDIM == 0) { err("Failed to extract DIM root node IDs-insertDIM"); }
+	
 	deque<string> dsQuery;
 	it = mapMeta.find("member_number");
 	if (it == mapMeta.end()) { err("member_number not found in mapMeta-insertDIM"); }
@@ -250,22 +232,24 @@ void SCdatabase::insertDIM(JTXML*& jtxml, unordered_map<string, string>& mapMeta
 	if (pos1 < dsQuery[1].size()) {
 		dsQuery[1].erase(dsQuery[1].begin(), dsQuery[1].begin() + dsQuery[0].size());
 	}
-	vsUnique.clear();
-	vsTag = { "table", "Census_year_cata_dimindex" };
-	vvsTag = jparse.getXML(configXML, vsTag);
+	
+	string tname;
+	vector<string> vsAncestry, vsUnique;
+	vector<vector<string>> vvsColTitle, vvsRow;
+	vector<string> vsTag = { "table", "Census_year_cata_dimindex" };
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	xmlToColTitle(vvsColTitle, vsUnique, vvsTag);
 	JTREE* jtsub = new JTREE;
-	vector<int> vIndent, vMID, vDesc;
 	for (int ii = 0; ii < numDIM; ii++) {
 		tname = "Census" + marker + sYear + marker + sCata + marker + to_string(ii);
 		if (!sf.tableExist(tname)) { sf.createTable(tname, vvsColTitle, vsUnique); }
 		
 		jtsub->reset();
-		JNODE& jnRoot = jtsub->getRoot();
-		jtxml->populateSubtree(jtsub, jnRoot.ID, dsQuery);
+		parentID = make_pair(vID[ii], jtsub->getRoot().ID);
+		jtxml->populateSubtree(jtsub, parentID, dsQuery);
 		vvsRow.resize(1);
 		vvsRow[0] = vvsColTitle[0];
-		vMID = jtsub->getChildrenID(jnRoot.ID);
+		vMID = jtsub->getChildrenID(jtsub->getRoot().ID);
 		if (vMID.size() < 1) { err("Failed to locate MID node-insertDIM"); }
 		for (int jj = 0; jj < vMID.size(); jj++) {  
 			vvsRow.push_back(vector<string>());
@@ -275,6 +259,7 @@ void SCdatabase::insertDIM(JTXML*& jtxml, unordered_map<string, string>& mapMeta
 			if (vDesc.size() < 1) { err("Failed to locate MID description node-insertDIM"); }
 			JNODE& jnDesc = jtsub->getNode(vDesc[0]);
 			vvsRow.back().emplace_back(jtxml->nodeValue(jnDesc));
+			while (vvsRow.back().back().ends_with(nbs)) { vvsRow.back().back().resize(vvsRow.back().back().size() - 2); }
 		}
 
 		// Remove description indentations and add ancestry columns.
@@ -282,6 +267,7 @@ void SCdatabase::insertDIM(JTXML*& jtxml, unordered_map<string, string>& mapMeta
 		vIndent = { 0 };
 		numRow = (int)vvsRow.size();
 		for (int jj = 1; jj < numRow; jj++) {
+			while (vvsRow[jj][1].back() == ' ') { vvsRow[jj][1].pop_back(); }
 			spacing = (int)vvsRow[jj][1].find_first_not_of(' ');
 			vvsRow[jj][1].erase(0, spacing);
 			while (spacing < vIndent.back()) { vIndent.pop_back(); }
@@ -297,7 +283,51 @@ void SCdatabase::insertDIM(JTXML*& jtxml, unordered_map<string, string>& mapMeta
 			sf.insertRow(tname, vvsRow);
 		}
 	}
+	delete jtsub;
+}
+void SCdatabase::insertDIMIndex(JTXML*& jtxml, unordered_map<string, string>& mapMeta, string sYear, string sCata)
+{
+	// Configure the tree to ignore non-parameter DIMs.
+	auto it = mapMeta.find("parameter_geo");
+	if (it != mapMeta.end()) { jtxml->branchIgnore(it->second, JTXML::Disable); }
+	vector<string> vsTag = { "parse", sYear, "meta" };
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0].starts_with("parameter_ignore")) {
+			jtxml->branchIgnore(vvsTag[ii][1], JTXML::Disable);
+		}
+	}
 
+	// Insert the DIMIndex table - a list of the catalogue's parameters.
+	size_t pos1, pos2, pos3;
+	vector<string>vsDIM, vsUnique;
+	vector<vector<string>> vvsRow;
+	vsTag = { "table", "Census_year_cata_DIMIndex" };
+	vvsTag = jparse.getXML(configXML, vsTag);
+	xmlToColTitle(vvsRow, vsUnique, vvsTag);
+	string tname = "Census" + marker + sYear + marker + sCata + marker + "DIMIndex";
+	if (!sf.tableExist(tname)) { sf.createTable(tname, vvsRow, vsUnique); }
+	vvsRow.pop_back();
+	it = mapMeta.find("parameter_title");
+	if (it == mapMeta.end()) { err("parameter_title not found in mapMeta-insertDIM"); }
+	jtxml->getValue(vsDIM, it->second);
+	int numDIM = (int)vsDIM.size(), numRow, spacing;
+	if (numDIM == 0) { err("Failed to extract DIMIndex values-insertDIM"); }
+	for (int ii = 0; ii < numDIM; ii++) {
+		pos1 = vsDIM[ii].rfind('(');
+		while (pos1 < vsDIM[ii].size()) {
+			pos2 = vsDIM[ii].find(')', pos1 + 1);
+			pos3 = vsDIM[ii].find_first_not_of("0123456789", pos1 + 1);
+			if (pos3 == pos2) { vsDIM[ii].erase(pos1, pos2 - pos1 + 1); }
+			pos1 = vsDIM[ii].rfind('(', pos1 - 1);
+		}
+		while (vsDIM[ii].back() == ' ') { vsDIM[ii].pop_back(); }
+
+		vvsRow.push_back({});
+		vvsRow.back().emplace_back(to_string(ii));
+		vvsRow.back().emplace_back(vsDIM[ii]);
+	}
+	sf.insertRow(tname, vvsRow);
 }
 void SCdatabase::insertForWhom(JTXML*& jtxml, unordered_map<string, string>& mapMeta, string sYear, string sCata)
 {
@@ -1029,12 +1059,12 @@ void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 
 	sbgui.endCall(myid);
 }
-void SCdatabase::prepareLocal(string cataDir, string sCata, long long maxFileSize)
+void SCdatabase::prepareLocal(string cataDir, string sCata)
 {
 	string zipPath = cataDir + "/" + sCata + ".zip";
 	if (!jfile.fileExist(zipPath)) { err("Missing catalogue zip file-prepareLocal"); }
 
-	// Unzip all files within the archive (not already unzipped).
+	// Unzip all files within the archive which not already unzipped.
 	size_t pos1;
 	string filePath;
 	vector<string> vsFilePath, vsFileName;
@@ -1051,6 +1081,7 @@ void SCdatabase::prepareLocal(string cataDir, string sCata, long long maxFileSiz
 		}
 	}
 
+	/*
 	// Large extracted files are split into pieces, to prevent excessive memory usage.
 	uintmax_t fileSize;
 	for (int ii = 0; ii < numFile; ii++) {
@@ -1061,6 +1092,8 @@ void SCdatabase::prepareLocal(string cataDir, string sCata, long long maxFileSiz
 			}
 		}
 	}
+	*/
+
 }
 void SCdatabase::searchTable(SWITCHBOARD& sbgui, JTREE& jt, vector<string>& vsTable)
 {
@@ -1136,7 +1169,7 @@ bool SCdatabase::safeInsertRow(string tname, vector<vector<string>>& vvsRow)
 		while (vvsRow[0].size() < maxLen) {
 			inum++;
 			vvsRow[0].emplace_back(title + to_string(inum));
-			mapTitleType.emplace(vvsRow[0].back(), vvsColTitle[1].back());
+			//mapTitleType.emplace(vvsRow[0].back(), vvsColTitle[1].back());
 		}
 	}
 

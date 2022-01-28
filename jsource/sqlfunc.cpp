@@ -84,6 +84,7 @@ void SQLFUNC::createTable(string tname, vector<vector<string>>& vvsColTitle, vec
     }
     stmt += ");";
     executor(stmt);
+    setTable.emplace(tname);
 }
 void SQLFUNC::deleteRow(string tname, vector<string> conditions)
 {
