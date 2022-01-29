@@ -26,7 +26,7 @@ class JTXML : public JTREE
 	void filterDisabled(std::vector<int>& vID);
 	void initEntity();
 	size_t populateTree(std::string& xmlFile, JNODE& jxeParent);
-	size_t populateTree(std::string& xmlFragment, JNODE& jxeParent, JBUFFER<std::string, NUM_BUFFER_SLOT>& jbuf);
+	size_t populateTree(std::string& xmlFragment, JNODE& jxeParent, JBUFFER<std::string, NUM_BUFFER_SLOT>& jbuf, const std::vector<std::vector<std::string>>& vvsTag);
 	void removeComment(std::string& xmlText);
 	void replaceEntity(std::string& sData);
 
@@ -40,11 +40,11 @@ public:
 	void branchIgnore(std::string sQuery, int mode);
 	JNODE& getNode(int ID);
 	JNODE& getRoot();
-	void getValue(std::string& sValue, std::string sQuery);
-	void getValue(std::vector<std::string>& vsValue, std::string sQuery);
+	void getValue(std::string& sValue, std::string sQuery, std::string attrName = "");
+	void getValue(std::vector<std::string>& vsValue, std::string sQuery, std::string attrName = "");
 	void initValue(std::string tag, std::string attr, std::string wild, uintmax_t maxSize = 0);
-	void loadXML(std::string filePath, std::vector<std::vector<std::string>> vvsTag = { {} });
-	std::string nodeValue(JNODE& jn);
+	void loadXML(std::string filePath, std::vector<std::vector<std::string>> vvsTag = {});
+	std::string nodeValue(JNODE& jn, std::string attrName = "");
 	void populateSubtree(JTREE*& jtsub, std::pair<int, int> parentID, std::deque<std::string> dsQuery);
 	void query(std::vector<int>& vID, std::string sQuery, int mode, int startID = -1);
 	void reset() override;

@@ -406,11 +406,8 @@ void SCDA::insertCata(string prompt)
 	thread::id myid = this_thread::get_id();
 	sb.startCall(myid, commLength);
 	sb.pushWork(vsCataFolder);
-	int numThread = min(numCata, numCore);
-	for (int ii = 0; ii < numThread; ii++) {
-		std::thread thr(&SCdatabase::insertCata, scdb, ref(sb));
-		thr.detach();
-	}
+	std::thread thr(&SCdatabase::insertCata, scdb, ref(sb), numCore);
+	thr.detach();
 	busyWheel(sb);
 	sb.endCall(myid);
 }

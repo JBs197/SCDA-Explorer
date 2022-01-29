@@ -18,7 +18,7 @@ void JTREE::addChild(int parentID, JNODE& jnChild)
 	}
 	else {
 		viAncestry = treeSTanc[itParent->second];
-		viAncestry.push_back(itParent->second);
+		viAncestry.emplace_back(itParent->second);
 	}
 
 	jnChild.colour = vNode[viAncestry.back()].colour;
@@ -27,9 +27,9 @@ void JTREE::addChild(int parentID, JNODE& jnChild)
 	int index;
 	if (setBlankIndex.size() < 1) {
 		index = (int)vNode.size();
-		vNode.push_back(move(jnChild));
-		treeSTanc.push_back(viAncestry);
-		treeSTdes.push_back(vector<int>());
+		vNode.emplace_back(move(jnChild));
+		treeSTanc.emplace_back(viAncestry);
+		treeSTdes.emplace_back(vector<int>());
 	}
 	else {
 		auto itChild = setBlankIndex.rbegin();
@@ -39,7 +39,7 @@ void JTREE::addChild(int parentID, JNODE& jnChild)
 		treeSTanc[index] = viAncestry;
 		treeSTdes[index] = vector<int>();
 	}
-	treeSTdes[viAncestry.back()].push_back(index);
+	treeSTdes[viAncestry.back()].emplace_back(index);
 	mapIDIndex.emplace(vNode[index].ID, index);
 }
 void JTREE::appendChildrenID(vector<int>& childrenID, int parentID)

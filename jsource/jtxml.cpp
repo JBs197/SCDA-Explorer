@@ -2,45 +2,6 @@
 
 using namespace std;
 
-/*
-void JTXML::addChild(int parentID, JNODE& jnChild)
-{
-	lock_guard<mutex> lg(m_tree);
-	auto itParent = mapIDIndex.find(parentID);
-	if (itParent == mapIDIndex.end()) {
-		err("Failed to locate parentID " + to_string(parentID) + "-addChild");
-	}
-
-	vector<int> viAncestry;
-	if (itParent->second == 0) { viAncestry = { 0 }; }
-	else {
-		viAncestry = treeSTanc[itParent->second];
-		viAncestry.push_back(itParent->second);
-	}
-
-	jnChild.colour = vNode[viAncestry.back()].colour;
-	jnChild.colourSelected = vNode[viAncestry.back()].colourSelected;
-
-	int index;
-	if (setBlankIndex.size() < 1) {
-		index = (int)vNode.size();
-		vNode.push_back(move(jnChild));
-		treeSTanc.push_back(viAncestry);
-		treeSTdes.push_back(vector<int>());
-	}
-	else {
-		auto itChild = setBlankIndex.rbegin();
-		index = *itChild;
-		vNode[index] = move(jnChild);
-		setBlankIndex.erase(index);
-		treeSTanc[index] = viAncestry;
-		treeSTdes[index] = vector<int>();
-	}
-	treeSTdes[viAncestry.back()].push_back(index);
-	mapIDIndex.emplace(vNode[index].ID, index);
-}
-*/
-
 void JTXML::branchIgnore(string sQuery, int mode)
 {
 	// All nodes satisfying sQuery are added to or removed from to the set of 
@@ -150,27 +111,29 @@ JNODE& JTXML::getRoot()
 {
 	return vNode[0];
 }
-void JTXML::getValue(string& sValue, string sQuery)
+void JTXML::getValue(string& sValue, string sQuery, string attrName)
 {
 	// This variant returns the first value found within the XML tree matching sQuery.
+	// If attrName is specified, then that specific attribute value is returned.
 	// Note: disabled nodes are ignored.
 	vector<int> vID, viTemp;
 	query(vID, sQuery, filter::On);
 	if (vID.size() < 1) { return; }
 	
 	JNODE& jn = getNode(vID[0]);
-	sValue = nodeValue(jn);
+	sValue = nodeValue(jn, attrName);
 }
-void JTXML::getValue(vector<string>& vsValue, string sQuery)
+void JTXML::getValue(vector<string>& vsValue, string sQuery, string attrName)
 {
 	// Returns all values found within the XML tree matching sQuery.
+	// If attrName is specified, then that specific attribute value is returned.
 	// Note: disabled nodes are ignored.
 	vector<int> vID, viTemp;
 	query(vID, sQuery, filter::On);
 
 	for (int ii = 0; ii < vID.size(); ii++) {
 		JNODE& jn = getNode(vID[ii]);
-		vsValue.emplace_back(nodeValue(jn));
+		vsValue.emplace_back(nodeValue(jn, attrName));
 	}
 }
 void JTXML::initEntity()
@@ -191,13 +154,18 @@ void JTXML::initValue(string tagChar, string attrChar, string wildChar, uintmax_
 }
 void JTXML::loadXML(string filePath, vector<vector<string>> vvsTag)
 {
+	// Recursive function, returns the position in the xmlFile from
+	// which the parent should continue parsing.
 	// If vvsTag is specified, then only those elements (name, value) will be loaded into
 	// this tree. Otherwise, all elements are loaded. 
-	// If a file exceeds MINFILESIZE, then a worker thread is used to pre-load the next
-	// chunk of data while the main thread parses it. 
-	// If maxBufferSize has not been specified, then MAXFILESIZE is used instead.
+	// If the file size is larger than the maximum memory allotment, vvsTag MUST be specified
+	// to avoid a potential memory shortage.
 
 	uintmax_t fileSize = jfile.fileSize(filePath);
+	uintmax_t maxMemory;
+	if (maxBufferSize > 0) { maxMemory = min(maxBufferSize, (uintmax_t)MAX_FILE_SIZE); }
+	else { maxMemory = (uintmax_t)MAX_FILE_SIZE; }
+
 	if (fileSize < MIN_FILE_SIZE) { 
 		jfile.load(xmlFile, filePath);
 		extractDeclaration(xmlFile);
@@ -215,24 +183,24 @@ void JTXML::loadXML(string filePath, vector<vector<string>> vvsTag)
 
 		populateTree(xmlFile, jnXMLRoot);
 	}
+	else if (fileSize > maxMemory && vvsTag.size() == 0) { err("Missing vvsTag for large XML parsing-loadXML"); }
 	else {
 		JBUFFER<string, NUM_BUFFER_SLOT> jbuf;
-		if (maxBufferSize > 0) { jbuf.slotSize = min(fileSize, maxBufferSize) / (NUM_BUFFER_SLOT * 262144); }
-		else { jbuf.slotSize = min(fileSize, (uintmax_t)MAX_FILE_SIZE) / (NUM_BUFFER_SLOT * 262144); }  // 2^18
+		jbuf.slotSize = 262144;  // 2^18
 		
 		std::jthread xmlLoad([&jbuf, filePath](std::stop_token stopToken) {
 			string sData; 
-			sData.reserve(jbuf.slotSize);
+			sData.resize(jbuf.slotSize);
 			ifstream input(filePath, ifstream::binary);
 			while (input.is_open()) {
 				if (stopToken.stop_requested()) { input.close(); }
 				input.read(&sData[0], jbuf.slotSize);
-				jbuf.push(sData);
+				jbuf.pushHard(sData);
 				if (input.gcount() < jbuf.slotSize) { input.close(); }
 			}
 		});
 
-		string sFile = jbuf.pull();
+		string sFile = jbuf.pullHard();
 		size_t posStart = sFile.find('<');
 		if (posStart > sFile.size()) { err("File has no element tags-loadXML"); }
 		while (sFile[posStart + 1] == '?' || sFile[posStart + 1] == '!') {
@@ -245,16 +213,18 @@ void JTXML::loadXML(string filePath, vector<vector<string>> vvsTag)
 		string sElement = sFile.substr(posStart + 1, posStop - posStart - 1);
 		extractNameAttribute(sElement, jnXMLRoot);
 		addChild(vNode[0].ID, jnXMLRoot);
-		populateTree(sFile, jnXMLRoot);
-
+		populateTree(sFile, jnXMLRoot, jbuf, vvsTag);
 	}
-
 }
-string JTXML::nodeValue(JNODE& jn)
+string JTXML::nodeValue(JNODE& jn, string attrName)
 {
 	// When evaluating an XML node, returns a value using the priority hierarchy
-	// (value-only single child) > (single-attribute value) > (element name)
+	// (specific-attribute value) > (value-only single child) > (single-attribute value) > (element name)
 	vector<int> childrenID = getChildrenID(jn.ID);
+	if (attrName.size() > 0) {
+		auto it = jn.mapAttribute.find(attrName);
+		if (it != jn.mapAttribute.end()) { return it->second; }
+	}
 	if (childrenID.size() == 1) {
 		JNODE& jnChild = getNode(childrenID[0]);
 		if (jnChild.posStart == 0) {  // Value only, not an element.
@@ -347,24 +317,51 @@ size_t JTXML::populateTree(string& xmlFile, JNODE& jnParent)
 		pos1 = xmlFile.find('<', pos2);
 	}
 }
-size_t JTXML::populateTree(string& xmlFragment, JNODE& jnParent, JBUFFER<string, NUM_BUFFER_SLOT>& jbuf)
+size_t JTXML::populateTree(string& xmlFragment, JNODE& jnParent, JBUFFER<string, NUM_BUFFER_SLOT>& jbuf, const vector<vector<string>>& vvsTag)
 {
 	// Recursive function, returns the position in the xmlFile from which the parent should
 	// continue parsing. This variant is used when xmlFile is only a fragment of the file.
-	string element, name;
+	bool closingTag;
+	string element, name, remainder;
 	vector<int> childrenID;
 	size_t length = xmlFragment.size();
 	size_t pos2, pos3, pos1 = xmlFragment.find('<', jnParent.posStart);
 	if (pos1 > length) {
-		// HANDLE SPLIT STRING CASE
+		remainder = xmlFragment.substr(jnParent.posStart);
+		xmlFragment.clear();
+		xmlFragment = jbuf.pullHard();
+		length = xmlFragment.size();
+		pos1 = xmlFragment.find('<');
 	}
 	while (xmlFragment[pos1 + 1] == '!' || xmlFragment[pos1 + 1] == '?') {
 		pos1 = xmlFragment.find('<', pos1 + 2);
 	}
-	while (pos1 < xmlFragment.size()) {
-		if (xmlFragment[pos1 + 1] == '/') {  // Closing tag.
-			pos2 = xmlFragment.find('>', pos1 + 2);
-			name = xmlFragment.substr(pos1 + 2, pos2 - pos1 - 2);
+	while (pos1 < length) {
+		closingTag = 0;
+		if (xmlFragment[pos1 + 1] == '/') { closingTag = 1; }
+		else if (pos1 == length - 1) {
+			pos1 = 0;
+			xmlFragment.clear();
+			xmlFragment = jbuf.pullHard();
+			if (xmlFragment[0] == '/') { closingTag = 1; }			
+		}
+
+		if (closingTag) {  // Closing tag.
+			pos2 = xmlFragment.find('>', pos1 + 1);
+			if (pos2 < length) { name = xmlFragment.substr(pos1 + 2, pos2 - pos1 - 2); }
+			else {
+				remainder = xmlFragment.substr(pos1);
+				pos3 = remainder.find_first_not_of("</");
+				xmlFragment.clear();
+				xmlFragment = jbuf.pullHard();
+				length = xmlFragment.size();
+				pos2 = xmlFragment.find('>');
+				if (pos3 < remainder.size()) {
+					name = remainder.substr(pos3) + xmlFragment.substr(0, pos2);
+				}
+				else { name = xmlFragment.substr(0, pos2); }				
+				remainder.clear();
+			}			
 			pos3 = name.rfind(':');
 			if (pos3 < name.size()) { name = name.substr(pos3 + 1); }
 			replaceEntity(name);
@@ -383,29 +380,103 @@ size_t JTXML::populateTree(string& xmlFragment, JNODE& jnParent, JBUFFER<string,
 					replaceEntity(jnChild.vsData[0]);
 					addChild(jnParent.ID, jnChild);
 				}
+				else if (remainder.size() > 0) {  // Value only, not a tag (starting on previous fragment).
+					JNODE jnChild;
+					jnChild.posStart = 0;  // Indicates the element has no children.
+					jnChild.posStop = pos1;
+					jnChild.vsData[0] = remainder + xmlFragment.substr(0, pos1);
+					remainder.clear();
+					replaceEntity(jnChild.vsData[0]);
+					addChild(jnParent.ID, jnChild);
+				}
 			}
 			return pos2;
 		}
 		else {  // New tag.
 			JNODE jnChild;
-			pos2 = xmlFragment.find('>', pos1 + 1);
-			if (pos2 > xmlFragment.size()) { err("Asymmetric tag-populateTree"); }
-			jnChild.posStart = pos2 + 1;
-			if (xmlFragment[pos2 - 1] == '/') {  // Self-closing tag.
-				jnChild.posStop = jnChild.posStart;
-				pos2 = xmlFragment.find_last_not_of("/ ", pos2 - 1) + 1;
-				element = xmlFragment.substr(pos1 + 1, pos2 - pos1 - 1);
-				extractNameAttribute(element, jnChild);
-				addChild(jnParent.ID, jnChild);
-				return jnChild.posStop;
+			pos2 = xmlFragment.find('>', pos1);
+			if (pos2 > length) { 
+				remainder = xmlFragment.substr(pos1);
+				xmlFragment.clear();
+				xmlFragment = jbuf.pullHard();
+				length = xmlFragment.size();
+				pos2 = xmlFragment.find('>');
 			}
-			element = xmlFragment.substr(pos1 + 1, pos2 - pos1 - 1);
+			jnChild.posStart = pos2 + 1;
+			if (pos2 > 0) {
+				if (xmlFragment[pos2 - 1] == '/') {
+					// Self-closing tag.
+					jnChild.posStop = jnChild.posStart;
+					pos2 = xmlFragment.find_last_not_of("/ ", pos2 - 1) + 1;
+					if (remainder.size() == 0) {
+						element = xmlFragment.substr(pos1 + 1, pos2 - pos1 - 1);
+					}
+					else {
+						element = remainder + xmlFragment.substr(0, pos2);
+						remainder.clear();
+					}
+					extractNameAttribute(element, jnChild);
+					addChild(jnParent.ID, jnChild);
+					pos1 = xmlFragment.find('<', jnChild.posStop);
+					if (pos1 > length) {
+						xmlFragment.clear();
+						xmlFragment = jbuf.pullHard();
+						pos1 = xmlFragment.find('<');
+					}
+					continue;
+				}
+				else if (remainder.size() == 0) {
+					element = xmlFragment.substr(pos1 + 1, pos2 - pos1 - 1);
+				}
+				else {
+					element = remainder + xmlFragment.substr(0, pos2);
+					remainder.clear();
+				}
+			}
+			else {
+				if (remainder.size() > 0 && remainder.back() == '/') {
+					// Self-closing tag.
+					jnChild.posStop = jnChild.posStart;
+					pos2 = remainder.find_last_not_of("/ ") + 1;
+					element = remainder.substr(0, pos2);
+					remainder.clear();
+					extractNameAttribute(element, jnChild);
+					addChild(jnParent.ID, jnChild);
+					pos1 = xmlFragment.find('<', jnChild.posStop);
+					if (pos1 > length) {
+						xmlFragment.clear();
+						xmlFragment = jbuf.pullHard();
+						pos1 = xmlFragment.find('<');
+					}
+					continue;
+				}
+				else if (remainder.size() > 0) {
+					pos3 = remainder.find_first_not_of('<');
+					element = remainder.substr(pos3);
+					remainder.clear();
+				}
+			}
+
+			if (element == "generic:SeriesKey") {
+				int bbq = 1;
+			}
+
 			extractNameAttribute(element, jnChild);
 			addChild(jnParent.ID, jnChild);
 
-			pos2 = populateTree(xmlFragment, jnChild);
+			pos2 = populateTree(xmlFragment, jnChild, jbuf, vvsTag);
 		}
+		
 		pos1 = xmlFragment.find('<', pos2);
+		if (pos1 > length) {
+			xmlFragment.clear();
+			xmlFragment = jbuf.pullHard();
+			length = xmlFragment.size();
+			pos1 = xmlFragment.find('<');
+		}
+		while (xmlFragment[pos1 + 1] == '!' || xmlFragment[pos1 + 1] == '?') {
+			pos1 = xmlFragment.find('<', pos1 + 2);
+		}
 	}
 }
 void JTXML::query(vector<int>& vID, string sQuery, int mode, int startID)

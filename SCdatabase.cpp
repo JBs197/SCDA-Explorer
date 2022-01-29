@@ -2,6 +2,48 @@
 
 using namespace std;
 
+void SCdatabase::createData(string sYear, string sCata, const vector<vector<string>>& vvsGeo, int numCol)
+{
+	// Use the first column of vvsGeo to create a database table for each geographic region
+	// within this catalogue. numCol does not include the primary "DataIndex" column.
+
+	size_t pos1, pos2;
+	int numGeo = (int)vvsGeo.size() - 1;
+	vector<string> vsStmt(numGeo), vsUnique;
+	vector<vector<string>> vvsColTitle;
+	vector<string> vsTag{ "table", "Data_year_cata_geocode" };
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
+	xmlToColTitle(vvsColTitle, vsUnique, vvsTag);
+	if (numCol > vvsColTitle[0].size() - 1) {
+		int inum;
+		pos1 = vvsColTitle[0].back().find_last_not_of("0123456789");
+		if (pos1 > vvsColTitle[0].back().size()) { err("Failed to extend non-numerical column title row-createData"); }
+		string title = vvsColTitle[0].back().substr(0, pos1 + 1);
+		try { inum = stoi(vvsColTitle[0].back().substr(pos1 + 1)); }
+		catch (invalid_argument) { err("column number stoi-createData"); }
+		while (numCol > vvsColTitle[0].size() - 1) {
+			inum++;
+			vvsColTitle[0].emplace_back(title + to_string(inum));
+			vvsColTitle[1].emplace_back(vvsColTitle[1].back());
+		}
+	}
+
+	vsStmt[0] = "CREATE TABLE IF NOT EXISTS \"Data" + marker + sYear + marker + sCata + marker;
+	pos1 = vsStmt[0].size();
+	vsStmt[0] += vvsGeo[1][0] + "\" (";
+	for (int ii = 0; ii <= numCol; ii++) {
+		if (ii > 0) { vsStmt[0] += ", "; }
+		vsStmt[0] += "\"" + vvsColTitle[0][ii] + "\" " + vvsColTitle[1][ii];
+	}
+	vsStmt[0] += ");";
+	
+	for (int ii = 1; ii < numGeo; ii++) {
+		vsStmt[ii] = vsStmt[ii - 1];
+		pos2 = vsStmt[ii].find('"', pos1);
+		vsStmt[ii].replace(pos1, pos2 - pos1, vvsGeo[1 + ii][0]);
+	}
+	sf.insertPrepared(vsStmt);
+}
 void SCdatabase::deleteTable(string tname)
 {
 	if (sf.tableExist(tname)) { 
@@ -78,10 +120,10 @@ void SCdatabase::init(string& xml)
 	string dbPath = jparse.getXML1(configXML, vsTag);
 	sf.init(dbPath);
 }
-void SCdatabase::insertCata(SWITCHBOARD& sbgui)
+void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 {
 	thread::id myid = this_thread::get_id();
-	vector<int> mycomm;
+	vector<int> mycomm, vDIM;
 	sbgui.answerCall(myid, mycomm);
 	
 	// Determine the census year for the catalogue(s).
@@ -97,7 +139,7 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 	string sYear = cataDir.substr(pos1 + 1, pos2 - pos1 - 1);
 
 	// Prepare a few shared values between catalogue(s) for this census year.
-	unordered_map<string, string> mapMeta, mapTag;
+	unordered_map<string, string> mapData, mapMeta, mapTag;
 	vector<string> vsTag{ "file_name", sYear };
 	jparse.getXML(mapTag, configXML, vsTag);
 	vsTag = { "settings", "max_buffer_size" };
@@ -128,7 +170,7 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 
 	// So long as the queue contains undone catalogues, read local files and insert the
 	// data into the various database tables.
-	JTXML* jtxml = nullptr;
+	JTXML *jtxData = nullptr, *jtxMeta = nullptr;
 	vector<vector<string>> vvsGeo;
 	while (cataDir.size() > 0) {
 		pos2 = cataDir.find_last_of("/\\");
@@ -153,12 +195,18 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui)
 		
 		// Build and insert all the catalogue's parameter/dimension tables.
 		mapMeta.clear();
-		loadMeta(jtxml, mapMeta, cataDir, sYear, sCata);
-		insertForWhom(jtxml, mapMeta, sYear, sCata);
-		insertDIMIndex(jtxml, mapMeta, sYear, sCata);
-		insertDIM(jtxml, mapMeta, sYear, sCata);
+		loadMeta(jtxMeta, mapMeta, cataDir, sYear, sCata);
+		insertForWhom(jtxMeta, mapMeta, sYear, sCata);
+		insertDIMIndex(jtxMeta, mapMeta, sYear, sCata);
+		vDIM = insertDIM(jtxMeta, mapMeta, sYear, sCata);
+		insertDataIndex(vDIM, sYear, sCata);
 
-		// Build and insert all data tables.
+		// Launch worker threads to parse the raw data file into SQL statements.
+		createData(sYear, sCata, vvsGeo, vDIM.back());
+		insertData(cataDir, sYear, sCata, numThread - 1);
+		
+		//mapData.clear();
+		//loadData(jtxData, mapData, cataDir, sYear, sCata);
 
 
 		sbgui.pullWork(cataDir);
@@ -204,7 +252,77 @@ void SCdatabase::insertCensusYear(string sYear, string sCata, string sTopic)
 		sf.insertRow(tname, vvsColTitle);
 	}
 }
-void SCdatabase::insertDIM(JTXML*& jtxml, unordered_map<string, string>& mapMeta, string sYear, string sCata)
+void SCdatabase::insertData(string cataDir, string sYear, string sCata, int numThread)
+{
+	// numThread refers to the number of parsing threads to launch. 
+	vector<string> vsTag = { "file_name", sYear, "data" };
+	string dataPath = cataDir + "/" + jparse.getXML1(configXML, vsTag);
+	size_t pos1 = dataPath.rfind("[cata]");
+	if (pos1 < dataPath.size()) { dataPath.replace(pos1, 6, sCata); }
+	if (!jfile.fileExist(dataPath)) { err("Missing catalogue's data file-loadData"); }
+	
+	// Launch the parser threads. Each will pull a whole number of raw data segments from 
+	// one buffer and convert it into SQL statements ready for transaction insertion, until 
+	// the local file has been depleted and the raw buffer is empty. A segment is defined as
+	// all the raw text yielding the data values for a single geographic region, for all 
+	// possible parameter choices.
+	atomic_int fileDepleted = 0;
+	JBUFFER<string, 6> jbufRaw, jbufSQL;
+	vector<std::jthread> tapestry;
+	for (int ii = 0; ii < numThread; ii++) {
+		tapestry.emplace_back([&](std::stop_token stopToken) {
+
+		});
+	}
+
+	string sRawData;
+	size_t posRaw{ 0 };
+
+
+
+
+
+}
+void SCdatabase::insertDataIndex(const vector<int> vDIM, string sYear, string sCata)
+{
+	// vDIM contains the number of MIDs for each DIM (index order).
+	// The DataIndex table lists a unique integer for every combination of MIDs 
+	// chosen when loading a data table.
+
+	vector<string> vsUnique;
+	vector<vector<string>> vvsRow;
+	vector<string> vsTag = { "table", "DataIndex_year_cata" };
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
+	xmlToColTitle(vvsRow, vsUnique, vvsTag);
+	string tname = "DataIndex" + marker + sYear + marker + sCata;
+	if (!sf.tableExist(tname)) { sf.createTable(tname, vvsRow, vsUnique); }
+	vvsRow.pop_back();
+
+	vector<int> vCurrent;
+	int numDIM = (int)vDIM.size() - 1;
+	vCurrent.assign(numDIM, 0);
+	uintmax_t dataIndex = -1;
+	bool done = 0;
+	while (!done) {
+		dataIndex++;
+		vvsRow.emplace_back(vector<string>(1 + numDIM));
+		vvsRow.back()[0] = to_string(dataIndex);
+		for (int ii = 0; ii < numDIM; ii++) {
+			vvsRow.back()[1 + ii] = to_string(vCurrent[ii]);
+		}
+		for (int ii = numDIM - 1; ii >= 0; ii--) {
+			vCurrent[ii]++;
+			if (vCurrent[ii] < vDIM[ii]) { break; }
+			else { vCurrent[ii] = 0; }
+			if (ii == 0) { done = 1; }
+		}
+	}
+
+	if (safeInsertRow(tname, vvsRow)) {
+		sf.insertRow(tname, vvsRow);
+	}
+}
+vector<int> SCdatabase::insertDIM(JTXML*& jtxml, unordered_map<string, string>& mapMeta, string sYear, string sCata)
 {
 	// DIM refers to "dimension" - it is a variable tracked by the catalogue.
 	// MID refers to "member identification" - it is the selected option for the DIM variable.
@@ -214,7 +332,7 @@ void SCdatabase::insertDIM(JTXML*& jtxml, unordered_map<string, string>& mapMeta
 
 	// Insert as many DIM tables as the catalogue has parameters. 
 	pair<int, int> parentID;
-	vector<int> vID, vIndent, vMID, vDesc;
+	vector<int> vDIM, vID, vIndent, vMID, vDesc;
 	auto it = mapMeta.find("parameter");
 	if (it == mapMeta.end()) { err("parameter not found in mapMeta-insertDIM"); }
 	jtxml->query(vID, it->second, JTXML::On);
@@ -251,6 +369,7 @@ void SCdatabase::insertDIM(JTXML*& jtxml, unordered_map<string, string>& mapMeta
 		vvsRow[0] = vvsColTitle[0];
 		vMID = jtsub->getChildrenID(jtsub->getRoot().ID);
 		if (vMID.size() < 1) { err("Failed to locate MID node-insertDIM"); }
+		vDIM.emplace_back((int)vMID.size());
 		for (int jj = 0; jj < vMID.size(); jj++) {  
 			vvsRow.push_back(vector<string>());
 			JNODE& jnMID = jtsub->getNode(vMID[jj]);
@@ -284,6 +403,7 @@ void SCdatabase::insertDIM(JTXML*& jtxml, unordered_map<string, string>& mapMeta
 		}
 	}
 	delete jtsub;
+	return vDIM;
 }
 void SCdatabase::insertDIMIndex(JTXML*& jtxml, unordered_map<string, string>& mapMeta, string sYear, string sCata)
 {
@@ -616,6 +736,8 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 	if (safeInsertRow(tname, vvsGeoComplete)) {
 		sf.insertRow(tname, vvsGeoComplete);
 	}
+
+	vvsGeo = std::move(vvsGeoComplete);
 }
 vector<string> SCdatabase::insertGeoLayer(string cataDir, string sYear, string sCata) 
 {
@@ -888,6 +1010,38 @@ void SCdatabase::insertTopicYear(string sYear, string sTopic)
 		sf.insertRow(tname, vvsColTitle);
 	}
 }
+void SCdatabase::loadData(JTXML*& jtxml, unordered_map<string, string>& mapData, string cataDir, string sYear, string sCata)
+{
+	vector<string> vsTag = { "file_name", sYear, "data" };
+	string dataPath = cataDir + "/" + jparse.getXML1(configXML, vsTag);
+	size_t pos1 = dataPath.rfind("[cata]");
+	if (pos1 < dataPath.size()) { dataPath.replace(pos1, 6, sCata); }
+	if (!jfile.fileExist(dataPath)) { err("Missing catalogue's data file-loadData"); }
+
+	vsTag = { "parse", "xml_marker", "tag" };
+	string xmlTag = jparse.getXML1(configXML, vsTag);
+	vsTag[2] = "attribute";
+	string xmlAttribute = jparse.getXML1(configXML, vsTag);
+	vsTag[2] = "wildcard";
+	string xmlWildcard = jparse.getXML1(configXML, vsTag);
+
+	vsTag = { "parse", sYear, "data" };
+	jparse.getXML(mapData, configXML, vsTag);
+
+	vsTag = { "settings", "max_buffer_size" };
+	string sBufferSize = jparse.getXML1(configXML, vsTag);
+	uintmax_t maxBufferSize;
+	try { maxBufferSize = stoull(sBufferSize); }
+	catch (invalid_argument) { err("maxBufferSize stoull-loadData"); }
+
+	vsTag = { "parse", sYear, "data" };
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
+
+	if (jtxml != nullptr) { delete jtxml; }
+	jtxml = new JTXML;
+	jtxml->initValue(xmlTag, xmlAttribute, xmlWildcard, maxBufferSize);
+	jtxml->loadXML(dataPath, vvsTag);
+}
 void SCdatabase::loadGeo(vector<vector<string>>& vvsGeo, string cataDir, string sCata)
 {
 	// Loads a catalogue's geo file into memory (parsed into a 2D vector) with some string cleaning.
@@ -977,7 +1131,7 @@ void SCdatabase::loadMeta(JTXML*& jtxml, unordered_map<string, string>& mapMeta,
 	
 	if (jtxml != nullptr) { delete jtxml; }
 	jtxml = new JTXML;
-	jtxml->initMarker(xmlTag, xmlAttribute, xmlWildcard);
+	jtxml->initValue(xmlTag, xmlAttribute, xmlWildcard);
 	jtxml->loadXML(metaPath);
 }
 void SCdatabase::loadTable(vector<vector<string>>& vvsData, vector<vector<string>>& vvsColTitle, string tname)
@@ -1013,6 +1167,18 @@ void SCdatabase::log(string message)
 {
 	string logMessage = "SCdatabase log entry:\n" + message;
 	JLOG::getInstance()->log(logMessage);
+}
+uintmax_t SCdatabase::makeDataIndex(const vector<uintmax_t>& vValue, const vector<uintmax_t>& vSize)
+{
+	// Note: the integer values in vSize represent the rollover trigger for each index. 
+	int numValue = (int)vValue.size();
+	if (numValue != vSize.size()) { err("Asymmetric input size-makeDataIndex"); }
+	uintmax_t dataIndex{ 0 };
+	for (int ii = 0; ii < numValue - 1; ii++) {
+		dataIndex += vValue[ii] * vSize[ii + 1];
+	}
+	dataIndex += vValue.back();
+	return dataIndex;
 }
 void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 {
@@ -1058,6 +1224,68 @@ void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 	}
 
 	sbgui.endCall(myid);
+}
+void SCdatabase::parseData(stop_token stopToken, atomic_int& fileDepleted, JBUFFER<string, 6>& jbufRaw, JBUFFER<string, 6>& jbufSQL)
+{
+	string sGeoCode, sRaw, temp;
+	vector<vector<string>> vvsRow(1, vector<string>());
+	uintmax_t geoCode, numCol;
+	vector<uintmax_t> vSize, vValue;
+	size_t pos1, pos2, sizeRaw;
+	int numDIM;
+	while (!stopToken.stop_requested()) {
+		sRaw.clear();
+		if (fileDepleted == 0) { sRaw = jbufRaw.pullHard(); }
+		else {
+			sRaw = jbufRaw.pullSoft();
+			if (sRaw.size() < 1) { return; }
+		}
+		sizeRaw = sRaw.size();
+
+		// Determine the GEO_CODE and the DIM sizes.
+		vSize.clear();
+		pos1 = sRaw.rfind("GEO");
+		if (pos1 > sizeRaw) { err("Failed to locate GEO within sRaw-parseData"); }
+		pos1 = sRaw.find('"', pos1 + 4) + 1;
+		pos2 = sRaw.find('"', pos1);
+		sGeoCode = sRaw.substr(pos1, pos2 - pos1);
+		try { geoCode = stoull(sGeoCode); }
+		catch (invalid_argument) { err("geoCode stoull-parseData"); }
+		pos1 = sRaw.find("concept", pos2);
+		while (pos1 < sizeRaw) {			
+			pos1 = sRaw.find("value", pos1 + 7);
+			pos1 = sRaw.find('"', pos1 + 5) + 1;
+			pos2 = sRaw.find('"', pos1);
+			try { vSize.emplace_back(stoull(sRaw.substr(pos1, pos2 - pos1))); }
+			catch (invalid_argument) { err("DIM size stoull-parseData"); }
+			pos1 = sRaw.find("concept", pos2);
+		}
+		numCol = vSize.back();
+		vSize.pop_back();
+		numDIM = (int)vSize.size();
+
+		// Prepare the column titles.
+		vvsRow[0].emplace_back("DataIndex");
+		for (int ii = 1; ii <= numCol; ii++) {
+			vvsRow[0].emplace_back("dim" + to_string(ii));
+		}
+
+		// Parse the data for the region.
+		vValue.clear();
+		pos1 = sRaw.find("GEO");
+		while (pos1 < sizeRaw) {
+			pos1 = sRaw.find("value", pos1 + 3);
+			pos1 = sRaw.find('"', pos1 + 5) + 1;
+			pos2 = sRaw.find('"', pos1);
+			temp = sRaw.substr(pos1, pos2 - pos1);
+			if (temp != sGeoCode) { err("Nonmatching GeoCode-parseData"); }
+			for (int ii = 0; ii < numDIM; ii++) {
+
+			}
+
+		}
+
+	}
 }
 void SCdatabase::prepareLocal(string cataDir, string sCata)
 {
@@ -1169,7 +1397,6 @@ bool SCdatabase::safeInsertRow(string tname, vector<vector<string>>& vvsRow)
 		while (vvsRow[0].size() < maxLen) {
 			inum++;
 			vvsRow[0].emplace_back(title + to_string(inum));
-			//mapTitleType.emplace(vvsRow[0].back(), vvsColTitle[1].back());
 		}
 	}
 

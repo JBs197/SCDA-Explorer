@@ -12,20 +12,26 @@ class SCdatabase
 	std::unordered_map<std::string, std::string> mapGeoLayers;
 	const std::string marker;
 
+	void createData(std::string sYear, std::string sCata, const std::vector<std::vector<std::string>>& vvsGeo, int numCol);
 	void err(std::string message);
 	bool hasGeoGap(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeoLevel, std::vector<int>& viGeoLevel, std::vector<std::vector<std::string>>& vvsGeo);
 	void insertCensusYear(std::string sYear, std::string sCata, std::string sTopic);
-	void insertDIM(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
+	void insertData(std::string cataDir, std::string sYear, std::string sCata, int numThread);
+	void insertDataIndex(const std::vector<int> vDIM, std::string sYear, std::string sCata);
+	std::vector<int> insertDIM(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
 	void insertDIMIndex(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
 	void insertForWhom(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
 	void insertGeo(std::vector<std::vector<std::string>>& vvsGeo, std::string sYear, std::string sCata);
 	void insertGeo(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeo, std::string sYear, std::string sCata);
 	std::vector<std::string> insertGeoLayer(std::string cataDir, std::string sYear, std::string sCata);
 	void insertTopicYear(std::string sYear, std::string sTopic);
+	void loadData(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapData, std::string cataDir, std::string sYear, std::string sCata);
 	void loadGeo(std::vector<std::vector<std::string>>& vvsGeo, std::string cataDir, std::string sCata);
 	void loadMeta(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string cataDir, std::string sYear, std::string sCata);
 	void loadTopic(std::string& sTopic, std::string cataDir);
 	void log(std::string message);
+	std::uintmax_t makeDataIndex(const std::vector<std::uintmax_t>& vValue, const std::vector<std::uintmax_t>& vSize);
+	void parseData(std::stop_token stopToken, std::atomic_int& fileDepleted, JBUFFER<string, 6>& jbufRaw, JBUFFER<string, 6>& jbufSQL);
 	void prepareLocal(std::string cataDir, std::string sCata);
 	bool safeInsertRow(std::string tname, std::vector<std::vector<std::string>>& vvsRow);
 	void xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag);
@@ -39,7 +45,7 @@ public:
 
 	void deleteTable(std::string tname);
 	void init(std::string& xml);
-	void insertCata(SWITCHBOARD& sbgui);
+	void insertCata(SWITCHBOARD& sbgui, int numThread);
 	void insertCensus(std::string sYear);
 	void insertGeoTree(std::string yearDir);
 	void insertGeoTreeTemplate(std::string yearDir);
