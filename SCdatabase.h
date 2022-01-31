@@ -5,6 +5,8 @@
 #include "sqlfunc.h"
 #include "switchboard.h"
 
+#define NUM_BUF_SLOT 6
+
 class SCdatabase
 {
 	JFILE jfile;
@@ -13,6 +15,8 @@ class SCdatabase
 	const std::string marker;
 
 	void createData(std::string sYear, std::string sCata, const std::vector<std::vector<std::string>>& vvsGeo, int numCol);
+	void dataParser(std::atomic_int& fileDepleted, std::string sYear, std::string sCata, JBUFFER<std::string, NUM_BUF_SLOT>& jbufRaw, JBUFFER<std::vector<std::string>, NUM_BUF_SLOT>& jbufSQL);
+	void dataReader(std::atomic_int& fileDepleted, std::string cataDir, std::string sYear, std::string sCata, JBUFFER<std::string, NUM_BUF_SLOT>& jbufRaw);
 	void err(std::string message);
 	bool hasGeoGap(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeoLevel, std::vector<int>& viGeoLevel, std::vector<std::vector<std::string>>& vvsGeo);
 	void insertCensusYear(std::string sYear, std::string sCata, std::string sTopic);
@@ -30,8 +34,7 @@ class SCdatabase
 	void loadMeta(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string cataDir, std::string sYear, std::string sCata);
 	void loadTopic(std::string& sTopic, std::string cataDir);
 	void log(std::string message);
-	std::uintmax_t makeDataIndex(const std::vector<std::uintmax_t>& vValue, const std::vector<std::uintmax_t>& vSize);
-	void parseData(std::stop_token stopToken, std::atomic_int& fileDepleted, JBUFFER<string, 6>& jbufRaw, JBUFFER<string, 6>& jbufSQL);
+	std::uintmax_t makeDataIndex(const std::vector<int>& vMID, const std::vector<int>& vSize);
 	void prepareLocal(std::string cataDir, std::string sCata);
 	bool safeInsertRow(std::string tname, std::vector<std::vector<std::string>>& vvsRow);
 	void xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag);

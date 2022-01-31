@@ -44,6 +44,254 @@ void SCdatabase::createData(string sYear, string sCata, const vector<vector<stri
 	}
 	sf.insertPrepared(vsStmt);
 }
+void SCdatabase::dataParser(atomic_int& fileDepleted, string sYear, string sCata, JBUFFER<string, NUM_BUF_SLOT>& jbufRaw, JBUFFER<vector<string>, NUM_BUF_SLOT>& jbufSQL)
+{
+	// Parser thread on the data insertion team. Pulls segments of raw data from the raw buffer,
+	// extracts specified values from it, makes a list of SQL insertion statements from the values,
+	// and then pushes the statement list into the SQL buffer. The thread self-terminates when 
+	// the raw buffer is empty and the raw data file has been marked as depleted.	
+	vector<string> vsTag{ "parse", sYear, "data" };
+	unordered_map<string, string> mapParse;
+	jparse.getXML(mapParse, configXML, vsTag);
+	string findGeo, findValue, geoCode, sCol, segment, tname;
+	try {
+		findValue = mapParse.at("value");
+		findGeo = mapParse.at("geo");
+	}
+	catch (invalid_argument) { err("mapParse-dataParser"); }
+	size_t lenFindGeo = findGeo.size();
+	size_t lenFindValue = findValue.size();
+
+	size_t length, posGeo, posValue, pos1, pos2;
+	uintmax_t dataIndex, dataIndexTemp, iGeoCode;
+	int iCol, numCol, numDIM;
+	vector<int> vMID, vSize;
+	vector<string> vsFirstMID, vsMID, vsStmt;
+	vector<vector<string>> vvsRow;  // Form [DataIndex][col1 value, col2 value, ...]
+	while (1) {
+		segment.clear();
+		if (fileDepleted == 0) { segment = jbufRaw.pullHard(); }
+		else {
+			segment = jbufRaw.pullSoft();
+			if (segment.size() == 0) { 
+				fileDepleted++;
+				return; 
+			}
+		}
+		length = segment.size();
+
+		// Determine the GEO_CODE, DIM sizes, and number of columns in the data table.
+		vsMID.clear();
+		posValue = segment.rfind(findValue);
+		posGeo = segment.rfind(findGeo);
+		pos1 = segment.find('"', posGeo + lenFindGeo + 1);
+		pos2 = segment.find('"', pos1 + 1);
+		geoCode = segment.substr(pos1 + 1, pos2 - pos1 - 1);
+		pos1 = segment.find("value", pos2);
+		while (pos1 < posValue) {
+			pos1 = segment.find('"', pos1 + 5);
+			pos2 = segment.find('"', pos1 + 1);
+			vsMID.emplace_back(segment.substr(pos1 + 1, pos2 - pos1 - 1));
+			pos1 = segment.find("value", pos2);
+		}
+		sCol = vsMID.back();
+		vsMID.pop_back();
+		numDIM = (int)vsMID.size();
+		vSize.resize(numDIM);
+		try {
+			iGeoCode = stoull(geoCode);
+			for (int ii = 0; ii < numDIM; ii++) {
+				vSize[ii] = stoi(vsMID[ii]);
+			}
+			numCol = stoi(sCol);
+		}
+		catch (invalid_argument) { err("GEO_CODE/DIM size/numCol stoi-dataParser"); }
+		vMID.assign(numDIM, 0);
+
+		// Prepare the column titles.
+		vvsRow.resize(1, vector<string>());
+		vvsRow[0].emplace_back("DataIndex");
+		for (int ii = 1; ii <= numCol; ii++) {
+			vvsRow[0].emplace_back("dim" + to_string(ii));
+		}
+
+		// Extract all data table values, one row at a time.
+		posGeo = segment.find(findGeo);
+		while (posGeo < length) {
+			vvsRow.emplace_back(vector<string>(1 + numCol));
+
+			// Use the row's first column to determine the row's DataIndex and first value.
+			vsFirstMID.clear();
+			pos1 = segment.find('\n', posGeo + lenFindGeo);
+			for (int jj = 0; jj < numDIM; jj++) {
+				pos1 = segment.find("value", pos1 + 1);
+				pos1 = segment.find('"', pos1 + 5);
+				pos2 = segment.find('"', pos1 + 1);
+				vsFirstMID.emplace_back(segment.substr(pos1 + 1, pos2 - pos1 - 1));
+			}
+			pos1 = segment.find("value", pos1 + 1);
+			pos1 = segment.find('"', pos1 + 5);
+			pos2 = segment.find('"', pos1 + 1);
+			sCol = segment.substr(pos1 + 1, pos2 - pos1 - 1);
+			try {
+				for (int jj = 0; jj < numDIM; jj++) {
+					vMID[jj] = stoi(vsFirstMID[jj]);
+					vMID[jj]--;
+				}
+				iCol = stoi(sCol);
+			}
+			catch (invalid_argument) { err("vMID/iCol stoi-dataParser"); }
+			dataIndex = makeDataIndex(vMID, vSize);
+			vvsRow.back()[0] = std::move(to_string(dataIndex));			
+			
+			// Add the row's first value.
+			posValue = segment.find(findValue, pos2);
+			pos1 = segment.find('"', posValue + lenFindValue);
+			pos2 = segment.find('"', pos1 + 1);
+			vvsRow.back()[iCol] = std::move(segment.substr(pos1 + 1, pos2 - pos1 - 1));
+
+			// Add values for all subsequent columns.
+			for (int ii = 1; ii < numCol; ii++) {
+				posGeo = segment.find(findGeo, posValue + lenFindValue);
+				pos1 = segment.find('\n', posGeo + lenFindGeo);
+				for (int jj = 0; jj < numDIM; jj++) {
+					pos1 = segment.find("value", pos1 + 1);
+					pos1 = segment.find('"', pos1 + 5);
+					pos2 = segment.find('"', pos1 + 1);
+					vsMID[jj] = segment.substr(pos1 + 1, pos2 - pos1 - 1);
+				}
+				if (vsMID != vsFirstMID) { err("Inconsistent DataIndices within a row-dataParser"); }
+				pos1 = segment.find("value", pos1 + 1);
+				pos1 = segment.find('"', pos1 + 5);
+				pos2 = segment.find('"', pos1 + 1);
+				sCol = segment.substr(pos1 + 1, pos2 - pos1 - 1);
+				try { iCol = stoi(sCol); }
+				catch (invalid_argument) { err("iCol stoi-dataParser"); }
+				posValue = segment.find(findValue, pos2);
+				pos1 = segment.find('"', posValue + lenFindValue);
+				pos2 = segment.find('"', pos1 + 1);
+				vvsRow.back()[iCol] = std::move(segment.substr(pos1 + 1, pos2 - pos1 - 1));
+			}
+
+			posGeo = segment.find(findGeo, posValue + lenFindValue);
+		}
+
+		// Convert vvsRow into a list of SQL statements, and push that list into the SQL buffer.
+		vsStmt.clear();
+		tname = "Data" + marker + sYear + marker + sCata + marker + geoCode;
+		sf.stmtInsertRow(vsStmt, tname, vvsRow);
+		jbufSQL.pushHard(vsStmt);
+		vvsRow.clear();
+	}
+}
+void SCdatabase::dataReader(atomic_int& fileDepleted, string cataDir, string sYear, string sCata, JBUFFER<string, NUM_BUF_SLOT>& jbufRaw)
+{
+	// Reader thread on the data insertion team. Reads the raw local file and cuts it
+	// into pieces, each corresponding to a single geographic region. Each piece is
+	// inserted into a buffer slot for a parser thread to convert.
+	vector<string> vsTag{ "file_name", sYear, "data" };
+	string filePath = cataDir + "/" + jparse.getXML1(configXML, vsTag);
+	size_t pos1 = filePath.rfind("[cata]"), pos2, pos3;
+	if (pos1 > filePath.size()) { err("Invalid data file name-dataReader"); }
+	filePath.replace(pos1, 6, sCata);
+	uintmax_t fileSize = jfile.fileSize(filePath);
+
+	vsTag = { "parse", sYear, "data", "cell" };
+	string segStart = jparse.getXML1(configXML, vsTag);
+	size_t segStartSize = segStart.size(), segLength;
+	vsTag.back() = "geo";
+	string sGeo = jparse.getXML1(configXML, vsTag);
+
+	const int bufSize{ 4096 };
+	FILE* file = nullptr;
+	errno_t error = fopen_s(&file, filePath.c_str(), "rb");
+	if (error != 0) { err("fopen_s-dataReader"); }
+	size_t bytesRead, posStart = -1, posStop = -1;
+	string segment0(bufSize + segStartSize, '\0'), segment1;
+	string* segment = &segment0;
+	bool leftRight = 0;
+
+	// Obtain the first segment position.
+	while (posStart > segment0.size()) {
+		bytesRead = fread(&segment0[segStartSize], 1, bufSize, file);
+		posStart = segment0.find(segStart);
+		if (posStart < fileSize) { break; }
+		segment0 = segment0.substr(bufSize, segStartSize);
+	}
+	segment0 = segment0.substr(posStart);
+	segLength = segment0.size();
+
+	// For every geographic region in the catalogue, create a segment of raw text data
+	// and push each segment into a slot within the raw buffer.
+	string sGeoCode, temp;
+	size_t remainder;
+	uintmax_t geoCode;
+	pos2 = 0;
+	int eof = 0;
+	while (!eof) {
+		// Travel down the file until the GEO_CODE changes. 
+		pos1 = segment->find(sGeo, pos2);
+		if (pos1 > segLength) {
+			segment->resize(segLength + bufSize);
+			bytesRead = fread(&segment->at(segLength), 1, bufSize, file);
+			if (bytesRead < bufSize) { eof = 1; }
+			pos1 = segment->find(sGeo, pos2);
+			segLength = segment->size();			
+		}
+		pos2 = segment->find('>', pos1);
+		if (pos2 > segLength) {
+			segment->resize(segLength + bufSize);
+			bytesRead = fread(&segment->at(segLength), 1, bufSize, file);
+			if (bytesRead < bufSize) { eof = 1; }
+			pos2 = segment->find('>', pos1);
+			segLength = segment->size();
+		}
+		pos2 = segment->rfind('"', pos2);
+		pos1 = segment->rfind('"', pos2 - 1) + 1;
+		temp = segment->substr(pos1, pos2 - pos1);
+		if (sGeoCode.size() == 0) { 
+			try { geoCode = stoull(temp); }
+			catch (invalid_argument) { err("geoCode stoull-dataReader"); }
+			sGeoCode = temp; 
+		}
+		else if (temp != sGeoCode) {
+			try { geoCode = stoull(temp); }
+			catch (invalid_argument) { err("geoCode stoull-dataReader"); }
+			sGeoCode = temp;
+			pos2 = 0;
+			if (segment1.size() == 0) { segment1.resize(segment0.size()); }
+
+			// Push this segment into the raw buffer.
+			if (eof) {
+				if (leftRight) { jbufRaw.pushHard(segment1); }
+				else { jbufRaw.pushHard(segment0); }
+				break;
+			}
+			pos3 = segment->rfind(segStart, pos1);
+			remainder = segment->size() - pos3;
+			if (leftRight) {
+				segment1.copy(&segment0[0], remainder, pos3);
+				segment1.resize(pos3);
+				jbufRaw.pushHard(segment1);
+				segment = &segment0;
+				leftRight = 0;
+			}
+			else {				
+				segment0.copy(&segment1[0], remainder, pos3);
+				segment0.resize(pos3);
+				jbufRaw.pushHard(segment0);
+				segment = &segment1;
+				leftRight = 1;
+			}
+			segLength = segment->size();
+			bytesRead = fread(&segment->at(remainder), 1, segLength - remainder, file);
+			eof = feof(file);
+		}
+	}
+	
+	// Inform the other threads that all segments have been pushed into the raw buffer.
+	fileDepleted = 1;
+}
 void SCdatabase::deleteTable(string tname)
 {
 	if (sf.tableExist(tname)) { 
@@ -125,6 +373,9 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 	thread::id myid = this_thread::get_id();
 	vector<int> mycomm, vDIM;
 	sbgui.answerCall(myid, mycomm);
+
+	// Determine how many parser threads will be used during table data insertion.
+	numThread = max(1, numThread - 2); 
 	
 	// Determine the census year for the catalogue(s).
 	int iYear, numFile;
@@ -203,11 +454,9 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 
 		// Launch worker threads to parse the raw data file into SQL statements.
 		createData(sYear, sCata, vvsGeo, vDIM.back());
-		insertData(cataDir, sYear, sCata, numThread - 1);
+		insertData(cataDir, sYear, sCata, numThread);
 		
-		//mapData.clear();
-		//loadData(jtxData, mapData, cataDir, sYear, sCata);
-
+		// 
 
 		sbgui.pullWork(cataDir);
 	}
@@ -257,31 +506,65 @@ void SCdatabase::insertData(string cataDir, string sYear, string sCata, int numT
 	// numThread refers to the number of parsing threads to launch. 
 	vector<string> vsTag = { "file_name", sYear, "data" };
 	string dataPath = cataDir + "/" + jparse.getXML1(configXML, vsTag);
-	size_t pos1 = dataPath.rfind("[cata]");
+	size_t pos1 = dataPath.rfind("[cata]"), pos2;
 	if (pos1 < dataPath.size()) { dataPath.replace(pos1, 6, sCata); }
 	if (!jfile.fileExist(dataPath)) { err("Missing catalogue's data file-loadData"); }
 	
+	// Launch a reader thread to gradually load the local data file into memory, in segments
+	// corresponding to one geographic region per segment. Each segment is loaded into a slot 
+	// within the memory buffer, for conversion by a parser thread.
+	atomic_int fileDepleted = 0;
+	JBUFFER<string, NUM_BUF_SLOT> jbufRaw;
+	std::jthread thrReader(&SCdatabase::dataReader, this, ref(fileDepleted), cataDir, sYear, sCata, ref(jbufRaw));
+
 	// Launch the parser threads. Each will pull a whole number of raw data segments from 
 	// one buffer and convert it into SQL statements ready for transaction insertion, until 
 	// the local file has been depleted and the raw buffer is empty. A segment is defined as
 	// all the raw text yielding the data values for a single geographic region, for all 
 	// possible parameter choices.
-	atomic_int fileDepleted = 0;
-	JBUFFER<string, 6> jbufRaw, jbufSQL;
 	vector<std::jthread> tapestry;
+	JBUFFER<vector<string>, NUM_BUF_SLOT> jbufSQL;
 	for (int ii = 0; ii < numThread; ii++) {
-		tapestry.emplace_back([&](std::stop_token stopToken) {
-
-		});
+		tapestry.emplace_back(std::jthread(&SCdatabase::dataParser, this, ref(fileDepleted), sYear, sCata, ref(jbufRaw), ref(jbufSQL)));
 	}
 
-	string sRawData;
-	size_t posRaw{ 0 };
+	// This thread now proceeds full-time with database insertion operations. 
+	vector<string> vsStmt;
+	vector<int> vActive;
+	vActive.assign(1 + tapestry.size(), 1);
+	int numActive = 1 + (int)tapestry.size();
+	while (1) {
+		if (fileDepleted > 0 && thrReader.joinable()) {
+			vActive[0] = 0;
+			thrReader.join();
+		}
+		if (fileDepleted > tapestry.size()) {
+			for (int ii = 0; ii < tapestry.size(); ii++) {
+				if (tapestry[ii].joinable()) {
+					vActive[1 + ii] = 0;
+					tapestry[ii].join();
+				}
+			}
+			numActive = 0;
+			for (int active : vActive) {
+				numActive += active;
+			}
+		}
 
 
+		vsStmt.clear();
+		if (numActive > 0) { vsStmt = jbufSQL.pullHard(); }
+		else {
+			vsStmt = jbufSQL.pullSoft();
+			if (vsStmt.size() == 0) { return; }
+		}
 
-
-
+		pos1 = vsStmt[0].find('"');
+		pos2 = vsStmt[0].find('"', pos1 + 1);
+		if (sf.tableExist(vsStmt[0].substr(pos1 + 1, pos2 - pos1 - 1))) {
+			sf.insertPrepared(vsStmt);
+		}		
+	}
 }
 void SCdatabase::insertDataIndex(const vector<int> vDIM, string sYear, string sCata)
 {
@@ -1034,13 +1317,10 @@ void SCdatabase::loadData(JTXML*& jtxml, unordered_map<string, string>& mapData,
 	try { maxBufferSize = stoull(sBufferSize); }
 	catch (invalid_argument) { err("maxBufferSize stoull-loadData"); }
 
-	vsTag = { "parse", sYear, "data" };
-	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
-
 	if (jtxml != nullptr) { delete jtxml; }
 	jtxml = new JTXML;
 	jtxml->initValue(xmlTag, xmlAttribute, xmlWildcard, maxBufferSize);
-	jtxml->loadXML(dataPath, vvsTag);
+	jtxml->loadXML(dataPath);
 }
 void SCdatabase::loadGeo(vector<vector<string>>& vvsGeo, string cataDir, string sCata)
 {
@@ -1168,16 +1448,16 @@ void SCdatabase::log(string message)
 	string logMessage = "SCdatabase log entry:\n" + message;
 	JLOG::getInstance()->log(logMessage);
 }
-uintmax_t SCdatabase::makeDataIndex(const vector<uintmax_t>& vValue, const vector<uintmax_t>& vSize)
+uintmax_t SCdatabase::makeDataIndex(const vector<int>& vMID, const vector<int>& vSize)
 {
 	// Note: the integer values in vSize represent the rollover trigger for each index. 
-	int numValue = (int)vValue.size();
+	int numValue = (int)vMID.size();
 	if (numValue != vSize.size()) { err("Asymmetric input size-makeDataIndex"); }
 	uintmax_t dataIndex{ 0 };
 	for (int ii = 0; ii < numValue - 1; ii++) {
-		dataIndex += vValue[ii] * vSize[ii + 1];
+		dataIndex += vMID[ii] * vSize[ii + 1];
 	}
-	dataIndex += vValue.back();
+	dataIndex += vMID.back();
 	return dataIndex;
 }
 void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
@@ -1224,68 +1504,6 @@ void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 	}
 
 	sbgui.endCall(myid);
-}
-void SCdatabase::parseData(stop_token stopToken, atomic_int& fileDepleted, JBUFFER<string, 6>& jbufRaw, JBUFFER<string, 6>& jbufSQL)
-{
-	string sGeoCode, sRaw, temp;
-	vector<vector<string>> vvsRow(1, vector<string>());
-	uintmax_t geoCode, numCol;
-	vector<uintmax_t> vSize, vValue;
-	size_t pos1, pos2, sizeRaw;
-	int numDIM;
-	while (!stopToken.stop_requested()) {
-		sRaw.clear();
-		if (fileDepleted == 0) { sRaw = jbufRaw.pullHard(); }
-		else {
-			sRaw = jbufRaw.pullSoft();
-			if (sRaw.size() < 1) { return; }
-		}
-		sizeRaw = sRaw.size();
-
-		// Determine the GEO_CODE and the DIM sizes.
-		vSize.clear();
-		pos1 = sRaw.rfind("GEO");
-		if (pos1 > sizeRaw) { err("Failed to locate GEO within sRaw-parseData"); }
-		pos1 = sRaw.find('"', pos1 + 4) + 1;
-		pos2 = sRaw.find('"', pos1);
-		sGeoCode = sRaw.substr(pos1, pos2 - pos1);
-		try { geoCode = stoull(sGeoCode); }
-		catch (invalid_argument) { err("geoCode stoull-parseData"); }
-		pos1 = sRaw.find("concept", pos2);
-		while (pos1 < sizeRaw) {			
-			pos1 = sRaw.find("value", pos1 + 7);
-			pos1 = sRaw.find('"', pos1 + 5) + 1;
-			pos2 = sRaw.find('"', pos1);
-			try { vSize.emplace_back(stoull(sRaw.substr(pos1, pos2 - pos1))); }
-			catch (invalid_argument) { err("DIM size stoull-parseData"); }
-			pos1 = sRaw.find("concept", pos2);
-		}
-		numCol = vSize.back();
-		vSize.pop_back();
-		numDIM = (int)vSize.size();
-
-		// Prepare the column titles.
-		vvsRow[0].emplace_back("DataIndex");
-		for (int ii = 1; ii <= numCol; ii++) {
-			vvsRow[0].emplace_back("dim" + to_string(ii));
-		}
-
-		// Parse the data for the region.
-		vValue.clear();
-		pos1 = sRaw.find("GEO");
-		while (pos1 < sizeRaw) {
-			pos1 = sRaw.find("value", pos1 + 3);
-			pos1 = sRaw.find('"', pos1 + 5) + 1;
-			pos2 = sRaw.find('"', pos1);
-			temp = sRaw.substr(pos1, pos2 - pos1);
-			if (temp != sGeoCode) { err("Nonmatching GeoCode-parseData"); }
-			for (int ii = 0; ii < numDIM; ii++) {
-
-			}
-
-		}
-
-	}
 }
 void SCdatabase::prepareLocal(string cataDir, string sCata)
 {

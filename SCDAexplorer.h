@@ -8,6 +8,7 @@
 #include "qjbusy.h"
 #include "qjprogressbar.h"
 #include "SCDAcatalogue.h"
+#include "SCDAcompare.h"
 #include "SCDAcontrol.h"
 #include "SCDAstructure.h"
 #include "SCDAtable.h"

@@ -43,7 +43,7 @@ public:
 	void getValue(std::string& sValue, std::string sQuery, std::string attrName = "");
 	void getValue(std::vector<std::string>& vsValue, std::string sQuery, std::string attrName = "");
 	void initValue(std::string tag, std::string attr, std::string wild, uintmax_t maxSize = 0);
-	void loadXML(std::string filePath, std::vector<std::vector<std::string>> vvsTag = {});
+	void loadXML(std::string filePath);
 	std::string nodeValue(JNODE& jn, std::string attrName = "");
 	void populateSubtree(JTREE*& jtsub, std::pair<int, int> parentID, std::deque<std::string> dsQuery);
 	void query(std::vector<int>& vID, std::string sQuery, int mode, int startID = -1);

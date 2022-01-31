@@ -152,69 +152,29 @@ void JTXML::initValue(string tagChar, string attrChar, string wildChar, uintmax_
 	wild = wildChar;
 	maxBufferSize = maxSize;
 }
-void JTXML::loadXML(string filePath, vector<vector<string>> vvsTag)
+void JTXML::loadXML(string filePath)
 {
-	// Recursive function, returns the position in the xmlFile from
-	// which the parent should continue parsing.
-	// If vvsTag is specified, then only those elements (name, value) will be loaded into
-	// this tree. Otherwise, all elements are loaded. 
-	// If the file size is larger than the maximum memory allotment, vvsTag MUST be specified
-	// to avoid a potential memory shortage.
-
+	// This variant is made for smaller files.
 	uintmax_t fileSize = jfile.fileSize(filePath);
 	uintmax_t maxMemory;
 	if (maxBufferSize > 0) { maxMemory = min(maxBufferSize, (uintmax_t)MAX_FILE_SIZE); }
 	else { maxMemory = (uintmax_t)MAX_FILE_SIZE; }
+	if (fileSize > maxMemory) { err("XML file is too large to parse-loadXML"); }
 
-	if (fileSize < MIN_FILE_SIZE) { 
-		jfile.load(xmlFile, filePath);
-		extractDeclaration(xmlFile);
-		removeComment(xmlFile);
-		size_t posStart = xmlFile.find('<');
-		if (posStart > xmlFile.size()) { err("File has no element tags-loadXML"); }
-		posStart++;
-		size_t posStop = xmlFile.find('>', posStart);
-		if (posStop > xmlFile.size()) { err("Asymmetric root-loadXML"); }
-		JNODE jnXMLRoot;
-		jnXMLRoot.posStart = posStop + 1;  // Start of tag's interior.
-		string sElement = xmlFile.substr(posStart, posStop - posStart);
-		extractNameAttribute(sElement, jnXMLRoot);
-		addChild(vNode[0].ID, jnXMLRoot);
-
-		populateTree(xmlFile, jnXMLRoot);
-	}
-	else if (fileSize > maxMemory && vvsTag.size() == 0) { err("Missing vvsTag for large XML parsing-loadXML"); }
-	else {
-		JBUFFER<string, NUM_BUFFER_SLOT> jbuf;
-		jbuf.slotSize = 262144;  // 2^18
-		
-		std::jthread xmlLoad([&jbuf, filePath](std::stop_token stopToken) {
-			string sData; 
-			sData.resize(jbuf.slotSize);
-			ifstream input(filePath, ifstream::binary);
-			while (input.is_open()) {
-				if (stopToken.stop_requested()) { input.close(); }
-				input.read(&sData[0], jbuf.slotSize);
-				jbuf.pushHard(sData);
-				if (input.gcount() < jbuf.slotSize) { input.close(); }
-			}
-		});
-
-		string sFile = jbuf.pullHard();
-		size_t posStart = sFile.find('<');
-		if (posStart > sFile.size()) { err("File has no element tags-loadXML"); }
-		while (sFile[posStart + 1] == '?' || sFile[posStart + 1] == '!') {
-			posStart = sFile.find('<', posStart + 1);
-		}
-		size_t posStop = sFile.find('>', posStart);
-		if (posStop > sFile.size()) { err("Asymmetric root-loadXML"); }
-		JNODE jnXMLRoot;
-		jnXMLRoot.posStart = posStop + 1;  // Start of tag's interior.
-		string sElement = sFile.substr(posStart + 1, posStop - posStart - 1);
-		extractNameAttribute(sElement, jnXMLRoot);
-		addChild(vNode[0].ID, jnXMLRoot);
-		populateTree(sFile, jnXMLRoot, jbuf, vvsTag);
-	}
+	jfile.load(xmlFile, filePath);
+	extractDeclaration(xmlFile);
+	removeComment(xmlFile);
+	size_t posStart = xmlFile.find('<');
+	if (posStart > xmlFile.size()) { err("File has no element tags-loadXML"); }
+	posStart++;
+	size_t posStop = xmlFile.find('>', posStart);
+	if (posStop > xmlFile.size()) { err("Asymmetric root-loadXML"); }
+	JNODE jnXMLRoot;
+	jnXMLRoot.posStart = posStop + 1;  // Start of tag's interior.
+	string sElement = xmlFile.substr(posStart, posStop - posStart);
+	extractNameAttribute(sElement, jnXMLRoot);
+	addChild(vNode[0].ID, jnXMLRoot);
+	populateTree(xmlFile, jnXMLRoot);
 }
 string JTXML::nodeValue(JNODE& jn, string attrName)
 {

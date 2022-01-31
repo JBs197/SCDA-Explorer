@@ -331,6 +331,8 @@ void SCDA::initGUI()
 	tab->addTab(table, "Tables");
 	SCDAstructure* structure = new SCDAstructure;
 	tab->addTab(structure, "Structures");
+	SCDAcompare* compare = new SCDAcompare;
+	tab->addTab(compare, "Compare");
 
 	indexPBar = 1;
 	QJPROGRESSBAR* qjPBar = new QJPROGRESSBAR;

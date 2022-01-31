@@ -77,6 +77,7 @@ public:
     int selectOrderBy(std::vector<std::string> search, std::string tname, std::vector<std::vector<std::string>>& results, std::string orderby);
     void selectTree(std::string tname, std::vector<std::vector<int>>& tree_st, std::vector<std::string>& tree_pl);
     std::string sqlErrMsg();
+    void stmtInsertRow(std::vector<std::string>& vsStmt, std::string tname, std::vector<std::vector<std::string>>& vvsRow);
     bool tableExist(std::string tname);
     void update(std::string tname, std::vector<std::string> revisions, std::vector<std::string> conditions);
 };

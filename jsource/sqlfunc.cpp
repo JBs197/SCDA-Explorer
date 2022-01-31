@@ -1539,6 +1539,42 @@ string SQLFUNC::sqlErrMsg()
     }
     return output;
 }
+void SQLFUNC::stmtInsertRow(vector<string>& vsStmt, string tname, vector<vector<string>>& vvsRow)
+{
+    // This function performs as "insertRow" does, except that it returns the SQL statements 
+    // rather than inserting them immediately.
+    // vvsRow has form [column titles, row0, row1, ...][values].
+    if (vvsRow.size() < 2 || vvsRow[0].size() < 1) { err("Missing vvsRow-stmtInsertRow"); }
+    if (tname.size() < 1) { err("Missing tname-stmtInsertRow"); }
+    double test;
+    int numCol = (int)vvsRow[0].size();
+    int numRow = (int)vvsRow.size() - 1;
+    int index = (int)vsStmt.size();
+    string stmt0 = "INSERT OR IGNORE INTO \"" + tname + "\" (";
+    string temp;
+    vsStmt.resize(index + numRow);
+    for (int ii = 0; ii < numRow; ii++) {
+        vsStmt[index + ii] = stmt0;
+        for (int jj = 0; jj < vvsRow[1 + ii].size(); jj++) {
+            if (jj > 0) { vsStmt[index + ii] += ", "; }
+            vsStmt[index + ii] += "\"" + vvsRow[0][jj] + "\"";
+        }
+        vsStmt[index + ii] += ") VALUES (";
+        for (int jj = 0; jj < vvsRow[1 + ii].size(); jj++) {
+            if (jj > 0) { vsStmt[index + ii] += ", "; }
+            try { 
+                test = stod(vvsRow[1 + ii][jj]); 
+                vsStmt[index + ii] += vvsRow[1 + ii][jj];
+            }
+            catch (invalid_argument) {
+                temp = vvsRow[1 + ii][jj];
+                sclean(temp, 1);
+                vsStmt[index + ii] += "'" + temp + "'";
+            }
+        }
+        vsStmt[index + ii] += ");";
+    }
+}
 bool SQLFUNC::tableExist(string tname)
 {
     // Returns TRUE or FALSE as to the existance of a given table within the database.

@@ -60,7 +60,7 @@ public:
 	auto pullSoft() {
 		auto data = std::optional<A>{};
 		bool success = smphFull.try_acquire();
-		if (!success) { return std::move(*data); }
+		if (!success) { return A{}; }
 		try {
 			std::unique_lock<std::mutex> ul(m_buf);
 			data = std::move(buffer[posRead]);
