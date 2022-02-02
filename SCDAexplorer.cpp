@@ -23,6 +23,138 @@ void SCDA::busyWheel(SWITCHBOARD& sb)
 }
 void SCDA::debug()
 {
+	string tname{ "GeoTreeTemplate$2013$canada$province$cmaca" };
+	vector<string> search{ "Region Name" };
+	vector<string> conditions{ "GEO_LEVEL = 2" };
+	vector<string> vsRegion;
+	int numRegion = scdb.sf.select(search, tname, vsRegion, conditions);
+	if (numRegion == 0) { err("Failed to load region list"); }
+	string mapDir = "E:/maps/canada/province/cmaca";
+
+	IOFUNC io;
+	string message = "Position cursor over SEARCH BAR, hit NUMPAD0 when ready...";
+	emit appendTextIO(message);
+	qApp->processEvents();
+	POINT pSearchbar = io.getCoord(VK_NUMPAD0);
+	message = "Position cursor over DROPDOWN BOX, hit NUMPAD1 when ready...";
+	emit appendTextIO(message);
+	qApp->processEvents();
+	POINT pBox = io.getCoord(VK_NUMPAD1);
+	message = "Position cursor over FIRST CANDIDATE URL, hit NUMPAD2 when ready...";
+	emit appendTextIO(message);
+	qApp->processEvents();
+	POINT pCandidate1 = io.getCoord(VK_NUMPAD2);
+	message = "Position cursor over \"Copy link address\", hit NUMPAD3 when ready...";
+	emit appendTextIO(message);
+	qApp->processEvents();
+	POINT pCopyAddress1 = io.getCoord(VK_NUMPAD3);
+	message = "Position cursor over SECOND CANDIDATE URL, hit NUMPAD4 when ready...";
+	emit appendTextIO(message);
+	qApp->processEvents();
+	POINT pCandidate2 = io.getCoord(VK_NUMPAD4);
+	POINT pCopyAddress2; 
+	pCopyAddress2.x = pCandidate2.x + pCopyAddress1.x - pCandidate1.x;
+	pCopyAddress2.y = pCandidate2.y + pCopyAddress1.y - pCandidate1.y;
+	emit appendTextIO("Starting automation ...");
+	qApp->processEvents();
+
+	string bot, left, right, top, mapPath, url;
+	GDIFUNC gdi;
+	vector<POINT> boxTLBR{ pBox, pBox };
+	boxTLBR[0].x--;
+	boxTLBR[0].y--;
+	boxTLBR[1].x++;
+	boxTLBR[1].y++;
+	vector<unsigned char> boxImg, mapFile;
+	vector<int> boxSpec;
+	int sum;
+	double avg;
+	size_t pos1, pos2;
+	for (int ii = 0; ii < numRegion; ii++) {
+		mapPath = mapDir + "/" + vsRegion[ii] + "*.png";
+		if (jfile.fileExist(mapPath)) {
+			emit appendTextIO("Skipping " + vsRegion[ii]);
+			continue;
+		}
+
+		io.mouseClick(pSearchbar);
+		Sleep(1000);
+		io.mouseClick(pSearchbar);
+		Sleep(1000);
+		io.kbInput(vsRegion[ii]);
+		Sleep(1000);
+		for (int jj = 0; jj < 4; jj++) {
+			boxImg.clear();
+			boxSpec.clear();
+			gdi.capture(boxImg, boxSpec, boxTLBR);
+			sum = 0;
+			for (unsigned char uc : boxImg) {
+				sum += uc;
+			}
+			avg = (double)sum / (double)boxImg.size();
+			if (avg > 245.0) { break; }
+			else if (jj == 3) { err("Failed to identify dropdown box"); }
+			io.kbInput(VK_BACK);
+			Sleep(2000);
+		}
+		io.mouseClick(pBox);
+		Sleep(5000);
+		io.mouseClick(pCandidate1, io.click::Right);
+		Sleep(1000);
+		io.mouseClick(pCopyAddress1);
+		Sleep(500);
+
+		BOOL success = OpenClipboard(NULL);
+		if (!success) { io.winerr("OpenClipboard-io.copyText"); }
+		HANDLE hClip = GetClipboardData(CF_TEXT);
+		if (hClip == NULL) { io.winerr("GetClipboardData-io.copyText"); }
+		else { url = (string)static_cast<char*>(hClip); }
+		if (url.size() < 1) { err("Copying from clipboard to string-io.copyText"); }
+		success = EmptyClipboard();
+		if (!success) { io.winerr("EmptyClipboard-io.copyText"); }
+		success = CloseClipboard();
+		if (!success) { io.winerr("CloseClipboard-io.copyText"); }
+		pos1 = url.find("png32");
+		if (pos1 > url.size()) {
+			io.mouseClick(pCandidate2, io.click::Right);
+			Sleep(1000);
+			io.mouseClick(pCopyAddress2);
+			Sleep(500);
+
+			success = OpenClipboard(NULL);
+			if (!success) { io.winerr("OpenClipboard-io.copyText"); }
+			hClip = GetClipboardData(CF_TEXT);
+			if (hClip == NULL) { io.winerr("GetClipboardData-io.copyText"); }
+			else { url = (string)static_cast<char*>(hClip); }
+			if (url.size() < 1) { err("Copying from clipboard to string-io.copyText"); }
+			success = EmptyClipboard();
+			if (!success) { io.winerr("EmptyClipboard-io.copyText"); }
+			success = CloseClipboard();
+			if (!success) { io.winerr("CloseClipboard-io.copyText"); }
+			pos1 = url.find("png32");
+			if (pos1 > url.size()) { err("Failed to identify png32 in URL"); }
+		}
+
+		pos1 = url.rfind("&bbox=") + 6;
+		pos2 = url.find("%2C", pos1);
+		left = url.substr(pos1, pos2 - pos1);
+		pos1 = pos2 + 3;
+		pos2 = url.find("%2C", pos1);
+		bot = url.substr(pos1, pos2 - pos1);
+		pos1 = pos2 + 3;
+		pos2 = url.find("%2C", pos1);
+		right = url.substr(pos1, pos2 - pos1);
+		pos1 = pos2 + 3;
+		pos2 = url.find("%2C", pos1);
+		top = url.substr(pos1, pos2 - pos1);
+
+		mapPath.resize(mapPath.size() - 5);
+		mapPath += " [(" + left + "," + top + "),(" + right + "," + bot + ")].png";
+
+		mapFile.clear();
+		wf.browse(mapFile, url);
+		jfile.printer(mapPath, mapFile);
+	}
 
 }
 void SCDA::deleteTable(string tname)
@@ -41,9 +173,7 @@ void SCDA::dialogStructureStart()
 {
 	QString qsPath = QFileDialog::getOpenFileName(this, "Open File", sLocalStorage.c_str(), "XML files (*.xml)");
 	if (qsPath.size() < 1) { return; }
-	wstring wsPath = qsPath.toStdWString();
-	string sPath;
-	jparse.utf16To8(sPath, wsPath);
+	string sPath = qsPath.toStdString();
 
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
@@ -333,6 +463,7 @@ void SCDA::initGUI()
 	tab->addTab(structure, "Structures");
 	SCDAcompare* compare = new SCDAcompare;
 	tab->addTab(compare, "Compare");
+	connect(compare, &SCDAcompare::sendDownloadMap, this, &SCDA::testMap);
 
 	indexPBar = 1;
 	QJPROGRESSBAR* qjPBar = new QJPROGRESSBAR;
@@ -424,19 +555,23 @@ void SCDA::postRender()
 	QVBoxLayout* displayLayout = (QVBoxLayout*)qlItem->layout();
 	qlItem = displayLayout->itemAt(indexPBar);
 	QJPROGRESSBAR* qjPBar = (QJPROGRESSBAR*)qlItem->widget();
-
-	/*
-	QLabel* labelBar = central->findChild<QLabel*>("labelBar", Qt::FindDirectChildrenOnly);
-	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
-	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
-	qlItem = vLayout->itemAt(1);
-	QProgressBar* pBar = (QProgressBar*)qlItem->widget();
-	QRect rect = pBar->geometry();
-	labelBar->setGeometry(rect);
-	*/
-
 	qjPBar->initChildren();
+
+	qlItem = displayLayout->itemAt(indexTab);
+	QTabWidget* tabW = (QTabWidget*)qlItem->widget();
+	SCDAcompare* compare = (SCDAcompare*)tabW->widget(3);
+	QSize parentSize = compare->frameSize();
+	QVBoxLayout* compareLayout = (QVBoxLayout*)compare->layout();
+	qlItem = compareLayout->itemAt(0);
+	QHBoxLayout* hLayout = (QHBoxLayout*)qlItem->layout();
+	QRect layoutRect = hLayout->geometry();
+	qlItem = hLayout->itemAt(4);
+	QRect itemRect = qlItem->geometry();
+	QLineEdit* leText = (QLineEdit*)qlItem->widget();
+	
+	auto policy = leText->sizePolicy();
+	int bbq = 1;
+	//leText->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 }
 void SCDA::searchDBTable(string sQuery)
 {
@@ -482,6 +617,31 @@ void SCDA::searchDBTable(string sQuery)
 
 	// If only one table was found, display it.
 	if (numTable == 1) { fetchDBTable(vsTable[0]); }
+}
+void SCDA::testMap(string url)
+{
+	string mapDir = sLocalStorage + "/mapsTest";
+	QString qsPath = QFileDialog::getSaveFileName(this, "Save File", mapDir.c_str());
+	if (qsPath.size() < 1) { return; }
+	vector<string> vsPrompt(2);
+	vsPrompt[0] = url;
+	vsPrompt[1] = qsPath.toStdString();
+
+	QWidget* central = this->centralWidget();
+	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
+	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
+	qlItem = vLayout->itemAt(0);
+	QTabWidget* tab = (QTabWidget*)qlItem->widget();
+	SCDAcompare* compare = (SCDAcompare*)tab->widget(indexTab::Compare);
+
+	thread::id myid = this_thread::get_id();
+	sb.startCall(myid, commLength);
+	sb.setPrompt(vsPrompt);
+	std::thread thr(&SCDAcompare::testScalePos, compare, ref(sb), ref(sco));
+	thr.detach();
+	busyWheel(sb);
+	sb.endCall(myid);
 }
 void SCDA::updateCataDB()
 {

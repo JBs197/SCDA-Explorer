@@ -17,7 +17,6 @@ class SConline
 	std::unordered_map<std::string, int> mapGeoLevel;
 	long long maxFileSize = -1;
 	std::vector<std::vector<std::string>> vvsCata;  // Form [index][year, cata0, cata1, ...]
-	WINFUNC wf;
 
 	std::string cataPID(std::string sYear, std::string sCata);
 	void downloadTopic(std::string filePath);
@@ -34,6 +33,7 @@ public:
 	~SConline() = default;
 
 	std::string configXML, urlRoot;
+	WINFUNC wf;
 
 	void downloadCata(SWITCHBOARD& sbgui);
 	void getCataTree(JTREE& jt);

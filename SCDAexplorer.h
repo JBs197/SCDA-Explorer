@@ -5,6 +5,7 @@
 #include <QProgressBar>
 #include <QScreen>
 #include <QTabWidget>
+#include "iofunc.h"
 #include "qjbusy.h"
 #include "qjprogressbar.h"
 #include "SCDAcatalogue.h"
@@ -32,7 +33,7 @@ private:
 	SWITCHBOARD sb;
 	WINFUNC wf;
 
-	enum indexTab { Catalogue, Table, Structure };
+	enum indexTab { Catalogue, Table, Structure, Compare };
 
 	void busyWheel(SWITCHBOARD& sb);
 	void err(string message);
@@ -68,5 +69,6 @@ public slots:
 	void fetchDBTable(string tname);
 	void insertCata(string prompt);
 	void searchDBTable(string sQuery);
+	void testMap(string url);
 	void updateCataDB();
 };
