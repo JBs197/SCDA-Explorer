@@ -6,7 +6,6 @@ SCDA::SCDA(string execFolder, QWidget* parent)
 	: QMainWindow(parent), sExecFolder(execFolder)
 {
 	setWindowTitle("SCDA Explorer");
-	//QRect rectDesktop = getDesktop();
 
 	initConfig();
 	initGUI();
@@ -23,6 +22,9 @@ void SCDA::busyWheel(SWITCHBOARD& sb)
 }
 void SCDA::debug()
 {
+	size_t pos1, pos2;
+	int countDown, countUp, index, indexPixel, sum;
+	string bot, left, right, top, mapPath, savedFile, sInform, sName, sx, sy, url;
 	string tname{ "GeoTreeTemplate$2013$canada$province$cmaca" };
 	vector<string> search{ "Region Name" };
 	vector<string> conditions{ "GEO_LEVEL = 2" };
@@ -30,100 +32,174 @@ void SCDA::debug()
 	int numRegion = scdb.sf.select(search, tname, vsRegion, conditions);
 	if (numRegion == 0) { err("Failed to load region list"); }
 	string mapDir = "E:/maps/canada/province/cmaca";
+	
+	QList<QRect> listResolution = getDesktop();
+	int width = listResolution[0].x() + listResolution[0].width();
+	int height = listResolution[0].y() + listResolution[0].height();
+	for (int ii = 1; ii < listResolution.size(); ii++) {
+		if (listResolution[ii].x() + listResolution[ii].width() > width) {
+			width = listResolution[ii].x() + listResolution[ii].width();
+		}
+		if (listResolution[ii].y() + listResolution[ii].height() > height) {
+			height = listResolution[ii].y() + listResolution[ii].height();
+		}
+	}
+	IOFUNC io(width, height);
+	vector<POINT> vPosition;  // Form [search bar, candidate1 url, candidate1 copy address, candidate2 url, candidate2 copy address, ...].
+	POINT p1;
+	bool needPosition = 1;
+	string savedPath = sExecFolder + "/savedIO.txt";
+	if (jfile.fileExist(savedPath)) {
+		jfile.load(savedFile, savedPath);
+		sInform = "Previous position settings detected! Saved from:\n";
+		pos2 = savedFile.find_first_of("\r\n");
+		sInform += savedFile.substr(0, pos2);
 
-	IOFUNC io;
-	string message = "Position cursor over SEARCH BAR, hit NUMPAD0 when ready...";
-	emit appendTextIO(message);
-	qApp->processEvents();
-	POINT pSearchbar = io.getCoord(VK_NUMPAD0);
-	message = "Position cursor over DROPDOWN BOX, hit NUMPAD1 when ready...";
-	emit appendTextIO(message);
-	qApp->processEvents();
-	POINT pBox = io.getCoord(VK_NUMPAD1);
-	message = "Position cursor over FIRST CANDIDATE URL, hit NUMPAD2 when ready...";
-	emit appendTextIO(message);
-	qApp->processEvents();
-	POINT pCandidate1 = io.getCoord(VK_NUMPAD2);
-	message = "Position cursor over \"Copy link address\", hit NUMPAD3 when ready...";
-	emit appendTextIO(message);
-	qApp->processEvents();
-	POINT pCopyAddress1 = io.getCoord(VK_NUMPAD3);
-	message = "Position cursor over SECOND CANDIDATE URL, hit NUMPAD4 when ready...";
-	emit appendTextIO(message);
-	qApp->processEvents();
-	POINT pCandidate2 = io.getCoord(VK_NUMPAD4);
-	POINT pCopyAddress2; 
-	pCopyAddress2.x = pCandidate2.x + pCopyAddress1.x - pCandidate1.x;
-	pCopyAddress2.y = pCandidate2.y + pCopyAddress1.y - pCandidate1.y;
-	emit appendTextIO("Starting automation ...");
-	qApp->processEvents();
+		pos1 = savedFile.find_first_not_of(" \r\n", pos2);
+		while (pos1 < savedFile.size()) {
+			pos2 = savedFile.find(',', pos1);
+			sx = savedFile.substr(pos1, pos2 - pos1);
+			pos1 = savedFile.find_first_not_of(" ,", pos2);
+			pos2 = savedFile.find_first_of("\r\n", pos1);
+			sy = savedFile.substr(pos1, pos2 - pos1);
+			try { 
+				p1.x = stoi(sx);
+				p1.y = stoi(sy);
+			}
+			catch (invalid_argument) { err("vPosition stoi"); }
+			vPosition.emplace_back(p1);
+			pos1 = savedFile.find_first_not_of(" \r\n", pos2);
+		}
+		if (vPosition.size() >= 6 && vPosition.size() % 2 == 0) { 
+			QMessageBox qmb;
+			qmb.setText(sInform.c_str());
+			qmb.setInformativeText("Do you want to reuse these saved positions?");
+			qmb.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+			qmb.setDefaultButton(QMessageBox::Yes);
+			int yesNo = qmb.exec();
+			if (yesNo == QMessageBox::Yes) { needPosition = 0; }
+		}
+	}
+	if (needPosition) {
+		string message = "Position cursor over SEARCH BAR, hit NUMPAD1 when ready...\n";
+		emit appendTextIO(message);
+		qApp->processEvents();
+		vPosition.emplace_back(io.getCoord(VK_NUMPAD1));
+		message = "Position cursor over FIRST CANDIDATE URL, hit NUMPAD2 when ready...\n";
+		emit appendTextIO(message);
+		qApp->processEvents();
+		vPosition.emplace_back(io.getCoord(VK_NUMPAD2));
+		message = "Position cursor over \"Copy link address\", hit NUMPAD3 when ready...\n";
+		emit appendTextIO(message);
+		qApp->processEvents();
+		vPosition.emplace_back(io.getCoord(VK_NUMPAD3));
+		message = "Position cursor over SECOND CANDIDATE URL, hit NUMPAD4 when ready...\n";
+		emit appendTextIO(message);
+		qApp->processEvents();
+		vPosition.emplace_back(io.getCoord(VK_NUMPAD4));
+		vPosition[3].x = vPosition[1].x - 3;  // Use minimum drift leftward, to avoid right-clicking the previous context menu.
+		vPosition.emplace_back(vPosition[3]);
+		vPosition.back().x += vPosition[2].x - vPosition[1].x;
+		vPosition.back().y += vPosition[2].y - vPosition[1].y;
 
-	string bot, left, right, top, mapPath, url;
+		savedFile.clear();
+		savedFile = JLOG::getInstance()->timestamper();
+		for (int ii = 0; ii < vPosition.size(); ii++) {
+			savedFile += "\n" + to_string(vPosition[ii].x) + "," + to_string(vPosition[ii].y);
+		}
+		savedFile += "\n";
+		jfile.printer(savedPath, savedFile);
+
+		emit appendTextIO("Starting automation ...\n");
+		qApp->processEvents();
+	}
+
 	GDIFUNC gdi;
-	vector<POINT> boxTLBR{ pBox, pBox };
-	boxTLBR[0].x--;
-	boxTLBR[0].y--;
-	boxTLBR[1].x++;
-	boxTLBR[1].y++;
-	vector<unsigned char> boxImg, mapFile;
+	PNGFUNC pngf;
+	vector<POINT> boxTLBR{ vPosition[0], vPosition[0] };
+	boxTLBR[0].x -= 25;
+	boxTLBR[0].y -= 50;
+	boxTLBR[1].y += 50;
+	vector<unsigned char> boxImg, mapFile, scanRowCol;
+	vector<unsigned char> rgbTarget{ 124, 167, 243 };
 	vector<int> boxSpec;
-	int sum;
-	double avg;
-	size_t pos1, pos2;
+	double avg, dBot, dLeft, dRight, dTop;
 	for (int ii = 0; ii < numRegion; ii++) {
 		mapPath = mapDir + "/" + vsRegion[ii] + "*.png";
 		if (jfile.fileExist(mapPath)) {
-			emit appendTextIO("Skipping " + vsRegion[ii]);
+			emit appendTextIO("Skipping " + vsRegion[ii] + "\n");
 			continue;
 		}
 
-		io.mouseClick(pSearchbar);
+		io.mouseClick(vPosition[0]);
 		Sleep(1000);
-		io.mouseClick(pSearchbar);
+		io.mouseClick(vPosition[0]);
 		Sleep(1000);
-		io.kbInput(vsRegion[ii]);
+		sName = vsRegion[ii];
+		jparse.asciiNearestFit(sName);
+		io.kbInput(sName, 0.5);  // Type at half speed.
 		Sleep(1000);
 		for (int jj = 0; jj < 4; jj++) {
 			boxImg.clear();
 			boxSpec.clear();
 			gdi.capture(boxImg, boxSpec, boxTLBR);
-			sum = 0;
-			for (unsigned char uc : boxImg) {
-				sum += uc;
+			pngf.print("E:/" + to_string(jj) + ".png", boxImg, boxSpec);
+			scanRowCol.clear();
+			pngf.extractRow(scanRowCol, boxSpec[1] / 2, boxImg, boxSpec);
+			index = 0;
+			while (scanRowCol[index] == 255) { index++; }
+			index -= boxSpec[2];
+			indexPixel = index / boxSpec[2]; 
+			scanRowCol.clear();
+			pngf.extractCol(scanRowCol, indexPixel, boxImg, boxSpec);
+			countUp = -1;
+			indexPixel = scanRowCol.size() / (2 * boxSpec[2]);
+			while (indexPixel >= 0) {
+				index = indexPixel * boxSpec[2];
+				if (abs(scanRowCol[index] - rgbTarget[0]) < 3) {
+					if (abs(scanRowCol[index + 1] - rgbTarget[1]) < 3) {
+						if (abs(scanRowCol[index + 2] - rgbTarget[2]) < 3) {
+							countUp = indexPixel;
+							break;
+						}
+					}
+				}
+				indexPixel--;
 			}
-			avg = (double)sum / (double)boxImg.size();
-			if (avg > 245.0) { break; }
-			else if (jj == 3) { err("Failed to identify dropdown box"); }
+			if (countUp < 0) { err("Failed to locate rgbTarget upward"); }
+			countDown = -1;
+			indexPixel = scanRowCol.size() / (2 * boxSpec[2]);
+			while (indexPixel < boxSpec[1] - countUp + 10) {
+				index = indexPixel * boxSpec[2];
+				if (abs(scanRowCol[index] - rgbTarget[0]) < 3) {
+					if (abs(scanRowCol[index + 1] - rgbTarget[1]) < 3) {
+						if (abs(scanRowCol[index + 2] - rgbTarget[2]) < 3) {
+							countDown = indexPixel;
+							break;
+						}
+					}
+				}
+				indexPixel++;
+			}
+			if (countDown < 0) { break; }
 			io.kbInput(VK_BACK);
 			Sleep(2000);
 		}
-		io.mouseClick(pBox);
-		Sleep(5000);
-		io.mouseClick(pCandidate1, io.click::Right);
+		if (countDown >= 0) { err("Failed to identify dropdown box"); }
+		io.kbInput(VK_DOWN);
 		Sleep(1000);
-		io.mouseClick(pCopyAddress1);
-		Sleep(500);
+		io.kbInput(VK_RETURN);		
+		Sleep(5000);
 
-		BOOL success = OpenClipboard(NULL);
-		if (!success) { io.winerr("OpenClipboard-io.copyText"); }
-		HANDLE hClip = GetClipboardData(CF_TEXT);
-		if (hClip == NULL) { io.winerr("GetClipboardData-io.copyText"); }
-		else { url = (string)static_cast<char*>(hClip); }
-		if (url.size() < 1) { err("Copying from clipboard to string-io.copyText"); }
-		success = EmptyClipboard();
-		if (!success) { io.winerr("EmptyClipboard-io.copyText"); }
-		success = CloseClipboard();
-		if (!success) { io.winerr("CloseClipboard-io.copyText"); }
-		pos1 = url.find("png32");
-		if (pos1 > url.size()) {
-			io.mouseClick(pCandidate2, io.click::Right);
-			Sleep(1000);
-			io.mouseClick(pCopyAddress2);
+		for (int jj = 0; jj < 2; jj++) {
+			io.mouseClick(vPosition[1 + (2 * jj)], io.click::Right);
+			Sleep(2000);
+			io.mouseClick(vPosition[2 + (2 * jj)]);
 			Sleep(500);
 
-			success = OpenClipboard(NULL);
+			BOOL success = OpenClipboard(NULL);
 			if (!success) { io.winerr("OpenClipboard-io.copyText"); }
-			hClip = GetClipboardData(CF_TEXT);
+			HANDLE hClip = GetClipboardData(CF_TEXT);
 			if (hClip == NULL) { io.winerr("GetClipboardData-io.copyText"); }
 			else { url = (string)static_cast<char*>(hClip); }
 			if (url.size() < 1) { err("Copying from clipboard to string-io.copyText"); }
@@ -131,11 +207,17 @@ void SCDA::debug()
 			if (!success) { io.winerr("EmptyClipboard-io.copyText"); }
 			success = CloseClipboard();
 			if (!success) { io.winerr("CloseClipboard-io.copyText"); }
-			pos1 = url.find("png32");
-			if (pos1 > url.size()) { err("Failed to identify png32 in URL"); }
-		}
 
-		pos1 = url.rfind("&bbox=") + 6;
+			pos1 = url.find("png32");
+			if (pos1 < url.size()) { break; }
+			pos2 = url.find("png8");
+			if (pos2 > url.size()) { err("Lost while determining region png url"); }
+		}
+		if (pos1 > url.size()) { err("Failed to locate png32 in url"); }
+		
+		pos1 = url.rfind("&bbox=");
+		if (pos1 > url.size()) { err("Failed to locate bbox within url"); }
+		pos1 += 6;
 		pos2 = url.find("%2C", pos1);
 		left = url.substr(pos1, pos2 - pos1);
 		pos1 = pos2 + 3;
@@ -145,17 +227,24 @@ void SCDA::debug()
 		pos2 = url.find("%2C", pos1);
 		right = url.substr(pos1, pos2 - pos1);
 		pos1 = pos2 + 3;
-		pos2 = url.find("%2C", pos1);
+		pos2 = url.find('&', pos1);
 		top = url.substr(pos1, pos2 - pos1);
+		try {
+			dLeft = stod(left);
+			dTop = stod(top);
+			dRight = stod(right);
+			dBot = stod(bot);
+		}
+		catch (invalid_argument) { err("url TLBR stod"); }
 
 		mapPath.resize(mapPath.size() - 5);
 		mapPath += " [(" + left + "," + top + "),(" + right + "," + bot + ")].png";
-
 		mapFile.clear();
 		wf.browse(mapFile, url);
 		jfile.printer(mapPath, mapFile);
-	}
 
+		emit appendTextIO("Downloaded PNG map for " + vsRegion[ii] + "\n");
+	}
 }
 void SCDA::deleteTable(string tname)
 {
@@ -331,11 +420,15 @@ void SCDA::fetchDBTable(string tname)
 		table->displayTable(vvsData, vvsColTitle, title);
 	}
 }
-QRect SCDA::getDesktop()
+QList<QRect> SCDA::getDesktop()
 {
 	QList<QScreen*> listScreen = qApp->screens();
 	if (listScreen.size() < 1) { err("No screens found-getDesktop"); }
-	return listScreen[0]->geometry();
+	QList<QRect> listGeometry;
+	for (QScreen* screen : listScreen) {
+		listGeometry.append(screen->geometry());
+	}
+	return listGeometry;
 }
 void SCDA::initBusy(QJBUSY*& dialogBusy)
 {

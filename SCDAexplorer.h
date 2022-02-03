@@ -2,6 +2,7 @@
 #include <QApplication>
 #include <QFileDialog>
 #include <QMainWindow>
+#include <QMessageBox>
 #include <QProgressBar>
 #include <QScreen>
 #include <QTabWidget>
@@ -37,7 +38,7 @@ private:
 
 	void busyWheel(SWITCHBOARD& sb);
 	void err(string message);
-	QRect getDesktop();
+	QList<QRect> getDesktop();
 	void initBusy(QJBUSY*& dialogBusy);
 	void initConfig();
 	void initControl(SCDAcontrol*& control);
