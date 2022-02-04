@@ -11,17 +11,17 @@ void QJDELEGATE::enableDisable(const QModelIndex& index) const
     bool success;
     int iWidget = qsWidget.toInt(&success);
     if (success) {
+        QTableView* table = nullptr;
+        QListView* list = nullptr;
         QWidget* qwCell = nullptr;
-        QJTABLEVIEW* qjtv = nullptr;
-        QJLISTVIEW* qjlv = nullptr;
         switch (type) {
         case 0:
-            qjtv = (QJTABLEVIEW*)this->parent();
-            qwCell = qjtv->indexWidget(index);
+            table = (QTableView*)this->parent();
+            qwCell = table->indexWidget(index);
             break;
         case 1:
-            qjlv = (QJLISTVIEW*)this->parent();
-            qwCell = qjlv->indexWidget(index);
+            list = (QListView*)this->parent();
+            qwCell = list->indexWidget(index);
             break;
         }
         if (iWidget > 0) { qwCell->setEnabled(1); }

@@ -38,7 +38,7 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 	// Make a GeoTree file for this year, containing a list of all region
 	// tree types used by the year's catalogues.
 	string geoTreePath = yearFolder + "/GeoTree_" + vsPrompt[0] + ".txt";
-	if (!jfile.fileExist(geoTreePath)) {
+	if (!jfile.exist(geoTreePath)) {
 		makeGeoTree(yearFolder, vsPrompt[0], sbgui);
 	}
 
@@ -92,7 +92,7 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 
 		// Download the catalogue ZIP archive, if not already present.
 		filePath = cataFolder + "/" + vsPrompt[1 + ii] + ".zip";
-		if (!jfile.fileExist(filePath)) {
+		if (!jfile.exist(filePath)) {
 			urlCataDownload(url, vsPrompt[0], vsPrompt[1 + ii]);
 			wf.download(url, filePath);
 		}
@@ -107,7 +107,7 @@ void SConline::downloadTopic(string filePath)
 {
 	// Niche function to make a tiny "topic" file detailing a catalogue's
 	// topic (as some census years do not specify it within the meta file).
-	if (jfile.fileExist(filePath)) { return; }
+	if (jfile.exist(filePath)) { return; }
 	string webpage, url;
 	size_t pos2 = filePath.find_last_of("/\\");
 	size_t pos1 = filePath.find_last_of("/\\", pos2 - 1) + 1;
@@ -259,7 +259,7 @@ void SConline::makeGeo(string cataFolder, string sYear, string sCata)
 	vector<vector<string>> vvsTag;
 
 	string geoLayerPath = cataFolder + "/GeoLayers_" + sCata + ".txt";
-	if (!jfile.fileExist(geoLayerPath)) {
+	if (!jfile.exist(geoLayerPath)) {
 		if (page.size() < 1) {
 			urlCataGeo(url, sYear, sCata);
 			wf.browse(page, url);
@@ -300,7 +300,7 @@ void SConline::makeGeo(string cataFolder, string sYear, string sCata)
 	}
 
 	string geoPath = cataFolder + "/Geo_" + sCata + ".txt";
-	if (!jfile.fileExist(geoPath)) {
+	if (!jfile.exist(geoPath)) {
 		if (page.size() < 1) {
 			urlCataGeo(url, sYear, sCata);
 			wf.browse(page, url);

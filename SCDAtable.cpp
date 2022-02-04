@@ -2,17 +2,43 @@
 
 using namespace std;
 
-void SCDAtable::cellRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTable)
+void SCDAtable::cellRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex)
 {
-	//
+	QGridLayout* gLayout = (QGridLayout*)this->layout();
+	QLayoutItem* qlItem = gLayout->itemAtPosition(0, index::OnDemand);
+	QLabel* label = (QLabel*)qlItem->widget();
+	QString qsData = label->text();
+	int pos1 = qsData.indexOf('(');
+	qsData.replace(0, pos1 + 1, '@');
+	pos1 = qsData.lastIndexOf(')');
+	qsData.replace(pos1, 999, '@');
+	
+	int iRow = qmIndex.row();
+	int numCol = modelOnDemand->columnCount();
+	QStandardItem* qsItem = nullptr;
+	for (int ii = 0; ii < numCol; ii++) {
+		qsData += "|";
+		qsItem = modelOnDemand->item(iRow, ii);
+		if (qsItem != nullptr) { qsData += qsItem->text(); }
+	}
+
+	QMenu menu(this);
+	qaDeleteRow->setData(qsData);
+	menu.addAction(qaDeleteRow);
+	menu.exec(globalPos);
+}
+void SCDAtable::deleteRow()
+{
+	QVariant qVar = qaDeleteRow->data();
+	QString qsTemp = qVar.toString();
+	string tnameRow = qsTemp.toStdString();
+	emit sendDeleteRow(tnameRow);
 }
 void SCDAtable::deleteTable()
 {
-	QVariant qVar = qaDelete->data();
+	QVariant qVar = qaDeleteTable->data();
 	QString qsTemp = qVar.toString();
-	wstring wsTemp = qsTemp.toStdWString();
-	string tname;
-	jparse.utf16To8(tname, wsTemp);
+	string tname = qsTemp.toStdString();
 	emit sendDeleteTable(tname);
 }
 void SCDAtable::displayTable(vector<vector<string>>& vvsData, vector<vector<string>>& vvsColTitle, string title)
@@ -88,8 +114,10 @@ void SCDAtable::init()
 }
 void SCDAtable::initAction()
 {
-	qaDelete = new QAction("Delete Table", this);
-	connect(qaDelete, &QAction::triggered, this, &SCDAtable::deleteTable);
+	qaDeleteRow = new QAction("Delete Row", this);
+	connect(qaDeleteRow, &QAction::triggered, this, &SCDAtable::deleteRow);
+	qaDeleteTable = new QAction("Delete Table", this);
+	connect(qaDeleteTable, &QAction::triggered, this, &SCDAtable::deleteTable);
 }
 void SCDAtable::initItemColour(string& configXML)
 {
@@ -144,7 +172,7 @@ void SCDAtable::nodeDoubleClicked(const QModelIndex& qmiNode, int indexTree)
 	}
 	}
 }
-void SCDAtable::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree)
+void SCDAtable::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex)
 {
 	QMenu menu(this);
 	QJTREEMODEL* qjtm = modelSearch.get();
@@ -155,8 +183,8 @@ void SCDAtable::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmI
 		if (ii > 0) { tname += "$"; }
 		tname += vsGenealogy[ii];
 	}
-	qaDelete->setData(tname.c_str());
-	menu.addAction(qaDelete);
+	qaDeleteTable->setData(tname.c_str());
+	menu.addAction(qaDeleteTable);
 	menu.exec(globalPos);
 }
 void SCDAtable::resetModel(int indexModel)

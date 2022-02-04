@@ -11,20 +11,20 @@ class SCDAtable : public QWidget
 
 private:
 	JPARSE jparse;
-	QAction* qaDelete;
+	QAction* qaDeleteRow, *qaDeleteTable;
 
-	void err(string message);
+	void err(std::string message);
 	void init();
 	void initAction();
 
 public:
-	SCDAtable(string& configXML) {
+	SCDAtable(std::string& configXML) {
 		initItemColour(configXML);
 		init();
 	}
 	SCDAtable() { 
-		itemColourDefault = make_pair("#FFFFFF", "#000000");
-		itemColourSelected = make_pair("#000080", "#FFFFFF");
+		itemColourDefault = std::make_pair("#FFFFFF", "#000000");
+		itemColourSelected = std::make_pair("#000080", "#FFFFFF");
 		init(); 
 	}
 	~SCDAtable() {}
@@ -32,25 +32,27 @@ public:
 	enum index { OnDemand, Search };
 
 	// Solid colours (background, foreground)
-	pair<string, string> itemColourDefault, itemColourFail, itemColourHover;  
-	pair<string, string> itemColourSelected, itemColourWarning;
+	std::pair<std::string, std::string> itemColourDefault, itemColourFail, itemColourHover;
+	std::pair<std::string, std::string> itemColourSelected, itemColourWarning;
 
-	shared_ptr<QStandardItemModel> modelOnDemand = nullptr;
-	shared_ptr<QJTREEMODEL> modelSearch = nullptr;
+	std::shared_ptr<QStandardItemModel> modelOnDemand = nullptr;
+	std::shared_ptr<QJTREEMODEL> modelSearch = nullptr;
 
-	void displayTable(vector<vector<string>>& vvsData, vector<vector<string>>& vvsColTitle, string title);
+	void displayTable(std::vector<std::vector<std::string>>& vvsData, std::vector<std::vector<std::string>>& vvsColTitle, std::string title);
 	QStandardItemModel* getModelTable(int index);
 	QJTREEMODEL* getModelTree(int index);
-	void initItemColour(string& configXML);
+	void initItemColour(std::string& configXML);
 
 signals:
-	void fetchTable(string tname);
-	void sendDeleteTable(string tname);
+	void fetchTable(std::string tname);
+	void sendDeleteRow(std::string tnameRow);
+	void sendDeleteTable(std::string tname);
 
 public slots:
-	void cellRightClicked(const QPoint& globalPos, const QModelIndex& qmiCell, int indexTable);
+	void cellRightClicked(const QPoint& globalPos, const QModelIndex& qmiCell);
+	void deleteRow();
 	void deleteTable();
 	void nodeDoubleClicked(const QModelIndex& qmiNode, int indexTree);
-	void nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree);
+	void nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex);
 	void resetModel(int indexModel);
 };

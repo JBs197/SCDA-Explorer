@@ -252,7 +252,7 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 			}
 		}
 	}
-	jsort.integerList(sYearList, JFUNC::Increasing);
+	jsort.integerList(sYearList, JSORT::Increasing);
 	int numYear = (int)sYearList.size();
 	if (numYear < 1) { 
 		mycomm[0] = 1;
@@ -263,9 +263,9 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 		JNODE jnYear;
 		jnYear.vsData[0] = sYearList[ii];
 		filePath = prompt[0] + sYearList[ii] + "/GeoTree_" + sYearList[ii] + ".txt";
-		if (jfile.fileExist(filePath)) { jnYear.vsData.push_back(filePath); }
+		if (jfile.exist(filePath)) { jnYear.vsData.push_back(filePath); }
 		filePath = prompt[0] + sYearList[ii] + "/GeoTreeTemplate_" + sYearList[ii] + ".txt";
-		if (jfile.fileExist(filePath)) { jnYear.vsData.push_back(filePath); }
+		if (jfile.exist(filePath)) { jnYear.vsData.push_back(filePath); }
 		qjtm->jt.addChild(rootID, jnYear);
 	}
 
@@ -285,7 +285,7 @@ void SCDAcatalogue::scanLocal(SWITCHBOARD& sbgui, SCDAcatalogue*& cata, string& 
 		numCata = (int)folderList.size();
 		for (int jj = 0; jj < numCata; jj++) {
 			filePath = yearPath + "/" + folderList[jj] + "/" + folderList[jj] + ".zip";
-			if (jfile.fileExist(filePath)) {
+			if (jfile.exist(filePath)) {
 				JNODE jn;
 				jn.vsData[0] = folderList[jj];
 				qjtm->jt.addChild(viYearID[ii], jn);
@@ -323,7 +323,7 @@ void SCDAcatalogue::setGeoTreeTemplate()
 	wstring wsTemp = qsTemp.toStdWString();
 	string geoTreePath;
 	jparse.utf16To8(geoTreePath, wsTemp);
-	if (!jfile.fileExist(geoTreePath)) { 
+	if (!jfile.exist(geoTreePath)) { 
 		emit setTextIO(geoTreePath + " not found!\n");
 		return;
 	}
@@ -336,7 +336,7 @@ void SCDAcatalogue::setGeoTreeTemplate()
 	string geoTreeTemplatePath = geoTreePath;
 	size_t pos1 = geoTreeTemplatePath.rfind('_');
 	geoTreeTemplatePath.insert(pos1, "Template");
-	if (jfile.fileExist(geoTreeTemplatePath)) {
+	if (jfile.exist(geoTreeTemplatePath)) {
 		jfile.load(geoTreeTemplateFile, geoTreeTemplatePath);
 		pos1 = 0;
 		pos3 = geoTreeTemplateFile.find("\n\n");

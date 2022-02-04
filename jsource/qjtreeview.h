@@ -1,5 +1,8 @@
 #pragma once
+#include <QAction>
+#include <QContextMenuEvent>
 #include <QHeaderView>
+#include <QMenu>
 #include <QTreeView>
 #include "jlog.h"
 #include "qjdelegate.h"
@@ -10,7 +13,7 @@ class QJTREEVIEW : public QTreeView
 	Q_OBJECT
 
 private:
-	void err(string message);
+	void err(std::string message);
 	void init();
 
 public:

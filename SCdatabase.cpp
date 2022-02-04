@@ -6,7 +6,6 @@ void SCdatabase::createData(string sYear, string sCata, const vector<vector<stri
 {
 	// Use the first column of vvsGeo to create a database table for each geographic region
 	// within this catalogue. numCol does not include the primary "DataIndex" column.
-
 	size_t pos1, pos2;
 	int numGeo = (int)vvsGeo.size() - 1;
 	vector<string> vsStmt(numGeo), vsUnique;
@@ -53,16 +52,18 @@ void SCdatabase::dataParser(atomic_int& fileDepleted, string sYear, string sCata
 	vector<string> vsTag{ "parse", sYear, "data" };
 	unordered_map<string, string> mapParse;
 	jparse.getXML(mapParse, configXML, vsTag);
-	string findGeo, findValue, geoCode, sCol, segment, tname;
+	string findCell, findGeo, findValue, geoCode, sCol, segment, tname;
 	try {
 		findValue = mapParse.at("value");
 		findGeo = mapParse.at("geo");
+		findCell = mapParse.at("cell");
 	}
 	catch (invalid_argument) { err("mapParse-dataParser"); }
+	size_t lenFindCell = findCell.size();
 	size_t lenFindGeo = findGeo.size();
 	size_t lenFindValue = findValue.size();
 
-	size_t length, posGeo, posValue, pos1, pos2;
+	size_t length, posGeo, posNextCell, posValue, pos1, pos2;
 	uintmax_t dataIndex, dataIndexTemp, iGeoCode;
 	int iCol, numCol, numDIM;
 	vector<int> vMID, vSize;
@@ -116,9 +117,11 @@ void SCdatabase::dataParser(atomic_int& fileDepleted, string sYear, string sCata
 		}
 
 		// Extract all data table values, one row at a time.
+		posNextCell = 0;
 		posGeo = segment.find(findGeo);
-		while (posGeo < length) {
+		while (posNextCell < length) {
 			vvsRow.emplace_back(vector<string>(1 + numCol));
+			posNextCell = segment.find(findCell, posGeo + lenFindGeo);
 
 			// Use the row's first column to determine the row's DataIndex and first value.
 			vsFirstMID.clear();
@@ -146,13 +149,16 @@ void SCdatabase::dataParser(atomic_int& fileDepleted, string sYear, string sCata
 			
 			// Add the row's first value.
 			posValue = segment.find(findValue, pos2);
-			pos1 = segment.find('"', posValue + lenFindValue);
-			pos2 = segment.find('"', pos1 + 1);
-			vvsRow.back()[iCol] = std::move(segment.substr(pos1 + 1, pos2 - pos1 - 1));
+			if (posValue < posNextCell) {
+				pos1 = segment.find('"', posValue + lenFindValue);
+				pos2 = segment.find('"', pos1 + 1);
+				vvsRow.back()[iCol] = std::move(segment.substr(pos1 + 1, pos2 - pos1 - 1));
+			}
 
 			// Add values for all subsequent columns.
 			for (int ii = 1; ii < numCol; ii++) {
-				posGeo = segment.find(findGeo, posValue + lenFindValue);
+				posGeo = segment.find(findGeo, posNextCell + lenFindCell);
+				posNextCell = segment.find(findCell, posGeo + lenFindGeo);
 				pos1 = segment.find('\n', posGeo + lenFindGeo);
 				for (int jj = 0; jj < numDIM; jj++) {
 					pos1 = segment.find("value", pos1 + 1);
@@ -168,12 +174,14 @@ void SCdatabase::dataParser(atomic_int& fileDepleted, string sYear, string sCata
 				try { iCol = stoi(sCol); }
 				catch (invalid_argument) { err("iCol stoi-dataParser"); }
 				posValue = segment.find(findValue, pos2);
-				pos1 = segment.find('"', posValue + lenFindValue);
-				pos2 = segment.find('"', pos1 + 1);
-				vvsRow.back()[iCol] = std::move(segment.substr(pos1 + 1, pos2 - pos1 - 1));
+				if (posValue < posNextCell) {
+					pos1 = segment.find('"', posValue + lenFindValue);
+					pos2 = segment.find('"', pos1 + 1);
+					vvsRow.back()[iCol] = std::move(segment.substr(pos1 + 1, pos2 - pos1 - 1));
+				}
 			}
 
-			posGeo = segment.find(findGeo, posValue + lenFindValue);
+			posGeo = segment.find(findGeo, posNextCell + lenFindCell);
 		}
 
 		// Convert vvsRow into a list of SQL statements, and push that list into the SQL buffer.
@@ -290,12 +298,34 @@ void SCdatabase::dataReader(atomic_int& fileDepleted, string cataDir, string sYe
 	}
 	
 	// Inform the other threads that all segments have been pushed into the raw buffer.
+	eof = fclose(file);
+	if (eof) { err("fclose-dataReader"); }
 	fileDepleted = 1;
 }
 void SCdatabase::deleteTable(string tname)
 {
 	if (sf.tableExist(tname)) { 
 		sf.dropTable(tname); 
+	}
+}
+void SCdatabase::deleteTableRow(string tname, vector<string>& vsCell)
+{
+	vector<string> conditions;
+	if (sf.tableExist(tname)) {
+		vector<vector<string>> vvsColTitle = sf.getColTitle(tname);
+		for (int ii = 0; ii < vsCell.size(); ii++) {
+			if (vsCell[ii].size() == 0) { continue; }
+			
+			if (ii == 0) { conditions.emplace_back(vvsColTitle[0][ii]); }
+			else { conditions.emplace_back(" AND " + vvsColTitle[0][ii]); }
+			
+			if (vvsColTitle[1][ii] == "TEXT") {
+				conditions.back() += " LIKE ";
+			}
+			else { conditions.back() += " = "; }
+			conditions.back() += vsCell[ii];
+		}
+		sf.deleteRow(tname, conditions);
 	}
 }
 void SCdatabase::err(string message)
@@ -309,7 +339,6 @@ bool SCdatabase::hasGeoGap(vector<string>& vsGeoLayer, vector<vector<string>>& v
 	// a template, before inserting the catalogue's own geo region entries. If a template layer
 	// is needed, it will be inserted into vsGeoLayer with a preceeding '!' to mark it.
 	bool hasGap = 0;
-	size_t pos1, pos2;
 	for (int ii = 0; ii < vvsGeoLevel.size(); ii++) {
 		if (vvsGeoLevel[ii][0].starts_with("necessary")) {
 			if (vsGeoLayer[viGeoLevel[ii]] != vvsGeoLevel[ii][1]) {
@@ -321,27 +350,29 @@ bool SCdatabase::hasGeoGap(vector<string>& vsGeoLayer, vector<vector<string>>& v
 		else { break; }
 	}
 
-	int indexLevel = -1;
+	// Correct the GEO_LEVEL values read from file, for the inclusion of gap layers.
+	int baseline = -1, baselineSC, indexLevel = -1;
 	for (int ii = 0; ii < vvsGeo[0].size(); ii++) {
-		if (vvsGeo[0][ii] == "GEO_LEVEL") {
-			indexLevel = ii;
+		if (vvsGeo[0][ii] == "GEO_LEVEL") { indexLevel = ii; }
+	}
+	if (indexLevel < 0) { err("Failed to determine indexLevel-hasGeoGap"); }
+	try { baselineSC = stoi(vvsGeo[1][indexLevel]); }
+	catch (invalid_argument) { err("GEO_LEVEL baseline stoi-hasGeoGap"); }
+	for (int ii = 0; ii < vsGeoLayer.size(); ii++) {
+		if (vsGeoLayer[ii][0] != '!') {
+			baseline = ii;
 			break;
 		}
 	}
-	if (indexLevel < 0) { err("Failed to identify GEO_LEVEL column-hasGeoGap"); }
-	set<string> setLevel;
-	int numRow = (int)vvsGeo.size();
-	for (int ii = 1; ii < numRow; ii++) {
-		setLevel.emplace(vvsGeo[ii][indexLevel]);
-	}
-	string sLayer;
-	for (int ii = 0; ii < vsGeoLayer.size(); ii++) {
-		sLayer = to_string(ii);
-		if (!setLevel.count(sLayer)) {
-			hasGap = 1;
-			if (vsGeoLayer[ii][0] != '!') {
-				vsGeoLayer[ii].insert(vsGeoLayer[ii].begin(), '!');
-			}
+	int delta = baseline - baselineSC;
+	if (delta != 0) {
+		unordered_map<string, string> mapLevel;
+		for (int ii = 0; ii < vsGeoLayer.size(); ii++) {
+			mapLevel.emplace(to_string(ii), to_string(ii + delta));
+		}
+		int numGeo = (int)vvsGeo.size();
+		for (int ii = 1; ii < numGeo; ii++) {
+			vvsGeo[ii][indexLevel] = mapLevel.at(vvsGeo[ii][indexLevel]);
 		}
 	}
 
@@ -375,14 +406,20 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 	sbgui.answerCall(myid, mycomm);
 
 	// Determine how many parser threads will be used during table data insertion.
-	numThread = max(1, numThread - 2); 
+	unsigned numSystemThread = jthread::hardware_concurrency();
+	if (numSystemThread > numThread + 1) {
+		// If hyperthreading is available, push a bit harder.
+		numThread = max(1, numThread);
+	}
+	else { numThread = max(1, numThread - 2); }
 	
 	// Determine the census year for the catalogue(s).
 	int iYear, numFile;
 	string cataDir, filePath, sCata, sMetaFile, sTopic, zipPath;
-	vector<string> vsFileName, vsFilePath, vsGeoLayer;
-	sbgui.pullWork(cataDir);
-	if (cataDir.size() < 1) { return; }
+	vector<string> vsGeoLayer, vsLocalPath;
+	mycomm[2] = sbgui.pullWork(cataDir);
+	if (cataDir.size() < 1) { return; } 
+	sbgui.update(myid, mycomm);
 	size_t pos2 = cataDir.find_last_of("/\\");
 	if (pos2 > cataDir.size()) { err("Invalid sYear-insertCata"); }
 	size_t pos1 = cataDir.find_last_of("/\\", pos2 - 1);
@@ -403,7 +440,8 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 	catch (invalid_argument) { err("iYear/maxBufferSize stoi-insertCata"); }
 
 	// Prepare the GeoLevel list, to determine if a subsequent catalogue needs assistance
-	// from a region tree template.
+	// from a region tree template. This occurs when a catalogue is missing one or more 
+	// regions that serve as parents to other (present) regions. 
 	vsTag = { "map", "geo_level" };
 	vector<vector<string>> vvsGeoLevel = jparse.getXML(configXML, vsTag);
 	vector<int> viGeoLevel(vvsGeoLevel.size());
@@ -419,9 +457,10 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 		vvsGeoLevel[ii][1].erase(vvsGeoLevel[ii][1].begin(), vvsGeoLevel[ii][1].begin() + pos1);
 	}
 
-	// So long as the queue contains undone catalogues, read local files and insert the
-	// data into the various database tables.
+	// So long as the queue contains undone catalogues, pull local files out of the queue 
+	// and insert the data into the various database tables.
 	JTXML *jtxData = nullptr, *jtxMeta = nullptr;
+	bool geoGap;
 	vector<vector<string>> vvsGeo;
 	while (cataDir.size() > 0) {
 		pos2 = cataDir.find_last_of("/\\");
@@ -429,7 +468,7 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 		sCata = cataDir.substr(pos2 + 1);
 
 		// The catalogue's local archive is unzipped. 
-		prepareLocal(cataDir, sCata);
+		prepareLocal(vsLocalPath, cataDir, sCata);
 
 		// Build and insert catalogue topic-related tables.
 		loadTopic(sTopic, cataDir);
@@ -437,27 +476,33 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 		insertCensusYear(sYear, sCata, sTopic);
 
 		// Build and insert all the catalogue's geographic region tables.
-		loadGeo(vvsGeo, cataDir, sCata);
-		vsGeoLayer = insertGeoLayer(cataDir, sYear, sCata);
-		if (hasGeoGap(vsGeoLayer, vvsGeoLevel, viGeoLevel, vvsGeo)) {
-			insertGeo(vsGeoLayer, vvsGeo, sYear, sCata);  // Catalogue has GeoLayer gaps.
+		loadGeo(vvsGeo, vsGeoLayer, cataDir, sCata);
+		geoGap = hasGeoGap(vsGeoLayer, vvsGeoLevel, viGeoLevel, vvsGeo);
+		insertGeoLayer(vsGeoLayer, sYear, sCata);
+		if (geoGap) {  // Catalogue has GeoLayer gaps.
+			insertGeo(vsGeoLayer, vvsGeo, sYear, sCata);  
 		}
 		else { insertGeo(vvsGeo, sYear, sCata); }
 		
+		
 		// Build and insert all the catalogue's parameter/dimension tables.
-		mapMeta.clear();
 		loadMeta(jtxMeta, mapMeta, cataDir, sYear, sCata);
 		insertForWhom(jtxMeta, mapMeta, sYear, sCata);
 		insertDIMIndex(jtxMeta, mapMeta, sYear, sCata);
 		vDIM = insertDIM(jtxMeta, mapMeta, sYear, sCata);
 		insertDataIndex(vDIM, sYear, sCata);
 
-		// Launch worker threads to parse the raw data file into SQL statements.
+		// Launch worker threads to parse the raw data file into SQL statements, which
+		// are then inserted into the database via transaction.
 		createData(sYear, sCata, vvsGeo, vDIM.back());
 		insertData(cataDir, sYear, sCata, numThread);
-		
-		// 
 
+		// Delete locally-stored raw data files.
+		jfile.remove(vsLocalPath);
+		
+		// Proceed to the next catalogue to be inserted.
+		mycomm[1]++;
+		sbgui.update(myid, mycomm);
 		sbgui.pullWork(cataDir);
 	}
 
@@ -508,7 +553,7 @@ void SCdatabase::insertData(string cataDir, string sYear, string sCata, int numT
 	string dataPath = cataDir + "/" + jparse.getXML1(configXML, vsTag);
 	size_t pos1 = dataPath.rfind("[cata]"), pos2;
 	if (pos1 < dataPath.size()) { dataPath.replace(pos1, 6, sCata); }
-	if (!jfile.fileExist(dataPath)) { err("Missing catalogue's data file-loadData"); }
+	if (!jfile.exist(dataPath)) { err("Missing catalogue's data file-loadData"); }
 	
 	// Launch a reader thread to gradually load the local data file into memory, in segments
 	// corresponding to one geographic region per segment. Each segment is loaded into a slot 
@@ -888,6 +933,7 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 	if (indexCode < 0 || indexLevel < 0 || indexRegion < 0) { err("Failed to determine column indices-insertGeo"); }
 
 	// Prepare template helper's database geo table.
+	size_t pos1;
 	string tnameTemplate = "GeoLayer" + marker + sYear;
 	conditions = { "Catalogue LIKE '" + sCata + "'" };
 	vsResult.clear();
@@ -895,7 +941,9 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 	if (error == 0) { err("Failed to load catalogue's GeoLayer-insertGeo"); }
 	tnameTemplate = "GeoTreeTemplate" + marker + sYear;
 	for (int ii = 1; ii < vsResult.size(); ii++) {
-		tnameTemplate += marker + vsResult[ii];
+		if (vsResult[ii][0] != '!') {
+			tnameTemplate += marker + vsResult[ii];
+		}		
 	}
 	if (!sf.tableExist(tnameTemplate)) { err("Missing template table-insertGeo"); }
 
@@ -903,7 +951,6 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 	// then prepend it and adjust the template ancestral GEO_CODEs accordlingly. In either case,
 	// add the local geo row ancestries such that they bind to the templated parent regions.
 	bool linked;
-	size_t pos1;
 	int geoCode, geoLevel;
 	vector<vector<string>> vvsGeoComplete{vvsGeo[0]};
 	for (int ii = 0; ii < vsGeoLayer.size(); ii++) {
@@ -952,7 +999,18 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 					conditionsRegion = { "\"Region Name\" LIKE '" + vvsGeo[jj][indexRegion] + "'" };
 					vsResult.clear();
 					error = sf.select(search, tnameTemplate, vsResult, conditionsRegion);
-					if (error == 0) { err("No region name matches within Geo template table-insertGeo"); }
+					if (error == 0) {
+						// Check for split-region.
+						pos1 = conditionsRegion[0].rfind('\'');
+						if (pos1 < conditionsRegion[0].size()) {
+							vvsResult.clear();
+							conditionsRegion[0].insert(pos1, 1, '%');  // SQLITE wildcard.
+							error = sf.select(search, tnameTemplate, vvsResult, conditionsRegion);
+							if (error == 0) { err("Failed to locate parent region within new geo list-insertGeo"); }
+
+							//
+						}
+					}
 					sParent.clear();
 					conditionsCode = { "GEO_CODE = " + vsResult.back() };
 					error = sf.select(searchRegion, tnameTemplate, sParent, conditionsCode);
@@ -1022,11 +1080,11 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 
 	vvsGeo = std::move(vvsGeoComplete);
 }
-vector<string> SCdatabase::insertGeoLayer(string cataDir, string sYear, string sCata) 
+void SCdatabase::insertGeoLayer(vector<string>& vsGeoLayer, string sYear, string sCata)
 {
 	// Insert this catalogue's entry into the GeoLayer table. The GeoLayers shown there
-	// will represent the layers which contain data - map representation may contain
-	// additional layers (without data) inserted for continuity between parent/child regions.
+	// will represent the layers needed to display a full region tree map. Not all layers
+	// will necessarily have data values associated with them.
 	vector<string> vsUnique;
 	vector<vector<string>> vvsRow;
 	string tname = "GeoLayer" + marker + sYear;
@@ -1036,11 +1094,10 @@ vector<string> SCdatabase::insertGeoLayer(string cataDir, string sYear, string s
 	if (!sf.tableExist(tname)) { sf.createTable(tname, vvsRow, vsUnique); }
 	vvsRow[1] = { sCata };
 
-	string filePath = cataDir + "/GeoLayer_" + sCata + ".txt";
-	string geoLayerFile;
-	jfile.load(geoLayerFile, filePath);
-	while (geoLayerFile.back() == '\n') { geoLayerFile.pop_back(); }
-	jparse.splitByMarker(vvsRow[1], geoLayerFile);
+	for (int ii = 0; ii < vsGeoLayer.size(); ii++) {
+		//if (vsGeoLayer[ii][0] == '!') { vsGeoLayer[ii].erase(vsGeoLayer[ii].begin()); }
+		vvsRow[1].emplace_back(vsGeoLayer[ii]);
+	}
 
 	if (vvsRow[1].size() > vvsRow[0].size()) {
 		size_t pos1 = vvsRow[0].back().find_first_of("0123456789");
@@ -1054,11 +1111,6 @@ vector<string> SCdatabase::insertGeoLayer(string cataDir, string sYear, string s
 	if (safeInsertRow(tname, vvsRow)) {
 		sf.insertRow(tname, vvsRow);
 	}
-
-	// Return the GeoLayers contained within the original catalogue, to determine if the
-	// catalogue contains parent/child gaps.
-	vvsRow[1].erase(vvsRow[1].begin());
-	return vvsRow[1];
 }
 void SCdatabase::insertGeoTree(string yearDir)
 {
@@ -1071,7 +1123,7 @@ void SCdatabase::insertGeoTree(string yearDir)
 	size_t pos1 = yearDir.find_last_of("/\\");
 	string sYear = yearDir.substr(pos1 + 1);
 	string filePath = yearDir + "/GeoTree_" + sYear + ".txt";
-	if (!jfile.fileExist(filePath)) { err("Failed to locate GeoTree file-insertGeoTree"); }
+	if (!jfile.exist(filePath)) { err("Failed to locate GeoTree file-insertGeoTree"); }
 	size_t length = jfile.load(geoTreeFile, filePath);
 
 	pos1 = 0;
@@ -1131,7 +1183,7 @@ void SCdatabase::insertGeoTreeTemplate(string yearDir)
 		geoPath = yearDir + "/" + vsCata[ii] + "/GeoLayer_" + vsCata[ii] + ".txt";
 		jfile.load(geoLayerFile, geoPath);
 		while (geoLayerFile.back() == '\n') { geoLayerFile.pop_back(); }
-		tname = "GeoTreeTemplate" + marker + sYear + geoLayerFile;
+		tname = "GeoTreeTemplate" + marker + sYear + vsGeoLayer[ii];
 		if (!sf.tableExist(tname)) {
 			sf.createTable(tname, vvsColTitle, vsUnique);
 		}
@@ -1299,7 +1351,7 @@ void SCdatabase::loadData(JTXML*& jtxml, unordered_map<string, string>& mapData,
 	string dataPath = cataDir + "/" + jparse.getXML1(configXML, vsTag);
 	size_t pos1 = dataPath.rfind("[cata]");
 	if (pos1 < dataPath.size()) { dataPath.replace(pos1, 6, sCata); }
-	if (!jfile.fileExist(dataPath)) { err("Missing catalogue's data file-loadData"); }
+	if (!jfile.exist(dataPath)) { err("Missing catalogue's data file-loadData"); }
 
 	vsTag = { "parse", "xml_marker", "tag" };
 	string xmlTag = jparse.getXML1(configXML, vsTag);
@@ -1322,11 +1374,11 @@ void SCdatabase::loadData(JTXML*& jtxml, unordered_map<string, string>& mapData,
 	jtxml->initValue(xmlTag, xmlAttribute, xmlWildcard, maxBufferSize);
 	jtxml->loadXML(dataPath);
 }
-void SCdatabase::loadGeo(vector<vector<string>>& vvsGeo, string cataDir, string sCata)
+void SCdatabase::loadGeo(vector<vector<string>>& vvsGeo, vector<string>& vsGeoLayer, string cataDir, string sCata)
 {
 	// Loads a catalogue's geo file into memory (parsed into a 2D vector) with some string cleaning.
 	string geoPath = cataDir + "/Geo_" + sCata + ".txt";
-	if (!jfile.fileExist(geoPath)) { err("Geo file not found-loadGeo"); }
+	if (!jfile.exist(geoPath)) { err("Geo file not found-loadGeo"); }
 	string geoFile;
 	size_t length = jfile.load(geoFile, geoPath);
 	vvsGeo.clear();
@@ -1390,14 +1442,27 @@ void SCdatabase::loadGeo(vector<vector<string>>& vvsGeo, string cataDir, string 
 			vvsGeo[ii][indexRegion].resize(pos1);
 		}
 	}
+
+	// Populate vsGeoLayer with the GeoLayers containing data within the catalogue.
+	geoPath = cataDir + "/GeoLayer_" + sCata + ".txt";
+	if (!jfile.exist(geoPath)) { err("GeoLayer file not found-loadGeo"); }
+	geoFile.clear();
+	jfile.load(geoFile, geoPath);
+	while (geoFile.back() == '\n') { geoFile.pop_back(); }
+	vsGeoLayer.clear();
+	jparse.splitByMarker(vsGeoLayer, geoFile);
 }
 void SCdatabase::loadMeta(JTXML*& jtxml, unordered_map<string, string>& mapMeta, string cataDir, string sYear, string sCata)
 {
+	// Load various pieces of information from a catalogue's meta file, namely its geographic
+	// region tree type, its measured parameters (DIMs), and the span of possible choices for 
+	// each parameter (MIDs).
+	mapMeta.clear();
 	vector<string> vsTag = { "file_name", sYear, "meta" };
 	string metaPath = cataDir + "/" + jparse.getXML1(configXML, vsTag);
 	size_t pos1 = metaPath.rfind("[cata]");
 	if (pos1 < metaPath.size()) { metaPath.replace(pos1, 6, sCata); }
-	if (!jfile.fileExist(metaPath)) { err("Missing catalogue's meta file-loadMeta"); }
+	if (!jfile.exist(metaPath)) { err("Missing catalogue's meta file-loadMeta"); }
 	
 	vsTag = { "parse", "xml_marker", "tag" };
 	string xmlTag = jparse.getXML1(configXML, vsTag);
@@ -1505,41 +1570,28 @@ void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 
 	sbgui.endCall(myid);
 }
-void SCdatabase::prepareLocal(string cataDir, string sCata)
+void SCdatabase::prepareLocal(vector<string>& vsLocalPath, string cataDir, string sCata)
 {
 	string zipPath = cataDir + "/" + sCata + ".zip";
-	if (!jfile.fileExist(zipPath)) { err("Missing catalogue zip file-prepareLocal"); }
+	if (!jfile.exist(zipPath)) { err("Missing catalogue zip file-prepareLocal"); }
+	vsLocalPath.clear();
 
 	// Unzip all files within the archive which not already unzipped.
 	size_t pos1;
 	string filePath;
-	vector<string> vsFilePath, vsFileName;
+	vector<string> vsFileName;
 	jfile.zipFileList(vsFileName, zipPath);
 	int numFile = (int)vsFileName.size();
-	vsFilePath.resize(numFile);
+	vsLocalPath.resize(numFile);
 	for (int ii = 0; ii < numFile; ii++) {
-		vsFilePath[ii] = cataDir + "/" + vsFileName[ii];
-		filePath = vsFilePath[ii];
+		vsLocalPath[ii] = cataDir + "/" + vsFileName[ii];
+		filePath = vsLocalPath[ii];
 		pos1 = filePath.rfind('.');
 		filePath.insert(pos1, 1, '*');  // Wildcard inserted in case the file has been split (renamed).
-		if (!jfile.fileExist(filePath)) {
+		if (!jfile.exist(filePath)) {
 			jfile.unzipFile(vsFileName[ii], zipPath, cataDir);
 		}
 	}
-
-	/*
-	// Large extracted files are split into pieces, to prevent excessive memory usage.
-	uintmax_t fileSize;
-	for (int ii = 0; ii < numFile; ii++) {
-		if (jfile.fileExist(vsFilePath[ii])) {
-			fileSize = jfile.fileSize(vsFilePath[ii]);
-			if (fileSize > maxFileSize) {
-				jfile.fileSplitter(vsFilePath[ii], maxFileSize);
-			}
-		}
-	}
-	*/
-
 }
 void SCdatabase::searchTable(SWITCHBOARD& sbgui, JTREE& jt, vector<string>& vsTable)
 {
@@ -1639,7 +1691,7 @@ bool SCdatabase::safeInsertRow(string tname, vector<vector<string>>& vvsRow)
 	}
 	return 1;
 }
-void SCdatabase::xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag)
+void SCdatabase::xmlToColTitle(vector<vector<string>>& vvsColTitle, vector<string>& vsUnique, vector<vector<string>>& vvsTag)
 {
 	// Convert extracted XML tags into the SQL-friendly form [col title, col type][value].
 	// If the table has unique columns, those are placed into vsUnique.

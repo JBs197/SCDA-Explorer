@@ -27,15 +27,15 @@ class SCdatabase
 	void insertForWhom(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
 	void insertGeo(std::vector<std::vector<std::string>>& vvsGeo, std::string sYear, std::string sCata);
 	void insertGeo(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeo, std::string sYear, std::string sCata);
-	std::vector<std::string> insertGeoLayer(std::string cataDir, std::string sYear, std::string sCata);
+	void insertGeoLayer(std::vector<std::string>& vsGeoLayer, std::string sYear, std::string sCata);
 	void insertTopicYear(std::string sYear, std::string sTopic);
 	void loadData(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapData, std::string cataDir, std::string sYear, std::string sCata);
-	void loadGeo(std::vector<std::vector<std::string>>& vvsGeo, std::string cataDir, std::string sCata);
+	void loadGeo(std::vector<std::vector<std::string>>& vvsGeo, std::vector<std::string>& vsGeoLayer, std::string cataDir, std::string sCata);
 	void loadMeta(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string cataDir, std::string sYear, std::string sCata);
 	void loadTopic(std::string& sTopic, std::string cataDir);
 	void log(std::string message);
 	std::uintmax_t makeDataIndex(const std::vector<int>& vMID, const std::vector<int>& vSize);
-	void prepareLocal(std::string cataDir, std::string sCata);
+	void prepareLocal(std::vector<std::string>& vsLocalPath, std::string cataDir, std::string sCata);
 	bool safeInsertRow(std::string tname, std::vector<std::vector<std::string>>& vvsRow);
 	void xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag);
 
@@ -47,6 +47,7 @@ public:
 	SQLFUNC sf;
 
 	void deleteTable(std::string tname);
+	void deleteTableRow(std::string tname, std::vector<std::string>& vsCell);
 	void init(std::string& xml);
 	void insertCata(SWITCHBOARD& sbgui, int numThread);
 	void insertCensus(std::string sYear);

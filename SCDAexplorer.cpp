@@ -22,6 +22,22 @@ void SCDA::busyWheel(SWITCHBOARD& sb)
 }
 void SCDA::debug()
 {
+	string sSearch = "E:/2013/*";
+	vector<string> vsCataDir, vsPartPath;
+	jfile.search(vsCataDir, sSearch, JFILE::Directory);
+	for (string cataDir : vsCataDir) {
+		vsPartPath.clear();
+		sSearch = cataDir + "/*PART*";
+		jfile.search(vsPartPath, sSearch, JFILE::File);
+		if (vsPartPath.size() > 0) {
+			jfile.fileMerger(vsPartPath, 0);
+			int bbq = 1;
+		}
+
+		
+	}
+
+	/*
 	size_t pos1, pos2;
 	int countDown, countUp, index, indexPixel, sum;
 	string bot, left, right, top, mapPath, savedFile, sInform, sName, sx, sy, url;
@@ -245,6 +261,7 @@ void SCDA::debug()
 
 		emit appendTextIO("Downloaded PNG map for " + vsRegion[ii] + "\n");
 	}
+	*/
 }
 void SCDA::deleteTable(string tname)
 {
@@ -252,11 +269,19 @@ void SCDA::deleteTable(string tname)
 	
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-	QLayoutItem* qlItem = hLayout->itemAt(indexControl);
+	QLayoutItem* qlItem = hLayout->itemAt(indexH::Control);
 	SCDAcontrol* control = (SCDAcontrol*)qlItem->widget();
 	if (control->sLastQuery.size() > 0) {
 		searchDBTable(control->sLastQuery);
 	}
+}
+void SCDA::deleteTableRow(string tnameRow)
+{
+	vector<string> vsCell, vsTnameRow;
+	jparse.splitByMarker(vsTnameRow, tnameRow);
+	jparse.splitByMarker(vsCell, vsTnameRow[1]);
+	scdb.deleteTableRow(vsTnameRow[0], vsCell);
+	fetchDBTable(vsTnameRow[0]);
 }
 void SCDA::dialogStructureStart()
 {
@@ -266,7 +291,7 @@ void SCDA::dialogStructureStart()
 
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+	QLayoutItem* qlItem = hLayout->itemAt(indexH::Display);
 	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
 	qlItem = vLayout->itemAt(0);
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();
@@ -278,7 +303,7 @@ void SCDA::displayOnlineCata()
 {
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+	QLayoutItem* qlItem = hLayout->itemAt(indexH::Display);
 	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
 	qlItem = vLayout->itemAt(0);
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();
@@ -313,7 +338,7 @@ void SCDA::downloadCata(string prompt)
 	else if (numCata == 0) {
 		QWidget* central = this->centralWidget();
 		QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-		QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+		QLayoutItem* qlItem = hLayout->itemAt(indexH::Display);
 		QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
 		qlItem = vLayout->itemAt(0);
 		QTabWidget* tab = (QTabWidget*)qlItem->widget();
@@ -331,6 +356,7 @@ void SCDA::downloadCata(string prompt)
 		}
 	}
 
+	// Initialize the progress bar.
 	string sEnd = " of " + to_string(numCata) + ") ...";
 	double dNumCata = (double)numCata;
 	vector<string> vsProgress(numCata + 1);
@@ -343,59 +369,20 @@ void SCDA::downloadCata(string prompt)
 	vdProgress.back() = 1.0;
 	emit initProgress(vdProgress, vsProgress);
 
+	// Launch a worker thread to download the catalogue(s) data files.
 	thread::id myid = this_thread::get_id();
 	sb.startCall(myid, commLength);
 	sb.setPrompt(vsPrompt);
 	std::thread thr(&SConline::downloadCata, sco, ref(sb));
 	thr.detach();
+
+	// Launch a worker thread to download the catalogue(s) geographic region maps, if necessary.
+	SWITCHBOARD sbmap;
+
+
 	busyWheel(sb);
 	sb.endCall(myid);
-}
-void SCDA::driveSelected(string drive)
-{
-	QWidget* central = this->centralWidget();
-	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
-	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
-	qlItem = vLayout->itemAt(0);
-	QTabWidget* tab = (QTabWidget*)qlItem->widget();
-	SCDAcatalogue* page = (SCDAcatalogue*)tab->currentWidget();
-	QJTREEMODEL* qjtm = nullptr;
-	int indexPage = tab->currentIndex();
-	switch (indexPage) {
-	case indexTab::Catalogue:
-	{
-		page->resetModel(page->index::Local);
-		qjtm = page->getModel(page->index::Local);
-		vector<vector<int>> comm(1, vector<int>());
-		comm[0].assign(commLength, 0);
-		thread::id myid = this_thread::get_id();
-		vector<string> prompt = { drive + ":/" };
-		sb.setPrompt(prompt);
-		sb.startCall(myid, comm[0]);
-		std::thread thr(&SCDAcatalogue::scanLocal, page, ref(sb), ref(page), ref(configXML));
-		thr.detach();
-		while (1) {
-			jtime.sleep(sleepTime);
-			QCoreApplication::processEvents();
-			comm = sb.update(myid, comm[0]);
-			if (comm.size() > 1 && comm[1][0] == 1) { break; }
-		}
-		sb.endCall(myid);
-
-		qjtm->populate(qjtm->tree::jtree);
-		int numGen = qjtm->jt.getExpandGeneration(30);
-
-		QGridLayout* gLayout = (QGridLayout*)page->layout();
-		qlItem = gLayout->itemAtPosition(1, page->index::Local);
-		QJTREEVIEW* qjTree = (QJTREEVIEW*)qlItem->widget();
-		qjTree->setModel(qjtm);
-		qjTree->expandRecursively(QModelIndex(), numGen);
-
-		emit barMessage("Displaying local catalogues from drive " + drive);
-		break;
-	}
-	}
+	scanLocalCata();
 }
 void SCDA::err(string message)
 {
@@ -409,7 +396,7 @@ void SCDA::fetchDBTable(string tname)
 	if (vvsData.size() > 0) {
 		QWidget* central = this->centralWidget();
 		QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-		QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+		QLayoutItem* qlItem = hLayout->itemAt(indexH::Display);
 		QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
 		qlItem = vLayout->itemAt(0);
 		QTabWidget* tab = (QTabWidget*)qlItem->widget();
@@ -513,7 +500,7 @@ void SCDA::initControl(SCDAcontrol*& control)
 	QTextEdit* teIO = (QTextEdit*)qlItem->widget();
 	teIO->setFocus();
 
-	connect(control, &SCDAcontrol::driveSelected, this, &SCDA::driveSelected);
+	connect(control, &SCDAcontrol::driveSelected, this, &SCDA::scanLocalCata);
 	connect(control, &SCDAcontrol::sendDebug, this, &SCDA::debug);
 	connect(control, &SCDAcontrol::sendStructure, this, &SCDA::dialogStructureStart);
 	connect(control, &SCDAcontrol::sendOnlineCata, this, &SCDA::displayOnlineCata);
@@ -530,17 +517,14 @@ void SCDA::initGUI()
 	QHBoxLayout* hLayout = new QHBoxLayout;
 	central->setLayout(hLayout);
 
-	indexControl = 0;
 	SCDAcontrol* control = new SCDAcontrol;
-	hLayout->insertWidget(indexControl, control, 0);
+	hLayout->insertWidget(indexH::Control, control, 0);
 
-	indexDisplay = 1;
 	QVBoxLayout* vLayout = new QVBoxLayout;
-	hLayout->insertLayout(indexDisplay, vLayout, 1);
+	hLayout->insertLayout(indexH::Display, vLayout, 1);
 
-	indexTab = 0;
 	QTabWidget* tab = new QTabWidget;
-	vLayout->insertWidget(indexTab, tab, 1);
+	vLayout->insertWidget(indexV::Tab, tab, 1);
 	SCDAcatalogue* cata = new SCDAcatalogue(configXML);
 	connect(this, &SCDA::sendConfigXML, cata, &SCDAcatalogue::getConfigXML);
 	connect(cata, &SCDAcatalogue::sendDownloadCata, this, &SCDA::downloadCata);
@@ -550,6 +534,7 @@ void SCDA::initGUI()
 	tab->addTab(cata, "Catalogues");
 	SCDAtable* table = new SCDAtable;
 	connect(table, &SCDAtable::fetchTable, this, &SCDA::fetchDBTable);
+	connect(table, &SCDAtable::sendDeleteRow, this, &SCDA::deleteTableRow);
 	connect(table, &SCDAtable::sendDeleteTable, this, &SCDA::deleteTable);
 	tab->addTab(table, "Tables");
 	SCDAstructure* structure = new SCDAstructure;
@@ -558,11 +543,10 @@ void SCDA::initGUI()
 	tab->addTab(compare, "Compare");
 	connect(compare, &SCDAcompare::sendDownloadMap, this, &SCDA::testMap);
 
-	indexPBar = 1;
 	QJPROGRESSBAR* qjPBar = new QJPROGRESSBAR;
 	connect(this, &SCDA::barMessage, qjPBar, &QJPROGRESSBAR::barMessage);
 	connect(this, &SCDA::initProgress, qjPBar, &QJPROGRESSBAR::initProgress);
-	vLayout->insertWidget(indexPBar, qjPBar, 0);
+	vLayout->insertWidget(indexV::PBar, qjPBar, 0);
 
 	QJBUSY* dialogBusy = new QJBUSY(this);
 	initBusy(dialogBusy);
@@ -627,8 +611,8 @@ void SCDA::insertCata(string prompt)
 	scdb.insertCensus(vsPrompt[0]);
 	scdb.insertGeoTreeTemplate(yearFolder);
 
-	// Launch worker threads. Each one will pull the top catalogue from the work queue 
-	// until all catalogues have been inserted.
+	// Launch a catalogue manager/writer thread. It will pull the top catalogue from the work 
+	// queue until all catalogues have been inserted.
 	thread::id myid = this_thread::get_id();
 	sb.startCall(myid, commLength);
 	sb.pushWork(vsCataFolder);
@@ -644,13 +628,13 @@ void SCDA::postRender()
 	QWidget* central = this->centralWidget();
 	QRect rectCentral = central->geometry();
 	QHBoxLayout* mainLayout = (QHBoxLayout*)central->layout();
-	QLayoutItem* qlItem = mainLayout->itemAt(indexDisplay);
+	QLayoutItem* qlItem = mainLayout->itemAt(indexH::Display);
 	QVBoxLayout* displayLayout = (QVBoxLayout*)qlItem->layout();
-	qlItem = displayLayout->itemAt(indexPBar);
+	qlItem = displayLayout->itemAt(indexV::PBar);
 	QJPROGRESSBAR* qjPBar = (QJPROGRESSBAR*)qlItem->widget();
 	qjPBar->initChildren();
 
-	qlItem = displayLayout->itemAt(indexTab);
+	qlItem = displayLayout->itemAt(indexV::Tab);
 	QTabWidget* tabW = (QTabWidget*)qlItem->widget();
 	SCDAcompare* compare = (SCDAcompare*)tabW->widget(3);
 	QSize parentSize = compare->frameSize();
@@ -662,9 +646,59 @@ void SCDA::postRender()
 	QRect itemRect = qlItem->geometry();
 	QLineEdit* leText = (QLineEdit*)qlItem->widget();
 	
-	auto policy = leText->sizePolicy();
-	int bbq = 1;
-	//leText->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+}
+void SCDA::scanLocalCata(string drive)
+{
+	QWidget* central = this->centralWidget();
+	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
+	QLayoutItem* qlItem = nullptr;
+	if (drive.size() == 0) {
+		qlItem = hLayout->itemAt(indexH::Control);
+		SCDAcontrol* control = (SCDAcontrol*)qlItem->widget();
+		drive = control->getDrive();
+	}
+
+	qlItem = hLayout->itemAt(indexH::Display);
+	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
+	qlItem = vLayout->itemAt(0);
+	QTabWidget* tab = (QTabWidget*)qlItem->widget();
+	SCDAcatalogue* page = (SCDAcatalogue*)tab->currentWidget();
+	QJTREEMODEL* qjtm = nullptr;
+	int indexPage = tab->currentIndex();
+	switch (indexPage) {
+	case indexTab::Catalogue:
+	{
+		page->resetModel(page->index::Local);
+		qjtm = page->getModel(page->index::Local);
+		vector<vector<int>> comm(1, vector<int>());
+		comm[0].assign(commLength, 0);
+		thread::id myid = this_thread::get_id();
+		vector<string> prompt = { drive + ":/" };
+		sb.setPrompt(prompt);
+		sb.startCall(myid, comm[0]);
+		std::thread thr(&SCDAcatalogue::scanLocal, page, ref(sb), ref(page), ref(configXML));
+		thr.detach();
+		while (1) {
+			jtime.sleep(sleepTime);
+			QCoreApplication::processEvents();
+			comm = sb.update(myid, comm[0]);
+			if (comm.size() > 1 && comm[1][0] == 1) { break; }
+		}
+		sb.endCall(myid);
+
+		qjtm->populate(qjtm->tree::jtree);
+		int numGen = qjtm->jt.getExpandGeneration(30);
+
+		QGridLayout* gLayout = (QGridLayout*)page->layout();
+		qlItem = gLayout->itemAtPosition(1, page->index::Local);
+		QJTREEVIEW* qjTree = (QJTREEVIEW*)qlItem->widget();
+		qjTree->setModel(qjtm);
+		qjTree->expandRecursively(QModelIndex(), numGen);
+
+		emit barMessage("Displaying local catalogues from drive " + drive);
+		break;
+	}
+	}
 }
 void SCDA::searchDBTable(string sQuery)
 {
@@ -673,7 +707,7 @@ void SCDA::searchDBTable(string sQuery)
 
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+	QLayoutItem* qlItem = hLayout->itemAt(indexH::Display);
 	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
 	qlItem = vLayout->itemAt(0);
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();
@@ -722,7 +756,7 @@ void SCDA::testMap(string url)
 
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+	QLayoutItem* qlItem = hLayout->itemAt(indexH::Display);
 	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
 	qlItem = vLayout->itemAt(0);
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();
@@ -740,7 +774,7 @@ void SCDA::updateCataDB()
 {
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
-	QLayoutItem* qlItem = hLayout->itemAt(indexDisplay);
+	QLayoutItem* qlItem = hLayout->itemAt(indexH::Display);
 	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
 	qlItem = vLayout->itemAt(0);
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();

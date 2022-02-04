@@ -244,7 +244,7 @@ void SCDAcompare::testScalePos(SWITCHBOARD& sbgui, SConline& sco)
 	sbgui.getPrompt(vsPrompt);  // Form [url, filePath]
 	size_t posExt = vsPrompt[1].rfind('.');
 
-	if (!jfile.fileExist(vsPrompt[1])) {
+	if (!jfile.exist(vsPrompt[1])) {
 		size_t pos1 = vsPrompt[1].find_last_of("/\\");
 		string cataDir = vsPrompt[1].substr(0, pos1);
 		sco.wf.makeDir(cataDir);

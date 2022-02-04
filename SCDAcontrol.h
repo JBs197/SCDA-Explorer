@@ -26,6 +26,8 @@ public:
 
 	std::string sLastQuery;
 
+	std::string getDrive();
+
 signals:
 	void driveSelected(std::string drive);
 	void sendDebug();

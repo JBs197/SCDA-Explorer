@@ -9,30 +9,30 @@ class SCDAstructure : public QWidget
 
 private:
 	JSTRING jstr;
-	shared_ptr<QAction> qaSaveForWhom, qaSaveGeoCode, qaSaveGeoLayer;
-	shared_ptr<QAction> qaSaveGeoRegionName, qaSaveParameterTitle;
-	shared_ptr<QAction> qaSaveMemberNumber, qaSaveMemberDescription;
+	std::shared_ptr<QAction> qaSaveForWhom, qaSaveGeoCode, qaSaveGeoLayer;
+	std::shared_ptr<QAction> qaSaveGeoRegionName, qaSaveParameterTitle;
+	std::shared_ptr<QAction> qaSaveMemberNumber, qaSaveMemberDescription;
 
-	void err(string message);
+	void err(std::string message);
 	void init();
 	void initAction();
-	void saveSetting(string sObjectName, string sData);
+	void saveSetting(std::string sObjectName, std::string sData);
 
 public:
 	SCDAstructure() {
-		itemColourDefault = make_pair("#FFFFFF", "#000000");
-		itemColourSelected = make_pair("#000080", "#FFFFFF");
+		itemColourDefault = std::make_pair("#FFFFFF", "#000000");
+		itemColourSelected = std::make_pair("#000080", "#FFFFFF");
 		init();
 	}
-	~SCDAstructure() {}
+	~SCDAstructure() = default;
 
 	enum index{ Tree, Settings };
 
-	pair<string, string> itemColourDefault, itemColourFail;
-	pair<string, string> itemColourSelected, itemColourWarning;
-	shared_ptr<QJTREEMODEL> modelStructure = nullptr;
+	std::pair<std::string, std::string> itemColourDefault, itemColourFail;
+	std::pair<std::string, std::string> itemColourSelected, itemColourWarning;
+	std::shared_ptr<QJTREEMODEL> modelStructure = nullptr;
 
-	void loadXML(string xmlPath);
+	void loadXML(std::string xmlPath);
 
 public slots:
 	void nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree);

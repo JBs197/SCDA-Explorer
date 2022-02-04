@@ -1550,17 +1550,31 @@ void SQLFUNC::stmtInsertRow(vector<string>& vsStmt, string tname, vector<vector<
     int numCol = (int)vvsRow[0].size();
     int numRow = (int)vvsRow.size() - 1;
     int index = (int)vsStmt.size();
+    vector<size_t> vSize(numCol);
+    size_t rowSize, totalSize;
     string stmt0 = "INSERT OR IGNORE INTO \"" + tname + "\" (";
     string temp;
     vsStmt.resize(index + numRow);
     for (int ii = 0; ii < numRow; ii++) {
+        rowSize = vvsRow[1 + ii].size();  // Number of values contained in this row.
+        
+        // Determine which columns to skip over (if any), or if the entire row should be skipped.
+        totalSize = 0;
+        for (int jj = 0; jj < rowSize; jj++) {
+            vSize[jj] = vvsRow[1 + ii][jj].size();
+            totalSize += vSize[jj];
+        }
+        if (totalSize == 0) { continue; }
+
         vsStmt[index + ii] = stmt0;
-        for (int jj = 0; jj < vvsRow[1 + ii].size(); jj++) {
+        for (int jj = 0; jj < rowSize; jj++) {
+            if (vSize[jj] == 0) { continue; }
             if (jj > 0) { vsStmt[index + ii] += ", "; }
             vsStmt[index + ii] += "\"" + vvsRow[0][jj] + "\"";
         }
         vsStmt[index + ii] += ") VALUES (";
-        for (int jj = 0; jj < vvsRow[1 + ii].size(); jj++) {
+        for (int jj = 0; jj < rowSize; jj++) {
+            if (vSize[jj] == 0) { continue; }
             if (jj > 0) { vsStmt[index + ii] += ", "; }
             try { 
                 test = stod(vvsRow[1 + ii][jj]); 

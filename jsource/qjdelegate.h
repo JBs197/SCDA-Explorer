@@ -1,8 +1,8 @@
 #pragma once
+#include <QListView>
 #include <QPainter>
 #include <QStyledItemDelegate>
-#include "qjlistview.h"
-#include "qjtableview.h"
+#include <QTableView>
 
 class QJDELEGATE : public QStyledItemDelegate
 {

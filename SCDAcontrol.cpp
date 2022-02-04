@@ -22,6 +22,17 @@ void SCDAcontrol::err(string message)
 	string errorMessage = "SCDAcontrol error:\n" + message;
 	JLOG::getInstance()->err(errorMessage);
 }
+string SCDAcontrol::getDrive()
+{
+	QVBoxLayout* vLayout = (QVBoxLayout*)this->layout();
+	QLayoutItem* qlItem = vLayout->itemAt(index::Drive);
+	QHBoxLayout* hLayout = (QHBoxLayout*)qlItem->layout();
+	int numItem = hLayout->count();
+	qlItem = hLayout->itemAt(numItem - 1);
+	QComboBox* cb = (QComboBox*)qlItem->widget();
+	QString qsDrive = cb->currentText();
+	return qsDrive.toStdString();
+}
 void SCDAcontrol::init()
 {
 	sLastQuery = "";

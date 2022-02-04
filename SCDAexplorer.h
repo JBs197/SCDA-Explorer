@@ -24,20 +24,21 @@ class SCDA : public QMainWindow
 	Q_OBJECT
 
 private:
-	int commLength, indexControl, indexDisplay, indexPBar;
-	int indexTab, labelCharHeight, labelCharWidth, numCore, sleepTime;
-	string configXML;
+	int commLength, labelCharHeight, labelCharWidth, numCore, sleepTime;
+	std::string configXML;
 	JFILE jfile;
 	JPARSE jparse;
 	JTIME jtime;
-	string sExecFolder, sLocalStorage;
+	std::string sExecFolder, sLocalStorage;
 	SWITCHBOARD sb;
 	WINFUNC wf;
 
+	enum indexH { Control, Display };
 	enum indexTab { Catalogue, Table, Structure, Compare };
+	enum indexV { Tab, PBar };
 
 	void busyWheel(SWITCHBOARD& sb);
-	void err(string message);
+	void err(std::string message);
 	QList<QRect> getDesktop();
 	void initBusy(QJBUSY*& dialogBusy);
 	void initConfig();
@@ -45,7 +46,7 @@ private:
 	void initGUI();
 
 public:
-	SCDA(string sExecFolder, QWidget* parent = nullptr);
+	SCDA(std::string sExecFolder, QWidget* parent = nullptr);
 	~SCDA() = default;
 
 	SCdatabase scdb;
@@ -54,22 +55,23 @@ public:
 	void postRender();
 
 signals:
-	void appendTextIO(string message);
-	void barMessage(string message);
-	void initProgress(vector<double> vdProgress, vector<string> vsProgress);
-	void sendConfigXML(string configXML);
-	void setTextIO(string message);
+	void appendTextIO(std::string message);
+	void barMessage(std::string message);
+	void initProgress(std::vector<double> vdProgress, std::vector<std::string> vsProgress);
+	void sendConfigXML(std::string configXML);
+	void setTextIO(std::string message);
 
 public slots:
 	void debug();
-	void deleteTable(string tname);
+	void deleteTable(std::string tname);
+	void deleteTableRow(std::string tnameRow);
 	void dialogStructureStart();
 	void displayOnlineCata();
-	void downloadCata(string prompt);
-	void driveSelected(string drive);
-	void fetchDBTable(string tname);
-	void insertCata(string prompt);
-	void searchDBTable(string sQuery);
-	void testMap(string url);
+	void downloadCata(std::string prompt);
+	void fetchDBTable(std::string tname);
+	void insertCata(std::string prompt);
+	void scanLocalCata(std::string drive = "");
+	void searchDBTable(std::string sQuery);
+	void testMap(std::string url);
 	void updateCataDB();
 };

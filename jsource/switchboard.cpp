@@ -251,28 +251,35 @@ bool SWITCHBOARD::pushHard(thread::id id)
 }
 
 // Functions related to the work queue.
-void SWITCHBOARD::pullWork(string& work)
+int SWITCHBOARD::pullWork(string& work)
 {
+	// Pass along the topmost task on the queue. Return the number of tasks remaining
+	// to be done, including the one passed along.
 	lock_guard<mutex> lg(m_queue);
-	if (!qWork.empty()) {
+	int numWork = (int)qWork.size();
+	if (numWork > 0) {
 		work = qWork.front();
 		qWork.pop();
 	}
 	else { work.clear(); }
+	return numWork;
 }
-void SWITCHBOARD::pullWork(vector<string>& vsWork, int numRequest)
+int SWITCHBOARD::pullWork(vector<string>& vsWork, int numRequest)
 {
+	// Pass along a maximum of "numRequest" tasks from the queue. Return the number of 
+	// tasks remaining to be done, including the ones passed along.
 	lock_guard<mutex> lg(m_queue);
-	int numWork = min(numRequest, (int)qWork.size());
-	if (numWork == 0) {
-		vsWork.clear();
-		return;
+	int numWork = (int)qWork.size();
+	numRequest = min(numRequest, numWork);
+	if (numRequest == 0) { vsWork.clear(); }
+	else {
+		vsWork.resize(numRequest);
+		for (int ii = 0; ii < numRequest; ii++) {
+			vsWork[ii] = qWork.front();
+			qWork.pop();
+		}
 	}
-	vsWork.resize(numWork);
-	for (int ii = 0; ii < numWork; ii++) {
-		vsWork[ii] = qWork.front();
-		qWork.pop();
-	}
+	return numWork;
 }
 void SWITCHBOARD::pushWork(string& work)
 {

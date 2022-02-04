@@ -30,8 +30,8 @@ public:
 	void getPrompt(std::vector<std::string>& vsPrompt);
 	void getPrompt(std::vector<std::vector<std::string>>& vvsPrompt);
 	int pullAny(std::thread::id id);
-	void pullWork(std::string& work);
-	void pullWork(std::vector<std::string>& vsWork, int numRequest = 1);
+	int pullWork(std::string& work);
+	int pullWork(std::vector<std::string>& vsWork, int numRequest = 1);
 	bool push(std::thread::id id);
 	bool pushHard(std::thread::id id);
 	void pushWork(std::string& work);

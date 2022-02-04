@@ -26,15 +26,15 @@ class QJTABLEVIEW : public QTableView
 private:
 	int acceptActions = 0;
 	JSTRING jstr;
-	unordered_map<string, int> mapColIndex;  // Column header -> column index
+	std::unordered_map<std::string, int> mapColIndex;  // Column header -> column index
 	QString mimeColHeader;
 	int numBlankRow;
 	QPoint posStart;
 	QModelIndex qmiHover;
 	int recentIndex = -1, startDragDist;
-	vector<int> viDisplayCol, viName;
+	std::vector<int> viDisplayCol, viName;
 
-	void err(string message);
+	void err(std::string message);
 	void init();
 	void updateHeight();
 
@@ -44,31 +44,31 @@ public:
 	~QJTABLEVIEW() {}
 
 	int indexChecksum, indexTable;
-	pair<string, string> itemColourDefault, itemColourFail, itemColourHover;
-	pair<string, string> itemColourSelected, itemColourTemp, itemColourWarning;
+	std::pair<std::string, std::string> itemColourDefault, itemColourFail, itemColourHover;
+	std::pair<std::string, std::string> itemColourSelected, itemColourTemp, itemColourWarning;
 
-	void applyFilter(string filter);
+	void applyFilter(std::string filter);
 	void applyFilter(QString qsFilter);
 	void deleteRow(int iRow);
-	vector<int> getCellDimensions(int iRow, int iCol);
+	std::vector<int> getCellDimensions(int iRow, int iCol);
 	int getHeight();
-	vector<int> getName() { return viName; }
+	std::vector<int> getName() { return viName; }
 	QMimeData* getRowMimeData(int iRow);
 	QModelIndexList getSelected();
-	void setCellColour(QModelIndex qmi, pair<string, string> colour);
-	void setCellColour(QModelIndexList qmiList, pair<string, string> colour);
-	void setColColour(QModelIndex qmi, pair<string, string> colour);
-	void setRowColour(QModelIndex qmi, pair<string, string> colour);
+	void setCellColour(QModelIndex qmi, std::pair<std::string, std::string> colour);
+	void setCellColour(QModelIndexList qmiList, std::pair<std::string, std::string> colour);
+	void setColColour(QModelIndex qmi, std::pair<std::string, std::string> colour);
+	void setRowColour(QModelIndex qmi, std::pair<std::string, std::string> colour);
 	QPixmap makeCellPixmap(int iRow, int iCol);
 	QList<QStandardItem*> mimeTextToQRow(QString& qsMime);
 	void resetModel(int keepLast);
 	void select(int iRow, int iCol);
-	void setColTitles(vector<vector<string>>& vvsColTitles);
+	void setColTitles(std::vector<std::vector<std::string>>& vvsColTitles);
 	void setModel(QAbstractItemModel* model) override;
 	void setName(int indexTab, int indexRow, int indexCol);
-	void setTableData(vector<vector<string>>& vvsData);
+	void setTableData(std::vector<std::vector<std::string>>& vvsData);
 	void updateModel();
-	void updateModel(vector<vector<int>> vviCol);
+	void updateModel(std::vector<std::vector<int>> vviCol);
 
 signals:
 	void cellClicked(int iRow, int iCol);

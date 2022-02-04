@@ -21,7 +21,7 @@ int main(int argc, char* argv[])
     QString qsExecFolder = a.applicationDirPath();
     std::wstring wsExecFolder = qsExecFolder.toStdWString();
     QByteArray qbaTemp = qsExecFolder.toUtf8();
-    string sExecFolder = qbaTemp.toStdString();
+    std::string sExecFolder = qbaTemp.toStdString();
 
     QString qsCSS = qsExecFolder + "/css.txt";
     a.setStyleSheet(qsCSS);
