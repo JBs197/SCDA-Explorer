@@ -22,6 +22,8 @@ public:
 
 	int indexTree;
 
+	QList<QModelIndex> selectedIndexes() const override;
+	QList<QJTREEITEM*> selectedNodes() const;
 	void setModel(QJTREEMODEL* qjtm);
 
 signals:

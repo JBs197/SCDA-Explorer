@@ -59,6 +59,46 @@ void QJTREEVIEW::relayClicked(const QModelIndex& qmIndex)
 {
 	emit nodeClicked(qmIndex, indexTree);
 }
+QList<QModelIndex> QJTREEVIEW::selectedIndexes() const
+{
+	return QTreeView::selectedIndexes();
+}
+QList<QJTREEITEM*> QJTREEVIEW::selectedNodes() const
+{
+	QList<QJTREEITEM*> qjtiList;
+	QJTREEMODEL* model = (QJTREEMODEL*)this->model();
+	if (model == nullptr) { return qjtiList; }
+	auto selectionBehaviour = selectionBehavior();
+	QList<QModelIndex> qmiList = QTreeView::selectedIndexes();
+	int numNode = qmiList.size();
+	QJTREEITEM* qjti = nullptr;
+	switch (selectionBehaviour) {
+	case SelectionBehavior::SelectItems:
+	{
+		for (int ii = 0; ii < numNode; ii++) {
+			qjti = model->getNode(qmiList[ii]);
+			if (qjti != nullptr) { qjtiList.append(qjti); }
+		}
+		break;
+	}
+	case SelectionBehavior::SelectRows:
+	{
+		unordered_set<int> setRow;
+		int iRow;
+		for (int ii = 0; ii < numNode; ii++) {
+			qjti = model->getNode(qmiList[ii]);
+			iRow = qmiList[ii].row();
+			if (qjti != nullptr && !setRow.count(iRow)) { 
+				setRow.emplace(iRow);
+				qjtiList.append(qjti); 
+			}
+		}
+		break;
+	}
+	}
+
+	return qjtiList;
+}
 void QJTREEVIEW::setModel(QJTREEMODEL* qjtm)
 {
 	QHeaderView* headerH = this->header();

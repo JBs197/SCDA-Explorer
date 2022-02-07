@@ -75,6 +75,18 @@ QVariant QJTREEITEM::dataUserRole(int role) const
 	}
 	return qlDataUserRole.at(role - Qt::UserRole);
 }
+string QJTREEITEM::getName()
+{
+	// Note: this returns the node's vsData[0] string (name visible on tree), not 
+	// Qt's ObjectName property. 
+	string name;
+	QString qsTemp;
+	if (qlData.size() > 0) { 
+		qsTemp = qlData[0].toString();
+		name = qsTemp.toStdString();
+	}
+	return name;
+}
 int QJTREEITEM::getNumChildren()
 {
 	return qlChildren.size();

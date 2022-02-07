@@ -57,7 +57,7 @@ public:
 signals:
 	void appendTextIO(std::string message);
 	void barMessage(std::string message);
-	void initProgress(std::vector<double> vdProgress, std::vector<std::string> vsProgress);
+	void initProgress(std::vector<double> vdProgress, std::vector<std::string> vsProgress, bool soundOn = 0);
 	void sendConfigXML(std::string configXML);
 	void setTextIO(std::string message);
 

@@ -70,13 +70,16 @@ void SCdatabase::dataParser(atomic_int& fileDepleted, string sYear, string sCata
 	vector<string> vsFirstMID, vsMID, vsStmt;
 	vector<vector<string>> vvsRow;  // Form [DataIndex][col1 value, col2 value, ...]
 	while (1) {
-		segment.clear();
-		if (fileDepleted == 0) { segment = jbufRaw.pullHard(); }
-		else {
+		while (segment.size() == 0) {  // Obtain work.
 			segment = jbufRaw.pullSoft();
-			if (segment.size() == 0) { 
-				fileDepleted++;
-				return; 
+			if (fileDepleted == 0) {  // Reader thread is still active. Wait for work.
+				this_thread::sleep_for(30ms);				
+			}
+			else {  // Complete remaining work (if any), then finish.
+				if (segment.size() == 0) {
+					fileDepleted += 10;
+					return;
+				}
 			}
 		}
 		length = segment.size();
@@ -101,6 +104,7 @@ void SCdatabase::dataParser(atomic_int& fileDepleted, string sYear, string sCata
 		vSize.resize(numDIM);
 		try {
 			iGeoCode = stoull(geoCode);
+			geoCode = to_string(iGeoCode);
 			for (int ii = 0; ii < numDIM; ii++) {
 				vSize[ii] = stoi(vsMID[ii]);
 			}
@@ -183,13 +187,14 @@ void SCdatabase::dataParser(atomic_int& fileDepleted, string sYear, string sCata
 
 			posGeo = segment.find(findGeo, posNextCell + lenFindCell);
 		}
+		segment.clear();
 
-		// Convert vvsRow into a list of SQL statements, and push that list into the SQL buffer.
-		vsStmt.clear();
+		// Convert vvsRow into a list of SQL statements.
 		tname = "Data" + marker + sYear + marker + sCata + marker + geoCode;
 		sf.stmtInsertRow(vsStmt, tname, vvsRow);
-		jbufSQL.pushHard(vsStmt);
 		vvsRow.clear();
+		jbufSQL.pushHard(vsStmt);
+		vsStmt.clear();
 	}
 }
 void SCdatabase::dataReader(atomic_int& fileDepleted, string cataDir, string sYear, string sCata, JBUFFER<string, NUM_BUF_SLOT>& jbufRaw)
@@ -417,7 +422,7 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 	int iYear, numFile;
 	string cataDir, filePath, sCata, sMetaFile, sTopic, zipPath;
 	vector<string> vsGeoLayer, vsLocalPath;
-	mycomm[2] = sbgui.pullWork(cataDir);
+	mycomm[4] = sbgui.pullWork(cataDir);  // Number of catalogues to insert.
 	if (cataDir.size() < 1) { return; } 
 	sbgui.update(myid, mycomm);
 	size_t pos2 = cataDir.find_last_of("/\\");
@@ -482,8 +487,12 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 		if (geoGap) {  // Catalogue has GeoLayer gaps.
 			insertGeo(vsGeoLayer, vvsGeo, sYear, sCata);  
 		}
-		else { insertGeo(vvsGeo, sYear, sCata); }
-		
+		else { insertGeo(vvsGeo, sYear, sCata); }	
+
+		// Now that the number of geo regions has been finalized, update the GUI progress bar.
+		mycomm[2] = (int)vvsGeo.size() - 1;
+		mycomm[1] = 0;
+		sbgui.update(myid, mycomm);
 		
 		// Build and insert all the catalogue's parameter/dimension tables.
 		loadMeta(jtxMeta, mapMeta, cataDir, sYear, sCata);
@@ -495,13 +504,13 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 		// Launch worker threads to parse the raw data file into SQL statements, which
 		// are then inserted into the database via transaction.
 		createData(sYear, sCata, vvsGeo, vDIM.back());
-		insertData(cataDir, sYear, sCata, numThread);
+		insertData(sbgui, cataDir, sYear, sCata, numThread);
 
 		// Delete locally-stored raw data files.
 		jfile.remove(vsLocalPath);
 		
 		// Proceed to the next catalogue to be inserted.
-		mycomm[1]++;
+		mycomm[3]++;
 		sbgui.update(myid, mycomm);
 		sbgui.pullWork(cataDir);
 	}
@@ -546,8 +555,11 @@ void SCdatabase::insertCensusYear(string sYear, string sCata, string sTopic)
 		sf.insertRow(tname, vvsColTitle);
 	}
 }
-void SCdatabase::insertData(string cataDir, string sYear, string sCata, int numThread)
+void SCdatabase::insertData(SWITCHBOARD& sbgui, string cataDir, string sYear, string sCata, int numThread)
 {
+	thread::id myid = this_thread::get_id();
+	vector<int> mycomm = sbgui.getMyComm(myid);
+
 	// numThread refers to the number of parsing threads to launch. 
 	vector<string> vsTag = { "file_name", sYear, "data" };
 	string dataPath = cataDir + "/" + jparse.getXML1(configXML, vsTag);
@@ -572,43 +584,36 @@ void SCdatabase::insertData(string cataDir, string sYear, string sCata, int numT
 	for (int ii = 0; ii < numThread; ii++) {
 		tapestry.emplace_back(std::jthread(&SCdatabase::dataParser, this, ref(fileDepleted), sYear, sCata, ref(jbufRaw), ref(jbufSQL)));
 	}
+	int parserThreshold = (int)tapestry.size() * 10;
 
 	// This thread now proceeds full-time with database insertion operations. 
 	vector<string> vsStmt;
-	vector<int> vActive;
-	vActive.assign(1 + tapestry.size(), 1);
-	int numActive = 1 + (int)tapestry.size();
 	while (1) {
-		if (fileDepleted > 0 && thrReader.joinable()) {
-			vActive[0] = 0;
-			thrReader.join();
-		}
-		if (fileDepleted > tapestry.size()) {
-			for (int ii = 0; ii < tapestry.size(); ii++) {
-				if (tapestry[ii].joinable()) {
-					vActive[1 + ii] = 0;
-					tapestry[ii].join();
+		while (vsStmt.size() == 0) {
+			if (fileDepleted > 0 && thrReader.joinable()) { thrReader.join(); }
+			if (fileDepleted > parserThreshold) {
+				for (int ii = 0; ii < tapestry.size(); ii++) {
+					if (tapestry[ii].joinable()) {
+						tapestry[ii].join();
+					}
 				}
 			}
-			numActive = 0;
-			for (int active : vActive) {
-				numActive += active;
-			}
-		}
 
-
-		vsStmt.clear();
-		if (numActive > 0) { vsStmt = jbufSQL.pullHard(); }
-		else {
 			vsStmt = jbufSQL.pullSoft();
-			if (vsStmt.size() == 0) { return; }
+			if (vsStmt.size() == 0) {
+				if (fileDepleted > parserThreshold) { return; }  // No work remains.
+				else { this_thread::sleep_for(25ms); }  // Other threads are still working.
+			}
 		}
 
 		pos1 = vsStmt[0].find('"');
 		pos2 = vsStmt[0].find('"', pos1 + 1);
 		if (sf.tableExist(vsStmt[0].substr(pos1 + 1, pos2 - pos1 - 1))) {
 			sf.insertPrepared(vsStmt);
-		}		
+		}	
+		vsStmt.clear();
+		mycomm[1]++;
+		sbgui.update(myid, mycomm);
 	}
 }
 void SCdatabase::insertDataIndex(const vector<int> vDIM, string sYear, string sCata)
@@ -911,8 +916,8 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 	// This variant uses the catalogue's incomplete vvsGeo as well as the template GeoTree
 	// to insert a complete region tree into the database. If a GeoLayer exists in the original
 	// catalogue AND the template, the values from the original catalogue are used.
-	string sGeoCodeParent, sGeoLevel, sGeoLevelParent, sMerger, sParent, temp;
-	vector<string> conditions, conditionsCode, conditionsRegion, vsResult, vsRow, vsTag, vsUnique;
+	string sGeoCodeParent, sGeoLevel, sGeoLevelParent, sMerger, sParent, temp, tnameSplit;
+	vector<string> conditions, conditionsCode, conditionsRegion, conditionsSplit, vsResult, vsRow, vsTag, vsUnique;
 	vector<vector<string>> vvsColTitle, vvsResult, vvsTag;
 
 	// Load the table's column titles and create the table in the database, if necessary.
@@ -947,10 +952,19 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 	}
 	if (!sf.tableExist(tnameTemplate)) { err("Missing template table-insertGeo"); }
 
+	// Populate a set containing all GEO_CODEs from the original catalogue. If a gap region also
+	// had that GEO_CODE, it will receive a new one instead.
+	unordered_set<string> setCode, setSkipCode;
+	int numGeo = (int)vvsGeo.size();
+	for (int ii = 1; ii < numGeo; ii++) {
+		setCode.emplace(vvsGeo[ii][indexCode]);
+	}
+
 	// Load the local Geo file for the catalogue. If it is useful before the GeoLayer gap, 
 	// then prepend it and adjust the template ancestral GEO_CODEs accordlingly. In either case,
 	// add the local geo row ancestries such that they bind to the templated parent regions.
-	bool linked;
+	bool linked, letMeOut;
+	char cMarker;
 	int geoCode, geoLevel;
 	vector<vector<string>> vvsGeoComplete{vvsGeo[0]};
 	for (int ii = 0; ii < vsGeoLayer.size(); ii++) {
@@ -962,7 +976,11 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 			if (error == 0) { err("No GEO_LEVEL matches within Geo template table-insertGeo"); }
 			
 			if (ii == 0) {
+				while (setCode.count(vvsResult[0][indexCode])) {
+					vvsResult[0][indexCode].insert(0, 1, '9');
+				}
 				vvsGeoComplete.emplace_back(vvsResult[0]);
+				setCode.emplace(vvsResult[0][indexCode]);
 				continue;
 			}
 			for (int jj = 0; jj < vvsResult.size(); jj++) {
@@ -979,7 +997,11 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 							vvsResult[jj].emplace_back(vvsGeoComplete[kk][ll]);
 						}
 						vvsResult[jj].emplace_back(vvsGeoComplete[kk][indexCode]);
+						while (setCode.count(vvsResult[jj][indexCode])) {
+							vvsResult[jj][indexCode].insert(0, 1, '9');
+						}
 						vvsGeoComplete.emplace_back(vvsResult[jj]);
+						setCode.emplace(vvsResult[jj][indexCode]);
 						linked = 1;
 						break;
 					}
@@ -994,42 +1016,118 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 					vvsGeoComplete.emplace_back(vvsGeo[ii]);
 					continue;
 				}
-						
+				if (setSkipCode.count(vvsGeo[jj][indexCode])) { continue; }
+
 				if (vsGeoLayer[ii - 1][0] == '!') {  // Parent level came from the template.
 					conditionsRegion = { "\"Region Name\" LIKE '" + vvsGeo[jj][indexRegion] + "'" };
 					vsResult.clear();
 					error = sf.select(search, tnameTemplate, vsResult, conditionsRegion);
-					if (error == 0) {
-						// Check for split-region.
+					if (error == 0) {  // Check for split-region.						
 						pos1 = conditionsRegion[0].rfind('\'');
 						if (pos1 < conditionsRegion[0].size()) {
 							vvsResult.clear();
 							conditionsRegion[0].insert(pos1, 1, '%');  // SQLITE wildcard.
 							error = sf.select(search, tnameTemplate, vvsResult, conditionsRegion);
 							if (error == 0) { err("Failed to locate parent region within new geo list-insertGeo"); }
+							
+							// Add the split-regions themselves.
+							conditionsSplit.clear();
+							for (int kk = 0; kk < vvsResult.size(); kk++) {  // For every split-region...																
+								vsResult.resize(3);
+								pos1 = vvsResult[kk][indexCode].find(vvsGeo[jj][indexCode]);
+								if (pos1 > vvsResult[kk][indexCode].size()) { err("Failed to match split-region Parent Region to GEO_CODE-insertGeo"); }
+								vsResult[indexCode] = vvsResult[kk][indexCode].substr(pos1);
+								vsResult[indexRegion] = vvsResult[kk][indexRegion];
+								vsResult[indexLevel] = sGeoLevel;
 
-							//
-						}
-					}
-					sParent.clear();
-					conditionsCode = { "GEO_CODE = " + vsResult.back() };
-					error = sf.select(searchRegion, tnameTemplate, sParent, conditionsCode);
-					if (error == 0) { err("No GEO_CODE matches within Geo template table-insertGeo"); }
-					
-					linked = 0;
-					for (int kk = 0; kk < vvsGeoComplete.size(); kk++) {
-						if (vvsGeoComplete[kk][indexRegion] == sParent) {
-							vvsGeo[jj].resize(3);
-							vvsGeoComplete.emplace_back(vvsGeo[jj]);
-							for (int ll = 3; ll < vvsGeoComplete[kk].size(); ll++) {
-								vvsGeoComplete.back().emplace_back(vvsGeoComplete[kk][ll]);
+								if (kk == 0) { temp = "\"Parent Region\" LIKE '%" + vsResult[indexCode] + "%'"; }
+								else { temp = " OR \"Parent Region\" LIKE '%" + vsResult[indexCode] + "%'"; }
+								conditionsSplit.emplace_back(temp);
+								
+								sParent.clear();
+								conditionsCode = { "GEO_CODE = " + vvsResult[kk].back() };
+								error = sf.select(searchRegion, tnameTemplate, sParent, conditionsCode);
+								if (error == 0) { err("No GEO_CODE matches within Geo template table-insertGeo"); }
+								linked = 0;
+								for (int ll = 0; ll < vvsGeoComplete.size(); ll++) {
+									if (vvsGeoComplete[ll][indexRegion] == sParent) {
+										vvsResult[kk].resize(3);
+										vvsGeoComplete.emplace_back(vvsResult[kk]);
+										for (int mm = 3; mm < vvsGeoComplete[ll].size(); mm++) {
+											vvsGeoComplete.back().emplace_back(vvsGeoComplete[ll][mm]);
+										}
+										vvsGeoComplete.back().emplace_back(vvsGeoComplete[ll][indexCode]);
+										while (setCode.count(vvsGeoComplete.back()[indexCode])) {
+											vvsGeoComplete.back()[indexCode].insert(0, 1, '9');
+										}
+										setCode.emplace(vvsGeoComplete.back()[indexCode]);
+										linked = 1;
+										break;
+									}
+								}
+								if (!linked) { err("Failed to locate original region's parent-insertGeo"); }
 							}
-							vvsGeoComplete.back().emplace_back(vvsGeoComplete[kk][indexCode]);							
-							linked = 1;
-							break;
+
+							// Add the split-regions' children.
+							tnameSplit = "SplitRegion$" + vsGeoLayer[ii];
+							vvsResult.clear();
+							error = sf.select(search, tnameSplit, vvsResult, conditionsSplit);
+							if (error == 0) { err("Failed to load SplitRegion table-insertGeo"); }
+							for (int kk = jj + 1; kk < vvsGeo.size(); kk++) {
+								if (vvsGeo[kk][indexLevel] == vvsGeo[jj][indexLevel]) { break; }
+								
+								letMeOut = 0;
+								for (int ll = 0; ll < vvsResult.size(); ll++) {
+									for (int mm = 1; mm < vvsResult[ll].size(); mm++) {
+										pos1 = vvsResult[ll][mm].find(vvsGeo[kk][indexCode]);
+										if (pos1 < vvsResult[ll][mm].size()) {
+											pos1 = vvsResult[ll][0].rfind(vvsResult[ll][0][0]);
+											sParent = vvsResult[ll][0].substr(pos1 + 1);
+											letMeOut = 1;
+											break;
+										}
+									}
+									if (letMeOut) { break; }
+								}
+								if (!letMeOut) { err("Failed to find Parent Region within SplitTable-insertGeo"); }
+
+								for (int ll = (int)vvsGeoComplete.size() - 1; ll >= 0; ll--) {
+									if (vvsGeoComplete[ll][indexRegion] == sParent) {
+										vvsGeoComplete.insert(vvsGeoComplete.begin() + ll + 1, vvsGeo[kk]);
+										vvsGeoComplete[ll + 1][indexLevel] = to_string(ii + 1);
+										for (int mm = 3; mm < vvsGeoComplete[ll].size(); mm++) {
+											vvsGeoComplete[ll + 1].emplace_back(vvsGeoComplete[ll][mm]);
+										}
+										vvsGeoComplete[ll + 1].emplace_back(vvsGeoComplete[ll][indexCode]);
+										setSkipCode.emplace(vvsGeoComplete[ll + 1][indexCode]);
+										break;
+									}
+									if (ll == 0) { err("Failed to locate parent region within vvsGeoComplete-insertGeo"); }
+								}
+							}
+
 						}
 					}
-					if (!linked) { err("Failed to locate original region's parent-insertGeo"); }
+					else {  // Standard region.						
+						sParent.clear();
+						conditionsCode = { "GEO_CODE = " + vsResult.back() };
+						error = sf.select(searchRegion, tnameTemplate, sParent, conditionsCode);
+						if (error == 0) { err("No GEO_CODE matches within Geo template table-insertGeo"); }
+						linked = 0;
+						for (int kk = 0; kk < vvsGeoComplete.size(); kk++) {
+							if (vvsGeoComplete[kk][indexRegion] == sParent) {
+								vvsGeo[jj].resize(3);
+								vvsGeoComplete.emplace_back(vvsGeo[jj]);
+								for (int ll = 3; ll < vvsGeoComplete[kk].size(); ll++) {
+									vvsGeoComplete.back().emplace_back(vvsGeoComplete[kk][ll]);
+								}
+								vvsGeoComplete.back().emplace_back(vvsGeoComplete[kk][indexCode]);
+								linked = 1;
+								break;
+							}
+						}
+						if (!linked) { err("Failed to locate original region's parent-insertGeo"); }
+					}
 				}
 				else {  // Parent region came from the original geo list.
 					sGeoLevelParent = to_string(ii - 1);
@@ -1059,7 +1157,6 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 					if (!linked) { err("Failed to locate parent region within new geo list-insertGeo"); }
 				}
 			}
-
 		}
 	}
 
@@ -1074,11 +1171,10 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 	}
 
 	// Insert the geographic data into the database, as a transaction.
-	if (safeInsertRow(tname, vvsGeoComplete)) {
-		sf.insertRow(tname, vvsGeoComplete);
-	}
-
 	vvsGeo = std::move(vvsGeoComplete);
+	if (safeInsertRow(tname, vvsGeo)) {
+		sf.insertRow(tname, vvsGeo);
+	}
 }
 void SCdatabase::insertGeoLayer(vector<string>& vsGeoLayer, string sYear, string sCata)
 {

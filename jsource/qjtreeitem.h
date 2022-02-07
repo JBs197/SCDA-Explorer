@@ -20,6 +20,7 @@ public:
 	QJTREEITEM* getChild(int iRow);
 	QVariant data(int iCol) const;
 	QVariant dataUserRole(int role) const;
+	std::string getName();
 	int getNumChildren();
 	int getNumCol();
 	QJTREEITEM* getParent();

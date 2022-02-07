@@ -20,7 +20,7 @@ class SCdatabase
 	void err(std::string message);
 	bool hasGeoGap(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeoLevel, std::vector<int>& viGeoLevel, std::vector<std::vector<std::string>>& vvsGeo);
 	void insertCensusYear(std::string sYear, std::string sCata, std::string sTopic);
-	void insertData(std::string cataDir, std::string sYear, std::string sCata, int numThread);
+	void insertData(SWITCHBOARD& sbgui, std::string cataDir, std::string sYear, std::string sCata, int numThread);
 	void insertDataIndex(const std::vector<int> vDIM, std::string sYear, std::string sCata);
 	std::vector<int> insertDIM(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
 	void insertDIMIndex(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
@@ -36,7 +36,6 @@ class SCdatabase
 	void log(std::string message);
 	std::uintmax_t makeDataIndex(const std::vector<int>& vMID, const std::vector<int>& vSize);
 	void prepareLocal(std::vector<std::string>& vsLocalPath, std::string cataDir, std::string sCata);
-	bool safeInsertRow(std::string tname, std::vector<std::vector<std::string>>& vvsRow);
 	void xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag);
 
 public:
@@ -55,5 +54,6 @@ public:
 	void insertGeoTreeTemplate(std::string yearDir);
 	void loadTable(std::vector<std::vector<std::string>>& vvsData, std::vector<std::vector<std::string>>& vvsColTitle, std::string tname);
 	void makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt);
+	bool safeInsertRow(std::string tname, std::vector<std::vector<std::string>>& vvsRow);
 	void searchTable(SWITCHBOARD& sbgui, JTREE& jt, std::vector<std::string>& vsTable);
 };

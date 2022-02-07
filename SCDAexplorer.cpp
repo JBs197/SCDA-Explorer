@@ -22,6 +22,8 @@ void SCDA::busyWheel(SWITCHBOARD& sb)
 }
 void SCDA::debug()
 {
+
+	/*
 	string sSearch = "E:/2013/*";
 	vector<string> vsCataDir, vsPartPath;
 	jfile.search(vsCataDir, sSearch, JFILE::Directory);
@@ -33,9 +35,8 @@ void SCDA::debug()
 			jfile.fileMerger(vsPartPath, 0);
 			int bbq = 1;
 		}
-
-		
 	}
+	*/
 
 	/*
 	size_t pos1, pos2;
@@ -262,6 +263,8 @@ void SCDA::debug()
 		emit appendTextIO("Downloaded PNG map for " + vsRegion[ii] + "\n");
 	}
 	*/
+
+	emit setTextIO("Done!");
 }
 void SCDA::deleteTable(string tname)
 {
@@ -548,7 +551,7 @@ void SCDA::initGUI()
 	connect(this, &SCDA::initProgress, qjPBar, &QJPROGRESSBAR::initProgress);
 	vLayout->insertWidget(indexV::PBar, qjPBar, 0);
 
-	QJBUSY* dialogBusy = new QJBUSY(this);
+	QJBUSY* dialogBusy = new QJBUSY(this, Qt::FramelessWindowHint | Qt::CustomizeWindowHint);
 	initBusy(dialogBusy);
 	connect(dialogBusy, &QJBUSY::reportProgress, qjPBar, &QJPROGRESSBAR::report);
 	connect(dialogBusy, &QJBUSY::sendText, control, &SCDAcontrol::textOutput);
@@ -558,7 +561,7 @@ void SCDA::initGUI()
 }
 void SCDA::insertCata(string prompt)
 {
-	// Prompt should have form (@year@cata0@cata1...). 
+	// Prompt should have form ($year$cata0$cata1...). 
 	vector<string> vsPrompt;
 	jparse.splitByMarker(vsPrompt, prompt, prompt[0]);
 	int numCata = (int)vsPrompt.size() - 1;
@@ -593,6 +596,7 @@ void SCDA::insertCata(string prompt)
 	vector<double> vdProgress;
 	if (numCata == 1) {
 		vsProgress[0] = "Inserting catalogue " + vsPrompt[1] + " ...";
+		vsProgress[1] = "Finished inserting catalogue " + vsPrompt[1];
 		vdProgress = { 0.0, 1.0 };
 	}
 	else {
@@ -602,10 +606,10 @@ void SCDA::insertCata(string prompt)
 			vsProgress[ii] = "Inserting catalogue (" + to_string(1 + ii) + sEnd;
 			vdProgress[ii] = (double)ii / dNumCata;
 		}
+		vsProgress.back() = "Finished inserting " + to_string(numCata) + " catalogues.";
 		vdProgress.back() = 1.0;
 	}
-	vsProgress.back() = "Finished inserting catalogue " + vsPrompt[1];
-	emit initProgress(vdProgress, vsProgress);
+	emit initProgress(vdProgress, vsProgress, 1);
 
 	// Take care of necessary data insertion which is not bound to any specific catalogue.
 	scdb.insertCensus(vsPrompt[0]);
@@ -614,7 +618,7 @@ void SCDA::insertCata(string prompt)
 	// Launch a catalogue manager/writer thread. It will pull the top catalogue from the work 
 	// queue until all catalogues have been inserted.
 	thread::id myid = this_thread::get_id();
-	sb.startCall(myid, commLength);
+	sb.startCall(myid, 5);  // Comm form [status, geo progress, geo max, cata progress, cata max]
 	sb.pushWork(vsCataFolder);
 	std::thread thr(&SCdatabase::insertCata, scdb, ref(sb), numCore);
 	thr.detach();
@@ -625,6 +629,9 @@ void SCDA::postRender()
 {
 	// Casserole function for tasks to be done after main window rendering.	
 	QCoreApplication::processEvents();
+	vector<string> vsTag = { "path", "resource" };
+	string resDir = jparse.getXML1(configXML, vsTag);
+
 	QWidget* central = this->centralWidget();
 	QRect rectCentral = central->geometry();
 	QHBoxLayout* mainLayout = (QHBoxLayout*)central->layout();
@@ -633,6 +640,7 @@ void SCDA::postRender()
 	qlItem = displayLayout->itemAt(indexV::PBar);
 	QJPROGRESSBAR* qjPBar = (QJPROGRESSBAR*)qlItem->widget();
 	qjPBar->initChildren();
+	qjPBar->initSound(resDir + "/sound");
 
 	qlItem = displayLayout->itemAt(indexV::Tab);
 	QTabWidget* tabW = (QTabWidget*)qlItem->widget();

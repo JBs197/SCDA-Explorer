@@ -71,6 +71,7 @@ void SCDAcatalogue::init()
 	QJTREEVIEW* treeLocal = new QJTREEVIEW;
 	treeLocal->indexTree = index::Local;
 	gLayout->addWidget(treeLocal, 1, index::Local);
+	treeLocal->setSelectionMode(QAbstractItemView::ContiguousSelection);
 	connect(treeLocal, &QJTREEVIEW::nodeRightClicked, this, &SCDAcatalogue::nodeRightClicked);
 
 	modelDatabase = make_shared<QJTREEMODEL>(vsHeader, this);
@@ -135,9 +136,7 @@ void SCDAcatalogue::insertCata()
 {
 	QVariant qVar = qaInsert->data();
 	QString qsTemp = qVar.toString();
-	wstring wsTemp = qsTemp.toStdWString();
-	string prompt;
-	jparse.utf16To8(prompt, wsTemp);
+	string prompt = qsTemp.toStdString();
 	emit sendInsertCata(prompt);
 }
 void SCDAcatalogue::nodeClicked(const QModelIndex& qmIndex, int indexTree)
@@ -149,12 +148,12 @@ void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex&
 	QMenu menu(this);
 	QJTREEMODEL* qjtm = getModel(indexTree);
 	vector<string> vsGenealogy = qjtm->getGenealogy(qmIndex);
-	int numNode = (int)vsGenealogy.size();
+	int numGenealogy = (int)vsGenealogy.size();
 	string sData = "";
 	switch (indexTree) {
 	case index::Statscan:
 	{
-		for (int ii = 0; ii < numNode; ii++) {
+		for (int ii = 0; ii < numGenealogy; ii++) {
 			sData += "$" + vsGenealogy[ii];
 		}
 		qaDownload->setData(sData.c_str());
@@ -165,24 +164,36 @@ void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex&
 	{
 		// Permit catalogue insertion only if GeoTree templates have been set.
 		QModelIndex qmiNode = qmIndex;
-		if (numNode > 1) {			
+		if (numGenealogy > 1) {
 			QModelIndex qmiParent;
-			for (int ii = 0; ii < numNode - 1; ii++) {
+			for (int ii = 0; ii < numGenealogy - 1; ii++) {
 				qmiParent = qjtm->parent(qmiNode);
 				qmiNode = qmiParent;
 			}			
 		}
-		QJTREEITEM* qjtiNode = qjtm->getNode(qmiNode);
-		int numCol = qjtiNode->getNumCol();
-		if (numCol >= 3) {
+		QJTREEITEM* qjtiYear = qjtm->getNode(qmiNode);
+		int numCol = qjtiYear->getNumCol();
+		if (numCol >= 3) {  // The year node does have a template file. Proceed.
+			string sYear = qjtiYear->getName();
+			sData = "$" + sYear;
+
+			QGridLayout* gLayout = (QGridLayout*)this->layout();
+			QLayoutItem* qlItem = gLayout->itemAtPosition(1, index::Local);
+			QJTREEVIEW* qjTree = (QJTREEVIEW*)qlItem->widget();
+			QList<QJTREEITEM*> qjtiList = qjTree->selectedNodes();
+			QJTREEITEM* qjtiParent = nullptr;
+			int numNode = qjtiList.size();
 			for (int ii = 0; ii < numNode; ii++) {
-				sData += "$" + vsGenealogy[ii];
+				qjtiParent = qjtiList[ii]->getParent();
+				if (qjtiParent->getName() == sYear) {
+					sData += "$" + qjtiList[ii]->getName();
+				}
 			}
 			qaInsert->setData(sData.c_str());
 			menu.addAction(qaInsert);
 		}
-		else if (numCol == 2) {
-			QVariant qvPath = qjtiNode->data(1);
+		else if (numCol == 2) {  // The year node does not yet have a template file. 
+			QVariant qvPath = qjtiYear->data(1);
 			qaTemplate->setData(qvPath);
 			menu.addAction(qaTemplate);
 		}
@@ -190,7 +201,7 @@ void SCDAcatalogue::nodeRightClicked(const QPoint& globalPos, const QModelIndex&
 	}
 	case index::Database:
 	{
-		for (int ii = 0; ii < numNode; ii++) {
+		for (int ii = 0; ii < numGenealogy; ii++) {
 			sData += "$" + vsGenealogy[ii];
 		}
 		qaSearch->setData(sData.c_str());

@@ -8,10 +8,10 @@
 
 class SWITCHBOARD                                       // comm protocol:
 {                                                       // comm[0] = task status
-	int iRotate = -1, managerUse = -1;
-	std::mutex m_sb, m_queue;                           // comm[1] = tasks completed
-	std::array<std::recursive_mutex, 16> m_calls;       // comm[2] = maximum tasks
-	std::unordered_map<std::thread::id, int> mapPhone;  // comm[3] = max table name parameters 
+	int iRotate = -1, managerUse = -1;                  // comm[1] = tasks completed
+	std::mutex m_sb, m_queue;                           // comm[2] = maximum tasks
+	std::array<std::recursive_mutex, 16> m_calls;       
+	std::unordered_map<std::thread::id, int> mapPhone;
 	std::vector<std::vector<int>> phoneLines;           // Form [phone index][data understood by participants].
 	std::queue<std::string> qWork;
 	std::vector<std::vector<std::string>> vvsPrompt;

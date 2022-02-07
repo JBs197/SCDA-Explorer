@@ -77,10 +77,10 @@ void SQLFUNC::createTable(string tname, vector<vector<string>>& vvsColTitle, vec
     string stmt = "CREATE TABLE IF NOT EXISTS \"" + tname + "\" (";
     for (int ii = 0; ii < numCol; ii++) {
         if (ii > 0) { stmt += ", "; }
-        stmt += "\"" + vvsColTitle[0][ii] + "\" " + vvsColTitle[1][ii];
+        stmt += "'" + vvsColTitle[0][ii] + "' " + vvsColTitle[1][ii];
     }
     for (int ii = 0; ii < vsUnique.size(); ii++) {
-        stmt += ", UNIQUE(" + vsUnique[ii] + ")";
+        stmt += ", UNIQUE('" + vsUnique[ii] + "')";
     }
     stmt += ");";
     executor(stmt);
