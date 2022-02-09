@@ -89,9 +89,7 @@ void SCDAstructure::initAction()
 	connect(saveForWhom, &QAction::triggered, this, [&]() {
 		QVariant qVar = qaSaveForWhom->data();
 		QString qsTemp = qVar.toString();
-		wstring wsTemp = qsTemp.toStdWString();
-		string sData;
-		jstr.utf16To8(sData, wsTemp);
+		string sData = qsTemp.toStdString();
 		saveSetting("ForWhom", sData);
 		});
 
@@ -100,9 +98,7 @@ void SCDAstructure::initAction()
 	connect(saveGeoCode, &QAction::triggered, this, [&]() {
 		QVariant qVar = qaSaveGeoCode->data();
 		QString qsTemp = qVar.toString();
-		wstring wsTemp = qsTemp.toStdWString();
-		string sData;
-		jstr.utf16To8(sData, wsTemp);
+		string sData = qsTemp.toStdString();
 		saveSetting("GeoCode", sData);
 		});
 
@@ -111,9 +107,7 @@ void SCDAstructure::initAction()
 	connect(saveGeoLayer, &QAction::triggered, this, [&]() {
 		QVariant qVar = qaSaveGeoLayer->data();
 		QString qsTemp = qVar.toString();
-		wstring wsTemp = qsTemp.toStdWString();
-		string sData;
-		jstr.utf16To8(sData, wsTemp);
+		string sData = qsTemp.toStdString();
 		saveSetting("GeoLayer", sData);
 		});
 
@@ -122,9 +116,7 @@ void SCDAstructure::initAction()
 	connect(saveGeoRegionName, &QAction::triggered, this, [&]() {
 		QVariant qVar = qaSaveGeoRegionName->data();
 		QString qsTemp = qVar.toString();
-		wstring wsTemp = qsTemp.toStdWString();
-		string sData;
-		jstr.utf16To8(sData, wsTemp);
+		string sData = qsTemp.toStdString();
 		saveSetting("GeoRegionName", sData);
 		});
 
@@ -133,9 +125,7 @@ void SCDAstructure::initAction()
 	connect(saveParameterTitle, &QAction::triggered, this, [&]() {
 		QVariant qVar = qaSaveParameterTitle->data();
 		QString qsTemp = qVar.toString();
-		wstring wsTemp = qsTemp.toStdWString();
-		string sData;
-		jstr.utf16To8(sData, wsTemp);
+		string sData = qsTemp.toStdString();
 		saveSetting("ParameterTitle", sData);
 		});
 
@@ -144,9 +134,7 @@ void SCDAstructure::initAction()
 	connect(saveMemberNumber, &QAction::triggered, this, [&]() {
 		QVariant qVar = qaSaveMemberNumber->data();
 		QString qsTemp = qVar.toString();
-		wstring wsTemp = qsTemp.toStdWString();
-		string sData;
-		jstr.utf16To8(sData, wsTemp);
+		string sData = qsTemp.toStdString();
 		saveSetting("MemberNumber", sData);
 		});
 
@@ -155,9 +143,7 @@ void SCDAstructure::initAction()
 	connect(saveMemberDescription, &QAction::triggered, this, [&]() {
 		QVariant qVar = qaSaveMemberDescription->data();
 		QString qsTemp = qVar.toString();
-		wstring wsTemp = qsTemp.toStdWString();
-		string sData;
-		jstr.utf16To8(sData, wsTemp);
+		string sData = qsTemp.toStdString();
 		saveSetting("MemberDescription", sData);
 		});
 

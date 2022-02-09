@@ -12,6 +12,7 @@ class QJTREEITEM
 public:
 	explicit QJTREEITEM(const JNODE& jn, QJTREEITEM* parent = nullptr);
 	explicit QJTREEITEM(const std::vector<std::string>& vsData, QJTREEITEM* parent = nullptr);
+	explicit QJTREEITEM(const QList<QVariant>& qlVarData, QJTREEITEM* parent = nullptr);
 	~QJTREEITEM() { qDeleteAll(qlChildren); }
 
 	int treeType = -1;
@@ -19,6 +20,7 @@ public:
 	void addChild(QJTREEITEM* qjti);
 	QJTREEITEM* getChild(int iRow);
 	QVariant data(int iCol) const;
+	void dataAll(QList<QVariant>& qlVarData) const;
 	QVariant dataUserRole(int role) const;
 	std::string getName();
 	int getNumChildren();

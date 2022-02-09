@@ -1666,6 +1666,51 @@ void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 
 	sbgui.endCall(myid);
 }
+void SCdatabase::makeTreeGeo(SWITCHBOARD& sbgui, JTREE& jt, int branchID)
+{
+	// Populate jnBranch with a catalogue's geographic region tree.
+	thread::id myid = this_thread::get_id();
+	vector<int> mycomm;
+	sbgui.answerCall(myid, mycomm);
+	vector<string> vsPrompt;  // Form [sYear, sCata].
+	sbgui.getPrompt(vsPrompt);
+
+	vector<vector<string>> vvsColTitle, vvsData;
+	string tname = "Geo$" + vsPrompt[0] + "$" + vsPrompt[1];
+	loadTable(vvsData, vvsColTitle, tname);
+	int numRegion = (int)vvsData.size();
+	vsPrompt = { to_string(numRegion) };
+	sbgui.setPrompt(vsPrompt);
+	if (numRegion == 0) {		
+		sbgui.endCall(myid);
+		return;
+	}
+
+	int indexCode = -1, indexRegion = -1;
+	for (int ii = 0; ii < vvsColTitle[0].size(); ii++) {
+		if (vvsColTitle[0][ii] == "GEO_CODE") { indexCode = ii; }
+		if (vvsColTitle[0][ii] == "Region Name") { indexRegion = ii; }
+	}
+	if (indexCode < 0 || indexRegion < 0) { err("Failed to identify geo table column titles-makeTreeGeo"); }
+
+	int parentID;
+	unordered_map<string, int> mapGeoCode;
+	for (int ii = 0; ii < numRegion; ii++) {
+		JNODE jn;
+		jn.vsData[0] = vvsData[ii][indexRegion];
+		jn.vsData.emplace_back(vvsData[ii][indexCode]);
+		mapGeoCode.emplace(vvsData[ii][indexCode], jn.ID);
+		if (vvsData[ii].size() <= 3) { jt.addChild(branchID, jn); }
+		else {
+			parentID = mapGeoCode.at(vvsData[ii].back());
+			jt.addChild(parentID, jn);
+		}
+
+		// Determine status (map in db, map local, none).
+	}
+
+	sbgui.endCall(myid);
+}
 void SCdatabase::prepareLocal(vector<string>& vsLocalPath, string cataDir, string sCata)
 {
 	string zipPath = cataDir + "/" + sCata + ".zip";

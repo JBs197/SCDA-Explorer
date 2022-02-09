@@ -54,6 +54,7 @@ public:
 	void insertGeoTreeTemplate(std::string yearDir);
 	void loadTable(std::vector<std::vector<std::string>>& vvsData, std::vector<std::vector<std::string>>& vvsColTitle, std::string tname);
 	void makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt);
+	void makeTreeGeo(SWITCHBOARD& sbgui, JTREE& jt, int branchID);
 	bool safeInsertRow(std::string tname, std::vector<std::vector<std::string>>& vvsRow);
 	void searchTable(SWITCHBOARD& sbgui, JTREE& jt, std::vector<std::string>& vsTable);
 };

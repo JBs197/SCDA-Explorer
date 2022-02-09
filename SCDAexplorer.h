@@ -15,6 +15,7 @@
 #include "SCDAstructure.h"
 #include "SCDAtable.h"
 #include "SCdatabase.h"
+#include "SCDAmap.h"
 #include "SConline.h"
 #include "sqlfunc.h"
 #include "switchboard.h"
@@ -34,7 +35,7 @@ private:
 	WINFUNC wf;
 
 	enum indexH { Control, Display };
-	enum indexTab { Catalogue, Table, Structure, Compare };
+	enum indexTab { Catalogue, Table, Structure, Compare, Map };
 	enum indexV { Tab, PBar };
 
 	void busyWheel(SWITCHBOARD& sb);
@@ -70,6 +71,7 @@ public slots:
 	void downloadCata(std::string prompt);
 	void fetchDBTable(std::string tname);
 	void insertCata(std::string prompt);
+	void loadGeoTree(std::string sYear, std::string sCata);
 	void scanLocalCata(std::string drive = "");
 	void searchDBTable(std::string sQuery);
 	void testMap(std::string url);

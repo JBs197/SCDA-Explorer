@@ -51,6 +51,15 @@ QJTREEITEM::QJTREEITEM(const vector<string>& vsData, QJTREEITEM* parent)
 		}
 	}
 }
+QJTREEITEM::QJTREEITEM(const QList<QVariant>& qlVarData, QJTREEITEM* parent) 
+	: qjtiParent(parent) {
+	qlData = qlVarData;
+	if (parent != nullptr) {
+		if (parent->qlDataUserRole.size() > 0) {
+			qlDataUserRole = parent->qlDataUserRole;
+		}
+	}
+}
 
 void QJTREEITEM::addChild(QJTREEITEM* qjti)
 {
@@ -66,6 +75,10 @@ QVariant QJTREEITEM::data(int iCol) const
 	// Used for DisplayRole data.
 	if (iCol < 0 || iCol >= qlData.size()) { return QVariant(); }
 	return qlData.at(iCol);
+}
+void QJTREEITEM::dataAll(QList<QVariant>& qlVarData) const
+{
+	qlVarData = qlData;
 }
 QVariant QJTREEITEM::dataUserRole(int role) const
 {

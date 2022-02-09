@@ -103,7 +103,7 @@ void QJTREEVIEW::setModel(QJTREEMODEL* qjtm)
 {
 	QHeaderView* headerH = this->header();
 	headerH->setVisible(qjtm->headerTitles);
-
+	QTreeView::reset();
 	QTreeView::setModel(qjtm);
 
 	this->setItemDelegate(new QJDELEGATE(2, this));

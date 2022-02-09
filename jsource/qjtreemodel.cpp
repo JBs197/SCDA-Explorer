@@ -141,9 +141,16 @@ QModelIndex QJTREEMODEL::parent(const QModelIndex& index) const
 void QJTREEMODEL::populate(int enumTree)
 {
 	// Loads a JTREE (or derivative) into this model.
+	QList<QVariant> qlData;
+	qjtiRoot->dataAll(qlData);
+	beginResetModel();
+	delete qjtiRoot;
+	qjtiRoot = new QJTREEITEM(qlData);
+	endResetModel();
+
 	treeType = enumTree;
 	qjtiRoot->treeType = enumTree;
-
+	
 	switch (enumTree) {
 	case tree::jtree:
 	{
