@@ -19,6 +19,7 @@ class SCdatabase
 	void dataReader(std::atomic_int& fileDepleted, std::string cataDir, std::string sYear, std::string sCata, JBUFFER<std::string, NUM_BUF_SLOT>& jbufRaw);
 	void err(std::string message);
 	bool hasGeoGap(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeoLevel, std::vector<int>& viGeoLevel, std::vector<std::vector<std::string>>& vvsGeo);
+	void initItemColour(std::string& configXML);
 	void insertCensusYear(std::string sYear, std::string sCata, std::string sTopic);
 	void insertData(SWITCHBOARD& sbgui, std::string cataDir, std::string sYear, std::string sCata, int numThread);
 	void insertDataIndex(const std::vector<int> vDIM, std::string sYear, std::string sCata);
@@ -39,10 +40,14 @@ class SCdatabase
 	void xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag);
 
 public:
-	SCdatabase() : marker("$") {}
+	SCdatabase() : marker("$") {
+		itemColourDefault = std::make_pair("#FFFFFF", "#000000");
+		itemColourSelected = std::make_pair("#000080", "#FFFFFF");
+	}
 	~SCdatabase() = default;
 
 	std::string configXML;
+	std::pair<std::string, std::string> itemColourDefault, itemColourFail, itemColourSelected, itemColourWarning;
 	SQLFUNC sf;
 
 	void deleteTable(std::string tname);

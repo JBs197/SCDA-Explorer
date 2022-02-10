@@ -1,8 +1,6 @@
 #pragma once
-#include <QApplication>
 #include <QFileDialog>
 #include <QMainWindow>
-#include <QMessageBox>
 #include <QProgressBar>
 #include <QScreen>
 #include <QTabWidget>

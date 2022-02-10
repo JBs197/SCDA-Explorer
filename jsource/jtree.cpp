@@ -21,9 +21,13 @@ void JTREE::addChild(int parentID, JNODE& jnChild)
 		viAncestry.emplace_back(itParent->second);
 	}
 
-	jnChild.colour = vNode[viAncestry.back()].colour;
-	jnChild.colourSelected = vNode[viAncestry.back()].colourSelected;
-
+	if (get<0>(jnChild.colour) == "") {
+		jnChild.colour = vNode[viAncestry.back()].colour;
+	}
+	if (get<0>(jnChild.colourSelected) == "") {
+		jnChild.colourSelected = vNode[viAncestry.back()].colourSelected;
+	}
+	
 	int index;
 	if (setBlankIndex.size() < 1) {
 		index = (int)vNode.size();

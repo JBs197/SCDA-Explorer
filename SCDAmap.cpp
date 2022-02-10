@@ -34,6 +34,21 @@ void SCDAmap::init()
 }
 void SCDAmap::initAction()
 {
+	qaDownloadMap = make_shared<QAction>("Download Maps", this);
+	auto downloadMap = qaDownloadMap.get();
+	connect(downloadMap, &QAction::triggered, this, [&]() {
+		QVariant qVar = qaDownloadMap->data();
+		QString qsTemp = qVar.toString();
+		string sData = qsTemp.toStdString();
+		vector<string> vsPrompt;
+		jparse.splitByMarker(vsPrompt, sData);
+		SCauto* scauto = new SCauto;
+		connect(scauto, &SCauto::appendTextIO, this, &SCDAmap::appendTextIO);
+		scauto->downloadMap(vsPrompt);
+		});
+
+	// qaInsertMap
+
 	qaLoadTree = make_shared<QAction>("Load Geo Tree", this);
 	auto loadTree = qaLoadTree.get();
 	connect(loadTree, &QAction::triggered, this, [&]() {
@@ -41,23 +56,90 @@ void SCDAmap::initAction()
 		QString qsTemp = qVar.toString();
 		string sData = qsTemp.toStdString();
 		vector<string> vsPrompt;
-		jstr.splitByMarker(vsPrompt, sData);
+		jparse.splitByMarker(vsPrompt, sData);
 		emit sendLoadGeoTree(vsPrompt[0], vsPrompt[1]);
 		});
+}
+void SCDAmap::initItemColour(string& xml)
+{
+	int indexBG = -1, indexFG = -1;
+	vector<string> vsTag = { "colour", "solid", "item_default" };
+	vector<vector<string>> vvsTag = jparse.getXML(xml, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
+	}
+	itemColourDefault = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
+
+	vsTag = { "colour", "solid", "item_fail" };
+	vvsTag = jparse.getXML(xml, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
+	}
+	itemColourFail = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
+
+	vsTag = { "colour", "solid", "item_selected" };
+	vvsTag = jparse.getXML(xml, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
+	}
+	itemColourSelected = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
+
+	vsTag = { "colour", "solid", "item_warning" };
+	vvsTag = jparse.getXML(xml, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
+	}
+	itemColourWarning = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 }
 void SCDAmap::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree)
 {
 	QMenu menu(this);
 	QJTREEMODEL* qjtm = modelCataMap.get();
 	vector<string> vsGenealogy = qjtm->getGenealogy(qmIndex);
-	if (vsGenealogy.size() < 2) { return; }
+	int numGenealogy = (int)vsGenealogy.size();
+	if (numGenealogy < 2) { return; }
 	string sData = "";
 	for (int ii = 0; ii < vsGenealogy.size(); ii++) {
 		sData += "$" + vsGenealogy[ii];
 	}
+	
 	auto loadTree = qaLoadTree.get();
 	loadTree->setData(sData.c_str());
 	menu.addAction(loadTree);
+
+	QJTREEITEM* qjtiNode = qjtm->getNode(qmIndex);	
+	if (numGenealogy > 2) {
+		// A Geo region node was right-clicked.
+		QVariant qVar = qjtiNode->dataUserRole(Qt::UserRole + 0);  // Background
+		QString qsTemp = qVar.toString();
+		string sBG = qsTemp.toStdString();
+		if (sBG == get<0>(itemColourFail) || sBG == get<0>(itemColourWarning)) {
+			qVar = qjtiNode->data(1);  // GEO_CODE
+			qsTemp = qVar.toString();
+			if (qsTemp.size() == 0) { err("Geo tree node is missing its GEO_CODE-nodeRightClicked"); }
+			sData += "$" + qsTemp.toStdString();
+
+			qVar = qjtiNode->data(2);  // GeoLayer
+			qsTemp = qVar.toString();
+			if (qsTemp.size() == 0) { err("Geo tree node is missing its GeoLayer-nodeRightClicked"); }
+			sData += "$" + qsTemp.toStdString();
+
+			auto downloadMap = qaDownloadMap.get();
+			downloadMap->setData(sData.c_str());
+			menu.addAction(downloadMap);
+		}
+		/*
+		else if (sBG == get<0>(itemColourWarning)) {
+			auto insertMap = qaInsertMap.get();
+			insertMap->setData(sData.c_str());
+			menu.addAction(insertMap);
+		}
+		*/
+	}
 
 	menu.exec(globalPos);
 }

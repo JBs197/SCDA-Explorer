@@ -387,12 +387,12 @@ void SCdatabase::init(string& xml)
 {
 	if (xml.size() < 1) { err("Missing configXML-init"); }
 	configXML = xml;
+	initItemColour(xml);
 
 	mapGeoLayers.clear();
 	char marker;
 	size_t pos2, pos1 = 1;
-	vector<string> vsTag = { "map", "geo_layers" };
-	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, { "map", "geo_layers" });
 	for (int ii = 0; ii < vvsTag.size(); ii++) {
 		marker = vvsTag[ii][1][0];
 		pos2 = vvsTag[ii][1].find(marker, pos1);
@@ -400,9 +400,43 @@ void SCdatabase::init(string& xml)
 		mapGeoLayers.emplace(vvsTag[ii][1].substr(pos1, pos2 - pos1), vvsTag[ii][1].substr(pos2 + 1));
 	}
 
-	vsTag = { "path", "database" };
-	string dbPath = jparse.getXML1(configXML, vsTag);
+	string dbPath = jparse.getXML1(configXML, { "path", "database" });
 	sf.init(dbPath);
+}
+void SCdatabase::initItemColour(string& xml)
+{
+	int indexBG = -1, indexFG = -1;
+	vector<string> vsTag = { "colour", "solid", "item_default" };
+	vector<vector<string>> vvsTag = jparse.getXML(xml, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
+	}
+	itemColourDefault = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
+
+	vsTag = { "colour", "solid", "item_fail" };
+	vvsTag = jparse.getXML(xml, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
+	}
+	itemColourFail = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
+
+	vsTag = { "colour", "solid", "item_selected" };
+	vvsTag = jparse.getXML(xml, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
+	}
+	itemColourSelected = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
+
+	vsTag = { "colour", "solid", "item_warning" };
+	vvsTag = jparse.getXML(xml, vsTag);
+	for (int ii = 0; ii < vvsTag.size(); ii++) {
+		if (vvsTag[ii][0] == "background") { indexBG = ii; }
+		else if (vvsTag[ii][0] == "foreground") { indexFG = ii; }
+	}
+	itemColourWarning = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 }
 void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 {
@@ -865,8 +899,11 @@ void SCdatabase::insertGeo(vector<vector<string>>& vvsGeo, string sYear, string 
 				for (int jj = 1; jj < numRow; jj++) {
 					if (vvsGeo[jj][indexRegion] == sParent) {
 						vvsGeo.insert(vvsGeo.begin() + jj + 1, vvsGeo[ii]);
-						vvsGeo.erase(vvsGeo.begin() + ii);
-						if (ii < jj) { ii--; }
+						if (ii < jj) {
+							vvsGeo.erase(vvsGeo.begin() + ii);
+							ii--;
+						}
+						else { vvsGeo.erase(vvsGeo.begin() + ii + 1); }
 						break;
 					}
 					if (jj == numRow - 1) { err("Failed to locate split region's parent-insertGeo"); }
@@ -1679,36 +1716,87 @@ void SCdatabase::makeTreeGeo(SWITCHBOARD& sbgui, JTREE& jt, int branchID)
 	string tname = "Geo$" + vsPrompt[0] + "$" + vsPrompt[1];
 	loadTable(vvsData, vvsColTitle, tname);
 	int numRegion = (int)vvsData.size();
-	vsPrompt = { to_string(numRegion) };
-	sbgui.setPrompt(vsPrompt);
-	if (numRegion == 0) {		
+	if (numRegion == 0) {	
+		vsPrompt = { to_string(numRegion) };
+		sbgui.setPrompt(vsPrompt);
 		sbgui.endCall(myid);
 		return;
 	}
+	string mapDir = jparse.getXML1(configXML, { "path", "map" });
 
-	int indexCode = -1, indexRegion = -1;
+	int indexCode = -1, indexLevel = -1, indexRegion = -1;
 	for (int ii = 0; ii < vvsColTitle[0].size(); ii++) {
 		if (vvsColTitle[0][ii] == "GEO_CODE") { indexCode = ii; }
-		if (vvsColTitle[0][ii] == "Region Name") { indexRegion = ii; }
+		else if (vvsColTitle[0][ii] == "Region Name") { indexRegion = ii; }
+		else if (vvsColTitle[0][ii] == "GEO_LEVEL") { indexLevel = ii; }
 	}
-	if (indexCode < 0 || indexRegion < 0) { err("Failed to identify geo table column titles-makeTreeGeo"); }
+	if (indexCode < 0 || indexLevel < 0 || indexRegion < 0) { err("Failed to identify geo table column titles-makeTreeGeo"); }
+	
+	// Load the catalogue's GeoLayer information.
+	tname = "GeoLayer$" + vsPrompt[0];
+	vector<string> search = { "*" };
+	vector<string> conditions = { "Catalogue LIKE '" + vsPrompt[1] + "'" };
+	vector<string> vsGeoLayer;
+	int error = sf.select(search, tname, vsGeoLayer, conditions);
+	if (error == 0) { err("Failed to load catalogue GeoLayers-makeTreeGeo"); }
+	unordered_map<string, string> mapGeoLayer;
+	for (int ii = 0; ii < (int)vsGeoLayer.size() - 1; ii++) {
+		mapGeoLayer.emplace(to_string(ii), vsGeoLayer[1 + ii]);
+	}
 
+	// Determine status: 0 = map in db, 1 = map on local, 2 = no assets.
+	string mapPath;
+	vector<int> vStatus;
+	vStatus.assign(numRegion, 0);
+	unordered_map<string, string>::iterator it;
+	for (int ii = 0; ii < numRegion; ii++) {
+		it = mapGeoLayer.find(vvsData[ii][indexLevel]);
+		if (it == mapGeoLayer.end()) { err("Failed to determine region's GeoLayer"); }
+		tname = "Map$" + it->second + "$" + vvsData[ii][indexCode];
+		if (sf.tableExist(tname)) {
+			tname.insert(3, "Frame");
+			if (!sf.tableExist(tname)) { vStatus[ii] = 1; }
+		}
+		else { vStatus[ii] = 1; }
+
+		if (vStatus[ii] == 1) {  // Map is not present inside the database. Check for local file.
+			mapPath = mapDir + "/Level" + it->first + "/" + it->second + "/"; 
+			mapPath += vvsData[ii][indexRegion] + "*.png";
+			if (!jfile.exist(mapPath)) { vStatus[ii] = 2; }
+		}
+	}
+
+	// Make a tree node for every region, and add it to the tree at the correct location.
 	int parentID;
 	unordered_map<string, int> mapGeoCode;
 	for (int ii = 0; ii < numRegion; ii++) {
 		JNODE jn;
 		jn.vsData[0] = vvsData[ii][indexRegion];
 		jn.vsData.emplace_back(vvsData[ii][indexCode]);
+		jn.vsData.emplace_back(mapGeoLayer.at(vvsData[ii][indexLevel]));
 		mapGeoCode.emplace(vvsData[ii][indexCode], jn.ID);
+		
+		switch (vStatus[ii]) {
+		case 0:
+			jn.colour = itemColourDefault;
+			break;
+		case 1:
+			jn.colour = itemColourWarning;
+			break;
+		case 2:
+			jn.colour = itemColourFail;
+			break;
+		}
+		
 		if (vvsData[ii].size() <= 3) { jt.addChild(branchID, jn); }
 		else {
 			parentID = mapGeoCode.at(vvsData[ii].back());
 			jt.addChild(parentID, jn);
 		}
-
-		// Determine status (map in db, map local, none).
 	}
 
+	vsPrompt = { to_string(numRegion) };
+	sbgui.setPrompt(vsPrompt);
 	sbgui.endCall(myid);
 }
 void SCdatabase::prepareLocal(vector<string>& vsLocalPath, string cataDir, string sCata)

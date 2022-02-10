@@ -22,9 +22,56 @@ void SCDA::busyWheel(SWITCHBOARD& sb)
 }
 void SCDA::debug()
 {
+	size_t pos1;
+	string mapFolder, mapName, mapNameCore, mapSearch, skipped;
+	string tname = "Geo$2013$99-010-X2011026";
+	vector<string> search = { "*" }, vsFilePath;
+	vector<vector<string>> vvsGeo;
+	int numRegion = scdb.sf.select(search, tname, vvsGeo);
+	string mapDir = "E:/maps";
+	for (int ii = 0; ii < numRegion; ii++) {
+		mapSearch = mapDir + "/Level" + vvsGeo[ii][2];
+		if (vvsGeo[ii][2] == "0") { mapSearch += "/canada/"; }
+		else if (vvsGeo[ii][2] == "1") { mapSearch += "/province/"; }
+		else if (vvsGeo[ii][2] == "2") { mapSearch += "/cmaca/"; }
+		mapSearch += vvsGeo[ii][1] + "*.png";
+		vsFilePath.clear();
+		jfile.search(vsFilePath, mapSearch);
+		if (vsFilePath.size() < 1) {
+			skipped += vvsGeo[ii][1] + "\n";
+			continue;
+		}
+		vsFilePath.emplace_back(vsFilePath[0]);
+		pos1 = vsFilePath[0].find_last_of("/\\");
+		mapName = vsFilePath[0].substr(pos1 + 1);
+		pos1 = mapName.find('[');
+		mapNameCore = mapName.substr(0, pos1 - 1);
 
+		if (vvsGeo[ii].size() < 4) {
+			vsFilePath[1] = mapDir + "/" + mapName;
+			mapFolder = mapDir + "/" + mapNameCore;
+		}
+		else {
+			mapFolder = mapDir;
+			for (int jj = 3; jj < vvsGeo[ii].size(); jj++) {
+				for (int kk = 0; kk < numRegion; kk++) {
+					if (vvsGeo[kk][0] == vvsGeo[ii][jj]) {
+						mapFolder += "/" + vvsGeo[kk][1];
+						break;
+					}
+					else if (kk == numRegion - 1) { err("Failed to find ancestor's row"); }
+				}
+			}
 
-	emit setTextIO("Done!");
+			vsFilePath[1] = mapFolder + "/" + mapName;
+			mapFolder += "/" + mapNameCore;
+		}
+		wf.makeDir(mapFolder);
+		jfile.rename(vsFilePath[0], vsFilePath[1]);
+	}
+	emit appendTextIO(skipped);
+
+	emit appendTextIO("Done!");
 }
 void SCDA::deleteTable(string tname)
 {
@@ -306,6 +353,7 @@ void SCDA::initGUI()
 	tab->addTab(compare, "Compare");
 	connect(compare, &SCDAcompare::sendDownloadMap, this, &SCDA::testMap);
 	SCDAmap* map = new SCDAmap;
+	map->initItemColour(configXML);
 	tab->addTab(map, "Map");
 	connect(map, &SCDAmap::sendLoadGeoTree, this, &SCDA::loadGeoTree);
 
@@ -321,6 +369,7 @@ void SCDA::initGUI()
 
 	updateCataDB();
 	initControl(control);
+	connect(map, &SCDAmap::appendTextIO, control, &SCDAcontrol::textAppend);
 }
 void SCDA::insertCata(string prompt)
 {
