@@ -42,6 +42,7 @@ void SCdatabase::createData(string sYear, string sCata, const vector<vector<stri
 		vsStmt[ii].replace(pos1, pos2 - pos1, vvsGeo[1 + ii][0]);
 	}
 	sf.insertPrepared(vsStmt);
+	sf.tableExistUpdate();
 }
 void SCdatabase::dataParser(atomic_int& fileDepleted, string sYear, string sCata, JBUFFER<string, NUM_BUF_SLOT>& jbufRaw, JBUFFER<vector<string>, NUM_BUF_SLOT>& jbufSQL)
 {
@@ -307,11 +308,23 @@ void SCdatabase::dataReader(atomic_int& fileDepleted, string cataDir, string sYe
 	if (eof) { err("fclose-dataReader"); }
 	fileDepleted = 1;
 }
-void SCdatabase::deleteTable(string tname)
+void SCdatabase::deleteTable(SWITCHBOARD& sbgui)
 {
-	if (sf.tableExist(tname)) { 
-		sf.dropTable(tname); 
+	thread::id myid = this_thread::get_id();
+	vector<int> mycomm;
+	sbgui.answerCall(myid, mycomm);
+
+	string tname;
+	int numWork = sbgui.pullWork(tname);
+	mycomm[2] = numWork;
+	sbgui.update(myid, mycomm);
+	while (numWork > 0) {
+		if (sf.tableExist(tname)) { sf.dropTable(tname); }
+		mycomm[1]++;
+		sbgui.update(myid, mycomm);
+		numWork = sbgui.pullWork(tname);
 	}
+	sbgui.endCall(myid);
 }
 void SCdatabase::deleteTableRow(string tname, vector<string>& vsCell)
 {
@@ -354,16 +367,20 @@ bool SCdatabase::hasGeoGap(vector<string>& vsGeoLayer, vector<vector<string>>& v
 		}
 		else { break; }
 	}
+	int numLayer = (int)vsGeoLayer.size();
+
+	int baseline = -1, baselineSC, geoLevel, indexLevel = -1, indexRegion = -1;
+	for (int ii = 0; ii < vvsGeo[0].size(); ii++) {
+		if (vvsGeo[0][ii] == "Region Name") { indexRegion = ii; }
+		else if (vvsGeo[0][ii] == "GEO_LEVEL") { indexLevel = ii; }
+	}
+	if (indexLevel < 0 || indexRegion < 0) { err("Failed to determine column title indexes-hasGeoGap"); }
 
 	// Correct the GEO_LEVEL values read from file, for the inclusion of gap layers.
-	int baseline = -1, baselineSC, indexLevel = -1;
-	for (int ii = 0; ii < vvsGeo[0].size(); ii++) {
-		if (vvsGeo[0][ii] == "GEO_LEVEL") { indexLevel = ii; }
-	}
-	if (indexLevel < 0) { err("Failed to determine indexLevel-hasGeoGap"); }
+	int numGeo = (int)vvsGeo.size();
 	try { baselineSC = stoi(vvsGeo[1][indexLevel]); }
 	catch (invalid_argument) { err("GEO_LEVEL baseline stoi-hasGeoGap"); }
-	for (int ii = 0; ii < vsGeoLayer.size(); ii++) {
+	for (int ii = 0; ii < numLayer; ii++) {
 		if (vsGeoLayer[ii][0] != '!') {
 			baseline = ii;
 			break;
@@ -372,12 +389,31 @@ bool SCdatabase::hasGeoGap(vector<string>& vsGeoLayer, vector<vector<string>>& v
 	int delta = baseline - baselineSC;
 	if (delta != 0) {
 		unordered_map<string, string> mapLevel;
-		for (int ii = 0; ii < vsGeoLayer.size(); ii++) {
+		for (int ii = 0; ii < numLayer; ii++) {
 			mapLevel.emplace(to_string(ii), to_string(ii + delta));
 		}
-		int numGeo = (int)vvsGeo.size();
 		for (int ii = 1; ii < numGeo; ii++) {
 			vvsGeo[ii][indexLevel] = mapLevel.at(vvsGeo[ii][indexLevel]);
+		}
+	}
+
+	// Determine if the geo file is missing GeoLayers (while claiming their presence).
+	vector<int> viMatch;
+	viMatch.assign(numLayer, 0);
+	set<string> setLevel;
+	for (int ii = 1; ii < numGeo; ii++) {
+		if (viMatch[0] == 0 && vvsGeo[ii][indexRegion] == "Canada") { viMatch[0] = 1; }
+		setLevel.emplace(vvsGeo[ii][indexLevel]);
+	}
+	for (auto it = setLevel.begin(); it != setLevel.end(); ++it) {
+		try { geoLevel = stoi(*it); }
+		catch (invalid_argument) { err("geoLevel stoi-hasGeoGap"); }
+		viMatch[geoLevel] = 1;
+	}
+	for (int ii = 0; ii < numLayer; ii++) {
+		if (viMatch[ii] == 0) {
+			hasGap = 1;
+			if (vsGeoLayer[ii][0] != '!') { vsGeoLayer[ii].insert(0, 1, '!'); }
 		}
 	}
 
@@ -456,8 +492,9 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 	int iYear, numFile;
 	string cataDir, filePath, sCata, sMetaFile, sTopic, zipPath;
 	vector<string> vsGeoLayer, vsLocalPath;
-	mycomm[4] = sbgui.pullWork(cataDir);  // Number of catalogues to insert.
+	int numCata = sbgui.pullWork(cataDir);  // Number of catalogues to insert.
 	if (cataDir.size() < 1) { return; } 
+	if (mycomm.size() > 4) { mycomm[4] = numCata; }
 	sbgui.update(myid, mycomm);
 	size_t pos2 = cataDir.find_last_of("/\\");
 	if (pos2 > cataDir.size()) { err("Invalid sYear-insertCata"); }
@@ -507,7 +544,7 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 		sCata = cataDir.substr(pos2 + 1);
 
 		// The catalogue's local archive is unzipped. 
-		prepareLocal(vsLocalPath, cataDir, sCata);
+		prepareLocal(sbgui, vsLocalPath, cataDir, sCata);
 
 		// Build and insert catalogue topic-related tables.
 		loadTopic(sTopic, cataDir);
@@ -544,11 +581,12 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 		jfile.remove(vsLocalPath);
 		
 		// Proceed to the next catalogue to be inserted.
-		mycomm[3]++;
-		sbgui.update(myid, mycomm);
+		if (numCata > 1) {
+			mycomm[3]++;
+			sbgui.update(myid, mycomm);
+		}
 		sbgui.pullWork(cataDir);
 	}
-
 	sbgui.endCall(myid);
 }
 void SCdatabase::insertCensus(string sYear)
@@ -1471,7 +1509,7 @@ void SCdatabase::insertTopicYear(string sYear, string sTopic)
 		sf.createTable(tname, vvsColTitle, vsUnique);
 	}
 
-	int index = sf.getNumRows(tname);
+	int index = sf.getNumRow(tname);
 	vvsColTitle[1][0] = to_string(index);
 	vvsColTitle[1][1] = sTopic;
 	if (safeInsertRow(tname, vvsColTitle)) {
@@ -1651,11 +1689,14 @@ uintmax_t SCdatabase::makeDataIndex(const vector<int>& vMID, const vector<int>& 
 	// Note: the integer values in vSize represent the rollover trigger for each index. 
 	int numValue = (int)vMID.size();
 	if (numValue != vSize.size()) { err("Asymmetric input size-makeDataIndex"); }
-	uintmax_t dataIndex{ 0 };
-	for (int ii = 0; ii < numValue - 1; ii++) {
-		dataIndex += vMID[ii] * vSize[ii + 1];
+	uintmax_t base, dataIndex{ 0 };
+	for (int ii = numValue - 1; ii >= 0; ii--) {
+		base = 1;
+		for (int jj = ii + 1; jj < numValue; jj++) {
+			base *= vSize[jj];
+		}
+		dataIndex += (vMID[ii] * base);
 	}
-	dataIndex += vMID.back();
 	return dataIndex;
 }
 void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
@@ -1670,11 +1711,11 @@ void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 	jt.reset();
 	JNODE jnRoot = jt.getRoot();
 	int rootID = jnRoot.ID;
-	vector<string> search = { "Year" }, yearList, cataList;
+	vector<string> search = { "Year" }, yearList, cataList, vsResult;
 	string tname = "Census";
 	string orderby = "Year ASC";
 	sf.selectOrderBy(search, tname, yearList, orderby);
-	int numCata, numYear = (int)yearList.size();
+	int numCata, numRegion, numRow, numYear = (int)yearList.size();
 	for (int ii = 0; ii < numYear; ii++) {
 		JNODE jnYear;
 		jnYear.vsData[0] = yearList[ii];
@@ -1687,16 +1728,28 @@ void SCdatabase::makeTreeCata(SWITCHBOARD& sbgui, JTREE& jt)
 		viYearID[ii] = vJNYear[ii].get().ID;
 	}
 
-	search = { "Catalogue" };
+	vector<string> searchCata = { "Catalogue" }, searchGeo = { "GEO_CODE" };
+	string geoCode, tnameData, tnameGeo;
 	for (int ii = 0; ii < numYear; ii++) {
 		cataList.clear();
 		tname = "Census$" + yearList[ii];
 		if (sf.tableExist(tname)) {
-			numCata = sf.select(search, tname, cataList);
+			numCata = sf.select(searchCata, tname, cataList);
 			for (int jj = 0; jj < numCata; jj++) {
-				JNODE jn;
-				jn.vsData[0] = cataList[jj];
-				jt.addChild(viYearID[ii], jn);
+				tnameGeo = "Geo$" + yearList[ii] + "$" + cataList[jj];
+				if (!sf.tableExist(tnameGeo)) { continue; }
+				numRegion = sf.select(searchGeo, tnameGeo, vsResult);
+				if (numRegion == 0) { continue; }
+				for (int kk = 0; kk < numRegion; kk++) {
+					tnameData = "Data$" + yearList[ii] + "$" + cataList[jj] + "$" + vsResult[kk];
+					numRow = sf.getNumRow(tnameData);
+					if (numRow > 0) {
+						JNODE jn;
+						jn.vsData[0] = cataList[jj];
+						jt.addChild(viYearID[ii], jn);
+						break;
+					}
+				}
 			}
 		}
 	}
@@ -1732,6 +1785,20 @@ void SCdatabase::makeTreeGeo(SWITCHBOARD& sbgui, JTREE& jt, int branchID)
 	}
 	if (indexCode < 0 || indexLevel < 0 || indexRegion < 0) { err("Failed to identify geo table column titles-makeTreeGeo"); }
 	
+	auto makeMapPath = [&](string& mapPath, int iRow) {
+		string searchPath = mapDir;
+		for (int ii = 3; ii < vvsData[iRow].size(); ii++) {
+			for (int jj = 0; jj < numRegion; jj++) {
+				if (vvsData[jj][indexCode] == vvsData[iRow][ii]) {
+					searchPath += "/" + vvsData[jj][indexRegion];
+					break;
+				}
+			}
+		}
+		searchPath += "/" + vvsData[iRow][indexRegion] + "*.png";
+		jfile.search(mapPath, searchPath);
+	};
+
 	// Load the catalogue's GeoLayer information.
 	tname = "GeoLayer$" + vsPrompt[0];
 	vector<string> search = { "*" };
@@ -1759,9 +1826,8 @@ void SCdatabase::makeTreeGeo(SWITCHBOARD& sbgui, JTREE& jt, int branchID)
 		}
 		else { vStatus[ii] = 1; }
 
-		if (vStatus[ii] == 1) {  // Map is not present inside the database. Check for local file.
-			mapPath = mapDir + "/Level" + it->first + "/" + it->second + "/"; 
-			mapPath += vvsData[ii][indexRegion] + "*.png";
+		if (vStatus[ii] == 1) {  // Map is not present inside the database. Check for a local file.
+			makeMapPath(mapPath, ii);
 			if (!jfile.exist(mapPath)) { vStatus[ii] = 2; }
 		}
 	}
@@ -1799,14 +1865,23 @@ void SCdatabase::makeTreeGeo(SWITCHBOARD& sbgui, JTREE& jt, int branchID)
 	sbgui.setPrompt(vsPrompt);
 	sbgui.endCall(myid);
 }
-void SCdatabase::prepareLocal(vector<string>& vsLocalPath, string cataDir, string sCata)
+void SCdatabase::prepareLocal(SWITCHBOARD& sbgui, vector<string>& vsLocalPath, string cataDir, string sCata)
 {
 	string zipPath = cataDir + "/" + sCata + ".zip";
 	if (!jfile.exist(zipPath)) { err("Missing catalogue zip file-prepareLocal"); }
 	vsLocalPath.clear();
 
+	thread::id myid = this_thread::get_id();
+	vector<int> mycomm = sbgui.getMyComm(myid);
+	int index;
+	if (mycomm.size() >= 5) { index = 3; }
+	else if (mycomm.size() >= 3) { index = 1; }
+	else { err("Insufficient mycomm length-prepareLocal"); }
+	mycomm[index + 1] = 100;
+
 	// Unzip all files within the archive which not already unzipped.
 	size_t pos1;
+	atomic_int percent{0};
 	string filePath;
 	vector<string> vsFileName;
 	jfile.zipFileList(vsFileName, zipPath);
@@ -1818,7 +1893,14 @@ void SCdatabase::prepareLocal(vector<string>& vsLocalPath, string cataDir, strin
 		pos1 = filePath.rfind('.');
 		filePath.insert(pos1, 1, '*');  // Wildcard inserted in case the file has been split (renamed).
 		if (!jfile.exist(filePath)) {
-			jfile.unzipFile(vsFileName[ii], zipPath, cataDir);
+			std::jthread thr(&JFILE::unzipFile, jfile, ref(percent), ref(vsFileName[ii]), ref(zipPath), cataDir);			
+			while (percent < 100) {
+				this_thread::sleep_for(30ms);
+				mycomm[index] = percent;
+				sbgui.update(myid, mycomm);
+			}
+			mycomm[index] = percent;
+			sbgui.update(myid, mycomm);
 		}
 	}
 }

@@ -572,8 +572,9 @@ int SQLFUNC::getNumCol(string tname)
     executor(stmt, vvsResult);
     return (int)vvsResult.size();
 }
-int SQLFUNC::getNumRows(string tname)
+int SQLFUNC::getNumRow(string tname)
 {
+    if (!tableExist(tname)) { return -1; }
     string stmt = "SELECT COUNT(*) FROM [";
     stmt += tname + "];";
     string result;
@@ -1593,6 +1594,11 @@ bool SQLFUNC::tableExist(string tname)
 {
     // Returns TRUE or FALSE as to the existance of a given table within the database.
     return (bool)setTable.count(tname);
+}
+void SQLFUNC::tableExistUpdate()
+{
+    // Trigger an update to setTable (useful after tables were created within a transaction).
+    allTables(setTable);
 }
 void SQLFUNC::update(string tname, vector<string> revisions, vector<string> conditions)
 {

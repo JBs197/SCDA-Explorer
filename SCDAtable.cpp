@@ -57,7 +57,6 @@ void SCDAtable::displayTable(vector<vector<string>>& vvsData, vector<vector<stri
 	QHeaderView* headerH = qjTable->horizontalHeader();
 	if (vvsColTitle[0].size() < 1) { headerH->setVisible(0); }
 	else if (vvsColTitle[0].size() != numCol) { err("Column titles do not match columns-displayTable"); }
-	if (numRow < 1 || numCol < 1) { return; }
 
 	qjTable->setColTitles(vvsColTitle);
 	qjTable->setTableData(vvsData);
@@ -107,6 +106,7 @@ void SCDAtable::init()
 	QJTREEVIEW* treeSearch = new QJTREEVIEW;
 	treeSearch->indexTree = index::Search;
 	gLayout->addWidget(treeSearch, 1, index::Search);
+	treeSearch->setSelectionMode(QAbstractItemView::ContiguousSelection);
 	connect(treeSearch, &QJTREEVIEW::nodeDoubleClicked, this, &SCDAtable::nodeDoubleClicked);
 	connect(treeSearch, &QJTREEVIEW::nodeRightClicked, this, &SCDAtable::nodeRightClicked);
 
@@ -174,16 +174,32 @@ void SCDAtable::nodeDoubleClicked(const QModelIndex& qmiNode, int indexTree)
 }
 void SCDAtable::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex)
 {
-	QMenu menu(this);
+	QGridLayout* gLayout = (QGridLayout*)this->layout();
+	QLayoutItem* qlItem = gLayout->itemAtPosition(1, index::Search);
+	QJTREEVIEW* qjTree = (QJTREEVIEW*)qlItem->widget();
+	QList<QModelIndex> qlIndex = qjTree->selectedIndexes();
+	int numIndex = qlIndex.size();
 	QJTREEMODEL* qjtm = modelSearch.get();
-	vector<string> vsGenealogy = qjtm->getGenealogy(qmIndex);
-	int numNode = (int)vsGenealogy.size();
-	string tname = "";
-	for (int ii = 0; ii < numNode; ii++) {
-		if (ii > 0) { tname += "$"; }
-		tname += vsGenealogy[ii];
+
+	if (numIndex > 1) { sendBusyScreen(1); }
+	
+	int numNode;
+	string tname;
+	vector<string> vsGenealogy;
+	for (int ii = 0; ii < numIndex; ii++) {
+		tname += "@";
+		vsGenealogy = qjtm->getGenealogy(qlIndex[ii]);
+		numNode = (int)vsGenealogy.size();
+		for (int jj = 0; jj < numNode; jj++) {
+			if (jj > 0) { tname += "$"; }
+			tname += vsGenealogy[jj];
+		}
 	}
 	qaDeleteTable->setData(tname.c_str());
+
+	if (numIndex > 1) { sendBusyScreen(0); }
+
+	QMenu menu(this);
 	menu.addAction(qaDeleteTable);
 	menu.exec(globalPos);
 }

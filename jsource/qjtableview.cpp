@@ -514,14 +514,6 @@ void QJTABLEVIEW::setTableData(vector<vector<string>>& vvsData)
     for (int ii = 0; ii < numRow; ii++) {
         for (int jj = 0; jj < vvsData[ii].size(); jj++) {
             qsItem = new QStandardItem(vvsData[ii][jj].c_str());
-            qVar = get<0>(itemColourDefault).c_str();
-            qsItem->setData(qVar, Qt::UserRole + 0);
-            qVar = get<1>(itemColourDefault).c_str();
-            qsItem->setData(qVar, Qt::UserRole + 1);
-            qVar = get<0>(itemColourSelected).c_str();
-            qsItem->setData(qVar, Qt::UserRole + 6);
-            qVar = get<1>(itemColourSelected).c_str();
-            qsItem->setData(qVar, Qt::UserRole + 7);
             model->setItem(ii, jj, qsItem);
         }
         if (vvsData[ii].size() > numCol) { numCol = vvsData[ii].size(); }

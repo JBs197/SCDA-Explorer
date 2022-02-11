@@ -34,7 +34,7 @@ private:
 
 	enum indexH { Control, Display };
 	enum indexTab { Catalogue, Table, Structure, Compare, Map };
-	enum indexV { Tab, PBar };
+	enum indexV { Tab, PBar1, PBar0 };
 
 	void busyWheel(SWITCHBOARD& sb);
 	void err(std::string message);
@@ -55,12 +55,15 @@ public:
 
 signals:
 	void appendTextIO(std::string message);
-	void barMessage(std::string message);
-	void initProgress(std::vector<double> vdProgress, std::vector<std::string> vsProgress, bool soundOn = 0);
+	void barMessage(std::string message, int pbarIndex = 0);
+	void initProgress(std::vector<double> vdProgress, std::vector<std::string> vsProgress, bool soundOn = 0, int pbarIndex = 0);
+	void pbarHide(int pbarIndex);
+	void pbarShow(int pbarIndex);
 	void sendConfigXML(std::string configXML);
 	void setTextIO(std::string message);
 
 public slots:
+	void busyScreen(bool onOff);
 	void debug();
 	void deleteTable(std::string tname);
 	void deleteTableRow(std::string tnameRow);

@@ -8,22 +8,22 @@ class QJDELEGATE : public QStyledItemDelegate
 {
 	Q_OBJECT
 
+private:
+	const QColor bgDefault, bgSelected, fgDefault, fgSelected;
+
 public:
+	QJDELEGATE(int parentType, QList<QColor>& qlColour, QObject* parent = nullptr);
+	QJDELEGATE(int parentType, QObject* parent = nullptr);
+	~QJDELEGATE() = default;
+
 	int type;
 	const int dataRoleBG, dataRoleFG, dataRoleWidget, dataRoleGradient;
 	const int dataRoleXYOffset, dataRoleSelected, dataRoleBGSel, dataRoleFGSel;
 
-	QJDELEGATE(int parentType, QObject* parent = nullptr)
-		: QStyledItemDelegate(parent), type(parentType), 
-	dataRoleBG(Qt::UserRole), dataRoleFG(Qt::UserRole + 1), 
-		dataRoleWidget(Qt::UserRole + 2), dataRoleGradient(Qt::UserRole + 3),
-		dataRoleXYOffset(Qt::UserRole + 4), dataRoleSelected(Qt::UserRole + 5),
-		dataRoleBGSel(Qt::UserRole + 6), dataRoleFGSel(Qt::UserRole + 7) {}
-
 	void enableDisable(const QModelIndex& index) const;
 	void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 	void paintBGGradient(QPainter*& painter, QRect cell, QString qsBG, QString qsCoord) const;
-	void paintBGSolid(QPainter*& painter, QRect cell, QString qsBG) const;
+	void paintBGSolid(QPainter*& painter, QRect cell, const QColor& qcBG) const;
 };
 
 // QJ User Roles:

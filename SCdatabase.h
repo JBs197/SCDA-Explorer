@@ -36,7 +36,7 @@ class SCdatabase
 	void loadTopic(std::string& sTopic, std::string cataDir);
 	void log(std::string message);
 	std::uintmax_t makeDataIndex(const std::vector<int>& vMID, const std::vector<int>& vSize);
-	void prepareLocal(std::vector<std::string>& vsLocalPath, std::string cataDir, std::string sCata);
+	void prepareLocal(SWITCHBOARD& sbgui, std::vector<std::string>& vsLocalPath, std::string cataDir, std::string sCata);
 	void xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag);
 
 public:
@@ -50,7 +50,7 @@ public:
 	std::pair<std::string, std::string> itemColourDefault, itemColourFail, itemColourSelected, itemColourWarning;
 	SQLFUNC sf;
 
-	void deleteTable(std::string tname);
+	void deleteTable(SWITCHBOARD& sbgui);
 	void deleteTableRow(std::string tname, std::vector<std::string>& vsCell);
 	void init(std::string& xml);
 	void insertCata(SWITCHBOARD& sbgui, int numThread);

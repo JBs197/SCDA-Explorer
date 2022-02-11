@@ -47,7 +47,7 @@ public:
     std::vector<std::vector<std::string>> getColTitle(std::string tname);
     void getColTitle(std::map<std::string, std::string>& mapColTitle, std::string tname);
     int getNumCol(std::string tname);
-    int getNumRows(std::string tname);
+    int getNumRow(std::string tname);
     std::vector<std::string> getTableListFromRoot(std::string root);
     std::vector<std::string> getTableList(std::string search);
     void init(std::string db_path);
@@ -79,6 +79,7 @@ public:
     std::string sqlErrMsg();
     void stmtInsertRow(std::vector<std::string>& vsStmt, std::string tname, std::vector<std::vector<std::string>>& vvsRow);
     bool tableExist(std::string tname);
+    void tableExistUpdate();
     void update(std::string tname, std::vector<std::string> revisions, std::vector<std::string> conditions);
 };
 

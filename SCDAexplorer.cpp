@@ -13,6 +13,12 @@ SCDA::SCDA(string execFolder, QWidget* parent)
 	this->setWindowState(Qt::WindowMaximized);
 }
 
+void SCDA::busyScreen(bool onOff)
+{
+	QJBUSY* dialogBusy = this->findChild<QJBUSY*>("Busy", Qt::FindDirectChildrenOnly);
+	if (onOff) { dialogBusy->show(); }
+	else { dialogBusy->hide(); }
+}
 void SCDA::busyWheel(SWITCHBOARD& sb)
 {
 	QJBUSY* dialogBusy = this->findChild<QJBUSY*>("Busy", Qt::FindDirectChildrenOnly);
@@ -75,15 +81,25 @@ void SCDA::debug()
 }
 void SCDA::deleteTable(string tname)
 {
-	scdb.deleteTable(tname);
+	thread::id myid = this_thread::get_id();
+	sb.startCall(myid, 3);
 	
+	// Determine if tname is singular, or a list of table names.
+	vector<string> vsTname;
+	if (tname[0] == '@' || tname[0] == '|') { 
+		jparse.splitByMarker(vsTname, tname); 
+		sb.pushWork(vsTname);
+	}
+	else { sb.pushWork(tname); }
+	std::jthread thr(&SCdatabase::deleteTable, scdb, ref(sb));
+	busyWheel(sb);
+	sb.endCall(myid);	
+
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
 	QLayoutItem* qlItem = hLayout->itemAt(indexH::Control);
 	SCDAcontrol* control = (SCDAcontrol*)qlItem->widget();
-	if (control->sLastQuery.size() > 0) {
-		searchDBTable(control->sLastQuery);
-	}
+	if (control->sLastQuery.size() > 0) { searchDBTable(control->sLastQuery); }
 }
 void SCDA::deleteTableRow(string tnameRow)
 {
@@ -203,7 +219,7 @@ void SCDA::fetchDBTable(string tname)
 {
 	vector<vector<string>> vvsData, vvsColTitle;
 	scdb.loadTable(vvsData, vvsColTitle, tname);
-	if (vvsData.size() > 0) {
+	if (vvsData.size() > 0 || vvsColTitle.size() > 0) {
 		QWidget* central = this->centralWidget();
 		QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
 		QLayoutItem* qlItem = hLayout->itemAt(indexH::Display);
@@ -344,6 +360,7 @@ void SCDA::initGUI()
 	tab->addTab(cata, "Catalogues");
 	SCDAtable* table = new SCDAtable;
 	connect(table, &SCDAtable::fetchTable, this, &SCDA::fetchDBTable);
+	connect(table, &SCDAtable::sendBusyScreen, this, &SCDA::busyScreen);
 	connect(table, &SCDAtable::sendDeleteRow, this, &SCDA::deleteTableRow);
 	connect(table, &SCDAtable::sendDeleteTable, this, &SCDA::deleteTable);
 	tab->addTab(table, "Tables");
@@ -357,15 +374,25 @@ void SCDA::initGUI()
 	tab->addTab(map, "Map");
 	connect(map, &SCDAmap::sendLoadGeoTree, this, &SCDA::loadGeoTree);
 
-	QJPROGRESSBAR* qjPBar = new QJPROGRESSBAR;
-	connect(this, &SCDA::barMessage, qjPBar, &QJPROGRESSBAR::barMessage);
-	connect(this, &SCDA::initProgress, qjPBar, &QJPROGRESSBAR::initProgress);
-	vLayout->insertWidget(indexV::PBar, qjPBar, 0);
+	QJPROGRESSBAR* qjPBar1 = new QJPROGRESSBAR(1);
+	vLayout->insertWidget(indexV::PBar1, qjPBar1, 0);
+	connect(this, &SCDA::barMessage, qjPBar1, &QJPROGRESSBAR::barMessage);
+	connect(this, &SCDA::initProgress, qjPBar1, &QJPROGRESSBAR::initProgress);
+	connect(this, &SCDA::pbarHide, qjPBar1, &QJPROGRESSBAR::hide);
+	connect(this, &SCDA::pbarShow, qjPBar1, &QJPROGRESSBAR::show);
+
+	QJPROGRESSBAR* qjPBar0 = new QJPROGRESSBAR(0);
+	vLayout->insertWidget(indexV::PBar0, qjPBar0, 0);
+	connect(this, &SCDA::barMessage, qjPBar0, &QJPROGRESSBAR::barMessage);
+	connect(this, &SCDA::initProgress, qjPBar0, &QJPROGRESSBAR::initProgress);
+	connect(this, &SCDA::pbarHide, qjPBar0, &QJPROGRESSBAR::hide);
+	connect(this, &SCDA::pbarShow, qjPBar0, &QJPROGRESSBAR::show);
 
 	QJBUSY* dialogBusy = new QJBUSY(this, Qt::FramelessWindowHint | Qt::CustomizeWindowHint);
 	initBusy(dialogBusy);
-	connect(dialogBusy, &QJBUSY::reportProgress, qjPBar, &QJPROGRESSBAR::report);
-	connect(dialogBusy, &QJBUSY::sendText, control, &SCDAcontrol::textOutput);
+	connect(dialogBusy, &QJBUSY::reportProgress, qjPBar0, &QJPROGRESSBAR::report);
+	connect(dialogBusy, &QJBUSY::reportProgress, qjPBar1, &QJPROGRESSBAR::report);
+	connect(dialogBusy, &QJBUSY::setTextIO, control, &SCDAcontrol::textOutput);
 
 	updateCataDB();
 	initControl(control);
@@ -380,7 +407,7 @@ void SCDA::insertCata(string prompt)
 	if (numCata < 0) { err("Invalid prompt-insertCata"); }
 
 	// Determine the local root directory for this census year. 
-	int iYear;
+	int commLength, iYear;
 	try { iYear = stoi(vsPrompt[0]); }
 	catch (invalid_argument) { err("iYear stoi-insertCata"); }
 	if (iYear < 1981 || iYear > 2017) { err("Invalid year-insertCata"); }
@@ -407,11 +434,13 @@ void SCDA::insertCata(string prompt)
 	vector<string> vsProgress(numCata + 1);
 	vector<double> vdProgress;
 	if (numCata == 1) {
+		commLength = 3;
 		vsProgress[0] = "Inserting catalogue " + vsPrompt[1] + " ...";
 		vsProgress[1] = "Finished inserting catalogue " + vsPrompt[1];
 		vdProgress = { 0.0, 1.0 };
 	}
 	else {
+		commLength = 5;
 		sEnd = " of " + to_string(numCata) + ") ...";
 		vdProgress.resize(numCata + 1);
 		for (int ii = 0; ii < numCata; ii++) {
@@ -420,8 +449,10 @@ void SCDA::insertCata(string prompt)
 		}
 		vsProgress.back() = "Finished inserting " + to_string(numCata) + " catalogues.";
 		vdProgress.back() = 1.0;
+		emit initProgress({ 0.0 }, { "Inserting Data Tables..." }, 0, 1);
+		emit pbarShow(1);
 	}
-	emit initProgress(vdProgress, vsProgress, 1);
+	emit initProgress(vdProgress, vsProgress, 0);
 
 	// Take care of necessary data insertion which is not bound to any specific catalogue.
 	scdb.insertCensus(vsPrompt[0]);
@@ -430,12 +461,13 @@ void SCDA::insertCata(string prompt)
 	// Launch a catalogue manager/writer thread. It will pull the top catalogue from the work 
 	// queue until all catalogues have been inserted.
 	thread::id myid = this_thread::get_id();
-	sb.startCall(myid, 5);  // Comm form [status, geo progress, geo max, cata progress, cata max]
+	sb.startCall(myid, commLength);  // Comm form [status, geo progress, geo max, cata progress, cata max]
 	sb.pushWork(vsCataFolder);
 	std::thread thr(&SCdatabase::insertCata, scdb, ref(sb), numCore);
 	thr.detach();
 	busyWheel(sb);
 	sb.endCall(myid);
+	emit pbarHide(1);
 }
 void SCDA::loadGeoTree(string sYear, string sCata)
 {
@@ -487,10 +519,14 @@ void SCDA::postRender()
 	QHBoxLayout* mainLayout = (QHBoxLayout*)central->layout();
 	QLayoutItem* qlItem = mainLayout->itemAt(indexH::Display);
 	QVBoxLayout* displayLayout = (QVBoxLayout*)qlItem->layout();
-	qlItem = displayLayout->itemAt(indexV::PBar);
-	QJPROGRESSBAR* qjPBar = (QJPROGRESSBAR*)qlItem->widget();
-	qjPBar->initChildren();
-	qjPBar->initSound(resDir + "/sound");
+	qlItem = displayLayout->itemAt(indexV::PBar0);
+	QJPROGRESSBAR* qjPBar0 = (QJPROGRESSBAR*)qlItem->widget();
+	qjPBar0->initChildren();
+	qjPBar0->initSound(resDir + "/sound");
+	qlItem = displayLayout->itemAt(indexV::PBar1);
+	QJPROGRESSBAR* qjPBar1 = (QJPROGRESSBAR*)qlItem->widget();
+	qjPBar1->initChildren();
+	qjPBar1->initSound(resDir + "/sound");
 
 	qlItem = displayLayout->itemAt(indexV::Tab);
 	QTabWidget* tabW = (QTabWidget*)qlItem->widget();

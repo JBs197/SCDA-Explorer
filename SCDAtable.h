@@ -45,6 +45,7 @@ public:
 
 signals:
 	void fetchTable(std::string tname);
+	void sendBusyScreen(bool onOff);
 	void sendDeleteRow(std::string tnameRow);
 	void sendDeleteTable(std::string tname);
 

@@ -2,6 +2,21 @@
 
 using namespace std;
 
+QJDELEGATE::QJDELEGATE(int parentType, QList<QColor>& qlColour, QObject* parent)
+    : QStyledItemDelegate(parent), type(parentType),
+    dataRoleBG(Qt::UserRole), dataRoleFG(Qt::UserRole + 1),
+    dataRoleWidget(Qt::UserRole + 2), dataRoleGradient(Qt::UserRole + 3),
+    dataRoleXYOffset(Qt::UserRole + 4), dataRoleSelected(Qt::UserRole + 5),
+    dataRoleBGSel(Qt::UserRole + 6), dataRoleFGSel(Qt::UserRole + 7), bgDefault(qlColour[0]), 
+    fgDefault(qlColour[1]), bgSelected(qlColour[2]), fgSelected(qlColour[3]) {}
+QJDELEGATE::QJDELEGATE(int parentType, QObject* parent) 
+    : QStyledItemDelegate(parent), type(parentType),
+dataRoleBG(Qt::UserRole), dataRoleFG(Qt::UserRole + 1),
+dataRoleWidget(Qt::UserRole + 2), dataRoleGradient(Qt::UserRole + 3),
+dataRoleXYOffset(Qt::UserRole + 4), dataRoleSelected(Qt::UserRole + 5),
+dataRoleBGSel(Qt::UserRole + 6), dataRoleFGSel(Qt::UserRole + 7), bgDefault(QColor("#FFFFFF")),
+fgDefault(QColor("#000000")), bgSelected(QColor("#000080")), fgSelected(QColor("#FFFFFF")) {}
+
 void QJDELEGATE::enableDisable(const QModelIndex& index) const
 {
     // Examines the given dataRole for a nonzero number - indicates a widget is present.
@@ -57,25 +72,45 @@ void QJDELEGATE::paint(QPainter* painter, const QStyleOptionViewItem& option, co
         if (success && inum > 0) { selected = 1; }
     }
     
-    QVariant qvBG, qvFG;
-    if (selected) {
-        qvBG = index.data(dataRoleBGSel);
-        qvFG = index.data(dataRoleFGSel);
-    }
-    else {
-        qvBG = index.data(dataRoleBG);
-        qvFG = index.data(dataRoleFG);
-    }
-
-    QString qsBG = qvBG.toString();  // Form #RRGGBB or #AARRGGBB#RRGGBB (background over primer).
     QVariant qvCoord = index.data(dataRoleGradient);
     QString qsCoord = qvCoord.toString();
-    if (qsCoord.size() < 1) { paintBGSolid(painter, cell, qsBG); }
-    else { paintBGGradient(painter, cell, qsBG, qsCoord); }
 
-    QString qsFG = qvFG.toString();  // Form #RRGGBB.
-    QColor qcFG(qsFG);
-    QPen pen(qcFG);
+    QString qsBG, qsFG;
+    QVariant qvBG, qvFG;
+    if (selected) { index.data(dataRoleBGSel); }
+    else { qvBG = index.data(dataRoleBG); }
+
+    if (qsCoord.size() > 0) { 
+        qsBG = qvBG.toString();  // Form #RRGGBB or #AARRGGBB#RRGGBB (background over primer).
+        paintBGGradient(painter, cell, qsBG, qsCoord);
+    }
+    else { 
+        if (qvBG.isValid()) {
+            qsBG = qvBG.toString();  // Form #RRGGBB or #AARRGGBB#RRGGBB (background over primer).
+            QColor qcBG(qsBG);
+            paintBGSolid(painter, cell, qcBG);
+        }
+        else if (selected && bgSelected.isValid()) {
+            paintBGSolid(painter, cell, bgSelected);
+        }
+        else if (!selected && bgDefault.isValid()) {
+            paintBGSolid(painter, cell, bgDefault);
+        }
+    }
+
+    if (selected) { qvFG = index.data(dataRoleFGSel); }
+    else { qvFG = index.data(dataRoleFG); }
+   
+    QPen pen;
+    if (qvFG.isValid()) {
+        qsFG = qvFG.toString();  // Form #RRGGBB.
+        QColor qcFG(qsFG);
+        pen.setColor(qcFG);
+    }
+    else if (selected && fgSelected.isValid()) { pen.setColor(fgSelected); }
+    else if (!selected && fgDefault.isValid()) { pen.setColor(fgDefault); }
+
+    //QPen pen(qcFG);
     QVariant qvText = index.data(Qt::DisplayRole);
     QString qsText = qvText.toString();
     int x = cell.x();
@@ -200,8 +235,9 @@ void QJDELEGATE::paintBGGradient(QPainter*& painter, QRect cell, QString qsBG, Q
         painter->fillRect(cell, qbGrad);
     }
 }
-void QJDELEGATE::paintBGSolid(QPainter*& painter, QRect cell, QString qsBG) const
+void QJDELEGATE::paintBGSolid(QPainter*& painter, QRect cell, const QColor& qcBG) const
 {
+    /*
     int numColour = qsBG.count('#');
     if (numColour == 0) { qsBG = "#FFFFFF"; }
     else if (numColour == 2) {  // Two colours: translucent background over opaque primer.
@@ -213,8 +249,9 @@ void QJDELEGATE::paintBGSolid(QPainter*& painter, QRect cell, QString qsBG) cons
         QBrush qbPrimer = QBrush(qcPrimer, Qt::SolidPattern);
         painter->fillRect(cell, qbPrimer);
     }
-
     QColor qcBG(qsBG);
+    */
+
     QBrush qbBG = QBrush(qcBG, Qt::SolidPattern);
     painter->fillRect(cell, qbBG);
 }
