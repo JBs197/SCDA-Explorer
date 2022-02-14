@@ -12,7 +12,7 @@ void SCDAtable::cellRightClicked(const QPoint& globalPos, const QModelIndex& qmI
 	qsData.replace(0, pos1 + 1, '@');
 	pos1 = qsData.lastIndexOf(')');
 	qsData.replace(pos1, 999, '@');
-	
+
 	int iRow = qmIndex.row();
 	int numCol = modelOnDemand->columnCount();
 	QStandardItem* qsItem = nullptr;
@@ -182,7 +182,7 @@ void SCDAtable::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmI
 	QJTREEMODEL* qjtm = modelSearch.get();
 
 	if (numIndex > 1) { sendBusyScreen(1); }
-	
+
 	int numNode;
 	string tname;
 	vector<string> vsGenealogy;

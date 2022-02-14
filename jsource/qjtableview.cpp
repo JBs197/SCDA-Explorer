@@ -61,7 +61,7 @@ void QJTABLEVIEW::dragEnterEvent(QDragEnterEvent* event)
     QPoint qPos, labelPos;
     int action = (int)event->dropAction();
     if (acceptActions == 3 || acceptActions == action) {
-        event->accept(); 
+        event->accept();
         qPos = event->pos();
         labelPos = mapToGlobal(QPoint(0, 0)) + qPos;
         if (this->acceptDrops()) {
@@ -121,7 +121,7 @@ void QJTABLEVIEW::dragMoveEvent(QDragMoveEvent* event)
                 case 0:
                 {
                     if (qmiHover != qmIndex) {
-                        setCellColour(qmIndex, itemColourHover);                        
+                        setCellColour(qmIndex, itemColourHover);
                         if (qmiHover.isValid()) {
                             setCellColour(qmiHover, itemColourTemp);
                         }
@@ -344,7 +344,7 @@ void QJTABLEVIEW::mouseMoveEvent(QMouseEvent* event)
 {
     auto buttonsPressed = event->buttons();
     if (buttonsPressed == Qt::LeftButton && !posStart.isNull()) {
-        if ((event->pos() - posStart).manhattanLength() >= startDragDist) { 
+        if ((event->pos() - posStart).manhattanLength() >= startDragDist) {
             QModelIndex qmIndex = indexAt(posStart);
             if (qmIndex.isValid()) {
                 QStandardItemModel* model = (QStandardItemModel*)this->model();
@@ -429,7 +429,7 @@ void QJTABLEVIEW::selectionChanged(const QItemSelection& selected, const QItemSe
     }
     update();
 }
-QItemSelectionModel::SelectionFlags QJTABLEVIEW::selectionCommand(const QModelIndex &index, const QEvent *event) const
+QItemSelectionModel::SelectionFlags QJTABLEVIEW::selectionCommand(const QModelIndex& index, const QEvent* event) const
 {
     return QAbstractItemView::selectionCommand(index, event);
 }
@@ -505,6 +505,9 @@ void QJTABLEVIEW::setTableData(vector<vector<string>>& vvsData)
 {
     int numRow = (int)vvsData.size();
     if (numRow < 1) { return; }
+
+    numRow = min(numRow, 200);
+
     int numCol = 0;
     QStandardItemModel* model = (QStandardItemModel*)this->model();
     if (model == nullptr) { return; }

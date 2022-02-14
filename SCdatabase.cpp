@@ -87,8 +87,8 @@ void SCdatabase::dataParser(atomic_int& fileDepleted, string sYear, string sCata
 
 		// Determine the GEO_CODE, DIM sizes, and number of columns in the data table.
 		vsMID.clear();
-		posValue = segment.rfind(findValue);
 		posGeo = segment.rfind(findGeo);
+		posValue = segment.find(findValue, posGeo);
 		pos1 = segment.find('"', posGeo + lenFindGeo + 1);
 		pos2 = segment.find('"', pos1 + 1);
 		geoCode = segment.substr(pos1 + 1, pos2 - pos1 - 1);
@@ -299,9 +299,14 @@ void SCdatabase::dataReader(atomic_int& fileDepleted, string cataDir, string sYe
 			}
 			segLength = segment->size();
 			bytesRead = fread(&segment->at(remainder), 1, segLength - remainder, file);
+			if (bytesRead < segLength - remainder) {
+				segment->resize(remainder + bytesRead);
+			}
 			eof = feof(file);
 		}
 	}
+	if (leftRight) { jbufRaw.pushHard(segment1); }
+	else { jbufRaw.pushHard(segment0); }
 	
 	// Inform the other threads that all segments have been pushed into the raw buffer.
 	eof = fclose(file);

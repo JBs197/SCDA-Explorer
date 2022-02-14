@@ -11,7 +11,7 @@ class SCDAtable : public QWidget
 
 private:
 	JPARSE jparse;
-	QAction* qaDeleteRow, *qaDeleteTable;
+	QAction* qaDeleteRow, * qaDeleteTable;
 
 	void err(std::string message);
 	void init();
@@ -22,10 +22,10 @@ public:
 		initItemColour(configXML);
 		init();
 	}
-	SCDAtable() { 
+	SCDAtable() {
 		itemColourDefault = std::make_pair("#FFFFFF", "#000000");
 		itemColourSelected = std::make_pair("#000080", "#FFFFFF");
-		init(); 
+		init();
 	}
 	~SCDAtable() {}
 

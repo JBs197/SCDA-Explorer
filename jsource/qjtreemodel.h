@@ -15,7 +15,7 @@ private:
 	void err(std::string message);
 
 public:
-	explicit QJTREEMODEL(std::vector<std::string> vsHeader, QObject* parent = nullptr);
+	QJTREEMODEL(std::vector<std::string> vsHeader, QObject* parent = nullptr);
 	~QJTREEMODEL() { delete qjtiRoot; }
 
 	enum tree{ jtree, jtxml };

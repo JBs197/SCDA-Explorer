@@ -77,7 +77,7 @@ void QJDELEGATE::paint(QPainter* painter, const QStyleOptionViewItem& option, co
 
     QString qsBG, qsFG;
     QVariant qvBG, qvFG;
-    if (selected) { index.data(dataRoleBGSel); }
+    if (selected) { qvBG = index.data(dataRoleBGSel); }
     else { qvBG = index.data(dataRoleBG); }
 
     if (qsCoord.size() > 0) { 
@@ -110,7 +110,6 @@ void QJDELEGATE::paint(QPainter* painter, const QStyleOptionViewItem& option, co
     else if (selected && fgSelected.isValid()) { pen.setColor(fgSelected); }
     else if (!selected && fgDefault.isValid()) { pen.setColor(fgDefault); }
 
-    //QPen pen(qcFG);
     QVariant qvText = index.data(Qt::DisplayRole);
     QString qsText = qvText.toString();
     int x = cell.x();

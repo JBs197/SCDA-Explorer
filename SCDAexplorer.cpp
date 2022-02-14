@@ -2,7 +2,7 @@
 
 using namespace std;
 
-SCDA::SCDA(string execFolder, QWidget* parent) 
+SCDA::SCDA(string execFolder, QWidget* parent)
 	: QMainWindow(parent), sExecFolder(execFolder)
 {
 	setWindowTitle("SCDA Explorer");
@@ -83,17 +83,17 @@ void SCDA::deleteTable(string tname)
 {
 	thread::id myid = this_thread::get_id();
 	sb.startCall(myid, 3);
-	
+
 	// Determine if tname is singular, or a list of table names.
 	vector<string> vsTname;
-	if (tname[0] == '@' || tname[0] == '|') { 
-		jparse.splitByMarker(vsTname, tname); 
+	if (tname[0] == '@' || tname[0] == '|') {
+		jparse.splitByMarker(vsTname, tname);
 		sb.pushWork(vsTname);
 	}
 	else { sb.pushWork(tname); }
 	std::jthread thr(&SCdatabase::deleteTable, scdb, ref(sb));
 	busyWheel(sb);
-	sb.endCall(myid);	
+	sb.endCall(myid);
 
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
@@ -321,7 +321,7 @@ void SCDA::initControl(SCDAcontrol*& control)
 			}
 		}
 	}
-	
+
 	qlItem = vLayout->itemAt(control->index::Text);
 	QTextEdit* teIO = (QTextEdit*)qlItem->widget();
 	teIO->setFocus();
@@ -333,7 +333,7 @@ void SCDA::initControl(SCDAcontrol*& control)
 	connect(control, &SCDAcontrol::sendSearchDBTable, this, &SCDA::searchDBTable);
 	connect(this, &SCDA::appendTextIO, control, &SCDAcontrol::textAppend);
 	connect(this, &SCDA::setTextIO, control, &SCDAcontrol::textOutput);
-	
+
 	cb->setCurrentIndex(activeIndex);
 }
 void SCDA::initGUI()
@@ -539,7 +539,7 @@ void SCDA::postRender()
 	qlItem = hLayout->itemAt(4);
 	QRect itemRect = qlItem->geometry();
 	QLineEdit* leText = (QLineEdit*)qlItem->widget();
-	
+
 }
 void SCDA::scanLocalCata(string drive)
 {
@@ -676,7 +676,7 @@ void SCDA::updateCataDB()
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();
 	SCDAcatalogue* page = (SCDAcatalogue*)tab->widget(indexTab::Catalogue);
 	QJTREEMODEL* qjtm = page->getModel(page->index::Database);
-	
+
 	thread::id myid = this_thread::get_id();
 	sb.startCall(myid, commLength);
 	std::thread thr(&SCdatabase::makeTreeCata, scdb, ref(sb), ref(qjtm->jt));

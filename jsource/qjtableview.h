@@ -39,8 +39,10 @@ private:
 	void updateHeight();
 
 public:
-	QJTABLEVIEW(QWidget* parent = nullptr) 
-		: QTableView(parent) { init(); }
+	QJTABLEVIEW(QWidget* parent = nullptr)
+		: QTableView(parent) {
+		init();
+	}
 	~QJTABLEVIEW() {}
 
 	int indexChecksum, indexTable;
@@ -92,7 +94,6 @@ protected:
 	virtual void mouseMoveEvent(QMouseEvent* event) override;
 	virtual void mousePressEvent(QMouseEvent* event) override;
 	virtual void mouseReleaseEvent(QMouseEvent* event) override;
-	virtual QItemSelectionModel::SelectionFlags selectionCommand(const QModelIndex &index, const QEvent *event = nullptr) const override;
+	virtual QItemSelectionModel::SelectionFlags selectionCommand(const QModelIndex& index, const QEvent* event = nullptr) const override;
 	virtual void startDrag(Qt::DropActions supportedActions) override;
 };
-
