@@ -70,6 +70,7 @@ public slots:
 	void deleteTableRow(std::string tnameRow);
 	void dialogStructureStart();
 	void displayOnlineCata();
+	void displayMap(std::string sYear, std::string sCata, std::string sGeoCode);
 	void downloadCata(std::string prompt);
 	void fetchDBTable(std::string tname);
 	void insertCata(std::string prompt);

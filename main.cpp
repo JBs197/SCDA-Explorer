@@ -19,9 +19,7 @@ int main(int argc, char* argv[])
     a.setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles, 1);
 
     QString qsExecFolder = a.applicationDirPath();
-    std::wstring wsExecFolder = qsExecFolder.toStdWString();
-    QByteArray qbaTemp = qsExecFolder.toUtf8();
-    std::string sExecFolder = qbaTemp.toStdString();
+    std::string sExecFolder = qsExecFolder.toStdString();
 
     QString qsCSS = qsExecFolder + "/css.txt";
     a.setStyleSheet(qsCSS);

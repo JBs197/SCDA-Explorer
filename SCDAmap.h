@@ -8,17 +8,21 @@
 #include "qjpaint.h"
 #include "qjtreeview.h"
 #include "SCautomation.h"
+#include "SCregion.h"
+
+#define NUM_BUF_SLOT 6
 
 class SCDAmap : public QWidget
 {
 	Q_OBJECT
 
 private:
+	std::deque<SCregion> dRegion;
 	JFILE jfile;
 	JPARSE jparse;
 	JPIXEL jpixel;
 	PNGFUNC pngf;
-	std::shared_ptr<QAction> qaDownloadMap, qaInsertMap, qaLoadTree;
+	std::shared_ptr<QAction> qaDisplayMap, qaDownloadMap, qaInsertMap, qaLoadTree;
 
 	void err(std::string message);
 	void init();
@@ -39,15 +43,22 @@ public:
 	std::pair<std::string, std::string> itemColourFail, itemColourWarning;
 	std::shared_ptr<QJTREEMODEL> modelCataMap = nullptr;
 
+	void addRegion(SCregion& region, int backFront = 1);
+	void displayRegion(std::vector<std::vector<unsigned char>> vRGBX);
 	void initItemColour(std::string& configXML);
-	void makeBorderMap(std::vector<std::pair<int, int>>& vOutline, std::string filePath);
+	int insertMapWorker(JBUFFER<std::vector<std::vector<std::string>>, NUM_BUF_SLOT>& jbufSQL, 
+		int parentID, std::string parentDir, std::string stmtMap, std::string stmtMapFrame, 
+		std::vector<std::string>& vsColTitleMap, std::vector<std::string>& vsColTitleMapFrame);
+	void makeBorderMap(std::vector<std::pair<double, double>>& vCoord, std::string filePath);
 
 signals:
 	void appendTextIO(std::string message);
+	void sendDisplayMap(std::string sYear, std::string sCata, std::string sGeoCode);
 	void sendDownloadMap(std::vector<std::string> vsPrompt);
 	void sendInsertMap(std::string sYear, std::string sCata);
 	void sendLoadGeoTree(std::string sYear, std::string sCata);
 
 public slots:
+	void nodeDoubleClicked(const QModelIndex& qmIndex, int indexTree);
 	void nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree);
 };
