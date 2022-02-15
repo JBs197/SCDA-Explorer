@@ -34,6 +34,7 @@ public:
     void allTables(std::set<std::string>& setTableList);
     int count(std::string tname);
     void createTable(std::string tname, std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string> vsUnique = {});
+    void createTable(std::string& stmt, std::string tname, std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string> vsUnique = {});
     void deleteRow(std::string tname, std::vector<std::string> conditions);
     void clearTable(std::string tname);
     void dropTable(std::string tname);

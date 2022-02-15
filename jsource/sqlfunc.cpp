@@ -86,6 +86,21 @@ void SQLFUNC::createTable(string tname, vector<vector<string>>& vvsColTitle, vec
     executor(stmt);
     setTable.emplace(tname);
 }
+void SQLFUNC::createTable(string& stmt, string tname, vector<vector<string>>& vvsColTitle, vector<string> vsUnique)
+{
+    // This variant will return the SQL statement rather than executing it.
+    if (vvsColTitle.size() < 2) { err("Invalid vvsColTitle-createTable"); }
+    int numCol = (int)vvsColTitle[0].size();
+    stmt = "CREATE TABLE IF NOT EXISTS \"" + tname + "\" (";
+    for (int ii = 0; ii < numCol; ii++) {
+        if (ii > 0) { stmt += ", "; }
+        stmt += "'" + vvsColTitle[0][ii] + "' " + vvsColTitle[1][ii];
+    }
+    for (int ii = 0; ii < vsUnique.size(); ii++) {
+        stmt += ", UNIQUE('" + vsUnique[ii] + "')";
+    }
+    stmt += ");";
+}
 void SQLFUNC::deleteRow(string tname, vector<string> conditions)
 {
     string stmt = "DELETE FROM \"" + tname + "\" WHERE (";

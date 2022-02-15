@@ -1,4 +1,5 @@
 #pragma once
+#include <future>
 #include <QFileDialog>
 #include <QMainWindow>
 #include <QProgressBar>
@@ -72,6 +73,7 @@ public slots:
 	void downloadCata(std::string prompt);
 	void fetchDBTable(std::string tname);
 	void insertCata(std::string prompt);
+	void insertMap(std::string sYear, std::string sCata);
 	void loadGeoTree(std::string sYear, std::string sCata);
 	void scanLocalCata(std::string drive = "");
 	void searchDBTable(std::string sQuery);

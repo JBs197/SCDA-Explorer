@@ -18,7 +18,7 @@ class SCdatabase
 	void dataParser(std::atomic_int& fileDepleted, std::string sYear, std::string sCata, JBUFFER<std::string, NUM_BUF_SLOT>& jbufRaw, JBUFFER<std::vector<std::string>, NUM_BUF_SLOT>& jbufSQL);
 	void dataReader(std::atomic_int& fileDepleted, std::string cataDir, std::string sYear, std::string sCata, JBUFFER<std::string, NUM_BUF_SLOT>& jbufRaw);
 	void err(std::string message);
-	bool hasGeoGap(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeoLevel, std::vector<int>& viGeoLevel, std::vector<std::vector<std::string>>& vvsGeo);
+	bool hasGeoGap(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeoLevel, std::vector<int>& viGeoLevel, std::vector<std::vector<std::string>>& vvsGeo, std::unordered_map<std::string, int>& mapNecessary);
 	void initItemColour(std::string& configXML);
 	void insertCensusYear(std::string sYear, std::string sCata, std::string sTopic);
 	void insertData(SWITCHBOARD& sbgui, std::string cataDir, std::string sYear, std::string sCata, int numThread);
@@ -37,7 +37,6 @@ class SCdatabase
 	void log(std::string message);
 	std::uintmax_t makeDataIndex(const std::vector<int>& vMID, const std::vector<int>& vSize);
 	void prepareLocal(SWITCHBOARD& sbgui, std::vector<std::string>& vsLocalPath, std::string cataDir, std::string sCata);
-	void xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag);
 
 public:
 	SCdatabase() : marker("$") {
@@ -62,4 +61,5 @@ public:
 	void makeTreeGeo(SWITCHBOARD& sbgui, JTREE& jt, int branchID);
 	bool safeInsertRow(std::string tname, std::vector<std::vector<std::string>>& vvsRow);
 	void searchTable(SWITCHBOARD& sbgui, JTREE& jt, std::vector<std::string>& vsTable);
+	void xmlToColTitle(std::vector<std::vector<std::string>>& vvsColTitle, std::vector<std::string>& vsUnique, std::vector<std::vector<std::string>>& vvsTag);
 };

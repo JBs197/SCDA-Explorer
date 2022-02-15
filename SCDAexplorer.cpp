@@ -28,54 +28,7 @@ void SCDA::busyWheel(SWITCHBOARD& sb)
 }
 void SCDA::debug()
 {
-	size_t pos1;
-	string mapFolder, mapName, mapNameCore, mapSearch, skipped;
-	string tname = "Geo$2013$99-010-X2011026";
-	vector<string> search = { "*" }, vsFilePath;
-	vector<vector<string>> vvsGeo;
-	int numRegion = scdb.sf.select(search, tname, vvsGeo);
-	string mapDir = "E:/maps";
-	for (int ii = 0; ii < numRegion; ii++) {
-		mapSearch = mapDir + "/Level" + vvsGeo[ii][2];
-		if (vvsGeo[ii][2] == "0") { mapSearch += "/canada/"; }
-		else if (vvsGeo[ii][2] == "1") { mapSearch += "/province/"; }
-		else if (vvsGeo[ii][2] == "2") { mapSearch += "/cmaca/"; }
-		mapSearch += vvsGeo[ii][1] + "*.png";
-		vsFilePath.clear();
-		jfile.search(vsFilePath, mapSearch);
-		if (vsFilePath.size() < 1) {
-			skipped += vvsGeo[ii][1] + "\n";
-			continue;
-		}
-		vsFilePath.emplace_back(vsFilePath[0]);
-		pos1 = vsFilePath[0].find_last_of("/\\");
-		mapName = vsFilePath[0].substr(pos1 + 1);
-		pos1 = mapName.find('[');
-		mapNameCore = mapName.substr(0, pos1 - 1);
 
-		if (vvsGeo[ii].size() < 4) {
-			vsFilePath[1] = mapDir + "/" + mapName;
-			mapFolder = mapDir + "/" + mapNameCore;
-		}
-		else {
-			mapFolder = mapDir;
-			for (int jj = 3; jj < vvsGeo[ii].size(); jj++) {
-				for (int kk = 0; kk < numRegion; kk++) {
-					if (vvsGeo[kk][0] == vvsGeo[ii][jj]) {
-						mapFolder += "/" + vvsGeo[kk][1];
-						break;
-					}
-					else if (kk == numRegion - 1) { err("Failed to find ancestor's row"); }
-				}
-			}
-
-			vsFilePath[1] = mapFolder + "/" + mapName;
-			mapFolder += "/" + mapNameCore;
-		}
-		wf.makeDir(mapFolder);
-		jfile.rename(vsFilePath[0], vsFilePath[1]);
-	}
-	emit appendTextIO(skipped);
 
 	emit appendTextIO("Done!");
 }
@@ -372,6 +325,7 @@ void SCDA::initGUI()
 	SCDAmap* map = new SCDAmap;
 	map->initItemColour(configXML);
 	tab->addTab(map, "Map");
+	connect(map, &SCDAmap::sendInsertMap, this, &SCDA::insertMap);
 	connect(map, &SCDAmap::sendLoadGeoTree, this, &SCDA::loadGeoTree);
 
 	QJPROGRESSBAR* qjPBar1 = new QJPROGRESSBAR(1);
@@ -428,7 +382,7 @@ void SCDA::insertCata(string prompt)
 		}
 	}
 
-	// Initialize the progress bar.
+	// Initialize the progress bars.
 	string sEnd;
 	double dNumCata = (double)numCata;
 	vector<string> vsProgress(numCata + 1);
@@ -452,7 +406,7 @@ void SCDA::insertCata(string prompt)
 		emit initProgress({ 0.0 }, { "Inserting Data Tables..." }, 0, 1);
 		emit pbarShow(1);
 	}
-	emit initProgress(vdProgress, vsProgress, 0);
+	emit initProgress(vdProgress, vsProgress, 0, 0);
 
 	// Take care of necessary data insertion which is not bound to any specific catalogue.
 	scdb.insertCensus(vsPrompt[0]);
@@ -468,6 +422,183 @@ void SCDA::insertCata(string prompt)
 	busyWheel(sb);
 	sb.endCall(myid);
 	emit pbarHide(1);
+}
+void SCDA::insertMap(string sYear, string sCata)
+{
+	QWidget* central = this->centralWidget();
+	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
+	QLayoutItem* qlItem = hLayout->itemAt(indexH::Display);
+	QVBoxLayout* vLayout = (QVBoxLayout*)qlItem->layout();
+	qlItem = vLayout->itemAt(0);
+	QTabWidget* tab = (QTabWidget*)qlItem->widget();
+	SCDAmap* map = (SCDAmap*)tab->widget(indexTab::Map);
+	vector<int> vID = map->modelCataMap->jt.searchData(sCata, 0);
+	if (vID.size() != 1) { err("Failed to locate catalogue node-insertMap"); }
+	string mapDir = jparse.getXML1(configXML, { "path", "map" });
+	JBUFFER<vector<vector<string>>, NUM_BUF_SLOT> jbufSQL;
+
+	// Prepare CreateTable SQL statements for easy usage once the table name is known.
+	string stmtMap, stmtMapFrame;
+	vector<string> vsUnique;
+	vector<vector<string>> vvsColTitleMap, vvsColTitleMapFrame, vvsData;
+	vector<vector<string>> vvsTag = jparse.getXML(configXML, { "table", "Map_geolayer_geocode" });
+	scdb.xmlToColTitle(vvsColTitleMap, vsUnique, vvsTag);
+	scdb.sf.createTable(stmtMap, "", vvsColTitleMap);
+	vvsTag = jparse.getXML(configXML, { "table", "MapFrame_geolayer_geocode" });
+	scdb.xmlToColTitle(vvsColTitleMapFrame, vsUnique, vvsTag);
+	scdb.sf.createTable(stmtMapFrame, "", vvsColTitleMapFrame);
+
+	// Launch worker threads to read local files and prepare SQL statements.
+	auto insertMapWorker = [=](auto&& insertMapWorker, SCDAmap*& map, 
+		JBUFFER<vector<vector<string>>, NUM_BUF_SLOT>& jbufSQL, int parentID, 
+		string parentDir) {
+			string borderFile, geoLayer, pngPath, txtPath, tnameMap, tnameMapFrame;
+			vector<string> vsPath;
+			vector<vector<string>> vvsRow;
+			size_t length, pos1, pos2, pos3, pos4;
+			int ID, numPixel;
+			vector<pair<int, int>> vOutline;
+			vector<int> childrenID = map->modelCataMap->jt.getChildrenID(parentID);
+			int numChildren = (int)childrenID.size();
+			if (numChildren == 0) { return 1; }
+
+			for (int ii = 0; ii < numChildren; ii++) {
+				// Push CreateTable statements for the Map and MapFrame database tables.
+				JNODE& jnChild = map->modelCataMap->jt.getNode(childrenID[ii]);
+				tnameMap = "Map$" + jnChild.vsData[1];  // GEO_CODE
+				ID = jnChild.ID;
+				geoLayer = jnChild.vsData[2];
+				while (geoLayer != "canada") {  // Every Geo tree has this root.
+					JNODE& jnParent = map->modelCataMap->jt.getParent(ID);
+					tnameMap.insert(3, "$" + jnParent.vsData[1]);
+					ID = jnParent.ID;
+					geoLayer = jnParent.vsData[2];
+				}
+				vvsRow.resize(1, vector<string>());
+				pos1 = stmtMap.find("\"\"");
+				vvsRow[0].emplace_back(stmtMap);
+				vvsRow[0].back().insert(pos1 + 1, tnameMap);
+				tnameMapFrame = tnameMap;
+				tnameMapFrame.insert(3, "Frame");
+				pos1 = stmtMapFrame.find("\"\"");
+				vvsRow[0].emplace_back(stmtMapFrame);
+				vvsRow[0].back().insert(pos1 + 1, tnameMapFrame);
+				jbufSQL.pushHard(vvsRow);
+
+				// Load or create a list of coordinates representing the region border.
+				vvsRow.resize(1, vector<string>());
+				vvsRow[0] = vvsColTitleMap[0];
+				wf.makeDir(parentDir);
+				txtPath = parentDir + "/" + jnChild.vsData[0] + "*.txt";
+				vsPath.clear();
+				jfile.search(vsPath, txtPath, 0);
+				borderFile.clear();
+				if (vsPath.size() == 0) {
+					// Make a coordinate map from a shaded-region PNG.
+					pngPath = parentDir + "/" + jnChild.vsData[0] + "*.png";
+					jfile.search(vsPath, pngPath, 0);
+					if (vsPath.size() == 0) {
+						emit appendTextIO("Skipping " + jnChild.vsData[0] + " map: failed to locate.\n");
+						continue;
+					}
+					vOutline.clear();
+					for (int jj = 0; jj < vsPath.size(); jj++) {
+						pos1 = vsPath[jj].rfind("[border]");
+						if (pos1 > vsPath[jj].size()) {
+							pngPath = vsPath[jj];
+							map->makeBorderMap(vOutline, pngPath);
+
+							txtPath = pngPath;
+							pos1 = txtPath.rfind(".png");
+							txtPath.replace(pos1, 4, ".txt");
+							numPixel = (int)vOutline.size();
+							for (int kk = 0; kk < numPixel; kk++) {
+								vvsRow.emplace_back(vector<string>());
+								vvsRow.back().emplace_back(to_string(get<0>(vOutline[kk])));
+								vvsRow.back().emplace_back(to_string(get<1>(vOutline[kk])));
+								borderFile += "(" + vvsRow.back()[0] + ",";
+								borderFile += vvsRow.back()[1] + ")\n";
+							}
+							jfile.printer(txtPath, borderFile);
+							break;
+						}
+					}
+					if (vOutline.size() == 0) { err("Failed to make border map-insertMap"); }
+				}
+				else {
+					// Load a previously-made coordinate map.
+					txtPath = vsPath[0];
+					jfile.load(borderFile, txtPath);
+					length = borderFile.size();
+					pos1 = borderFile.find('(');
+					while (pos1 < length) {
+						vvsRow.emplace_back(vector<string>());
+						pos2 = borderFile.find(',', pos1 + 1);
+						pos3 = borderFile.find_first_of("0123456789", pos2 + 1);
+						pos4 = borderFile.find(')', pos3 + 1);
+						vvsRow.back().emplace_back(borderFile.substr(pos1 + 1, pos2 - pos1 - 1));
+						vvsRow.back().emplace_back(borderFile.substr(pos3, pos4 - pos3));
+						pos1 = borderFile.find('(', pos4 + 1);
+					}
+				}
+				vvsRow.emplace_back(vector<string>());
+				vvsRow.back().emplace_back(tnameMap);
+				jbufSQL.pushHard(vvsRow);
+
+				// Push the frame (TLBR) coordinates of the map.
+				vvsRow.resize(4, vector<string>());
+				vvsRow[0] = vvsColTitleMapFrame[0];
+				pos1 = txtPath.find('[');
+				pos2 = txtPath.find(',', pos1 + 2);
+				vvsRow[1].emplace_back(txtPath.substr(pos1 + 2, pos2 - pos1 - 2));
+				pos1 = pos2 + 1;
+				pos2 = txtPath.find(')', pos1);
+				vvsRow[1].emplace_back(txtPath.substr(pos1, pos2 - pos1));
+				pos1 = txtPath.find_first_of("0123456789", pos2 + 1);
+				pos2 = txtPath.find(',', pos1 + 1);
+				vvsRow[2].emplace_back(txtPath.substr(pos1, pos2 - pos1));
+				pos1 = pos2 + 1;
+				pos2 = txtPath.find(')', pos1);
+				vvsRow[2].emplace_back(txtPath.substr(pos1, pos2 - pos1));
+				vvsRow[3].emplace_back(tnameMapFrame);
+				jbufSQL.pushHard(vvsRow);
+
+				// Recursively carry on with grandchildren.
+				std::async(insertMapWorker, insertMapWorker, ref(map), ref(jbufSQL), jnChild.ID, parentDir + "/" + jnChild.vsData[0]);
+			}
+			return 1;
+	};
+	auto jobsDone = std::async(insertMapWorker, insertMapWorker, ref(map), ref(jbufSQL), vID[0], mapDir);
+
+	// This thread now proceeds full-time with database insertion operations. 
+	string tname;
+	bool letMeOut = 0;
+	while (!letMeOut) {
+		vvsData = jbufSQL.pullSoft();
+		while (vvsData.size() == 0) {
+			auto status = jobsDone.wait_for(10ms);
+			if (status == future_status::ready) {
+				letMeOut = 1;
+				break;
+			}
+			else {
+				this_thread::sleep_for(40ms);
+				vvsData = jbufSQL.pullSoft();
+			}
+		}
+		if (letMeOut) { break; }
+
+		if (vvsData.size() == 1) {  // Pre-made CreateTable statements.			
+			scdb.sf.executor(vvsData[0]);
+		}
+		else {  // Rows of coordinate data.			
+			if (vvsData.back().size() != 1) { err("Missing table name-insertMap"); }
+			tname = vvsData.back()[0];
+			vvsData.pop_back();
+			scdb.sf.insertRow(tname, vvsData);
+		}
+	}
+
 }
 void SCDA::loadGeoTree(string sYear, string sCata)
 {
@@ -528,6 +659,7 @@ void SCDA::postRender()
 	qjPBar1->initChildren();
 	qjPBar1->initSound(resDir + "/sound");
 
+	/*
 	qlItem = displayLayout->itemAt(indexV::Tab);
 	QTabWidget* tabW = (QTabWidget*)qlItem->widget();
 	SCDAcompare* compare = (SCDAcompare*)tabW->widget(3);
@@ -539,7 +671,7 @@ void SCDA::postRender()
 	qlItem = hLayout->itemAt(4);
 	QRect itemRect = qlItem->geometry();
 	QLineEdit* leText = (QLineEdit*)qlItem->widget();
-
+	*/
 }
 void SCDA::scanLocalCata(string drive)
 {
@@ -626,7 +758,6 @@ void SCDA::searchDBTable(string sQuery)
 	qlItem = gLayout->itemAtPosition(1, table->index::Search);
 	QJTREEVIEW* treeSearch = (QJTREEVIEW*)qlItem->widget();
 	treeSearch->setModel(model);
-	//treeSearch->expandToDepth(numGen - 1);
 	treeSearch->expandRecursively(QModelIndex(), numGen);
 
 	// Report the number of tables found.

@@ -356,14 +356,24 @@ void SCdatabase::err(string message)
 	string errorMessage = "SCdatabase error:\n" + message;
 	JLOG::getInstance()->err(errorMessage);
 }
-bool SCdatabase::hasGeoGap(vector<string>& vsGeoLayer, vector<vector<string>>& vvsGeoLevel, vector<int>& viGeoLevel, vector<vector<string>>& vvsGeo)
+bool SCdatabase::hasGeoGap(vector<string>& vsGeoLayer, vector<vector<string>>& vvsGeoLevel, vector<int>& viGeoLevel, vector<vector<string>>& vvsGeo, unordered_map<string, int>& mapNecessary)
 {
 	// Returns TRUE or FALSE as to whether this catalogue requires preliminary geo entries from 
 	// a template, before inserting the catalogue's own geo region entries. If a template layer
-	// is needed, it will be inserted into vsGeoLayer with a preceeding '!' to mark it.
+	// is needed, it will be inserted into vsGeoLayer with a preceeding '!' to mark it.	
+	int baseline = -1, baselineSC, geoLevel, indexLevel = -1, indexRegion = -1;
+	for (int ii = 0; ii < vvsGeo[0].size(); ii++) {
+		if (vvsGeo[0][ii] == "Region Name") { indexRegion = ii; }
+		else if (vvsGeo[0][ii] == "GEO_LEVEL") { indexLevel = ii; }
+	}
+	if (indexLevel < 0 || indexRegion < 0) { err("Failed to determine column title indexes-hasGeoGap"); }
+
+	// Determine which necessary GeoLayers are overtly missing from the catalogue.
 	bool hasGap = 0;
+	vector<int> viNecessary;
 	for (int ii = 0; ii < vvsGeoLevel.size(); ii++) {
 		if (vvsGeoLevel[ii][0].starts_with("necessary")) {
+			viNecessary.emplace_back(viGeoLevel[ii]);
 			if (vsGeoLayer[viGeoLevel[ii]] != vvsGeoLevel[ii][1]) {
 				hasGap = 1;
 				vsGeoLayer.insert(vsGeoLayer.begin() + viGeoLevel[ii], "!");
@@ -373,16 +383,25 @@ bool SCdatabase::hasGeoGap(vector<string>& vsGeoLayer, vector<vector<string>>& v
 		else { break; }
 	}
 	int numLayer = (int)vsGeoLayer.size();
+	int numGeo = (int)vvsGeo.size();
 
-	int baseline = -1, baselineSC, geoLevel, indexLevel = -1, indexRegion = -1;
-	for (int ii = 0; ii < vvsGeo[0].size(); ii++) {
-		if (vvsGeo[0][ii] == "Region Name") { indexRegion = ii; }
-		else if (vvsGeo[0][ii] == "GEO_LEVEL") { indexLevel = ii; }
+	// Determine which necessary GeoLayers are listed as within the catalogue, but
+	// are actually absent.
+	vector<int> viMatch;
+	viMatch.assign(numLayer, 0);
+	for (int ii = 1; ii < numGeo; ii++) {
+		if (mapNecessary.count(vvsGeo[ii][indexRegion])) {
+			viMatch[mapNecessary.at(vvsGeo[ii][indexRegion])] = 1;
+		}
 	}
-	if (indexLevel < 0 || indexRegion < 0) { err("Failed to determine column title indexes-hasGeoGap"); }
+	for (int ii = 0; ii < viNecessary.size(); ii++) {
+		if (viMatch[viNecessary[ii]] == 0) {
+			hasGap = 1;
+			if (vsGeoLayer[ii][0] != '!') { vsGeoLayer[ii].insert(0, 1, '!'); }
+		}
+	}
 
 	// Correct the GEO_LEVEL values read from file, for the inclusion of gap layers.
-	int numGeo = (int)vvsGeo.size();
 	try { baselineSC = stoi(vvsGeo[1][indexLevel]); }
 	catch (invalid_argument) { err("GEO_LEVEL baseline stoi-hasGeoGap"); }
 	for (int ii = 0; ii < numLayer; ii++) {
@@ -399,26 +418,6 @@ bool SCdatabase::hasGeoGap(vector<string>& vsGeoLayer, vector<vector<string>>& v
 		}
 		for (int ii = 1; ii < numGeo; ii++) {
 			vvsGeo[ii][indexLevel] = mapLevel.at(vvsGeo[ii][indexLevel]);
-		}
-	}
-
-	// Determine if the geo file is missing GeoLayers (while claiming their presence).
-	vector<int> viMatch;
-	viMatch.assign(numLayer, 0);
-	set<string> setLevel;
-	for (int ii = 1; ii < numGeo; ii++) {
-		if (viMatch[0] == 0 && vvsGeo[ii][indexRegion] == "Canada") { viMatch[0] = 1; }
-		setLevel.emplace(vvsGeo[ii][indexLevel]);
-	}
-	for (auto it = setLevel.begin(); it != setLevel.end(); ++it) {
-		try { geoLevel = stoi(*it); }
-		catch (invalid_argument) { err("geoLevel stoi-hasGeoGap"); }
-		viMatch[geoLevel] = 1;
-	}
-	for (int ii = 0; ii < numLayer; ii++) {
-		if (viMatch[ii] == 0) {
-			hasGap = 1;
-			if (vsGeoLayer[ii][0] != '!') { vsGeoLayer[ii].insert(0, 1, '!'); }
 		}
 	}
 
@@ -487,14 +486,11 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 
 	// Determine how many parser threads will be used during table data insertion.
 	unsigned numSystemThread = jthread::hardware_concurrency();
-	if (numSystemThread > numThread + 1) {
-		// If hyperthreading is available, push a bit harder.
-		numThread = max(1, numThread);
-	}
-	else { numThread = max(1, numThread - 2); }
+	int numExtraThread = (numSystemThread - numThread) / 2;  // Hyperthreading.
+	numThread = max(1, numThread - 2 + numExtraThread);  // One thread is reserved for GUI/system, and one for writer thread.
 	
 	// Determine the census year for the catalogue(s).
-	int iYear, numFile;
+	int geoLevel, iYear, numFile;
 	string cataDir, filePath, sCata, sMetaFile, sTopic, zipPath;
 	vector<string> vsGeoLayer, vsLocalPath;
 	int numCata = sbgui.pullWork(cataDir);  // Number of catalogues to insert.
@@ -519,6 +515,16 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 		maxBufferSize = stoll(temp);
 	}
 	catch (invalid_argument) { err("iYear/maxBufferSize stoi-insertCata"); }
+	unordered_map<string, int> mapNecessary;
+	vector<vector<string>> vvsNecessary;
+	vector<string> search{ "Region Name", "GEO_LEVEL" };
+	string tname{"MapNecessary"};
+	int numNecessary = sf.select(search, tname, vvsNecessary);
+	for (int ii = 0; ii < numNecessary; ii++) {
+		try { geoLevel = stoi(vvsNecessary[ii][1]); }
+		catch (invalid_argument) { err("mapNecessary stoi-insertCata"); }
+		mapNecessary.emplace(vvsNecessary[ii][0], geoLevel);
+	}
 
 	// Prepare the GeoLevel list, to determine if a subsequent catalogue needs assistance
 	// from a region tree template. This occurs when a catalogue is missing one or more 
@@ -558,7 +564,7 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 
 		// Build and insert all the catalogue's geographic region tables.
 		loadGeo(vvsGeo, vsGeoLayer, cataDir, sCata);
-		geoGap = hasGeoGap(vsGeoLayer, vvsGeoLevel, viGeoLevel, vvsGeo);
+		geoGap = hasGeoGap(vsGeoLayer, vvsGeoLevel, viGeoLevel, vvsGeo, mapNecessary);
 		insertGeoLayer(vsGeoLayer, sYear, sCata);
 		if (geoGap) {  // Catalogue has GeoLayer gaps.
 			insertGeo(vsGeoLayer, vvsGeo, sYear, sCata);  
@@ -1028,9 +1034,18 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 	for (int ii = 1; ii < vsResult.size(); ii++) {
 		if (vsResult[ii][0] != '!') {
 			tnameTemplate += marker + vsResult[ii];
-		}		
+		}
 	}
-	if (!sf.tableExist(tnameTemplate)) { err("Missing template table-insertGeo"); }
+	if (!sf.tableExist(tnameTemplate)) {
+		// Secondary template.
+		tnameTemplate = "GeoTreeTemplate" + marker + sYear;
+		for (int ii = 1; ii < vsResult.size(); ii++) {
+			tnameTemplate += marker + vsResult[ii];
+		}
+		jparse.clean(tnameTemplate, { "!" }, { "" });
+		if (!sf.tableExist(tnameTemplate)) { err("Missing template table-insertGeo"); }
+	}
+
 
 	// Populate a set containing all GEO_CODEs from the original catalogue. If a gap region also
 	// had that GEO_CODE, it will receive a new one instead.
@@ -1883,6 +1898,7 @@ void SCdatabase::prepareLocal(SWITCHBOARD& sbgui, vector<string>& vsLocalPath, s
 	else if (mycomm.size() >= 3) { index = 1; }
 	else { err("Insufficient mycomm length-prepareLocal"); }
 	mycomm[index + 1] = 100;
+	sbgui.update(myid, mycomm);
 
 	// Unzip all files within the archive which not already unzipped.
 	size_t pos1;

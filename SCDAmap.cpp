@@ -47,7 +47,16 @@ void SCDAmap::initAction()
 		scauto->downloadMap(vsPrompt);
 		});
 
-	// qaInsertMap
+	qaInsertMap = make_shared<QAction>("Insert Maps", this);
+	auto insertMap = qaInsertMap.get();
+	connect(insertMap, &QAction::triggered, this, [&]() {
+		QVariant qVar = qaInsertMap->data();
+		QString qsTemp = qVar.toString();
+		string sData = qsTemp.toStdString();
+		vector<string> vsPrompt;
+		jparse.splitByMarker(vsPrompt, sData);
+		emit sendInsertMap(vsPrompt[0], vsPrompt[1]);
+		});
 
 	qaLoadTree = make_shared<QAction>("Load Geo Tree", this);
 	auto loadTree = qaLoadTree.get();
@@ -95,6 +104,30 @@ void SCDAmap::initItemColour(string& xml)
 	}
 	itemColourWarning = make_pair(vvsTag[indexBG][1], vvsTag[indexFG][1]);
 }
+void SCDAmap::makeBorderMap(vector<pair<int, int>>& vOutline, string filePath)
+{
+	// Open a geographic region's shaded area map and make a new map which is hollow.
+	// Return the list of border coordinates.
+	if (!jfile.exist(filePath)) { return; }
+	string outputPath = filePath;
+	size_t pos1 = outputPath.rfind(".png");
+	if (pos1 > outputPath.size()) { err("Missing png extension-makeBorderMap"); }
+	outputPath.insert(pos1, " [border]");
+
+	vector<unsigned char> data;
+	vector<int> spec;
+	set<pair<int, int>> setSolid;
+	pair<int, int> TL = make_pair(0, 0), BR;
+	vector<unsigned char> rgbaColour{0, 0, 255, 51}, rgbaNull{ 0, 0, 0, 0 };
+
+	pngf.load(filePath, data, spec);
+	BR = make_pair(spec[0] - 1, spec[1] - 1);
+	pngf.scanRect(setSolid, data, spec, rgbaNull, TL, BR, -1);
+	jpixel.solidToOutline(vOutline, setSolid);
+	pngf.blankCanvas(data, spec, rgbaNull);
+	pngf.paintPixel(vOutline, data, spec, rgbaColour);
+	pngf.print(outputPath, data, spec);
+}
 void SCDAmap::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmIndex, int indexTree)
 {
 	QMenu menu(this);
@@ -111,7 +144,15 @@ void SCDAmap::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmInd
 	loadTree->setData(sData.c_str());
 	menu.addAction(loadTree);
 
-	QJTREEITEM* qjtiNode = qjtm->getNode(qmIndex);	
+	QJTREEITEM* qjtiNode = qjtm->getNode(qmIndex);
+	int numChildren = qjtiNode->getNumChildren();
+	if (numGenealogy > 2 || numChildren > 0) {
+		// Offer the insert option only if a geo tree has already been loaded.
+		auto insertMap = qaInsertMap.get();
+		insertMap->setData(sData.c_str());
+		menu.addAction(insertMap);
+	}
+
 	if (numGenealogy > 2) {
 		// A Geo region node was right-clicked.
 		QVariant qVar = qjtiNode->dataUserRole(Qt::UserRole + 0);  // Background
@@ -132,13 +173,6 @@ void SCDAmap::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmInd
 			downloadMap->setData(sData.c_str());
 			menu.addAction(downloadMap);
 		}
-		/*
-		else if (sBG == get<0>(itemColourWarning)) {
-			auto insertMap = qaInsertMap.get();
-			insertMap->setData(sData.c_str());
-			menu.addAction(insertMap);
-		}
-		*/
 	}
 
 	menu.exec(globalPos);

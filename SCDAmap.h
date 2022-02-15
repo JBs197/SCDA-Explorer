@@ -40,10 +40,12 @@ public:
 	std::shared_ptr<QJTREEMODEL> modelCataMap = nullptr;
 
 	void initItemColour(std::string& configXML);
+	void makeBorderMap(std::vector<std::pair<int, int>>& vOutline, std::string filePath);
 
 signals:
 	void appendTextIO(std::string message);
 	void sendDownloadMap(std::vector<std::string> vsPrompt);
+	void sendInsertMap(std::string sYear, std::string sCata);
 	void sendLoadGeoTree(std::string sYear, std::string sCata);
 
 public slots:
