@@ -28,8 +28,20 @@ void SCDA::busyWheel(SWITCHBOARD& sb)
 }
 void SCDA::debug()
 {
-
-
+	size_t pos1, pos2;
+	vector<string> vsTname;
+	scdb.sf.allTables(vsTname);
+	int count = 0;
+	int numTable = (int)vsTname.size();
+	for (int ii = 0; ii < numTable; ii++) {
+		pos1 = vsTname[ii].find("Map$canada");
+		pos2 = vsTname[ii].find("MapFrame$canada");
+		if (pos1 < vsTname[ii].size() || pos2 < vsTname[ii].size()) {
+			scdb.sf.dropTable(vsTname[ii]);
+			count++;
+		}
+	}
+	emit appendTextIO("Deleted " + to_string(count) + " tables !");
 	emit appendTextIO("Done!");
 }
 void SCDA::deleteTable(string tname)
@@ -115,13 +127,14 @@ void SCDA::displayMap(string sYear, string sCata, string sGeoCode)
 
 	vector<string> search{ "*" };
 	string tname = "GeoLayer$" + sYear;
-	int numResult = scdb.sf.select(search, tname, vsGeoLayer);
+	vector<string> conditions = { "Catalogue LIKE '" + sCata + "'" };
+	int numResult = scdb.sf.select(search, tname, vsGeoLayer, conditions);
 	if (numResult == 0) { 
 		emit appendTextIO(errMessage);
 		return; 
 	}
 	tname = "Geo$" + sYear + "$" + sCata;
-	vector<string> conditions = { "GEO_CODE = " + sGeoCode };
+	conditions = { "GEO_CODE = " + sGeoCode };
 	numResult = scdb.sf.select(search, tname, vsGeo, conditions);
 	if (numResult < 3) {
 		emit appendTextIO(errMessage);
@@ -150,8 +163,12 @@ void SCDA::displayMap(string sYear, string sCata, string sGeoCode)
 		return;
 	}
 
-	SCregion region;
-	region.loadCoord(vvsBorder, vvsFrame);
+	SCDAregion region;
+	region.load(vvsBorder, vvsFrame);
+	region.geoCode = sGeoCode;
+	for (int ii = 0; ii <= geoLevel; ii++) {
+		region.vsGeoLayer.push_back(std::move(vsGeoLayer[1 + ii]));
+	}
 
 	QWidget* central = this->centralWidget();
 	QHBoxLayout* hLayout = (QHBoxLayout*)central->layout();
@@ -161,6 +178,7 @@ void SCDA::displayMap(string sYear, string sCata, string sGeoCode)
 	QTabWidget* tab = (QTabWidget*)qlItem->widget();
 	tab->setCurrentIndex(indexTab::Map);
 	SCDAmap* map = (SCDAmap*)tab->widget(indexTab::Map);
+	map->resetRegion();
 	map->addRegion(region);
 	map->displayRegion({ {150, 150, 150, 255} });
 
@@ -515,6 +533,7 @@ void SCDA::insertMap(string sYear, string sCata)
 
 	// This thread now proceeds full-time with database insertion operations. 
 	string tname;
+	int numRow;
 	bool letMeOut = 0;
 	while (!letMeOut) {
 		vvsData = jbufSQL.pullSoft();
@@ -537,8 +556,12 @@ void SCDA::insertMap(string sYear, string sCata)
 		else {  // Rows of coordinate data.			
 			if (vvsData.back().size() != 1) { err("Missing table name-insertMap"); }
 			tname = vvsData.back()[0];
-			vvsData.pop_back();
-			scdb.sf.insertRow(tname, vvsData);
+			numRow = scdb.sf.getNumRow(tname);
+			if (numRow == 0) {
+				vvsData.pop_back();
+				scdb.sf.insertRow(tname, vvsData);
+			}
+			else { vvsData.clear(); }
 		}
 	}
 	vvsData = jbufSQL.pullSoft();
@@ -546,8 +569,12 @@ void SCDA::insertMap(string sYear, string sCata)
 	else if (vvsData.size() > 1) {
 		if (vvsData.back().size() != 1) { err("Missing table name-insertMap"); }
 		tname = vvsData.back()[0];
-		vvsData.pop_back();
-		scdb.sf.insertRow(tname, vvsData);
+		numRow = scdb.sf.getNumRow(tname);
+		if (numRow == 0) {
+			vvsData.pop_back();
+			scdb.sf.insertRow(tname, vvsData);
+		}
+		else { vvsData.clear(); }
 	}
 }
 void SCDA::loadGeoTree(string sYear, string sCata)

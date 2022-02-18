@@ -4,11 +4,8 @@
 #include <vector>
 #include "jlog.h";
 
-class SCDAregion : public QPainterPath
+class SCDAregion
 {
-	Q_OBJECT
-
-private:
 	void err(std::string message);
 
 public:
@@ -20,6 +17,5 @@ public:
 	std::vector<std::pair<double, double>> vBorder, vFrame;
 
 	void load(std::vector<std::vector<std::string>>& vvsBorder, std::vector<std::vector<std::string>>& vvsFrame);
-
-
+	void makePath(QPainterPath& qpPath, double width, double height, std::vector<std::pair<double, double>> parentTLBR = {});
 };

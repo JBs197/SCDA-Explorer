@@ -2,8 +2,9 @@
 
 using namespace std;
 
-void SCDAmap::addRegion(SCregion& region, int backFront)
+void SCDAmap::addRegion(SCDAregion& region, int backFront)
 {
+	//
 	switch (backFront) {
 	case 0:
 		dRegion.push_front(std::move(region));
@@ -17,18 +18,31 @@ void SCDAmap::displayRegion(vector<vector<unsigned char>> vRGBX)
 {
 	// Will paint all stored regions, in the order listed. Provided colours
 	// will be cycled through.
+	int numRegion = dRegion.size();
+	if (numRegion == 0) { return; }
+
+	QGridLayout* gLayout = (QGridLayout*)this->layout();
+	QLayoutItem* qlItem = gLayout->itemAtPosition(1, index::Map);
+	QJPAINT* qjPaint = (QJPAINT*)qlItem->widget();
+	qjPaint->setBG({ 255, 0, 0, 255 });
+	QRect canvas = qjPaint->geometry();
+
 	int numColour = (int)vRGBX.size();
-	if (numColour == 0) { 
+	if (numColour == 0) { // Default is black.
 		vRGBX = { {0, 0, 0, 255} }; 
 		numColour = 1;
 	}
-	int index{ -1 };
-	int numRegion = (int)dRegion.size();
-	for (int ii = 0; ii < numRegion; ii++) {
+	int index{ 0 };
+	QJSHAPE* shape = qjPaint->insertShape();
+	dRegion[0].makePath(shape->path, canvas.width(), canvas.height());
+	shape->setPath(shape->path, { 0, 0, 0, 255 }, 2.0, vRGBX[index]);
+	for (int ii = 1; ii < numRegion; ii++) {
 		index = (index + 1) % numColour;
-
+		QJSHAPE* shape = qjPaint->insertShape();
+		dRegion[ii].makePath(shape->path, canvas.width(), canvas.height(), dRegion[0].vFrame);
+		shape->setPath(shape->path, { 0, 0, 0, 255 }, 2.0, vRGBX[index]);
 	}
-
+	qjPaint->update();
 }
 void SCDAmap::err(string message)
 {
@@ -154,12 +168,12 @@ int SCDAmap::insertMapWorker(JBUFFER<vector<vector<string>>, NUM_BUF_SLOT>& jbuf
 	for (int ii = 0; ii < numChildren; ii++) {
 		// Push CreateTable statements for the Map and MapFrame database tables.
 		JNODE& jnChild = modelCataMap->jt.getNode(childrenID[ii]);
-		tnameMap = "Map$canada$" + jnChild.vsData[1];  // GEO_CODE
-		ID = jnChild.ID;
 		geoLayer = jnChild.vsData[2];
+		tnameMap = "Map$" + geoLayer + "$" + jnChild.vsData[1];  // GEO_CODE
+		ID = jnChild.ID;		
 		while (geoLayer != "canada") {  // Every Geo tree has this root.
 			JNODE& jnParent = modelCataMap->jt.getParent(ID);
-			tnameMap.insert(10, "$" + jnParent.vsData[1]);
+			tnameMap.insert(3, "$" + jnParent.vsData[2]);
 			ID = jnParent.ID;
 			geoLayer = jnParent.vsData[2];
 		}
@@ -364,27 +378,30 @@ void SCDAmap::nodeRightClicked(const QPoint& globalPos, const QModelIndex& qmInd
 
 	if (numGenealogy > 2) {
 		// A Geo region node was right-clicked.
-		QVariant qVar = qjtiNode->dataUserRole(Qt::UserRole + 0);  // Background
+		QVariant qVar = qjtiNode->data(1);  // GEO_CODE
 		QString qsTemp = qVar.toString();
-		string sBG = qsTemp.toStdString();
-		if (sBG == get<0>(itemColourFail) || sBG == get<0>(itemColourWarning)) {
-			qVar = qjtiNode->data(1);  // GEO_CODE
-			qsTemp = qVar.toString();
-			if (qsTemp.size() == 0) { err("Geo tree node is missing its GEO_CODE-nodeRightClicked"); }
-			sData += "$" + qsTemp.toStdString();
+		if (qsTemp.size() == 0) { err("Geo tree node is missing its GEO_CODE-nodeRightClicked"); }
+		sData += "$" + qsTemp.toStdString();
 
-			qVar = qjtiNode->data(2);  // GeoLayer
-			qsTemp = qVar.toString();
-			if (qsTemp.size() == 0) { err("Geo tree node is missing its GeoLayer-nodeRightClicked"); }
-			sData += "$" + qsTemp.toStdString();
+		qVar = qjtiNode->data(2);  // GeoLayer
+		qsTemp = qVar.toString();
+		if (qsTemp.size() == 0) { err("Geo tree node is missing its GeoLayer-nodeRightClicked"); }
+		sData += "$" + qsTemp.toStdString();
 
-			auto downloadMap = qaDownloadMap.get();
-			downloadMap->setData(sData.c_str());
-			menu.addAction(downloadMap);
-		}
+		auto downloadMap = qaDownloadMap.get();
+		downloadMap->setData(sData.c_str());
+		menu.addAction(downloadMap);
 	}
 
 	menu.exec(globalPos);
+}
+void SCDAmap::resetRegion()
+{
+	dRegion.clear();
+	QGridLayout* gLayout = (QGridLayout*)this->layout();
+	QLayoutItem* qlItem = gLayout->itemAtPosition(1, index::Map);
+	QJPAINT* qjPaint = (QJPAINT*)qlItem->widget();
+	qjPaint->clearShape();
 }
 void SCDAmap::shadeToBorder(string filePath, vector<unsigned char> rgbxBG)
 {
