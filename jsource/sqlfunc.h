@@ -3,6 +3,7 @@
 #include <mutex>
 #include <set>
 #include <thread>
+#include <unordered_set>
 #include "sqlite3.h"
 #include "jlog.h"
 #include "jstring.h"
@@ -43,6 +44,7 @@ public:
     void executor(std::string stmt, std::string& result);
     void executor(std::string stmt, std::wstring& result);
     void executor(std::string stmt, std::vector<std::string>& results);
+    void executor(std::string stmt, std::unordered_set<std::string>& results);
     void executor(std::string stmt, std::vector<std::vector<std::string>>& results);
     void executor(std::string stmt, std::vector<std::vector<std::wstring>>& results);
     std::vector<std::vector<std::string>> getColTitle(std::string tname);
@@ -67,11 +69,13 @@ public:
     int searchTableName(std::vector<std::string>& vsTable, std::string sQuery);
     int select(std::vector<std::string> search, std::string tname, std::string& result);
     int select(std::vector<std::string> search, std::string tname, std::vector<std::string>& results);
+    int select(std::vector<std::string> search, std::string tname, std::unordered_set<std::string>& results);
     int select(std::vector<std::string> search, std::string tname, std::vector<std::vector<std::string>>& results);
     int select(std::vector<std::string> search, std::string tname, std::vector<std::vector<std::wstring>>& results);
     int select(std::vector<std::string> search, std::string tname, std::string& result, std::vector<std::string> conditions);
     int select(std::vector<std::string> search, std::string tname, std::wstring& result, std::vector<std::string> conditions);
     int select(std::vector<std::string> search, std::string tname, std::vector<std::string>& results, std::vector<std::string> conditions);
+    int select(std::vector<std::string> search, std::string tname, std::unordered_set<std::string>& results, std::vector<std::string> conditions);
     int select(std::vector<std::string> search, std::string tname, std::vector<std::vector<std::string>>& results, std::vector<std::string> conditions);
     int select(std::vector<std::string> search, std::string tname, std::vector<std::vector<std::wstring>>& results, std::vector<std::string> conditions);
     int selectOrderBy(std::vector<std::string> search, std::string tname, std::vector<std::string>& results, std::string orderby);

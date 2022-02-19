@@ -404,6 +404,123 @@ void SQLFUNC::executor(string stmt, vector<string>& results)
     error = sqlite3_finalize(statement);
     if (error > 0 && error != 100 && error != 101) { sqlerr("finalize-sf.executor1"); }
 }
+void SQLFUNC::executor(string stmt, unordered_set<string>& results)
+{
+    // Note that this variant of the executor function can accomodate either a column or a row as the result.
+    int type, size, inum;  // Type: 1(int), 2(double), 3(string)
+    sqlite3_int64 ivalue;
+    sqlite3_stmt* statement;
+    int error = sqlite3_prepare_v2(db, stmt.c_str(), -1, &statement, NULL);
+    if (error) { sqlerr("prepare-executor1"); }
+    error = sqlite3_step(statement);
+    double dvalue;
+    string svalue;
+    int col_count = -1;
+    int iextra = 0;
+    while (error == 100) {
+        if (col_count < 0) {
+            col_count = sqlite3_column_count(statement);
+        }
+        if (col_count > 1) {
+            // Returned vector will be a row.
+            for (int ii = 0; ii < col_count; ii++) {
+                type = sqlite3_column_type(statement, ii);
+                switch (type) {
+                case 1:
+                    ivalue = sqlite3_column_int64(statement, ii);
+                    results.emplace(to_string(ivalue));
+                    break;
+                case 2:
+                    dvalue = sqlite3_column_double(statement, ii);
+                    results.emplace(to_string(dvalue));
+                    break;
+                case 3:
+                {
+                    size = sqlite3_column_bytes(statement, ii);
+                    const unsigned char* buffer = sqlite3_column_text(statement, ii);
+                    svalue.resize(size);
+                    for (int ii = 0; ii < size; ii++) {
+                        if (buffer[ii] > 127 && buffer[ii] != 195) {
+                            if (ii == 0) {
+                                svalue[ii + iextra] = -61;
+                                iextra++;
+                                svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                            }
+                            else if (buffer[ii - 1] != 195) {
+                                svalue[ii + iextra] = -61;
+                                iextra++;
+                                svalue.insert(ii + iextra, 1, buffer[ii] - 64);
+                            }
+                            else {
+                                svalue[ii + iextra] = buffer[ii];
+                            }
+                        }
+                        else {
+                            svalue[ii + iextra] = buffer[ii];
+                        }
+                    }
+                    results.insert(std::move(svalue));
+                    iextra = 0;
+                    break;
+                }
+                case 5:
+                    break;
+                }
+            }
+        }
+        else {
+            // Returned result will be a column.
+            type = sqlite3_column_type(statement, 0);
+            switch (type) {
+            case 1:
+                ivalue = sqlite3_column_int64(statement, 0);
+                results.emplace(to_string(ivalue));
+                break;
+            case 2:
+                dvalue = sqlite3_column_double(statement, 0);
+                results.emplace(to_string(dvalue));
+                break;
+            case 3:
+            {
+                size = sqlite3_column_bytes(statement, 0);
+                const unsigned char* buffer = sqlite3_column_text(statement, 0);
+                svalue.resize(size);
+                for (int ii = 0; ii < size; ii++) {
+                    if (buffer[ii] > 127 && buffer[ii] != 195) {
+                        if (ii == 0) {
+                            svalue[ii + iextra] = -61;
+                            iextra++;
+                            svalue[ii + iextra] = buffer[ii] - 64;
+                            svalue.push_back(0);
+                        }
+                        else if (buffer[ii - 1] == 195) {
+                            svalue[ii + iextra] = buffer[ii];
+                        }
+                        else {
+                            svalue[ii + iextra] = -61;
+                            iextra++;
+                            svalue[ii + iextra] = buffer[ii] - 64;
+                            svalue.push_back(0);
+                        }
+                    }
+                    else {
+                        svalue[ii + iextra] = buffer[ii];
+                    }
+                }
+                results.insert(std::move(svalue));
+                iextra = 0;
+                break;
+            }
+            case 5:
+                break;
+            }
+        }
+        error = sqlite3_step(statement);
+    }
+    if (error > 0 && error != 101) { sqlerr("step-executor1"); }
+    error = sqlite3_finalize(statement);
+    if (error > 0 && error != 100 && error != 101) { sqlerr("finalize-sf.executor1"); }
+}
 void SQLFUNC::executor(string stmt, vector<vector<string>>& results)
 {
     int type, col_count, size;  // Type: 1(int), 2(double), 3(string)
@@ -1253,6 +1370,23 @@ int SQLFUNC::select(vector<string> search, string tname, vector<string>& results
     executor(stmt, results);
     return (int)results.size();
 }
+int SQLFUNC::select(vector<string> search, string tname, unordered_set<string>& results)
+{
+    // This variant returns the table values as an unordered set, rather than a 1-D vector.
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1) {
+        stmt += "* FROM \"" + tname + "\"";
+    }
+    else {
+        for (int ii = 0; ii < search.size(); ii++) {
+            stmt += "\"" + search[ii] + "\", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM \"" + tname + "\"";
+    }
+    executor(stmt, results);
+    return (int)results.size();
+}
 int SQLFUNC::select(vector<string> search, string tname, vector<vector<string>>& results)
 {
     string stmt = "SELECT ";
@@ -1362,6 +1496,29 @@ int SQLFUNC::select(vector<string> search, string tname, vector<string>& results
     }
     for (int ii = 0; ii < conditions.size(); ii++)
     {
+        stmt += conditions[ii] + " ";
+    }
+    stmt += ");";
+    executor(stmt, results);
+    return (int)results.size();
+}
+int SQLFUNC::select(vector<string> search, string tname, unordered_set<string>& results, vector<string> conditions)
+{
+    for (int ii = 0; ii < conditions.size(); ii++) {
+        sclean(conditions[ii], 2);
+    }
+    string stmt = "SELECT ";
+    if (search[0] == "*" && search.size() == 1) {
+        stmt += "* FROM \"" + tname + "\" WHERE (";
+    }
+    else {
+        for (int ii = 0; ii < search.size(); ii++) {
+            stmt += "\"" + search[ii] + "\", ";
+        }
+        stmt.erase(stmt.size() - 2, 2);
+        stmt += " FROM \"" + tname + "\" WHERE (";
+    }
+    for (int ii = 0; ii < conditions.size(); ii++) {
         stmt += conditions[ii] + " ";
     }
     stmt += ");";
