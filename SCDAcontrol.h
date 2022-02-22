@@ -3,6 +3,7 @@
 #include <QFrame>
 #include <QLabel>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QTextEdit>
 #include <QVBoxLayout>
 #include "jlog.h"

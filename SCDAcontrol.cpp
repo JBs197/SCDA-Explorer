@@ -109,6 +109,12 @@ void SCDAcontrol::textAppend(string sMessage)
 	QString qsMessage = teIO->toPlainText();
 	qsMessage.append(sMessage.c_str());
 	teIO->setText(qsMessage);
+	teIO->update();
+
+	auto vScroll = teIO->verticalScrollBar();
+	if (vScroll != nullptr) {
+		vScroll->setValue(vScroll->maximum());
+	}
 }
 void SCDAcontrol::textOutput(string sMessage)
 {

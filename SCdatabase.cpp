@@ -566,7 +566,7 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 		loadGeo(vvsGeo, vsGeoLayer, cataDir, sCata);
 		geoGap = hasGeoGap(vsGeoLayer, vvsGeoLevel, viGeoLevel, vvsGeo, mapNecessary);
 		insertGeoLayer(vsGeoLayer, sYear, sCata);
-		if (geoGap) {  // Catalogue has GeoLayer gaps.
+		if (geoGap) {  // Catalogue has GeoLayer gaps which must be filled before insertion.
 			insertGeo(vsGeoLayer, vvsGeo, sYear, sCata);  
 		}
 		else { insertGeo(vvsGeo, sYear, sCata); }	
@@ -926,8 +926,7 @@ void SCdatabase::insertGeo(vector<vector<string>>& vvsGeo, string sYear, string 
 	}
 	if (indexCode < 0 || indexLevel < 0 || indexRegion < 0) { err("Failed to determine a geo column index-insertGeo"); }
 
-	// Remove "merger" regions made from two "split" regions. Ensure that all split
-	// regions are listed underneath their actual parent region.
+	// Ensure that all split regions are listed underneath their actual parent region.
 	int numRow = (int)vvsGeo.size();
 	for (int ii = 1; ii < numRow; ii++) {
 		pos2 = vvsGeo[ii][indexRegion].find(" part");
@@ -961,15 +960,50 @@ void SCdatabase::insertGeo(vector<vector<string>>& vvsGeo, string sYear, string 
 		}
 	}
 
+	// Enforce English names upon the "Region Name" column. 
+	// Je m'excuse! C'est pour la simplicité...
+	int quebecLevel{ -1 }, withinQuebec{ 0 };
+	auto englishOnly = [&](int iRow) {
+		size_t length = vvsGeo[iRow][indexRegion].size();
+		size_t pos1 = vvsGeo[iRow][indexRegion].find(" / ");
+		if (pos1 > length) { return; }
+		size_t pos2 = vvsGeo[iRow][indexRegion].find(" part");
+		if (pos2 < length) {  // Split region.			
+			if (pos2 < pos1) {  // English listed first.
+				vvsGeo[iRow][indexRegion].resize(pos2 + 6);
+				vvsGeo[iRow][indexRegion].back() = ')';
+			}
+			else {  // French listed first.
+				pos2 = vvsGeo[iRow][indexRegion].rfind(' ', pos2 - 1) + 1;
+				pos1 = vvsGeo[iRow][indexRegion].rfind('(', pos2 - 1);
+				vvsGeo[iRow][indexRegion].replace(pos2, pos1 - pos2, "(");
+			}
+		}
+		else {  // Standard region, with separate English/French names.
+			if (withinQuebec > 0) {
+				pos1 += 3;
+				vvsGeo[iRow][indexRegion] = vvsGeo[iRow][indexRegion].substr(pos1);
+			}
+			else { vvsGeo[iRow][indexRegion].resize(pos1); }
+		}
+	};
+
 	// Add ancestry columns to the geo data.
-	vector<int> viAncestry = { -1 };
-	size_t maxAncestor = 0;
+	vector<int> viAncestry{ -1 };
+	size_t maxAncestor{ 0 };
 	for (int jj = 1; jj < vvsGeo.size(); jj++) {
 		try {
 			geoCode = stoi(vvsGeo[jj][indexCode]);
 			geoLevel = stoi(vvsGeo[jj][indexLevel]);
 		}
 		catch (invalid_argument) { err("geoCode/geoLevel stoi-insertGeo"); }
+		
+		if (withinQuebec == 0 && vvsGeo[jj][indexRegion] == "Quebec") {
+			withinQuebec = 1;
+			quebecLevel = geoLevel;
+		}
+		else if (withinQuebec == 1 && geoLevel == quebecLevel) { withinQuebec = -1; }
+		englishOnly(jj);
 
 		if (geoLevel > viAncestry.size()) { err("GeoLayer gap found-insertGeo"); }
 		else if (geoLevel == viAncestry.size()) { 
@@ -1046,18 +1080,45 @@ void SCdatabase::insertGeo(vector<string>& vsGeoLayer, vector<vector<string>>& v
 		if (!sf.tableExist(tnameTemplate)) { err("Missing template table-insertGeo"); }
 	}
 
+	// Enforce English names upon the "Region Name" column. 
+	// Je m'excuse! C'est pour la simplicité...
+	int quebecLevel{ -1 }, withinQuebec{ 0 };
+	auto englishOnly = [&](int iRow) {
+		size_t length = vvsGeo[iRow][indexRegion].size();
+		size_t pos1 = vvsGeo[iRow][indexRegion].find(" / ");
+		if (pos1 > length) { return; }
+		size_t pos2 = vvsGeo[iRow][indexRegion].find(" part");
+		if (pos2 < length) {  // Split region.			
+			if (pos2 < pos1) {  // English listed first.
+				vvsGeo[iRow][indexRegion].resize(pos2 + 6);
+				vvsGeo[iRow][indexRegion].back() = ')';
+			}
+			else {  // French listed first.
+				pos2 = vvsGeo[iRow][indexRegion].rfind(' ', pos2 - 1) + 1;
+				pos1 = vvsGeo[iRow][indexRegion].rfind('(', pos2 - 1);
+				vvsGeo[iRow][indexRegion].replace(pos2, pos1 - pos2, "(");
+			}
+		}
+		else {  // Standard region, with separate English/French names.
+			if (withinQuebec > 0) {
+				pos1 += 3;
+				vvsGeo[iRow][indexRegion] = vvsGeo[iRow][indexRegion].substr(pos1);
+			}
+			else { vvsGeo[iRow][indexRegion].resize(pos1); }
+		}
+	};
 
-	// Populate a set containing all GEO_CODEs from the original catalogue. If a gap region also
-	// had that GEO_CODE, it will receive a new one instead.
+	// Populate a set containing all GEO_CODEs from the original catalogue. If a gap region 
+	// also had that GEO_CODE, it will receive a new one instead. 
 	unordered_set<string> setCode, setSkipCode;
 	int numGeo = (int)vvsGeo.size();
 	for (int ii = 1; ii < numGeo; ii++) {
 		setCode.emplace(vvsGeo[ii][indexCode]);
+		englishOnly(ii);
 	}
 
-	// Load the local Geo file for the catalogue. If it is useful before the GeoLayer gap, 
-	// then prepend it and adjust the template ancestral GEO_CODEs accordlingly. In either case,
-	// add the local geo row ancestries such that they bind to the templated parent regions.
+	// Populate a complete 2D Geo vector for catalogue insertion, progressing by 
+	// successive GeoLayers.
 	bool linked, letMeOut;
 	char cMarker;
 	int geoCode, geoLevel;
@@ -1591,11 +1652,11 @@ void SCdatabase::loadGeo(vector<vector<string>>& vvsGeo, vector<string>& vsGeoLa
 		pos1 = geoFile.find(marker, pos2 + 1);
 	}
 
-	// Enforce English names upon the "Region Name" column (Je m'excuse! C'est pour la simplicité...)
-	// Also, enforce a GEO_LEVEL of 0 upon the "Canada" root region, if present. And finally, 
-	// exclude "merger" regions made from multiple "split" regions.
+	// Exclude "merger" regions made from multiple "split" regions, and correct split regions' 
+	// GEO_LEVELs. Also, enforce a GEO_LEVEL of 0 upon the "Canada" root region, if present.
 	int geoCode, geoLevel;
 	int indexLevel = -1, indexRegion = -1;
+	bool withinQuebec = 0;
 	for (int ii = 0; ii < numCol; ii++) {
 		if (vvsGeo[0][ii] == "Region Name") { indexRegion = ii; }
 		else if (vvsGeo[0][ii] == "GEO_LEVEL") { indexLevel = ii; }
@@ -1611,26 +1672,11 @@ void SCdatabase::loadGeo(vector<vector<string>>& vvsGeo, vector<string>& vsGeoLa
 				vvsGeo.erase(vvsGeo.begin() + ii - 1);
 				ii--;
 			}
-			
-			pos2 = vvsGeo[ii][indexRegion].find('/');
-			if (pos1 < pos2) {  // English listed first.
-				vvsGeo[ii][indexRegion].resize(pos1 + 6);
-				vvsGeo[ii][indexRegion].back() = ')';
-			}
-			else {  // French listed first.
-				pos1 = vvsGeo[ii][indexRegion].rfind(' ', pos1 - 1) + 1;
-				pos2 = vvsGeo[ii][indexRegion].rfind('(', pos2);
-				vvsGeo[ii][indexRegion].replace(pos2, pos1 - pos2, "(");
-			}
+
 			try { geoLevel = stoi(vvsGeo[ii][indexLevel]); }
 			catch (invalid_argument) { err("geoLevel stoi-loadGeo"); }
 			geoLevel--;
-			vvsGeo[ii][indexLevel] = to_string(geoLevel);
-		}
-
-		pos1 = vvsGeo[ii][indexRegion].find(" / ");
-		if (pos1 < vvsGeo[ii][indexRegion].size()) {
-			vvsGeo[ii][indexRegion].resize(pos1);
+			vvsGeo[ii][indexLevel] = to_string(geoLevel);		
 		}
 	}
 

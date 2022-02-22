@@ -28,20 +28,8 @@ void SCDA::busyWheel(SWITCHBOARD& sb)
 }
 void SCDA::debug()
 {
-	size_t pos1, pos2;
-	vector<string> vsTname;
-	scdb.sf.allTables(vsTname);
-	int count = 0;
-	int numTable = (int)vsTname.size();
-	for (int ii = 0; ii < numTable; ii++) {
-		pos1 = vsTname[ii].find("Map$canada");
-		pos2 = vsTname[ii].find("MapFrame$canada");
-		if (pos1 < vsTname[ii].size() || pos2 < vsTname[ii].size()) {
-			scdb.sf.dropTable(vsTname[ii]);
-			count++;
-		}
-	}
-	emit appendTextIO("Deleted " + to_string(count) + " tables !");
+
+
 	emit appendTextIO("Done!");
 }
 void SCDA::deleteTable(string tname)
@@ -181,8 +169,6 @@ void SCDA::displayMap(string sYear, string sCata, string sGeoCode)
 	map->resetRegion();
 	map->addRegion(region);
 	map->displayRegion({ {150, 150, 150, 255} });
-
-	int bbq = 1;
 }
 void SCDA::downloadCata(string prompt)
 {
