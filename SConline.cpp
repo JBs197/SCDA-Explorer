@@ -2,7 +2,7 @@
 
 using namespace std;
 
-string SConline::cataPID(std::string sYear, std::string sCata)
+string SConline::cataPID(string sYear, string sCata)
 {
 	// Return a catalogue's PID (product identification number). It is frequently needed
 	// when navigating Stats Canada's census website.
@@ -79,16 +79,9 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 		// structure of the regions, if not already present.
 		makeGeo(cataFolder, vsPrompt[0], vsPrompt[1 + ii]);
 
-		// If a separate topic file is required, extract it from 
+		// Extract a catalogue topic and description from 
 		// the Stats Canada website HTML, if not already present.
-		if (topicFileName.size() > 0) {
-			filePath = cataFolder + "/" + topicFileName;
-			pos1 = filePath.rfind(replace);
-			if (pos1 < filePath.size()) {
-				filePath.replace(pos1, replace.size(), vsPrompt[1 + ii]);
-			}
-			downloadTopic(filePath);
-		}
+		downloadTopicDesc(cataFolder);
 
 		// Download the catalogue ZIP archive, if not already present.
 		filePath = cataFolder + "/" + vsPrompt[1 + ii] + ".zip";
@@ -103,27 +96,40 @@ void SConline::downloadCata(SWITCHBOARD& sbgui)
 
 	sbgui.endCall(myid);
 }
-void SConline::downloadTopic(string filePath)
+void SConline::downloadTopicDesc(string cataDir)
 {
-	// Niche function to make a tiny "topic" file detailing a catalogue's
-	// topic (as some census years do not specify it within the meta file).
-	if (jfile.exist(filePath)) { return; }
+	// Niche function to make tiny "topic" and "desc" files detailing a catalogue's
+	// topic and title (as some census years do not specify them within the meta file).
+	jfile.makeDir(cataDir);
 	string webpage, url;
-	size_t pos2 = filePath.find_last_of("/\\");
-	size_t pos1 = filePath.find_last_of("/\\", pos2 - 1) + 1;
-	string sCata = filePath.substr(pos1, pos2 - pos1);
-	pos2 = pos1 - 1;
-	pos1 = filePath.find_last_of("/\\", pos2 - 1) + 1;
-	string sYear = filePath.substr(pos1, pos2 - pos1);
+	size_t pos2 = cataDir.find_last_of("/\\");
+	string sCata = cataDir.substr(pos2 + 1);
+	size_t pos1 = cataDir.find_last_of("/\\", pos2 - 1) + 1;
+	string sYear = cataDir.substr(pos1, pos2 - pos1);
+	string topicPath = cataDir + "/Topic_" + sCata + ".txt";
+	string descPath = cataDir + "/Desc_" + sCata + ".txt";
+
+	bool haveTopic = jfile.exist(topicPath);
+	bool haveDesc = jfile.exist(descPath);
+	if (haveTopic && haveDesc) { return; }
+
 	urlCataTopic(url, sYear, sCata);
 	wf.browse(webpage, url);
-
-	vector<string> vsTag = { "parse", "statscan_topic" };
+	vector<string> vsTag = { "parse", "statscan_topic_desc" };
 	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	vector<vector<string>> vvsClippings = jparse.parseFromXML(webpage, vvsTag);
-	if (vvsClippings.size() < 1) { err("parseFromXML-downloadTopic"); }
+	if (vvsClippings.size() < 1 || vvsClippings[0].size() != 2) { err("parseFromXML-downloadTopic"); }
+	pos1 = vvsClippings[0][1].rfind('>');
+	if (pos1 < vvsClippings[0][1].size()) {
+		vvsClippings[0][1] = vvsClippings[0][1].substr(pos1 + 1);
+	}
 
-	wf.printer(filePath, vvsClippings[0][0]);
+	if (!haveTopic) {
+		jfile.printer(topicPath, vvsClippings[0][1]);
+	}
+	if (!haveDesc) {
+		jfile.printer(descPath, vvsClippings[0][0]);
+	}
 }
 void SConline::err(string message)
 {

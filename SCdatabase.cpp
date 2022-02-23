@@ -491,7 +491,7 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 	
 	// Determine the census year for the catalogue(s).
 	int geoLevel, iYear, numFile;
-	string cataDir, filePath, sCata, sMetaFile, sTopic, zipPath;
+	string cataDir, filePath, sCata, sMetaFile, zipPath;
 	vector<string> vsGeoLayer, vsLocalPath;
 	int numCata = sbgui.pullWork(cataDir);  // Number of catalogues to insert.
 	if (cataDir.size() < 1) { return; } 
@@ -549,6 +549,7 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 	JTXML *jtxData = nullptr, *jtxMeta = nullptr;
 	bool geoGap;
 	vector<vector<string>> vvsGeo;
+	pair<string, string> topicDesc;
 	while (cataDir.size() > 0) {
 		pos2 = cataDir.find_last_of("/\\");
 		if (pos2 > cataDir.size()) { err("Invalid sCata-insertCata"); }
@@ -558,9 +559,9 @@ void SCdatabase::insertCata(SWITCHBOARD& sbgui, int numThread)
 		prepareLocal(sbgui, vsLocalPath, cataDir, sCata);
 
 		// Build and insert catalogue topic-related tables.
-		loadTopic(sTopic, cataDir);
-		insertTopicYear(sYear, sTopic);
-		insertCensusYear(sYear, sCata, sTopic);
+		loadTopicDesc(topicDesc, cataDir);
+		insertTopicYear(sYear, get<0>(topicDesc));
+		insertCensusYear(sYear, sCata, topicDesc);
 
 		// Build and insert all the catalogue's geographic region tables.
 		loadGeo(vvsGeo, vsGeoLayer, cataDir, sCata);
@@ -617,9 +618,10 @@ void SCdatabase::insertCensus(string sYear)
 		sf.insertRow(tname, vvsColTitle);
 	}
 }
-void SCdatabase::insertCensusYear(string sYear, string sCata, string sTopic)
+void SCdatabase::insertCensusYear(string sYear, string sCata, pair<string, string>& topicDesc)
 {
-	if (sYear.size() < 1 || sCata.size() < 1 || sTopic.size() < 1) { err("Missing input-insertCensusYear"); }
+	if (sYear.size() < 1 || sCata.size() < 1) { err("Missing input-insertCensusYear"); }
+	if (get<0>(topicDesc).size() < 1 || get<1>(topicDesc).size() < 1) { err("Missing topicDesc-insertCensusYear"); }
 	vector<string> vsUnique;
 	vector<vector<string>> vvsColTitle;
 	vector<string> vsTag = { "table", "Census_year" };
@@ -632,7 +634,8 @@ void SCdatabase::insertCensusYear(string sYear, string sCata, string sTopic)
 	}
 
 	vvsColTitle[1][0] = sCata;
-	vvsColTitle[1][1] = sTopic;
+	vvsColTitle[1][1] = get<0>(topicDesc);
+	vvsColTitle[1][2] = get<1>(topicDesc);
 	
 	if (safeInsertRow(tname, vvsColTitle)) {
 		sf.insertRow(tname, vvsColTitle);
@@ -1725,7 +1728,7 @@ void SCdatabase::loadTable(vector<vector<string>>& vvsData, vector<vector<string
 		vvsColTitle = sf.getColTitle(tname);
 	}
 }
-void SCdatabase::loadTopic(string& sTopic, string cataDir)
+void SCdatabase::loadTopicDesc(pair<string, string>& topicDesc, string cataDir)
 {
 	size_t pos1 = cataDir.find_last_of("/\\") + 1;
 	string sCata = cataDir.substr(pos1);
@@ -1741,9 +1744,22 @@ void SCdatabase::loadTopic(string& sTopic, string cataDir)
 	}
 
 	string filePath = cataDir + "/" + fileName;
-	sTopic.clear();
+	string sDesc, sTopic;
 	jfile.load(sTopic, filePath);
 	while (sTopic.back() == '\n') { sTopic.pop_back(); }
+
+	vsTag = { "file_name", sYear, "desc" };
+	fileName = jparse.getXML1(configXML, vsTag);
+	pos1 = fileName.rfind("[cata]");
+	if (pos1 < fileName.size()) {
+		fileName.replace(pos1, 6, sCata);
+	}
+
+	filePath = cataDir + "/" + fileName;
+	jfile.load(sDesc, filePath);
+	while (sDesc.back() == '\n') { sDesc.pop_back(); }
+
+	topicDesc = make_pair(sTopic, sDesc);
 }
 void SCdatabase::log(string message)
 {

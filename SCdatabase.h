@@ -20,7 +20,7 @@ class SCdatabase
 	void err(std::string message);
 	bool hasGeoGap(std::vector<std::string>& vsGeoLayer, std::vector<std::vector<std::string>>& vvsGeoLevel, std::vector<int>& viGeoLevel, std::vector<std::vector<std::string>>& vvsGeo, std::unordered_map<std::string, int>& mapNecessary);
 	void initItemColour(std::string& configXML);
-	void insertCensusYear(std::string sYear, std::string sCata, std::string sTopic);
+	void insertCensusYear(std::string sYear, std::string sCata, std::pair<std::string, std::string>& topicDesc);
 	void insertData(SWITCHBOARD& sbgui, std::string cataDir, std::string sYear, std::string sCata, int numThread);
 	void insertDataIndex(const std::vector<int> vDIM, std::string sYear, std::string sCata);
 	std::vector<int> insertDIM(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string sYear, std::string sCata);
@@ -33,7 +33,7 @@ class SCdatabase
 	void loadData(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapData, std::string cataDir, std::string sYear, std::string sCata);
 	void loadGeo(std::vector<std::vector<std::string>>& vvsGeo, std::vector<std::string>& vsGeoLayer, std::string cataDir, std::string sCata);
 	void loadMeta(JTXML*& jtxml, std::unordered_map<std::string, std::string>& mapMeta, std::string cataDir, std::string sYear, std::string sCata);
-	void loadTopic(std::string& sTopic, std::string cataDir);
+	void loadTopicDesc(std::pair<std::string, std::string>& topicDesc, std::string cataDir);
 	void log(std::string message);
 	std::uintmax_t makeDataIndex(const std::vector<int>& vMID, const std::vector<int>& vSize);
 	void prepareLocal(SWITCHBOARD& sbgui, std::vector<std::string>& vsLocalPath, std::string cataDir, std::string sCata);

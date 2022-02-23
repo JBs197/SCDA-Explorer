@@ -19,7 +19,7 @@ class SConline
 	std::vector<std::vector<std::string>> vvsCata;  // Form [index][year, cata0, cata1, ...]
 
 	std::string cataPID(std::string sYear, std::string sCata);
-	void downloadTopic(std::string filePath);
+	
 	void err(std::string message);
 	void makeGeo(std::string cataFolder, std::string sYear, std::string sCata);
 	void makeGeoTree(std::string yearFolder, std::string sYear, SWITCHBOARD& sbgui);
@@ -34,6 +34,8 @@ public:
 
 	std::string configXML, urlRoot;
 	WINFUNC wf;
+
+	void downloadTopicDesc(std::string cataDir);
 
 	void downloadCata(SWITCHBOARD& sbgui);
 	void getCataTree(JTREE& jt);

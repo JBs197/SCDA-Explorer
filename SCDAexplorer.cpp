@@ -28,7 +28,13 @@ void SCDA::busyWheel(SWITCHBOARD& sb)
 }
 void SCDA::debug()
 {
+	string sCata = "99-012-X2011019";
+	string cataDir = "E:/2013/" + sCata;
+	string geoPath = cataDir + "/Geo_" + sCata + ".txt";
 
+	SCauto* scauto = new SCauto;
+	connect(scauto, &SCauto::appendTextIO, this, &SCDA::appendTextIO);
+	scauto->downloadMap(geoPath);
 
 	emit appendTextIO("Done!");
 }
