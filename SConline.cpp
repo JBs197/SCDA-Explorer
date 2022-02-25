@@ -118,10 +118,12 @@ void SConline::downloadTopicDesc(string cataDir)
 	vector<string> vsTag = { "parse", "statscan_topic_desc" };
 	vector<vector<string>> vvsTag = jparse.getXML(configXML, vsTag);
 	vector<vector<string>> vvsClippings = jparse.parseFromXML(webpage, vvsTag);
-	if (vvsClippings.size() < 1 || vvsClippings[0].size() != 2) { err("parseFromXML-downloadTopic"); }
-	pos1 = vvsClippings[0][1].rfind('>');
-	if (pos1 < vvsClippings[0][1].size()) {
-		vvsClippings[0][1] = vvsClippings[0][1].substr(pos1 + 1);
+	if (vvsClippings.size() < 1 || vvsClippings[0].size() < 2) { err("parseFromXML-downloadTopic"); }
+	for (int ii = 0; ii < vvsClippings[0].size(); ii++) {
+		pos1 = vvsClippings[0][ii].rfind('>');
+		if (pos1 < vvsClippings[0][ii].size()) {
+			vvsClippings[0][ii] = vvsClippings[0][ii].substr(pos1 + 1);
+		}
 	}
 
 	if (!haveTopic) {

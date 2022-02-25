@@ -28,13 +28,68 @@ void SCDA::busyWheel(SWITCHBOARD& sb)
 }
 void SCDA::debug()
 {
-	string sCata = "99-012-X2011019";
-	string cataDir = "E:/2013/" + sCata;
-	string geoPath = cataDir + "/Geo_" + sCata + ".txt";
+	int mode = 0;
 
-	SCauto* scauto = new SCauto;
-	connect(scauto, &SCauto::appendTextIO, this, &SCDA::appendTextIO);
-	scauto->downloadMap(geoPath);
+	switch (mode) {
+	case 0:
+	{
+		string sCata = "99-012-X2011019";
+		string cataDir = "E:/2013/" + sCata;
+		string geoPath = cataDir + "/Geo_" + sCata + ".txt";
+
+		SCauto* scauto = new SCauto;
+		connect(scauto, &SCauto::appendTextIO, this, &SCDA::appendTextIO);
+		scauto->downloadMap(geoPath);
+		break;
+	}
+	case 1:
+	{
+		vector<string> vsCata, vsCataDir, conditions, revisions;
+		string sYear = "2017";
+		string searchDir = "E:/" + sYear + "/*";
+		jfile.search(vsCataDir, searchDir, 1, 0);
+		int numDir = (int)vsCataDir.size();
+
+		size_t pos1, pos2;
+		vsCata.resize(numDir);
+		for (int ii = 0; ii < numDir; ii++) {
+			pos1 = vsCataDir[ii].find_last_of("/\\");
+			vsCata[ii] = vsCataDir[ii].substr(pos1 + 1);
+		}
+
+		int inum;
+		string descFile, descPath, temp;
+		string tname = "Census$" + sYear;
+		for (int ii = 0; ii < numDir; ii++) {
+			descPath = vsCataDir[ii] + "/Desc_" + vsCata[ii] + ".txt";
+			descFile.clear();
+			jfile.load(descFile, descPath);
+
+			while (descFile.back() == '\n') { descFile.pop_back(); }
+			pos1 = descFile.find('(');
+			while (pos1 < descFile.size()) {
+				pos2 = descFile.find(')', pos1 + 1);
+				temp = descFile.substr(pos1 + 1, pos2 - pos1 - 1);
+				try { 
+					inum = stoi(temp); 
+					pos1 = descFile.find_last_not_of("( ", pos1);
+					descFile.erase(pos1 + 1, pos2 - pos1);
+				}
+				catch (invalid_argument) { pos1++; }
+				pos1 = descFile.find('(', pos1);
+			}
+
+			jparse.clean(descFile, { "'" }, { "''" });
+			conditions = { "Catalogue LIKE '" + vsCata[ii] + "'" };
+			revisions = { "Description = '" + descFile + "'" };
+			scdb.sf.update(tname, revisions, conditions);
+			emit appendTextIO("Updated " + vsCata[ii] + "\n");
+			qApp->processEvents();
+		}
+
+		break;
+	}
+	}
 
 	emit appendTextIO("Done!");
 }
